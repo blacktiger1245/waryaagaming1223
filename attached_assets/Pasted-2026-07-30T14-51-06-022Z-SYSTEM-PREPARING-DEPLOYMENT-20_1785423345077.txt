@@ -1,0 +1,1595 @@
+2026-07-30T14:51:06.022Z
+SYSTEM
+PREPARING DEPLOYMENT...
+
+2026-07-30T14:51:06.032Z
+SYSTEM
+FETCHING GITHUB REPOSITORY...
+
+2026-07-30T14:51:06.436Z
+SYSTEM
+BUILDING IMAGE...
+
+2026-07-30T14:51:07.225Z
+INFO
+Enumerating objects: 1967, done.
+
+2026-07-30T14:51:07.226Z
+INFO
+Counting objects: 0% (1/1967)
+
+2026-07-30T14:51:07.227Z
+INFO
+Counting objects: 1% (20/1967)
+
+2026-07-30T14:51:07.228Z
+INFO
+Counting objects: 2% (40/1967)
+
+2026-07-30T14:51:07.229Z
+INFO
+Counting objects: 3% (60/1967)
+
+2026-07-30T14:51:07.230Z
+INFO
+Counting objects: 4% (79/1967)
+
+2026-07-30T14:51:07.231Z
+INFO
+Counting objects: 5% (99/1967)
+
+2026-07-30T14:51:07.232Z
+INFO
+Counting objects: 6% (119/1967)
+
+2026-07-30T14:51:07.233Z
+INFO
+Counting objects: 7% (138/1967)
+
+2026-07-30T14:51:07.234Z
+INFO
+Counting objects: 8% (158/1967)
+
+2026-07-30T14:51:07.235Z
+INFO
+Counting objects: 9% (178/1967)
+
+2026-07-30T14:51:07.236Z
+INFO
+Counting objects: 10% (197/1967)
+
+2026-07-30T14:51:07.237Z
+INFO
+Counting objects: 11% (217/1967)
+
+2026-07-30T14:51:07.238Z
+INFO
+Counting objects: 12% (237/1967)
+
+2026-07-30T14:51:07.239Z
+INFO
+Counting objects: 13% (256/1967)
+
+2026-07-30T14:51:07.240Z
+INFO
+Counting objects: 14% (276/1967)
+
+2026-07-30T14:51:07.241Z
+INFO
+Counting objects: 15% (296/1967)
+
+2026-07-30T14:51:07.242Z
+INFO
+Counting objects: 16% (315/1967)
+
+2026-07-30T14:51:07.243Z
+INFO
+Counting objects: 17% (335/1967)
+
+2026-07-30T14:51:07.244Z
+INFO
+Counting objects: 18% (355/1967)
+
+2026-07-30T14:51:07.245Z
+INFO
+Counting objects: 19% (374/1967)
+
+2026-07-30T14:51:07.246Z
+INFO
+Counting objects: 20% (394/1967)
+
+2026-07-30T14:51:07.247Z
+INFO
+Counting objects: 21% (414/1967)
+
+2026-07-30T14:51:07.248Z
+INFO
+Counting objects: 22% (433/1967)
+
+2026-07-30T14:51:07.249Z
+INFO
+Counting objects: 23% (453/1967)
+
+2026-07-30T14:51:07.250Z
+INFO
+Counting objects: 24% (473/1967)
+
+2026-07-30T14:51:07.251Z
+INFO
+Counting objects: 25% (492/1967)
+
+2026-07-30T14:51:07.252Z
+INFO
+Counting objects: 26% (512/1967)
+
+2026-07-30T14:51:07.253Z
+INFO
+Counting objects: 27% (532/1967)
+
+2026-07-30T14:51:07.254Z
+INFO
+Counting objects: 28% (551/1967)
+
+2026-07-30T14:51:07.255Z
+INFO
+Counting objects: 29% (571/1967)
+
+2026-07-30T14:51:07.256Z
+INFO
+Counting objects: 30% (591/1967)
+
+2026-07-30T14:51:07.257Z
+INFO
+Counting objects: 31% (610/1967)
+
+2026-07-30T14:51:07.258Z
+INFO
+Counting objects: 32% (630/1967)
+
+2026-07-30T14:51:07.259Z
+INFO
+Counting objects: 33% (650/1967)
+
+2026-07-30T14:51:07.260Z
+INFO
+Counting objects: 34% (669/1967)
+
+2026-07-30T14:51:07.261Z
+INFO
+Counting objects: 35% (689/1967)
+
+2026-07-30T14:51:07.262Z
+INFO
+Counting objects: 36% (709/1967)
+
+2026-07-30T14:51:07.263Z
+INFO
+Counting objects: 37% (728/1967)
+
+2026-07-30T14:51:07.264Z
+INFO
+Counting objects: 38% (748/1967)
+
+2026-07-30T14:51:07.265Z
+INFO
+Counting objects: 39% (768/1967)
+
+2026-07-30T14:51:07.266Z
+INFO
+Counting objects: 40% (787/1967)
+
+2026-07-30T14:51:07.267Z
+INFO
+Counting objects: 41% (807/1967)
+
+2026-07-30T14:51:07.268Z
+INFO
+Counting objects: 42% (827/1967)
+
+2026-07-30T14:51:07.269Z
+INFO
+Counting objects: 43% (846/1967)
+
+2026-07-30T14:51:07.270Z
+INFO
+Counting objects: 44% (866/1967)
+
+2026-07-30T14:51:07.271Z
+INFO
+Counting objects: 45% (886/1967)
+
+2026-07-30T14:51:07.272Z
+INFO
+Counting objects: 46% (905/1967)
+
+2026-07-30T14:51:07.273Z
+INFO
+Counting objects: 47% (925/1967)
+
+2026-07-30T14:51:07.274Z
+INFO
+Counting objects: 48% (945/1967)
+
+2026-07-30T14:51:07.275Z
+INFO
+Counting objects: 49% (964/1967)
+
+2026-07-30T14:51:07.276Z
+INFO
+Counting objects: 50% (984/1967)
+
+2026-07-30T14:51:07.277Z
+INFO
+Counting objects: 51% (1004/1967)
+
+2026-07-30T14:51:07.278Z
+INFO
+Counting objects: 52% (1023/1967)
+
+2026-07-30T14:51:07.279Z
+INFO
+Counting objects: 53% (1043/1967)
+
+2026-07-30T14:51:07.280Z
+INFO
+Counting objects: 54% (1063/1967)
+
+2026-07-30T14:51:07.281Z
+INFO
+Counting objects: 55% (1082/1967)
+
+2026-07-30T14:51:07.282Z
+INFO
+Counting objects: 56% (1102/1967)
+
+2026-07-30T14:51:07.283Z
+INFO
+Counting objects: 57% (1122/1967)
+
+2026-07-30T14:51:07.284Z
+INFO
+Counting objects: 58% (1141/1967)
+
+2026-07-30T14:51:07.285Z
+INFO
+Counting objects: 59% (1161/1967)
+
+2026-07-30T14:51:07.286Z
+INFO
+Counting objects: 60% (1181/1967)
+
+2026-07-30T14:51:07.287Z
+INFO
+Counting objects: 61% (1200/1967)
+
+2026-07-30T14:51:07.288Z
+INFO
+Counting objects: 62% (1220/1967)
+
+2026-07-30T14:51:07.289Z
+INFO
+Counting objects: 63% (1240/1967)
+
+2026-07-30T14:51:07.290Z
+INFO
+Counting objects: 64% (1259/1967)
+
+2026-07-30T14:51:07.291Z
+INFO
+Counting objects: 65% (1279/1967)
+
+2026-07-30T14:51:07.292Z
+INFO
+Counting objects: 66% (1299/1967)
+
+2026-07-30T14:51:07.293Z
+INFO
+Counting objects: 67% (1318/1967)
+
+2026-07-30T14:51:07.294Z
+INFO
+Counting objects: 68% (1338/1967)
+
+2026-07-30T14:51:07.295Z
+INFO
+Counting objects: 69% (1358/1967)
+
+2026-07-30T14:51:07.296Z
+INFO
+Counting objects: 70% (1377/1967)
+
+2026-07-30T14:51:07.297Z
+INFO
+Counting objects: 71% (1397/1967)
+
+2026-07-30T14:51:07.298Z
+INFO
+Counting objects: 72% (1417/1967)
+
+2026-07-30T14:51:07.299Z
+INFO
+Counting objects: 73% (1436/1967)
+
+2026-07-30T14:51:07.300Z
+INFO
+Counting objects: 74% (1456/1967)
+
+2026-07-30T14:51:07.301Z
+INFO
+Counting objects: 75% (1476/1967)
+
+2026-07-30T14:51:07.302Z
+INFO
+Counting objects: 76% (1495/1967)
+
+2026-07-30T14:51:07.303Z
+INFO
+Counting objects: 77% (1515/1967)
+
+2026-07-30T14:51:07.304Z
+INFO
+Counting objects: 78% (1535/1967)
+
+2026-07-30T14:51:07.305Z
+INFO
+Counting objects: 79% (1554/1967)
+
+2026-07-30T14:51:07.306Z
+INFO
+Counting objects: 80% (1574/1967)
+
+2026-07-30T14:51:07.307Z
+INFO
+Counting objects: 81% (1594/1967)
+
+2026-07-30T14:51:07.308Z
+INFO
+Counting objects: 82% (1613/1967)
+
+2026-07-30T14:51:07.309Z
+INFO
+Counting objects: 83% (1633/1967)
+
+2026-07-30T14:51:07.310Z
+INFO
+Counting objects: 84% (1653/1967)
+
+2026-07-30T14:51:07.311Z
+INFO
+Counting objects: 85% (1672/1967)
+
+2026-07-30T14:51:07.312Z
+INFO
+Counting objects: 86% (1692/1967)
+
+2026-07-30T14:51:07.313Z
+INFO
+Counting objects: 87% (1712/1967)
+
+2026-07-30T14:51:07.314Z
+INFO
+Counting objects: 88% (1731/1967)
+
+2026-07-30T14:51:07.315Z
+INFO
+Counting objects: 89% (1751/1967)
+
+2026-07-30T14:51:07.316Z
+INFO
+Counting objects: 90% (1771/1967)
+
+2026-07-30T14:51:07.317Z
+INFO
+Counting objects: 91% (1790/1967)
+
+2026-07-30T14:51:07.318Z
+INFO
+Counting objects: 92% (1810/1967)
+
+2026-07-30T14:51:07.319Z
+INFO
+Counting objects: 93% (1830/1967)
+
+2026-07-30T14:51:07.320Z
+INFO
+Counting objects: 94% (1849/1967)
+
+2026-07-30T14:51:07.321Z
+INFO
+Counting objects: 95% (1869/1967)
+
+2026-07-30T14:51:07.322Z
+INFO
+Counting objects: 96% (1889/1967)
+
+2026-07-30T14:51:07.323Z
+INFO
+Counting objects: 97% (1908/1967)
+
+2026-07-30T14:51:07.324Z
+INFO
+Counting objects: 98% (1928/1967)
+
+2026-07-30T14:51:07.325Z
+INFO
+Counting objects: 99% (1948/1967)
+
+2026-07-30T14:51:07.326Z
+INFO
+Counting objects: 100% (1967/1967)
+
+2026-07-30T14:51:07.327Z
+INFO
+Counting objects: 100% (1967/1967), done.
+
+2026-07-30T14:51:07.328Z
+INFO
+Compressing objects: 0% (1/626)
+
+2026-07-30T14:51:07.329Z
+INFO
+Compressing objects: 1% (7/626)
+
+2026-07-30T14:51:07.330Z
+INFO
+Compressing objects: 2% (13/626)
+
+2026-07-30T14:51:07.331Z
+INFO
+Compressing objects: 3% (19/626)
+
+2026-07-30T14:51:07.332Z
+INFO
+Compressing objects: 4% (26/626)
+
+2026-07-30T14:51:07.333Z
+INFO
+Compressing objects: 5% (32/626)
+
+2026-07-30T14:51:07.334Z
+INFO
+Compressing objects: 6% (38/626)
+
+2026-07-30T14:51:07.335Z
+INFO
+Compressing objects: 7% (44/626)
+
+2026-07-30T14:51:07.336Z
+INFO
+Compressing objects: 8% (51/626)
+
+2026-07-30T14:51:07.337Z
+INFO
+Compressing objects: 9% (57/626)
+
+2026-07-30T14:51:07.338Z
+INFO
+Compressing objects: 10% (63/626)
+
+2026-07-30T14:51:07.339Z
+INFO
+Compressing objects: 11% (69/626)
+
+2026-07-30T14:51:07.340Z
+INFO
+Compressing objects: 12% (76/626)
+
+2026-07-30T14:51:07.341Z
+INFO
+Compressing objects: 13% (82/626)
+
+2026-07-30T14:51:07.342Z
+INFO
+Compressing objects: 14% (88/626)
+
+2026-07-30T14:51:07.343Z
+INFO
+Compressing objects: 15% (94/626)
+
+2026-07-30T14:51:07.344Z
+INFO
+Compressing objects: 16% (101/626)
+
+2026-07-30T14:51:07.345Z
+INFO
+Compressing objects: 17% (107/626)
+
+2026-07-30T14:51:07.346Z
+INFO
+Compressing objects: 18% (113/626)
+
+2026-07-30T14:51:07.347Z
+INFO
+Compressing objects: 19% (119/626)
+
+2026-07-30T14:51:07.348Z
+INFO
+Compressing objects: 20% (126/626)
+
+2026-07-30T14:51:07.349Z
+INFO
+Compressing objects: 21% (132/626)
+
+2026-07-30T14:51:07.350Z
+INFO
+Compressing objects: 22% (138/626)
+
+2026-07-30T14:51:07.351Z
+INFO
+Compressing objects: 23% (144/626)
+
+2026-07-30T14:51:07.352Z
+INFO
+Compressing objects: 24% (151/626)
+
+2026-07-30T14:51:07.353Z
+INFO
+Compressing objects: 25% (157/626)
+
+2026-07-30T14:51:07.354Z
+INFO
+Compressing objects: 26% (163/626)
+
+2026-07-30T14:51:07.355Z
+INFO
+Compressing objects: 27% (170/626)
+
+2026-07-30T14:51:07.356Z
+INFO
+Compressing objects: 28% (176/626)
+
+2026-07-30T14:51:07.357Z
+INFO
+Compressing objects: 29% (182/626)
+
+2026-07-30T14:51:07.358Z
+INFO
+Compressing objects: 30% (188/626)
+
+2026-07-30T14:51:07.359Z
+INFO
+Compressing objects: 31% (195/626)
+
+2026-07-30T14:51:07.360Z
+INFO
+Compressing objects: 32% (201/626)
+
+2026-07-30T14:51:07.361Z
+INFO
+Compressing objects: 33% (207/626)
+
+2026-07-30T14:51:07.362Z
+INFO
+Compressing objects: 34% (213/626)
+
+2026-07-30T14:51:07.363Z
+INFO
+Compressing objects: 35% (220/626)
+
+2026-07-30T14:51:07.364Z
+INFO
+Compressing objects: 36% (226/626)
+
+2026-07-30T14:51:07.365Z
+INFO
+Compressing objects: 37% (232/626)
+
+2026-07-30T14:51:07.366Z
+INFO
+Compressing objects: 38% (238/626)
+
+2026-07-30T14:51:07.367Z
+INFO
+Compressing objects: 39% (245/626)
+
+2026-07-30T14:51:07.368Z
+INFO
+Compressing objects: 40% (251/626)
+
+2026-07-30T14:51:07.369Z
+INFO
+Compressing objects: 41% (257/626)
+
+2026-07-30T14:51:07.370Z
+INFO
+Compressing objects: 42% (263/626)
+
+2026-07-30T14:51:07.371Z
+INFO
+Compressing objects: 43% (270/626)
+
+2026-07-30T14:51:07.372Z
+INFO
+Compressing objects: 44% (276/626)
+
+2026-07-30T14:51:07.373Z
+INFO
+Compressing objects: 45% (282/626)
+
+2026-07-30T14:51:07.374Z
+INFO
+Compressing objects: 46% (288/626)
+
+2026-07-30T14:51:07.375Z
+INFO
+Compressing objects: 47% (295/626)
+
+2026-07-30T14:51:07.376Z
+INFO
+Compressing objects: 48% (301/626)
+
+2026-07-30T14:51:07.377Z
+INFO
+Compressing objects: 49% (307/626)
+
+2026-07-30T14:51:07.378Z
+INFO
+Compressing objects: 50% (313/626)
+
+2026-07-30T14:51:07.379Z
+INFO
+Compressing objects: 51% (320/626)
+
+2026-07-30T14:51:07.380Z
+INFO
+Compressing objects: 52% (326/626)
+
+2026-07-30T14:51:07.381Z
+INFO
+Compressing objects: 53% (332/626)
+
+2026-07-30T14:51:07.382Z
+INFO
+Compressing objects: 54% (339/626)
+
+2026-07-30T14:51:07.383Z
+INFO
+Compressing objects: 55% (345/626)
+
+2026-07-30T14:51:07.384Z
+INFO
+Compressing objects: 56% (351/626)
+
+2026-07-30T14:51:07.385Z
+INFO
+Compressing objects: 57% (357/626)
+
+2026-07-30T14:51:07.386Z
+INFO
+Compressing objects: 58% (364/626)
+
+2026-07-30T14:51:07.387Z
+INFO
+Compressing objects: 59% (370/626)
+
+2026-07-30T14:51:07.388Z
+INFO
+Compressing objects: 60% (376/626)
+
+2026-07-30T14:51:07.389Z
+INFO
+Compressing objects: 61% (382/626)
+
+2026-07-30T14:51:07.390Z
+INFO
+Compressing objects: 62% (389/626)
+
+2026-07-30T14:51:07.391Z
+INFO
+Compressing objects: 63% (395/626)
+
+2026-07-30T14:51:07.392Z
+INFO
+Compressing objects: 64% (401/626)
+
+2026-07-30T14:51:07.393Z
+INFO
+Compressing objects: 65% (407/626)
+
+2026-07-30T14:51:07.394Z
+INFO
+Compressing objects: 66% (414/626)
+
+2026-07-30T14:51:07.395Z
+INFO
+Compressing objects: 67% (420/626)
+
+2026-07-30T14:51:07.396Z
+INFO
+Compressing objects: 68% (426/626)
+
+2026-07-30T14:51:07.397Z
+INFO
+Compressing objects: 69% (432/626)
+
+2026-07-30T14:51:07.398Z
+INFO
+Compressing objects: 70% (439/626)
+
+2026-07-30T14:51:07.399Z
+INFO
+Compressing objects: 71% (445/626)
+
+2026-07-30T14:51:07.400Z
+INFO
+Compressing objects: 72% (451/626)
+
+2026-07-30T14:51:07.401Z
+INFO
+Compressing objects: 73% (457/626)
+
+2026-07-30T14:51:07.402Z
+INFO
+Compressing objects: 74% (464/626)
+
+2026-07-30T14:51:07.403Z
+INFO
+Compressing objects: 75% (470/626)
+
+2026-07-30T14:51:07.404Z
+INFO
+Compressing objects: 76% (476/626)
+
+2026-07-30T14:51:07.405Z
+INFO
+Compressing objects: 77% (483/626)
+
+2026-07-30T14:51:07.406Z
+INFO
+Compressing objects: 78% (489/626)
+
+2026-07-30T14:51:07.407Z
+INFO
+Compressing objects: 79% (495/626)
+
+2026-07-30T14:51:07.408Z
+INFO
+Compressing objects: 80% (501/626)
+
+2026-07-30T14:51:07.409Z
+INFO
+Compressing objects: 81% (508/626)
+
+2026-07-30T14:51:07.410Z
+INFO
+Compressing objects: 82% (514/626)
+
+2026-07-30T14:51:07.411Z
+INFO
+Compressing objects: 83% (520/626)
+
+2026-07-30T14:51:07.412Z
+INFO
+Compressing objects: 84% (526/626)
+
+2026-07-30T14:51:07.413Z
+INFO
+Compressing objects: 85% (533/626)
+
+2026-07-30T14:51:07.414Z
+INFO
+Compressing objects: 86% (539/626)
+
+2026-07-30T14:51:07.415Z
+INFO
+Compressing objects: 87% (545/626)
+
+2026-07-30T14:51:07.416Z
+INFO
+Compressing objects: 88% (551/626)
+
+2026-07-30T14:51:07.417Z
+INFO
+Compressing objects: 89% (558/626)
+
+2026-07-30T14:51:07.418Z
+INFO
+Compressing objects: 90% (564/626)
+
+2026-07-30T14:51:07.419Z
+INFO
+Compressing objects: 91% (570/626)
+
+2026-07-30T14:51:07.420Z
+INFO
+Compressing objects: 92% (576/626)
+
+2026-07-30T14:51:07.421Z
+INFO
+Compressing objects: 93% (583/626)
+
+2026-07-30T14:51:07.422Z
+INFO
+Compressing objects: 94% (589/626)
+
+2026-07-30T14:51:07.423Z
+INFO
+Compressing objects: 95% (595/626)
+
+2026-07-30T14:51:07.424Z
+INFO
+Compressing objects: 96% (601/626)
+
+2026-07-30T14:51:07.425Z
+INFO
+Compressing objects: 97% (608/626)
+
+2026-07-30T14:51:07.426Z
+INFO
+Compressing objects: 98% (614/626)
+
+2026-07-30T14:51:07.427Z
+INFO
+Compressing objects: 99% (620/626)
+
+2026-07-30T14:51:07.428Z
+INFO
+Compressing objects: 100% (626/626)
+
+2026-07-30T14:51:07.429Z
+INFO
+Compressing objects: 100% (626/626), done.
+
+2026-07-30T14:51:07.430Z
+INFO
+Total 1967 (delta 1322), reused 1967 (delta 1322), pack-reused 0 (from 0)
+
+2026-07-30T14:51:08.000Z
+INFO
+Resolved base name node:24-alpine to deps
+
+2026-07-30T14:51:08.001Z
+INFO
+Resolved base name deps to build-api
+
+2026-07-30T14:51:08.002Z
+INFO
+Resolved base name build-api to api-prod-deps
+
+2026-07-30T14:51:08.003Z
+INFO
+Resolved base name deps to build-web
+
+2026-07-30T14:51:08.004Z
+INFO
+Using dockerignore file: /kaniko/buildcontext/.dockerignore
+
+2026-07-30T14:51:08.005Z
+INFO
+Retrieving image manifest node:24-alpine
+
+2026-07-30T14:51:08.006Z
+INFO
+Retrieving image node:24-alpine from registry index.docker.io
+
+2026-07-30T14:51:08.007Z
+INFO
+Retrieving image manifest node:24-alpine
+
+2026-07-30T14:51:08.008Z
+INFO
+Returning cached image manifest
+
+2026-07-30T14:51:08.009Z
+INFO
+Retrieving image manifest nginx:1.27-alpine
+
+2026-07-30T14:51:08.010Z
+INFO
+Retrieving image nginx:1.27-alpine from registry index.docker.io
+
+2026-07-30T14:51:08.011Z
+INFO
+Retrieving image manifest nginx:1.27-alpine
+
+2026-07-30T14:51:08.012Z
+INFO
+Returning cached image manifest
+
+2026-07-30T14:51:08.013Z
+INFO
+Built cross stage deps: map[1:[/app/artifacts/api-server/dist] 2:[/prod/api/node_modules] 3:[/app/artifacts/wg-platform/dist/public]]
+
+2026-07-30T14:51:08.014Z
+INFO
+Retrieving image manifest node:24-alpine
+
+2026-07-30T14:51:08.015Z
+INFO
+Returning cached image manifest
+
+2026-07-30T14:51:08.016Z
+INFO
+Retrieving image manifest node:24-alpine
+
+2026-07-30T14:51:08.017Z
+INFO
+Returning cached image manifest
+
+2026-07-30T14:51:08.018Z
+INFO
+Executing 0 build triggers
+
+2026-07-30T14:51:08.019Z
+INFO
+Building stage 'node:24-alpine' [idx: '0', base-idx: '-1']
+
+2026-07-30T14:51:08.020Z
+INFO
+Unpacking rootfs as cmd RUN npm install -g pnpm@10.26.1 requires it.
+
+2026-07-30T14:51:11.000Z
+INFO
+RUN npm install -g pnpm@10.26.1
+
+2026-07-30T14:51:11.001Z
+INFO
+Initializing snapshotter ...
+
+2026-07-30T14:51:11.002Z
+INFO
+Taking snapshot of full filesystem...
+
+2026-07-30T14:51:12.000Z
+INFO
+Cmd: /bin/sh
+
+2026-07-30T14:51:12.001Z
+INFO
+Args: [-c npm install -g pnpm@10.26.1]
+
+2026-07-30T14:51:12.002Z
+INFO
+Running: [/bin/sh -c npm install -g pnpm@10.26.1]
+
+2026-07-30T14:51:13.809Z
+INFO
+added 1 package in 2s
+
+2026-07-30T14:51:13.810Z
+INFO
+1 package is looking for funding
+
+2026-07-30T14:51:13.811Z
+INFO
+run `npm fund` for details
+
+2026-07-30T14:51:13.812Z
+ERROR
+npm notice
+
+2026-07-30T14:51:13.813Z
+ERROR
+npm notice New major version of npm available! 11.16.0 -> 12.0.2
+
+2026-07-30T14:51:13.814Z
+ERROR
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+
+2026-07-30T14:51:13.815Z
+ERROR
+npm notice To update run: npm install -g npm@12.0.2
+
+2026-07-30T14:51:13.816Z
+ERROR
+npm notice
+
+2026-07-30T14:51:13.817Z
+INFO
+Taking snapshot of full filesystem...
+
+2026-07-30T14:51:14.000Z
+INFO
+WORKDIR /app
+
+2026-07-30T14:51:14.001Z
+INFO
+Cmd: workdir
+
+2026-07-30T14:51:14.002Z
+INFO
+Changed working directory to /app
+
+2026-07-30T14:51:14.003Z
+INFO
+Creating directory /app
+
+2026-07-30T14:51:14.004Z
+INFO
+Taking snapshot of files...
+
+2026-07-30T14:51:14.005Z
+INFO
+COPY package.json ./
+
+2026-07-30T14:51:14.006Z
+INFO
+Taking snapshot of files...
+
+2026-07-30T14:51:14.007Z
+INFO
+COPY pnpm-lock.yaml ./
+
+2026-07-30T14:51:14.008Z
+INFO
+Taking snapshot of files...
+
+2026-07-30T14:51:14.009Z
+INFO
+COPY pnpm-workspace.yaml ./
+
+2026-07-30T14:51:14.010Z
+INFO
+Taking snapshot of files...
+
+2026-07-30T14:51:14.011Z
+INFO
+COPY lib/api-client-react/package.json lib/api-client-react/
+
+2026-07-30T14:51:14.012Z
+INFO
+Taking snapshot of files...
+
+2026-07-30T14:51:14.013Z
+INFO
+COPY lib/api-spec/package.json lib/api-spec/
+
+2026-07-30T14:51:14.014Z
+INFO
+Taking snapshot of files...
+
+2026-07-30T14:51:14.015Z
+INFO
+COPY lib/api-zod/package.json lib/api-zod/
+
+2026-07-30T14:51:14.016Z
+INFO
+Taking snapshot of files...
+
+2026-07-30T14:51:14.017Z
+INFO
+COPY lib/db/package.json lib/db/
+
+2026-07-30T14:51:14.018Z
+INFO
+Taking snapshot of files...
+
+2026-07-30T14:51:14.019Z
+INFO
+COPY lib/object-storage-web/package.json lib/object-storage-web/
+
+2026-07-30T14:51:14.020Z
+INFO
+Taking snapshot of files...
+
+2026-07-30T14:51:14.021Z
+INFO
+COPY artifacts/api-server/package.json artifacts/api-server/
+
+2026-07-30T14:51:14.022Z
+INFO
+Taking snapshot of files...
+
+2026-07-30T14:51:14.023Z
+INFO
+COPY artifacts/wg-platform/package.json artifacts/wg-platform/
+
+2026-07-30T14:51:14.024Z
+INFO
+Taking snapshot of files...
+
+2026-07-30T14:51:14.025Z
+INFO
+COPY artifacts/mockup-sandbox/package.json artifacts/mockup-sandbox/
+
+2026-07-30T14:51:14.026Z
+INFO
+Taking snapshot of files...
+
+2026-07-30T14:51:14.027Z
+INFO
+COPY scripts/package.json scripts/
+
+2026-07-30T14:51:14.028Z
+INFO
+Taking snapshot of files...
+
+2026-07-30T14:51:14.029Z
+INFO
+RUN pnpm install --frozen-lockfile
+
+2026-07-30T14:51:14.030Z
+INFO
+Cmd: /bin/sh
+
+2026-07-30T14:51:14.031Z
+INFO
+Args: [-c pnpm install --frozen-lockfile]
+
+2026-07-30T14:51:14.032Z
+INFO
+Running: [/bin/sh -c pnpm install --frozen-lockfile]
+
+2026-07-30T14:51:15.448Z
+INFO
+Scope: all 10 workspace projects
+
+2026-07-30T14:51:15.618Z
+INFO
+Lockfile is up to date, resolution step is skipped
+
+2026-07-30T14:51:15.823Z
+INFO
+Progress: resolved 1, reused 0, downloaded 0, added 0
+
+2026-07-30T14:51:15.899Z
+INFO
+Packages: +601
+
+2026-07-30T14:51:15.900Z
+INFO
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+2026-07-30T14:51:16.208Z
+INFO
+╭──────────────────────────────────────────╮
+
+2026-07-30T14:51:16.209Z
+INFO
+│ │
+
+2026-07-30T14:51:16.210Z
+INFO
+│ Update available! 10.26.1 → 11.18.0. │
+
+2026-07-30T14:51:16.211Z
+INFO
+│ Changelog: https://pnpm.io/v/11.18.0 │
+
+2026-07-30T14:51:16.212Z
+INFO
+│ To update, run: pnpm add -g pnpm │
+
+2026-07-30T14:51:16.213Z
+INFO
+│ │
+
+2026-07-30T14:51:16.214Z
+INFO
+╰──────────────────────────────────────────╯
+
+2026-07-30T14:51:16.827Z
+INFO
+Progress: resolved 601, reused 0, downloaded 21, added 4
+
+2026-07-30T14:51:17.831Z
+INFO
+Progress: resolved 601, reused 0, downloaded 117, added 29
+
+2026-07-30T14:51:18.832Z
+INFO
+Progress: resolved 601, reused 0, downloaded 186, added 48
+
+2026-07-30T14:51:19.833Z
+INFO
+Progress: resolved 601, reused 0, downloaded 274, added 74
+
+2026-07-30T14:51:20.833Z
+INFO
+Progress: resolved 601, reused 0, downloaded 332, added 90
+
+2026-07-30T14:51:21.836Z
+INFO
+Progress: resolved 601, reused 0, downloaded 364, added 101
+
+2026-07-30T14:51:22.836Z
+INFO
+Progress: resolved 601, reused 0, downloaded 379, added 106
+
+2026-07-30T14:51:23.837Z
+INFO
+Progress: resolved 601, reused 0, downloaded 388, added 107
+
+2026-07-30T14:51:24.838Z
+INFO
+Progress: resolved 601, reused 0, downloaded 431, added 121
+
+2026-07-30T14:51:25.839Z
+INFO
+Progress: resolved 601, reused 0, downloaded 449, added 127
+
+2026-07-30T14:51:26.842Z
+INFO
+Progress: resolved 601, reused 0, downloaded 526, added 153
+
+2026-07-30T14:51:27.846Z
+INFO
+Progress: resolved 601, reused 0, downloaded 601, added 177
+
+2026-07-30T14:51:28.847Z
+INFO
+Progress: resolved 601, reused 0, downloaded 601, added 378
+
+2026-07-30T14:51:29.848Z
+INFO
+Progress: resolved 601, reused 0, downloaded 601, added 379
+
+2026-07-30T14:51:30.848Z
+INFO
+Progress: resolved 601, reused 0, downloaded 601, added 385
+
+2026-07-30T14:51:31.849Z
+INFO
+Progress: resolved 601, reused 0, downloaded 601, added 388
+
+2026-07-30T14:51:32.850Z
+INFO
+Progress: resolved 601, reused 0, downloaded 601, added 439
+
+2026-07-30T14:51:33.852Z
+INFO
+Progress: resolved 601, reused 0, downloaded 601, added 448
+
+2026-07-30T14:51:34.852Z
+INFO
+Progress: resolved 601, reused 0, downloaded 601, added 457
+
+2026-07-30T14:51:35.853Z
+INFO
+Progress: resolved 601, reused 0, downloaded 601, added 483
+
+2026-07-30T14:51:36.854Z
+INFO
+Progress: resolved 601, reused 0, downloaded 601, added 526
+
+2026-07-30T14:51:37.854Z
+INFO
+Progress: resolved 601, reused 0, downloaded 601, added 554
+
+2026-07-30T14:51:38.113Z
+INFO
+Progress: resolved 601, reused 0, downloaded 601, added 601, done
+
+2026-07-30T14:51:38.439Z
+INFO
+.../esbuild@0.27.3/node_modules/esbuild postinstall$ node install.js
+
+2026-07-30T14:51:38.440Z
+INFO
+.../esbuild@0.18.20/node_modules/esbuild postinstall$ node install.js
+
+2026-07-30T14:51:38.441Z
+INFO
+.../esbuild@0.28.1/node_modules/esbuild postinstall$ node install.js
+
+2026-07-30T14:51:38.443Z
+INFO
+.../esbuild@0.25.12/node_modules/esbuild postinstall$ node install.js
+
+2026-07-30T14:51:38.715Z
+INFO
+.../esbuild@0.25.12/node_modules/esbuild postinstall: Done
+
+2026-07-30T14:51:38.732Z
+INFO
+.../esbuild@0.27.3/node_modules/esbuild postinstall: Done
+
+2026-07-30T14:51:38.742Z
+INFO
+.../esbuild@0.28.1/node_modules/esbuild postinstall: Done
+
+2026-07-30T14:51:38.746Z
+INFO
+.../esbuild@0.18.20/node_modules/esbuild postinstall: Done
+
+2026-07-30T14:51:39.352Z
+INFO
+devDependencies:
+
+2026-07-30T14:51:39.353Z
+INFO
++ prettier 3.8.4
+
+2026-07-30T14:51:39.354Z
+INFO
++ typescript 5.9.3
+
+2026-07-30T14:51:39.396Z
+INFO
+. preinstall$ sh -c 'rm -f package-lock.json yarn.lock; case "$npm_config_user_agent" in pnpm/*) ;; *) echo "Use pnpm instead" >&2; exit 1 ;; esac'
+
+2026-07-30T14:51:39.403Z
+INFO
+. preinstall: Done
+
+2026-07-30T14:51:39.645Z
+INFO
+Done in 24.7s using pnpm v10.26.1
+
+2026-07-30T14:51:39.646Z
+INFO
+Taking snapshot of full filesystem...
+
+2026-07-30T14:52:39.000Z
+INFO
+Storing source image from stage 0 at path /kaniko/stages/0
+
+2026-07-30T14:52:49.000Z
+INFO
+Deleting filesystem...
+
+2026-07-30T14:52:52.000Z
+INFO
+Base image from previous stage 0 found, using saved tar at path /kaniko/stages/0
+
+2026-07-30T14:52:52.001Z
+INFO
+Executing 0 build triggers
+
+2026-07-30T14:52:53.000Z
+INFO
+Building stage 'deps' [idx: '1', base-idx: '0']
+
+2026-07-30T14:52:53.001Z
+INFO
+Unpacking rootfs as cmd COPY lib/api-zod/ lib/api-zod/ requires it.
+
+2026-07-30T14:53:12.000Z
+INFO
+COPY lib/api-zod/ lib/api-zod/
+
+2026-07-30T14:53:12.001Z
+INFO
+Taking snapshot of files...
+
+2026-07-30T14:53:12.002Z
+INFO
+COPY lib/db/ lib/db/
+
+2026-07-30T14:53:12.003Z
+INFO
+Taking snapshot of files...
+
+2026-07-30T14:53:12.004Z
+INFO
+COPY artifacts/api-server/ artifacts/api-server/
+
+2026-07-30T14:53:12.005Z
+INFO
+Taking snapshot of files...
+
+2026-07-30T14:53:12.006Z
+INFO
+RUN pnpm --filter @workspace/api-server run build
+
+2026-07-30T14:53:12.007Z
+INFO
+Initializing snapshotter ...
+
+2026-07-30T14:53:12.008Z
+INFO
+Taking snapshot of full filesystem...
+
+2026-07-30T14:53:22.000Z
+INFO
+Cmd: /bin/sh
+
+2026-07-30T14:53:22.001Z
+INFO
+Args: [-c pnpm --filter @workspace/api-server run build]
+
+2026-07-30T14:53:22.002Z
+INFO
+Running: [/bin/sh -c pnpm --filter @workspace/api-server run build]
+
+2026-07-30T14:53:23.683Z
+INFO
+> @workspace/api-server@0.0.0 build /app/artifacts/api-server
+
+2026-07-30T14:53:23.684Z
+INFO
+> node ./build.mjs
+
+2026-07-30T14:53:23.862Z
+ERROR
+▲ [WARNING] Cannot find base config file "../../tsconfig.base.json" [tsconfig.json]
+
+2026-07-30T14:53:23.863Z
+ERROR
+tsconfig.json:2:13:
+
+2026-07-30T14:53:23.864Z
+ERROR
+2 │ "extends": "../../tsconfig.base.json",
+
+2026-07-30T14:53:23.865Z
+ERROR
+╵ ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+2026-07-30T14:53:23.906Z
+ERROR
+▲ [WARNING] Cannot find base config file "../../tsconfig.base.json" [tsconfig.json]
+
+2026-07-30T14:53:23.907Z
+ERROR
+../../lib/db/tsconfig.json:2:13:
+
+2026-07-30T14:53:23.908Z
+ERROR
+2 │ "extends": "../../tsconfig.base.json",
+
+2026-07-30T14:53:23.909Z
+ERROR
+╵ ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+2026-07-30T14:53:24.081Z
+ERROR
+▲ [WARNING] Cannot find base config file "../../tsconfig.base.json" [tsconfig.json]
+
+2026-07-30T14:53:24.082Z
+ERROR
+../../lib/api-zod/tsconfig.json:2:13:
+
+2026-07-30T14:53:24.083Z
+ERROR
+2 │ "extends": "../../tsconfig.base.json",
+
+2026-07-30T14:53:24.084Z
+ERROR
+╵ ~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+2026-07-30T14:53:24.587Z
+ERROR
+3 warnings
+
+2026-07-30T14:53:24.589Z
+ERROR
+dist/index.mjs 2.3mb ⚠️
+
+2026-07-30T14:53:24.590Z
+ERROR
+dist/pino-worker.mjs 153.4kb
+
+2026-07-30T14:53:24.591Z
+ERROR
+dist/pino-file.mjs 142.0kb
+
+2026-07-30T14:53:24.592Z
+ERROR
+dist/pino-pretty.mjs 114.6kb
+
+2026-07-30T14:53:24.593Z
+ERROR
+dist/thread-stream-worker.mjs 7.3kb
+
+2026-07-30T14:53:24.594Z
+ERROR
+dist/index.mjs.map 4.1mb
+
+2026-07-30T14:53:24.595Z
+ERROR
+dist/pino-worker.mjs.map 256.9kb
+
+2026-07-30T14:53:24.596Z
+ERROR
+dist/pino-file.mjs.map 229.0kb
+
+2026-07-30T14:53:24.597Z
+ERROR
+dist/pino-pretty.mjs.map 204.0kb
+
+2026-07-30T14:53:24.598Z
+ERROR
+dist/thread-stream-worker.mjs.map 12.0kb
+
+2026-07-30T14:53:24.599Z
+ERROR
+⚡ Done in 743ms
+
+2026-07-30T14:53:24.600Z
+INFO
+Taking snapshot of full filesystem...
+
+2026-07-30T14:53:25.000Z
+INFO
+Storing source image from stage 1 at path /kaniko/stages/1
+
+2026-07-30T14:53:26.000Z
+INFO
+Saving file app/artifacts/api-server/dist for later use
+
+2026-07-30T14:53:26.001Z
+INFO
+Deleting filesystem...
+
+2026-07-30T14:53:28.000Z
+INFO
+Base image from previous stage 1 found, using saved tar at path /kaniko/stages/1
+
+2026-07-30T14:53:28.001Z
+INFO
+Executing 0 build triggers
+
+2026-07-30T14:53:29.000Z
+INFO
+Building stage 'build-api' [idx: '2', base-idx: '1']
+
+2026-07-30T14:53:29.001Z
+INFO
+Unpacking rootfs as cmd COPY lib/ lib/ requires it.
+
+2026-07-30T14:53:48.000Z
+INFO
+COPY lib/ lib/
+
+2026-07-30T14:53:48.001Z
+INFO
+Taking snapshot of files...
+
+2026-07-30T14:53:48.002Z
+INFO
+COPY artifacts/wg-platform/package.json artifacts/wg-platform/
+
+2026-07-30T14:53:48.003Z
+INFO
+Taking snapshot of files...
+
+2026-07-30T14:53:48.004Z
+INFO
+COPY artifacts/mockup-sandbox/package.json artifacts/mockup-sandbox/
+
+2026-07-30T14:53:48.005Z
+INFO
+Taking snapshot of files...
+
+2026-07-30T14:53:48.006Z
+INFO
+COPY scripts/ scripts/
+
+2026-07-30T14:53:48.007Z
+INFO
+Taking snapshot of files...
+
+2026-07-30T14:53:48.008Z
+INFO
+RUN pnpm deploy --filter @workspace/api-server --prod /prod/api
+
+2026-07-30T14:53:48.009Z
+INFO
+Initializing snapshotter ...
+
+2026-07-30T14:53:48.010Z
+INFO
+Taking snapshot of full filesystem...
+
+2026-07-30T14:53:58.000Z
+INFO
+Cmd: /bin/sh
+
+2026-07-30T14:53:58.001Z
+INFO
+Args: [-c pnpm deploy --filter @workspace/api-server --prod /prod/api]
+
+2026-07-30T14:53:58.002Z
+INFO
+Running: [/bin/sh -c pnpm deploy --filter @workspace/api-server --prod /prod/api]
+
+2026-07-30T14:53:59.446Z
+INFO
+ ERR_PNPM_DEPLOY_NONINJECTED_WORKSPACE  By default, starting from pnpm v10, we only deploy from workspaces that have "inject-workspace-packages=true" set
+
+2026-07-30T14:53:59.447Z
+INFO
+If you want to deploy without using injected dependencies, run "pnpm deploy" with the "--legacy" flag or set "force-legacy-deploy" to true
+
+2026-07-30T14:53:59.468Z
+INFO
+error building image: error building stage: failed to execute command: waiting for process to exit: exit status 1
+
+2026-07-30T14:54:02.186Z
+SYSTEM
+image build failed
+
+2026-07-30T14:54:02.187Z
+SYSTEM
+deployment failed

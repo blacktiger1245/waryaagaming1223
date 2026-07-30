@@ -1,0 +1,32 @@
+import { pgTable, serial, integer, text, timestamp } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod/v4";
+
+export const matchesTable = pgTable("matches", {
+  id: serial("id").primaryKey(),
+  tournamentId: integer("tournament_id").notNull(),
+  round: integer("round").notNull().default(1),
+  roundName: text("round_name"),
+  status: text("status").notNull().default("scheduled"),
+  participant1Id: integer("participant1_id"),
+  participant1Name: text("participant1_name"),
+  participant1Score: integer("participant1_score"),
+  participant2Id: integer("participant2_id"),
+  participant2Name: text("participant2_name"),
+  participant2Score: integer("participant2_score"),
+  winnerId: integer("winner_id"),
+  winnerName: text("winner_name"),
+  scheduledAt: text("scheduled_at"),
+  streamUrl: text("stream_url"),
+  manOfTheMatchId: integer("man_of_the_match_id"),
+  manOfTheMatchName: text("man_of_the_match_name"),
+  participant1YellowCards: integer("participant1_yellow_cards").notNull().default(0),
+  participant1RedCards: integer("participant1_red_cards").notNull().default(0),
+  participant2YellowCards: integer("participant2_yellow_cards").notNull().default(0),
+  participant2RedCards: integer("participant2_red_cards").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertMatchSchema = createInsertSchema(matchesTable).omit({ id: true, createdAt: true });
+export type InsertMatch = z.infer<typeof insertMatchSchema>;
+export type Match = typeof matchesTable.$inferSelect;

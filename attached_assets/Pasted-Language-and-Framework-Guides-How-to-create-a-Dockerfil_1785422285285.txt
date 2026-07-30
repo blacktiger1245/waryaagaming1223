@@ -1,0 +1,37 @@
+Language and Framework Guides
+How to create a Dockerfile
+2 min
+Docker is a technology that allows you to package and run applications in containers. Back4App Containers are based on Docker technology and use Docker containers to isolate and run the applications. This provides several benefits, such as improved performance, enhanced security, and simplified deployment and scaling.
+
+A Dockerfile is a script that contains instructions for building a Docker image. To create a Dockerfile for any application, you need to follow these basic steps:
+
+Choose a Base Image (FROM): The first step is to choose a base image for your Dockerfile. The base image should contain the operating system and any necessary runtime dependencies for your application. You can use an official image from the Docker hub, or you can choose an image from a trusted source.
+Set the Working Directory (WORKDIR): Next, you need to set the working directory in the container where the application files will be located. You can use the WORKDIR instruction to set the working directory.
+Copy the Application Files (COPY): Now, you need to copy the application files into the working directory. You can use the COPY instruction to copy the files.
+Install Dependencies (RUN): If your application has any dependencies, you need to install them in the container. You can use the appropriate package manager (e.g., apt-get, yum, pip, etc.) to install the dependencies.
+Define the Entry Point (CMD): The last step is to define the entry point for the container, which is the command that will be run when the container starts. The entry point should start the application.
+Here is a simple example of a Dockerfile for a common applications:
+
+# Use the official Python image as the base image
+FROM python:3.8
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Copy the application files into the working directory
+COPY . /app
+
+# Install the application dependencies
+RUN pip install -r requirements.txt
+
+# Define the entry point for the container
+CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+﻿
+Once you have created the Dockerfile, you need to paste it on your projet root or on any folder(just specify that on the Root parameter on App Settings) and create or re-deploy your Application. Back4app will create a Docker image based on this file and a Container using this image. This way, you can run your application in a Bak4app Containers.
+
+Updated 09 Mar 2023
+Doc contributor
+PREVIOUS
+Release Notes
+NEXT
+Run a Static Website on Containers

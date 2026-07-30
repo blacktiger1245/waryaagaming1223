@@ -1,0 +1,200 @@
+# Feature Request: Team Match Details with Player vs Player Results
+
+## Objective
+
+Redesign the Tournament Matches system so that the main tournament page displays matches as **Team vs Team**, while allowing users to click into a match to manage and view the individual **Player vs Player** games that determine the overall team result.
+
+---
+
+## Current Problem
+
+The current system only shows the team match without providing an organized way to manage the individual player matchups inside each team.
+
+I want the tournament to work like real team competitions, where:
+
+* The tournament schedule shows **Team A vs Team B**.
+* Clicking on the match opens a detailed page.
+* The detailed page displays every player matchup between the two teams.
+* Each player matchup has its own result.
+* The overall team score is automatically calculated from those individual player results.
+
+---
+
+## Required UI
+
+### Tournament Matches Page
+
+Display matches only as:
+
+```
+Liverpool vs Manchester City
+```
+
+Do NOT show player names on this page.
+
+The page should remain clean and easy to read.
+
+Each match card or row should be clickable.
+
+---
+
+## Match Details Page
+
+When the user clicks:
+
+```
+Liverpool vs Manchester City
+```
+
+Open a dedicated Match Details page.
+
+At the top show:
+
+```
+Liverpool vs Manchester City
+```
+
+Below that, display all player matchups.
+
+Example:
+
+```
+Liverpool
+-------------------------
+Salah       vs     Haaland
+
+Mane        vs     Özil
+
+Firmino     vs     Alvarez
+```
+
+Each row represents one individual game.
+
+---
+
+## Player Match Result Entry
+
+Each player matchup should allow the admin to enter the result.
+
+Examples:
+
+```
+Salah      2 - 1     Haaland
+
+Mane       0 - 2     Özil
+
+Firmino    2 - 0     Alvarez
+```
+
+or use whichever scoring system the application already supports.
+
+The results should be editable until the match is finalized.
+
+---
+
+## Automatic Team Score
+
+The system should automatically calculate the overall team score based on the individual player results.
+
+Example:
+
+Player Results:
+
+* Salah defeats Haaland
+* Özil defeats Mane
+* Firmino defeats Alvarez
+
+Overall result becomes:
+
+```
+Liverpool 2 - 1 Manchester City
+```
+
+This overall score should appear everywhere the team match is displayed.
+
+The admin should NOT have to manually calculate the team score.
+
+---
+
+## Match List Display
+
+On the tournament page, users should only see:
+
+```
+Liverpool 2 - 1 Manchester City
+```
+
+or, if the match has not started:
+
+```
+Liverpool vs Manchester City
+```
+
+The player matchups should only appear after opening the match details page.
+
+---
+
+## Player Pairing
+
+The player matchups should be generated using each team's registered players.
+
+For example:
+
+Liverpool:
+
+* Salah
+* Mane
+* Firmino
+
+Manchester City:
+
+* Haaland
+* Özil
+* Alvarez
+
+Generated pairings:
+
+```
+Salah      vs     Haaland
+
+Mane       vs     Özil
+
+Firmino    vs     Alvarez
+```
+
+If manual pairing is preferred, allow the admin to edit the pairings before the match starts.
+
+---
+
+## Additional Features
+
+* Expandable or clickable Team vs Team match cards.
+* Clean and professional UI.
+* Responsive design for desktop and mobile.
+* Easy editing of player match results.
+* Automatic saving.
+* Automatic recalculation of the overall team score whenever an individual player result changes.
+* Display match status (Upcoming, Live, Finished).
+* Prevent editing after the match is marked as Finished unless reopened by an administrator.
+
+---
+
+## Expected Workflow
+
+1. Admin creates a tournament.
+2. Teams are assigned to a match.
+3. Tournament page displays:
+
+   * Liverpool vs Manchester City
+4. Admin clicks the match.
+5. Match Details page opens.
+6. Individual player matchups are displayed.
+7. Admin records each player result.
+8. System automatically calculates the overall team score.
+9. Tournament page updates automatically to display:
+
+```
+Liverpool 2 - 1 Manchester City
+```
+
+while still allowing users to open the match and view all individual player results.

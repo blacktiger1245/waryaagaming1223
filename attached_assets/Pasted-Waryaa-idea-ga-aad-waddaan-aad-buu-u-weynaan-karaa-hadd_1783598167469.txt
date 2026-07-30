@@ -1,0 +1,153 @@
+Waryaa idea-ga aad waddaan aad buu u weynaan karaa haddii si sax ah loo dhiso. Maadaama WG (Waryaa Gaming) uu yahay Somali Gaming Community oo xiriir la leh Somali Esports Federation, website-ka ha noqon kaliya meel tournaments lagu qabto, ee ha noqdo xarunta guud ee community-ga.
+
+Homepage
+
+* Hero Banner weyn
+    * WG Logo
+    * “Home of Somali eFootball & Esports”
+    * Join Discord button
+    * Upcoming Tournament button
+
+Tournaments
+
+Waxa ugu muhiimsan:
+
+* Tournament registration
+* Automatic brackets
+* Live results
+* Match schedules
+* Team registration
+* Player registration
+* Prize pool display
+* Tournament history
+
+Player Profiles
+
+Player kasta ha yeesho:
+
+* Username
+* Team
+* Ranking
+* Tournament wins
+* Match history
+* Trophies
+
+Tusaale:
+
+Yaxye Muuse
+Rank: #3
+Tournament Wins: 8
+Win Rate: 72%
+
+Community Rankings
+
+* Top Players
+* Top Teams
+* Monthly Rankings
+* Hall of Fame
+
+Teams Section
+
+* Team profiles
+* Team captains
+* Team roster
+* Team achievements
+
+News Section
+
+* Tournament announcements
+* Community updates
+* Esports news
+* Federation announcements
+
+Media Hub
+
+Hal meel lagu geeyo:
+
+* YouTube videos
+* TikTok clips
+* Facebook posts
+* Instagram posts
+
+Discord Integration
+
+Website-ka iyo Discord-ka ha isku xirmaan:
+
+* Login with Discord
+* Verify members
+* Auto tournament roles
+* Match reporting
+
+Live Match Center
+
+Marka tournament socdo:
+
+* Live scores
+* Match results
+* Current bracket
+* Stream links
+
+Hall of Fame
+
+* Greatest WG players
+* Champions list
+* Legendary moments
+
+Community Features
+
+* Member profiles
+* Reputation points
+* Badges
+* Achievement system
+
+Marketplace (Future)
+
+* Team recruitment
+* Coach recruitment
+* Graphic designer recruitment
+* Tournament staff applications
+
+WG Academy
+
+Qayb waxbarasho:
+
+* eFootball guides
+* Team tactics
+* Coaching tips
+* Tournament rules
+
+Partner Section
+
+* Somali Esports Federation
+* Sponsors
+* Community partners
+
+Footer
+
+* Discord
+* TikTok
+* YouTube
+* Facebook
+* Instagram
+* Contact
+
+Long-Term Vision
+
+Waxaan kula talin lahaa WG inuu noqdo:
+
+Discord + Tournament Platform + Esports Federation Hub + Media Network
+
+Markaas qof kasta oo Somali gamer ah markuu maqlo eFootball ama esports, meesha ugu horreysa ee uu tagayo waxay noqotaa WG.gg ama WaryaaGaming.com.
+
+Features-ka ugu muhiimsan ee aan marka hore dhisi lahaa:
+
+1. Discord Login
+2. Tournament Registration
+3. Automatic Brackets
+4. Player Profiles
+5. Rankings
+6. Match Results
+7. News Section
+8. Media Hub
+
+Kuwaas ayaa WG ka dhigi kara community-ga ugu weyn ee Somali eFootball iyo esports guud ahaan.

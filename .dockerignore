@@ -1,0 +1,38 @@
+# Version control
+.git
+.gitignore
+
+# Dependencies (re-installed inside Docker)
+node_modules
+**/node_modules
+
+# Build outputs (re-built inside Docker)
+**/dist
+**/.tsbuildinfo
+
+# Replit internals
+.replit
+.replit.new
+replit.nix
+.local
+.agents
+.cache
+
+# Dev assets not needed in the image
+attached_assets
+
+# Logs & temp files
+*.log
+*.log.*
+/tmp
+
+# Environment files (secrets are injected at runtime)
+.env
+.env.*
+!.env.example
+
+# Editor & OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db
