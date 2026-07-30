@@ -1,1 +1,2 @@
 zipFile.zip filter=lfs diff=lfs merge=lfs -text
+zipFile.zip !text !filter !merge !diff
