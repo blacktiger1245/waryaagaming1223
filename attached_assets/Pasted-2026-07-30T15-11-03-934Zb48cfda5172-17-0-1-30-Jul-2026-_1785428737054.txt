@@ -1,0 +1,199 @@
+2026-07-30T15:11:03.934Zb48cfda5172.17.0.1 - - [30/Jul/2026:15:11:03 +0000] "GET /api/rankings/players?period=all-time HTTP/1.1" 502 559 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36" "192.145.175.32, 130.176.183.141"
+
+2026-07-30T15:11:03.934Zb48cfda5172.17.0.1 - - [30/Jul/2026:15:11:03 +0000] "GET /api/stats/summary HTTP/1.1" 502 559 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36" "192.145.175.32, 130.176.183.141"
+
+2026-07-30T15:11:03.934Zb48cfda5172.17.0.1 - - [30/Jul/2026:15:11:03 +0000] "GET /api/news?limit=3 HTTP/1.1" 502 559 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36" "192.145.175.32, 130.176.183.141"
+
+2026-07-30T15:11:03.935Zb48cfda5172.17.0.1 - - [30/Jul/2026:15:11:03 +0000] "GET /api/auth/me HTTP/1.1" 502 559 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36" "192.145.175.32, 130.176.183.141"
+
+2026-07-30T15:11:03.935Zb48cfda52026/07/30 15:11:03 [error] 9#9: *135 connect() failed (111: Connection refused) while connecting to upstream, client: 172.17.0.1, server: _, request: "GET /api/auth/me HTTP/1.1", upstream: "http://127.0.0.1:5000/api/auth/me", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/"
+
+2026-07-30T15:11:03.935Zb48cfda52026/07/30 15:11:03 [error] 9#9: *132 connect() failed (111: Connection refused) while connecting to upstream, client: 172.17.0.1, server: _, request: "GET /api/tournaments?status=upcoming HTTP/1.1", upstream: "http://127.0.0.1:5000/api/tournaments?status=upcoming", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/"
+
+2026-07-30T15:11:03.935Zb48cfda52026/07/30 15:11:03 [error] 9#9: *134 connect() failed (111: Connection refused) while connecting to upstream, client: 172.17.0.1, server: _, request: "GET /api/rankings/players?period=all-time HTTP/1.1", upstream: "http://127.0.0.1:5000/api/rankings/players?period=all-time", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/"
+
+2026-07-30T15:11:05.356Zb48cfda5172.17.0.1 - - [30/Jul/2026:15:11:05 +0000] "GET /api/news?limit=3 HTTP/1.1" 502 559 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36" "192.145.175.32, 130.176.183.147"
+
+2026-07-30T15:11:05.356Zb48cfda52026/07/30 15:11:05 [error] 8#8: *139 connect() failed (111: Connection refused) while connecting to upstream, client: 172.17.0.1, server: _, request: "GET /api/news?limit=3 HTTP/1.1", upstream: "http://127.0.0.1:5000/api/news?limit=3", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/"
+
+2026-07-30T15:11:05.361Zb48cfda52026/07/30 15:11:05 [error] 8#8: *141 connect() failed (111: Connection refused) while connecting to upstream, client: 172.17.0.1, server: _, request: "GET /api/stats/summary HTTP/1.1", upstream: "http://127.0.0.1:5000/api/stats/summary", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/"
+
+2026-07-30T15:11:05.362Zb48cfda5172.17.0.1 - - [30/Jul/2026:15:11:05 +0000] "GET /api/stats/summary HTTP/1.1" 502 559 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36" "192.145.175.32, 130.176.183.146"
+
+2026-07-30T15:11:05.363Zb48cfda5172.17.0.1 - - [30/Jul/2026:15:11:05 +0000] "GET /api/rankings/players?period=all-time HTTP/1.1" 502 559 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36" "192.145.175.32, 130.176.183.146"
+
+2026-07-30T15:11:05.363Zb48cfda52026/07/30 15:11:05 [error] 8#8: *143 connect() failed (111: Connection refused) while connecting to upstream, client: 172.17.0.1, server: _, request: "GET /api/rankings/players?period=all-time HTTP/1.1", upstream: "http://127.0.0.1:5000/api/rankings/players?period=all-time", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/"
+
+2026-07-30T15:11:05.377Zb48cfda5172.17.0.1 - - [30/Jul/2026:15:11:05 +0000] "GET /api/tournaments?status=upcoming HTTP/1.1" 502 559 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36" "192.145.175.32, 130.176.183.145"
+
+2026-07-30T15:11:05.377Zb48cfda52026/07/30 15:11:05 [error] 8#8: *145 connect() failed (111: Connection refused) while connecting to upstream, client: 172.17.0.1, server: _, request: "GET /api/tournaments?status=upcoming HTTP/1.1", upstream: "http://127.0.0.1:5000/api/tournaments?status=upcoming", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/"
+
+2026-07-30T15:11:13.779Zb48cfda5172.17.0.1 - - [30/Jul/2026:15:11:13 +0000] "GET /api/auth/me HTTP/1.1" 502 559 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36" "192.145.175.32, 130.176.183.145"
+
+2026-07-30T15:11:13.779Zb48cfda5172.17.0.1 - - [30/Jul/2026:15:11:13 +0000] "GET /api/stats/summary HTTP/1.1" 502 559 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36" "192.145.175.32, 130.176.183.170"
+
+2026-07-30T15:11:13.779Zb48cfda5172.17.0.1 - - [30/Jul/2026:15:11:13 +0000] "GET /api/tournaments?status=upcoming HTTP/1.1" 502 559 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36" "192.145.175.32, 130.176.183.146"
+
+2026-07-30T15:11:13.779Zb48cfda52026/07/30 15:11:13 [error] 8#8: *151 connect() failed (111: Connection refused) while connecting to upstream, client: 172.17.0.1, server: _, request: "GET /api/stats/summary HTTP/1.1", upstream: "http://127.0.0.1:5000/api/stats/summary", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/"
+
+2026-07-30T15:11:13.779Zb48cfda52026/07/30 15:11:13 [error] 9#9: *147 connect() failed (111: Connection refused) while connecting to upstream, client: 172.17.0.1, server: _, request: "GET /api/rankings/players?period=all-time HTTP/1.1", upstream: "http://127.0.0.1:5000/api/rankings/players?period=all-time", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/"
+
+2026-07-30T15:11:13.779Zb48cfda52026/07/30 15:11:13 [error] 9#9: *148 connect() failed (111: Connection refused) while connecting to upstream, client: 172.17.0.1, server: _, request: "GET /api/auth/me HTTP/1.1", upstream: "http://127.0.0.1:5000/api/auth/me", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/"
+
+2026-07-30T15:11:13.779Zb48cfda52026/07/30 15:11:13 [error] 9#9: *150 connect() failed (111: Connection refused) while connecting to upstream, client: 172.17.0.1, server: _, request: "GET /api/tournaments?status=upcoming HTTP/1.1", upstream: "http://127.0.0.1:5000/api/tournaments?status=upcoming", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/"
+
+2026-07-30T15:11:13.779Zb48cfda5172.17.0.1 - - [30/Jul/2026:15:11:13 +0000] "GET /api/rankings/players?period=all-time HTTP/1.1" 502 559 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36" "192.145.175.32, 130.176.183.147"
+
+2026-07-30T15:11:13.782Zb48cfda5172.17.0.1 - - [30/Jul/2026:15:11:13 +0000] "GET /api/news?limit=3 HTTP/1.1" 502 559 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36" "192.145.175.32, 130.176.183.173"
+
+2026-07-30T15:11:13.782Zb48cfda52026/07/30 15:11:13 [error] 8#8: *155 connect() failed (111: Connection refused) while connecting to upstream, client: 172.17.0.1, server: _, request: "GET /api/news?limit=3 HTTP/1.1", upstream: "http://127.0.0.1:5000/api/news?limit=3", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/"
+
+2026-07-30T15:11:15.016Zb48cfda52026/07/30 15:11:15 [error] 8#8: *157 connect() failed (111: Connection refused) while connecting to upstream, client: 172.17.0.1, server: _, request: "GET /api/rankings/players?period=all-time HTTP/1.1", upstream: "http://127.0.0.1:5000/api/rankings/players?period=all-time", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/"
+
+2026-07-30T15:11:15.016Zb48cfda5172.17.0.1 - - [30/Jul/2026:15:11:15 +0000] "GET /api/rankings/players?period=all-time HTTP/1.1" 502 559 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36" "192.145.175.32, 130.176.183.173"
+
+2026-07-30T15:11:15.041Zb48cfda52026/07/30 15:11:15 [error] 8#8: *159 connect() failed (111: Connection refused) while connecting to upstream, client: 172.17.0.1, server: _, request: "GET /api/news?limit=3 HTTP/1.1", upstream: "http://127.0.0.1:5000/api/news?limit=3", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/"
+
+2026-07-30T15:11:15.041Zb48cfda5172.17.0.1 - - [30/Jul/2026:15:11:15 +0000] "GET /api/news?limit=3 HTTP/1.1" 502 559 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36" "192.145.175.32, 130.176.183.170"
+
+2026-07-30T15:11:15.134Zb48cfda52026/07/30 15:11:15 [error] 8#8: *161 connect() failed (111: Connection refused) while connecting to upstream, client: 172.17.0.1, server: _, request: "GET /api/stats/summary HTTP/1.1", upstream: "http://127.0.0.1:5000/api/stats/summary", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/"
+
+2026-07-30T15:11:15.135Zb48cfda5172.17.0.1 - - [30/Jul/2026:15:11:15 +0000] "GET /api/stats/summary HTTP/1.1" 502 559 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36" "192.145.175.32, 130.176.183.139"
+
+2026-07-30T15:11:15.136Zb48cfda52026/07/30 15:11:15 [error] 9#9: *163 connect() failed (111: Connection refused) while connecting to upstream, client: 172.17.0.1, server: _, request: "GET /api/tournaments?status=upcoming HTTP/1.1", upstream: "http://127.0.0.1:5000/api/tournaments?status=upcoming", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/"
+
+2026-07-30T15:11:15.137Zb48cfda5172.17.0.1 - - [30/Jul/2026:15:11:15 +0000] "GET /api/tournaments?status=upcoming HTTP/1.1" 502 559 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36" "192.145.175.32, 130.176.183.165"
+
+2026-07-30T15:12:06.210Zb48cfda52026/07/30 15:12:06 [error] 9#9: *165 connect() failed (111: Connection refused) while connecting to upstream, client: 172.17.0.1, server: _, request: "GET /api/tournaments?status=upcoming HTTP/1.1", upstream: "http://127.0.0.1:5000/api/tournaments?status=upcoming", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/"
+
+2026-07-30T15:12:06.210Zb48cfda5172.17.0.1 - - [30/Jul/2026:15:12:06 +0000] "GET /api/tournaments?status=upcoming HTTP/1.1" 502 157 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (iPhone; CPU iPhone OS 16_7_10 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1" "192.145.170.132, 130.176.183.141"
+
+2026-07-30T15:12:06.212Zb48cfda52026/07/30 15:12:06 [error] 9#9: *167 connect() failed (111: Connection refused) while connecting to upstream, client: 172.17.0.1, server: _, request: "GET /api/rankings/players?period=all-time HTTP/1.1", upstream: "http://127.0.0.1:5000/api/rankings/players?period=all-time", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/"
+
+2026-07-30T15:12:06.212Zb48cfda5172.17.0.1 - - [30/Jul/2026:15:12:06 +0000] "GET /api/rankings/players?period=all-time HTTP/1.1" 502 157 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (iPhone; CPU iPhone OS 16_7_10 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1" "192.145.170.132, 130.176.183.141"
+
+2026-07-30T15:12:06.217Zb48cfda52026/07/30 15:12:06 [error] 9#9: *170 connect() failed (111: Connection refused) while connecting to upstream, client: 172.17.0.1, server: _, request: "GET /api/stats/summary HTTP/1.1", upstream: "http://127.0.0.1:5000/api/stats/summary", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/"
+
+2026-07-30T15:12:06.217Zb48cfda5172.17.0.1 - - [30/Jul/2026:15:12:06 +0000] "GET /api/stats/summary HTTP/1.1" 502 157 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (iPhone; CPU iPhone OS 16_7_10 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1" "192.145.170.132, 130.176.183.141"
+
+2026-07-30T15:12:06.218Zb48cfda52026/07/30 15:12:06 [error] 9#9: *169 connect() failed (111: Connection refused) while connecting to upstream, client: 172.17.0.1, server: _, request: "GET /api/auth/me HTTP/1.1", upstream: "http://127.0.0.1:5000/api/auth/me", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/"
+
+2026-07-30T15:12:06.218Zb48cfda5172.17.0.1 - - [30/Jul/2026:15:12:06 +0000] "GET /api/auth/me HTTP/1.1" 502 157 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (iPhone; CPU iPhone OS 16_7_10 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1" "192.145.170.132, 130.176.183.141"
+
+2026-07-30T15:12:06.219Zb48cfda52026/07/30 15:12:06 [error] 9#9: *171 connect() failed (111: Connection refused) while connecting to upstream, client: 172.17.0.1, server: _, request: "GET /api/news?limit=3 HTTP/1.1", upstream: "http://127.0.0.1:5000/api/news?limit=3", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/"
+
+2026-07-30T15:12:06.219Zb48cfda5172.17.0.1 - - [30/Jul/2026:15:12:06 +0000] "GET /api/news?limit=3 HTTP/1.1" 502 157 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (iPhone; CPU iPhone OS 16_7_10 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1" "192.145.170.132, 130.176.183.141"
+
+2026-07-30T15:12:07.134Zb48cfda52026/07/30 15:12:07 [error] 9#9: *175 connect() failed (111: Connection refused) while connecting to upstream, client: 172.17.0.1, server: _, request: "GET /api/tournaments HTTP/1.1", upstream: "http://127.0.0.1:5000/api/tournaments", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/tournaments"
+
+2026-07-30T15:12:07.134Zb48cfda5172.17.0.1 - - [30/Jul/2026:15:12:07 +0000] "GET /api/tournaments HTTP/1.1" 502 157 "https://gacaniyolug1-7qnq70am.b4a.run/tournaments" "Mozilla/5.0 (iPhone; CPU iPhone OS 16_7_10 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1" "192.145.170.132, 130.176.183.145"
+
+2026-07-30T15:12:08.606Zb48cfda52026/07/30 15:12:08 [error] 9#9: *177 connect() failed (111: Connection refused) while connecting to upstream, client: 172.17.0.1, server: _, request: "GET /api/tournaments HTTP/1.1", upstream: "http://127.0.0.1:5000/api/tournaments", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/tournaments"
+
+2026-07-30T15:12:08.606Zb48cfda5172.17.0.1 - - [30/Jul/2026:15:12:08 +0000] "GET /api/tournaments HTTP/1.1" 502 157 "https://gacaniyolug1-7qnq70am.b4a.run/tournaments" "Mozilla/5.0 (iPhone; CPU iPhone OS 16_7_10 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1" "192.145.170.132, 130.176.183.134"
+
+2026-07-30T15:50:34.157Zdb25c2d62026/07/30 15:50:34 [notice] 1#1: using the "epoll" event method
+
+2026-07-30T15:50:34.159Zdb25c2d62026/07/30 15:50:34 [notice] 1#1: nginx/1.27.5
+
+2026-07-30T15:50:34.159Zdb25c2d62026/07/30 15:50:34 [notice] 1#1: built by gcc 14.2.0 (Alpine 14.2.0)
+
+2026-07-30T15:50:34.159Zdb25c2d62026/07/30 15:50:34 [notice] 1#1: OS: Linux 5.19.0-1029-aws
+
+2026-07-30T15:50:34.159Zdb25c2d62026/07/30 15:50:34 [notice] 1#1: getrlimit(RLIMIT_NOFILE): 1048576:1048576
+
+2026-07-30T15:50:34.159Zdb25c2d62026/07/30 15:50:34 [notice] 1#1: start worker processes
+
+2026-07-30T15:50:34.160Zdb25c2d62026/07/30 15:50:34 [notice] 1#1: start worker process 8
+
+2026-07-30T15:50:34.160Zdb25c2d62026/07/30 15:50:34 [notice] 1#1: start worker process 9
+
+2026-07-30T15:50:35.157Zdb25c2d6172.17.0.1 - - [30/Jul/2026:15:50:35 +0000] "OPTIONS / HTTP/1.1" 405 157 "-" "-" "-"
+
+2026-07-30T15:50:43.653Zdb25c2d6172.17.0.1 - - [30/Jul/2026:15:50:43 +0000] "GET / HTTP/1.1" 200 1384 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36" "192.145.175.32, 130.176.183.164"
+
+2026-07-30T15:50:47.870Zdb25c2d6
+
+2026-07-30T15:50:47.871Zdb25c2d6node:internal/event_target:1118
+
+2026-07-30T15:50:47.871Zdb25c2d6 process.nextTick(() => { throw err; });
+
+2026-07-30T15:50:47.871Zdb25c2d6 ^
+
+2026-07-30T15:50:47.872Zdb25c2d6Error: Cannot find module '/app/artifacts/api-server/dist/thread-stream-worker.mjs'
+
+2026-07-30T15:50:47.872Zdb25c2d6 at Function._resolveFilename (node:internal/modules/cjs/loader:1430:15)
+
+2026-07-30T15:50:47.872Zdb25c2d6 at defaultResolveImpl (node:internal/modules/cjs/loader:1040:19)
+
+2026-07-30T15:50:47.873Zdb25c2d6 at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1045:22)
+
+2026-07-30T15:50:47.873Zdb25c2d6 at Function._load (node:internal/modules/cjs/loader:1216:25)
+
+2026-07-30T15:50:47.873Zdb25c2d6 at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)
+
+2026-07-30T15:50:47.873Zdb25c2d6 at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)
+
+2026-07-30T15:50:47.873Zdb25c2d6 at MessagePort.<anonymous> (node:internal/main/worker_thread:226:26)
+
+2026-07-30T15:50:47.873Zdb25c2d6 at [nodejs.internal.kHybridDispatch] (node:internal/event_target:843:20)
+
+2026-07-30T15:50:47.873Zdb25c2d6 at MessagePort.<anonymous> (node:internal/per_context/messageport:23:28) {
+
+2026-07-30T15:50:47.873Zdb25c2d6 code: 'MODULE_NOT_FOUND',
+
+2026-07-30T15:50:47.873Zdb25c2d6 requireStack: []
+
+2026-07-30T15:50:47.873Zdb25c2d6}
+
+2026-07-30T15:50:47.873Zdb25c2d6
+
+2026-07-30T15:50:47.873Zdb25c2d6Node.js v22.23.2
+
+2026-07-30T15:50:47.880Zdb25c2d62026/07/30 15:50:47 [error] 8#8: *3 recv() failed (104: Connection reset by peer) while reading response header from upstream, client: 172.17.0.1, server: _, request: "GET /api/stats/summary HTTP/1.1", upstream: "http://127.0.0.1:5000/api/stats/summary", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/"
+
+2026-07-30T15:50:47.883Zdb25c2d6172.17.0.1 - - [30/Jul/2026:15:50:47 +0000] "GET /api/stats/summary HTTP/1.1" 502 559 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36" "192.145.175.32, 130.176.183.164"
+
+2026-07-30T15:50:47.883Zdb25c2d6172.17.0.1 - - [30/Jul/2026:15:50:47 +0000] "GET /api/auth/me HTTP/1.1" 502 559 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36" "192.145.175.32, 130.176.183.164"
+
+2026-07-30T15:50:47.883Zdb25c2d6172.17.0.1 - - [30/Jul/2026:15:50:47 +0000] "GET /api/tournaments?status=upcoming HTTP/1.1" 502 559 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36" "192.145.175.32, 130.176.183.164"
+
+2026-07-30T15:50:47.883Zdb25c2d6172.17.0.1 - - [30/Jul/2026:15:50:47 +0000] "GET /api/rankings/players?period=all-time HTTP/1.1" 502 559 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36" "192.145.175.32, 130.176.183.164"
+
+2026-07-30T15:50:47.883Zdb25c2d6172.17.0.1 - - [30/Jul/2026:15:50:47 +0000] "GET /api/news?limit=3 HTTP/1.1" 502 559 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36" "192.145.175.32, 130.176.183.164"
+
+2026-07-30T15:50:47.883Zdb25c2d62026/07/30 15:50:47 [error] 8#8: *5 recv() failed (104: Connection reset by peer) while reading response header from upstream, client: 172.17.0.1, server: _, request: "GET /api/auth/me HTTP/1.1", upstream: "http://127.0.0.1:5000/api/auth/me", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/"
+
+2026-07-30T15:50:47.883Zdb25c2d62026/07/30 15:50:47 [error] 8#8: *6 recv() failed (104: Connection reset by peer) while reading response header from upstream, client: 172.17.0.1, server: _, request: "GET /api/tournaments?status=upcoming HTTP/1.1", upstream: "http://127.0.0.1:5000/api/tournaments?status=upcoming", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/"
+
+2026-07-30T15:50:47.883Zdb25c2d62026/07/30 15:50:47 [error] 8#8: *10 recv() failed (104: Connection reset by peer) while reading response header from upstream, client: 172.17.0.1, server: _, request: "GET /api/rankings/players?period=all-time HTTP/1.1", upstream: "http://127.0.0.1:5000/api/rankings/players?period=all-time", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/"
+
+2026-07-30T15:50:47.883Zdb25c2d62026/07/30 15:50:47 [error] 8#8: *8 recv() failed (104: Connection reset by peer) while reading response header from upstream, client: 172.17.0.1, server: _, request: "GET /api/news?limit=3 HTTP/1.1", upstream: "http://127.0.0.1:5000/api/news?limit=3", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/"
+
+2026-07-30T15:50:47.883Zdb25c2d62026/07/30 15:50:47 [notice] 1#1: signal 17 (SIGCHLD) received from 7
+
+2026-07-30T15:50:47.883Zdb25c2d62026/07/30 15:50:47 [notice] 1#1: unknown process 7 exited with code 1
+
+2026-07-30T15:50:49.137Zdb25c2d6172.17.0.1 - - [30/Jul/2026:15:50:49 +0000] "GET /api/auth/discord HTTP/1.1" 502 559 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36" "192.145.175.32, 130.176.183.145"
+
+2026-07-30T15:50:49.137Zdb25c2d62026/07/30 15:50:49 [error] 8#8: *13 connect() failed (111: Connection refused) while connecting to upstream, client: 172.17.0.1, server: _, request: "GET /api/auth/discord HTTP/1.1", upstream: "http://127.0.0.1:5000/api/auth/discord", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/"
+
+2026-07-30T15:50:49.234Zdb25c2d6172.17.0.1 - - [30/Jul/2026:15:50:49 +0000] "GET /api/tournaments?status=upcoming HTTP/1.1" 502 559 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36" "192.145.175.32, 130.176.183.145"
+
+2026-07-30T15:50:49.234Zdb25c2d62026/07/30 15:50:49 [error] 8#8: *15 connect() failed (111: Connection refused) while connecting to upstream, client: 172.17.0.1, server: _, request: "GET /api/tournaments?status=upcoming HTTP/1.1", upstream: "http://127.0.0.1:5000/api/tournaments?status=upcoming", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/"
+
+2026-07-30T15:50:49.259Zdb25c2d62026/07/30 15:50:49 [error] 8#8: *17 connect() failed (111: Connection refused) while connecting to upstream, client: 172.17.0.1, server: _, request: "GET /api/news?limit=3 HTTP/1.1", upstream: "http://127.0.0.1:5000/api/news?limit=3", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/"
+
+2026-07-30T15:50:49.259Zdb25c2d62026/07/30 15:50:49 [error] 9#9: *19 connect() failed (111: Connection refused) while connecting to upstream, client: 172.17.0.1, server: _, request: "GET /api/stats/summary HTTP/1.1", upstream: "http://127.0.0.1:5000/api/stats/summary", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/"
+
+2026-07-30T15:50:49.260Zdb25c2d6172.17.0.1 - - [30/Jul/2026:15:50:49 +0000] "GET /api/news?limit=3 HTTP/1.1" 502 559 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36" "192.145.175.32, 130.176.183.145"
+
+2026-07-30T15:50:49.260Zdb25c2d6172.17.0.1 - - [30/Jul/2026:15:50:49 +0000] "GET /api/stats/summary HTTP/1.1" 502 559 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36" "192.145.175.32, 130.176.183.134"
+
+2026-07-30T15:50:49.260Zdb25c2d62026/07/30 15:50:49 [error] 8#8: *21 connect() failed (111: Connection refused) while connecting to upstream, client: 172.17.0.1, server: _, request: "GET /api/rankings/players?period=all-time HTTP/1.1", upstream: "http://127.0.0.1:5000/api/rankings/players?period=all-time", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/"
+
+2026-07-30T15:50:49.260Zdb25c2d6172.17.0.1 - - [30/Jul/2026:15:50:49 +0000] "GET /api/rankings/players?period=all-time HTTP/1.1" 502 559 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36" "192.145.175.32, 130.176.183.139"
+
+2026-07-30T15:50:57.694Zdb25c2d62026/07/30 15:50:57 [error] 8#8: *23 connect() failed (111: Connection refused) while connecting to upstream, client: 172.17.0.1, server: _, request: "GET /api/auth/discord HTTP/1.1", upstream: "http://127.0.0.1:5000/api/auth/discord", host: "gacaniyolug1-7qnq70am.b4a.run", referrer: "https://gacaniyolug1-7qnq70am.b4a.run/"
+
+2026-07-30T15:50:57.694Zdb25c2d6172.17.0.1 - - [30/Jul/2026:15:50:57 +0000] "GET /api/auth/discord HTTP/1.1" 502 559 "https://gacaniyolug1-7qnq70am.b4a.run/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36" "192.145.175.32, 130.176.183.146"
