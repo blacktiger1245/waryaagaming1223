@@ -14,8 +14,9 @@ if [ -z "$SESSION_SECRET" ]; then
   echo "WARNING: SESSION_SECRET is not set – using an insecure default" >&2
 fi
 
-# Start the Express API server in the background
-PORT=5000 node --enable-source-maps /app/api/dist/index.mjs &
+# Start the Express API server in the background.
+# Path must match the build-time location so pino's baked-in worker paths resolve.
+PORT=5000 node --enable-source-maps /app/artifacts/api-server/dist/index.mjs &
 NODE_PID=$!
 
 # Graceful shutdown: forward signals to the node process

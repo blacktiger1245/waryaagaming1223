@@ -112,14 +112,18 @@ FROM nginx:1.27-alpine
 RUN apk add --no-cache nodejs
 
 # ── API server ─────────────────────────────────────────────────────────────
-WORKDIR /app/api
+# IMPORTANT: keep the dist at the exact same absolute path it was built at.
+# esbuild-plugin-pino bakes absolute paths to worker files (thread-stream-worker.mjs,
+# pino-worker.mjs, etc.) into the bundle at build time. Moving the dist to a
+# different directory causes Node to crash with MODULE_NOT_FOUND on first request.
+WORKDIR /app
 
-# Self-contained esbuild bundle (index.mjs + pino worker threads)
-COPY --from=build-api    /app/artifacts/api-server/dist      ./dist
+# Self-contained esbuild bundle — land at the same path used during the build
+COPY --from=build-api    /app/artifacts/api-server/dist      ./artifacts/api-server/dist
 
 # Production node_modules (contains @google-cloud/storage and other externals
 # that esbuild intentionally left unbundled)
-COPY --from=api-prod-deps /prod/api/node_modules             ./node_modules
+COPY --from=api-prod-deps /prod/api/node_modules             ./artifacts/api-server/node_modules
 
 # ── React SPA ──────────────────────────────────────────────────────────────
 COPY --from=build-web /app/artifacts/wg-platform/dist/public /usr/share/nginx/html
