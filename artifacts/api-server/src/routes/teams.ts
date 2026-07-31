@@ -86,7 +86,9 @@ router.post("/teams/register", async (req, res) => {
   const coachId = req.session.userId;
 
   const extraIds: number[] = Array.isArray(playerIds) ? playerIds.filter((id: unknown) => typeof id === "number") : [];
-  const allPlayerIds = Array.from(new Set([captainId, ...extraIds]));
+  // Always include the coach as a team member so the person registering
+  // the team is automatically part of their own squad.
+  const allPlayerIds = Array.from(new Set([captainId, coachId, ...extraIds]));
 
   // All work runs inside a serializable transaction so concurrent registrations
   // cannot both pass the "player not yet on a team" check at the same time.

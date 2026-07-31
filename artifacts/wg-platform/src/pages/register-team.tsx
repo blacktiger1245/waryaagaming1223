@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -239,14 +239,21 @@ export default function RegisterTeamPage() {
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load all players on mount
-  useState(() => {
+  // Load all players on mount and auto-add the coach (current user) to squad
+  useEffect(() => {
+    if (!user) return;
     setLoadingPlayers(true);
     fetchAllPlayers()
-      .then(setDiscordPlayers)
+      .then((allPlayers) => {
+        setDiscordPlayers(allPlayers);
+        // Pre-select the coach as a squad member so they're always on their own team
+        const me = allPlayers.find((p) => p.id === user.id);
+        if (me) setPlayers([me]);
+      })
       .catch(() => setDiscordPlayers([]))
       .finally(() => setLoadingPlayers(false));
-  });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   const handleLogoFile = useCallback((file: File) => {
     if (!file.type.startsWith("image/")) return;
@@ -284,11 +291,16 @@ export default function RegisterTeamPage() {
     try {
       let logoUrl: string | undefined;
 
-      // Upload logo if provided
+      // Upload logo if provided — non-blocking: if storage isn't configured
+      // in this environment the registration still goes through without a logo.
       if (logoFile) {
-        const { uploadURL, objectPath } = await requestLogoUploadUrl(logoFile);
-        await uploadFileToBucket(uploadURL, logoFile);
-        logoUrl = `/api/storage${objectPath}`;
+        try {
+          const { uploadURL, objectPath } = await requestLogoUploadUrl(logoFile);
+          await uploadFileToBucket(uploadURL, logoFile);
+          logoUrl = `/api/storage${objectPath}`;
+        } catch {
+          // Continue without logo — don't block team registration
+        }
       }
 
       const team = await registerTeam({
@@ -506,7 +518,7 @@ export default function RegisterTeamPage() {
               <PlayerDropdown
                 players={discordPlayers ?? []}
                 selectedIds={players.map((p) => p.id)}
-                excludeIds={captain ? [captain.id] : []}
+                excludeIds={[]}
                 placeholder="Add a player…"
                 onSelect={addPlayer}
               />
