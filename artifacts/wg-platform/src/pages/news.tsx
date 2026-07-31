@@ -6,12 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useListNews } from "@workspace/api-client-react";
 
-type Category = "tournament" | "community" | "esports" | "federation" | undefined;
+type Category = "tournament" | "community" | "federation" | undefined;
 
 const catColors: Record<string, string> = {
   tournament: "bg-primary/10 text-primary border-primary/30",
   community: "bg-blue-500/10 text-blue-400 border-blue-500/30",
-  esports: "bg-orange-500/10 text-orange-400 border-orange-500/30",
   federation: "bg-purple-500/10 text-purple-400 border-purple-500/30",
 };
 
@@ -26,7 +25,6 @@ export default function NewsPage() {
     { label: "All", value: undefined },
     { label: "Tournament", value: "tournament" },
     { label: "Community", value: "community" },
-    { label: "Esports", value: "esports" },
     { label: "Federation", value: "federation" },
   ];
 

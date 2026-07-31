@@ -108,6 +108,33 @@ router.post(
 );
 
 /**
+ * POST /storage/uploads/news-image
+ *
+ * Request a presigned URL for news article image upload.
+ * Only accessible to admins/owners.
+ */
+router.post(
+  '/storage/uploads/news-image',
+  async (req: Request, res: Response) => {
+    if (!isAdmin(req)) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { name = 'news-image', size = 0, contentType = 'image/jpeg' } = req.body ?? {};
+
+    try {
+      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
+      const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
+      res.json({ uploadURL, objectPath, metadata: { name, size, contentType } });
+    } catch (error) {
+      req.log.error({ err: error }, 'Error generating news image upload URL');
+      res.status(500).json({ error: 'Failed to generate upload URL' });
+    }
+  },
+);
+
+/**
  * POST /storage/uploads/request-url
  *
  * Request a presigned URL for file upload.
