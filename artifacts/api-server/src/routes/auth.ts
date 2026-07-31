@@ -48,12 +48,26 @@ interface DiscordTokenResponse {
  */
 function getBaseUrl(req: import("express").Request): string {
   const explicit = process.env["BASE_URL"];
-  if (explicit) return explicit.replace(/\/$/, "");
+  if (explicit) {
+    // Strip trailing slash and always enforce https in production,
+    // even if the env var was accidentally written with http://.
+    const url = explicit.replace(/\/$/, "");
+    return process.env["NODE_ENV"] === "production"
+      ? url.replace(/^http:\/\//i, "https://")
+      : url;
+  }
 
   const replitDomain = process.env["REPLIT_DOMAINS"]?.split(",")[0];
   if (replitDomain) return `https://${replitDomain}`;
 
-  return `${req.protocol}://${req.get("host")}`;
+  // Read X-Forwarded-Proto directly so the correct scheme is used even when
+  // the upstream proxy (Back4App, Railway, etc.) doesn't set the header that
+  // Express's trust-proxy mechanism reads.
+  const forwardedProto = (req.headers["x-forwarded-proto"] as string | undefined)
+    ?.split(",")[0]
+    ?.trim();
+  const proto = forwardedProto ?? req.protocol;
+  return `${proto}://${req.get("host")}`;
 }
 
 function getRedirectUri(req: import("express").Request) {
