@@ -49,20 +49,26 @@ interface DiscordTokenResponse {
 function getBaseUrl(req: import("express").Request): string {
   const explicit = process.env["BASE_URL"];
   if (explicit) {
-    // Strip trailing slash and always enforce https in production,
-    // even if the env var was accidentally written with http://.
-    const url = explicit.replace(/\/$/, "");
-    return process.env["NODE_ENV"] === "production"
-      ? url.replace(/^http:\/\//i, "https://")
-      : url;
+    try {
+      // Parse the value properly so we get only the origin (scheme + host).
+      // This handles accidental extras in the env var:
+      //   - trailing slash                 "https://example.com/"
+      //   - path included                  "https://example.com/api/auth/..."
+      //   - wrong scheme                   "http://example.com"
+      // parsed.origin returns exactly "https://hostname" with no path.
+      const parsed = new URL(explicit.trim());
+      if (process.env["NODE_ENV"] === "production") parsed.protocol = "https:";
+      return parsed.origin;
+    } catch {
+      // BASE_URL is not a valid URL — fall through to auto-detection.
+    }
   }
 
   const replitDomain = process.env["REPLIT_DOMAINS"]?.split(",")[0];
   if (replitDomain) return `https://${replitDomain}`;
 
   // Read X-Forwarded-Proto directly so the correct scheme is used even when
-  // the upstream proxy (Back4App, Railway, etc.) doesn't set the header that
-  // Express's trust-proxy mechanism reads.
+  // the upstream proxy (Back4App, Railway, etc.) sets it explicitly.
   const forwardedProto = (req.headers["x-forwarded-proto"] as string | undefined)
     ?.split(",")[0]
     ?.trim();
