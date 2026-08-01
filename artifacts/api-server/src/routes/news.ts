@@ -23,7 +23,7 @@ router.get("/news", async (req, res) => {
   return res.json(
     news.map((n) => ({
       ...n,
-      publishedAt: n.publishedAt.toISOString(),
+      publishedAt: (n.publishedAt ?? n.createdAt).toISOString(),
       createdAt: n.createdAt.toISOString(),
     }))
   );
