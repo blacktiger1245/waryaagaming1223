@@ -237,7 +237,7 @@ export default function AdminNewsPage() {
     if (editing) {
       updateMutation.mutate({ id: editing.id, payload });
     } else {
-      createMutation.mutate(payload);
+      createMutation.mutate({ ...payload, publishedAt: new Date().toISOString() });
     }
   }
 
