@@ -64,16 +64,23 @@ export default function NewsPage() {
             {/* Featured */}
             {featured && (
               <Link href={`/news/${featured.id}`}>
-                <div className="rounded-xl border border-primary/30 bg-card p-8 mb-8 hover:border-primary/60 transition-all duration-300 cursor-pointer group">
-                  <Badge className={`mb-4 text-[10px] uppercase tracking-widest ${catColors[featured.category] ?? ""}`}>
-                    Featured — {featured.category}
-                  </Badge>
-                  <h2 className="text-3xl font-black group-hover:text-primary transition-colors mb-3">{featured.title}</h2>
-                  {featured.excerpt && <p className="text-muted-foreground text-lg">{featured.excerpt}</p>}
-                  <p className="text-xs text-muted-foreground mt-4">
-                    {featured.authorName && `By ${featured.authorName} — `}
-                    {new Date(featured.publishedAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
-                  </p>
+                <div className="rounded-xl border border-primary/30 bg-card mb-8 hover:border-primary/60 transition-all duration-300 cursor-pointer group overflow-hidden">
+                  {featured.imageUrl && (
+                    <div className="w-full h-64 overflow-hidden">
+                      <img src={featured.imageUrl} alt={featured.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    </div>
+                  )}
+                  <div className="p-8">
+                    <Badge className={`mb-4 text-[10px] uppercase tracking-widest ${catColors[featured.category] ?? ""}`}>
+                      Featured — {featured.category}
+                    </Badge>
+                    <h2 className="text-3xl font-black group-hover:text-primary transition-colors mb-3">{featured.title}</h2>
+                    {featured.excerpt && <p className="text-muted-foreground text-lg">{featured.excerpt}</p>}
+                    <p className="text-xs text-muted-foreground mt-4">
+                      {featured.authorName && `By ${featured.authorName} — `}
+                      {new Date(featured.publishedAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                    </p>
+                  </div>
                 </div>
               </Link>
             )}
@@ -83,19 +90,30 @@ export default function NewsPage() {
               {(rest ?? news ?? []).map((article, i) => (
                 <motion.div key={article.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
                   <Link href={`/news/${article.id}`}>
-                    <div className="rounded-xl border border-border bg-card p-6 hover:border-primary/40 transition-all duration-300 cursor-pointer h-full flex flex-col gap-3 group">
-                      <Badge className={`self-start text-[10px] uppercase tracking-widest ${catColors[article.category] ?? ""}`}>
-                        {article.category}
-                      </Badge>
-                      <h3 className="font-black text-lg leading-tight group-hover:text-primary transition-colors flex-1">
-                        {article.title}
-                      </h3>
-                      {article.excerpt && (
-                        <p className="text-muted-foreground text-sm line-clamp-2">{article.excerpt}</p>
+                    <div className="rounded-xl border border-border bg-card hover:border-primary/40 transition-all duration-300 cursor-pointer h-full flex flex-col group overflow-hidden">
+                      {article.imageUrl ? (
+                        <div className="w-full h-40 overflow-hidden">
+                          <img src={article.imageUrl} alt={article.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                        </div>
+                      ) : (
+                        <div className="w-full h-40 bg-muted/30 flex items-center justify-center">
+                          <Newspaper className="w-8 h-8 opacity-20" />
+                        </div>
                       )}
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(article.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                      </p>
+                      <div className="p-5 flex flex-col gap-2 flex-1">
+                        <Badge className={`self-start text-[10px] uppercase tracking-widest ${catColors[article.category] ?? ""}`}>
+                          {article.category}
+                        </Badge>
+                        <h3 className="font-black text-lg leading-tight group-hover:text-primary transition-colors flex-1">
+                          {article.title}
+                        </h3>
+                        {article.excerpt && (
+                          <p className="text-muted-foreground text-sm line-clamp-2">{article.excerpt}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(article.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        </p>
+                      </div>
                     </div>
                   </Link>
                 </motion.div>
