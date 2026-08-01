@@ -155,7 +155,12 @@ function registerEntityRoutes(path: string, table: PgTable & { id: AnyColumn }) 
 
   router.post(`/admin/${path}`, async (req, res) => {
     try {
-      const rows = await db.insert(table).values(req.body).returning();
+      const body = { ...req.body };
+      // Drizzle requires Date objects for timestamp columns, not ISO strings
+      if (typeof body.publishedAt === "string") body.publishedAt = new Date(body.publishedAt);
+      if (typeof body.scheduledAt === "string") body.scheduledAt = body.scheduledAt ? new Date(body.scheduledAt) : null;
+      if (typeof body.createdAt === "string") body.createdAt = new Date(body.createdAt);
+      const rows = await db.insert(table).values(body).returning();
       res.status(201).json(rows[0]);
     } catch (err) {
       req.log.error({ err }, `Failed to create ${path}`);
