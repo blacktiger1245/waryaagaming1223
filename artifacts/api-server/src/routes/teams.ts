@@ -439,8 +439,8 @@ router.post("/teams/:id/members", async (req, res) => {
   const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
   if (!team) return res.status(404).json({ error: "Team not found" });
 
-  if (req.session.userId !== team.captainId)
-    return res.status(403).json({ error: "Only the captain can add players" });
+  if (req.session.userId !== team.coachId)
+    return res.status(403).json({ error: "Only the coach can add players" });
 
   const { playerId } = req.body ?? {};
   if (typeof playerId !== "number") return res.status(400).json({ error: "playerId is required" });

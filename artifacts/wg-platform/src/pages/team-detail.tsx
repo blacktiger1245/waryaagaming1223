@@ -1460,8 +1460,8 @@ export default function TeamDetailPage() {
                     </div>
                   )}
 
-                  {/* ── Captain: Add Player ────────────────────────────────── */}
-                  {isCaptain && (
+                  {/* ── Coach: Add Player ─────────────────────────────────── */}
+                  {isCoach && (
                     <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="text-sm font-black uppercase tracking-widest text-zinc-300">Add Player</h3>

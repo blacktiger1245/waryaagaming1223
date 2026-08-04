@@ -396,6 +396,81 @@ function registerEntityRoutes(path: string, table: PgTable & { id: AnyColumn }) 
 }
 
 registerEntityRoutes("players", playersTable);
+
+// ── Override generic team DELETE — also clears all members ───────────────────
+// Must be registered BEFORE registerEntityRoutes("teams") so it wins the match.
+router.delete("/admin/teams/:id", async (req, res) => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+  // Clear all players that belong to this team
+  await db.update(playersTable).set({ teamId: null }).where(eq(playersTable.teamId, id));
+  await db.delete(teamsTable).where(eq(teamsTable.id, id));
+  return res.json({ ok: true });
+});
+
+// ── Admin: remove a single player from a team ─────────────────────────────────
+router.delete("/admin/teams/:id/members/:playerId", async (req, res) => {
+  const teamId   = Number(req.params.id);
+  const playerId = Number(req.params.playerId);
+  if (isNaN(teamId) || isNaN(playerId)) return res.status(400).json({ error: "Invalid id" });
+
+  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
+  if (!team) return res.status(404).json({ error: "Team not found" });
+
+  if (playerId === team.captainId) {
+    return res.status(400).json({ error: "Cannot remove the captain. Change the captain first." });
+  }
+
+  await db.update(playersTable).set({ teamId: null }).where(
+    and(eq(playersTable.id, playerId), eq(playersTable.teamId, teamId))
+  );
+  return res.json({ ok: true });
+});
+
+// ── Admin: ban a player ───────────────────────────────────────────────────────
+router.post("/admin/players/:id/ban", async (req, res) => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+
+  const { duration } = req.body as { duration?: string };
+  const allowed = ["1d", "5d", "10d", "forever"];
+  if (!duration || !allowed.includes(duration)) {
+    return res.status(400).json({ error: "duration must be one of: 1d, 5d, 10d, forever" });
+  }
+
+  let bannedUntil: Date | null;
+  if (duration === "forever") {
+    bannedUntil = new Date("9999-12-31T23:59:59Z");
+  } else {
+    const days = parseInt(duration, 10);
+    bannedUntil = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+  }
+
+  const [updated] = await db
+    .update(playersTable)
+    .set({ bannedUntil })
+    .where(eq(playersTable.id, id))
+    .returning({ id: playersTable.id, username: playersTable.username, bannedUntil: playersTable.bannedUntil });
+
+  if (!updated) return res.status(404).json({ error: "Player not found" });
+  return res.json(updated);
+});
+
+// ── Admin: unban a player ─────────────────────────────────────────────────────
+router.delete("/admin/players/:id/ban", async (req, res) => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+
+  const [updated] = await db
+    .update(playersTable)
+    .set({ bannedUntil: null })
+    .where(eq(playersTable.id, id))
+    .returning({ id: playersTable.id, username: playersTable.username, bannedUntil: playersTable.bannedUntil });
+
+  if (!updated) return res.status(404).json({ error: "Player not found" });
+  return res.json(updated);
+});
+
 registerEntityRoutes("teams", teamsTable);
 
 // ── Seasons CRUD ──────────────────────────────────────────────────────────────
