@@ -1,0 +1,201 @@
+CREATE TABLE IF NOT EXISTS user_sessions (
+  sid varchar NOT NULL COLLATE "default",
+  sess json NOT NULL,
+  expire timestamp(6) NOT NULL,
+  CONSTRAINT session_pkey PRIMARY KEY (sid) NOT DEFERRABLE INITIALLY IMMEDIATE
+);
+CREATE INDEX IF NOT EXISTS IDX_session_expire ON user_sessions (expire);
+
+CREATE TABLE IF NOT EXISTS players (
+  id serial PRIMARY KEY,
+  username text NOT NULL UNIQUE,
+  display_name text,
+  avatar_url text,
+  email text,
+  team_id integer,
+  rank integer NOT NULL DEFAULT 9999,
+  previous_rank integer NOT NULL DEFAULT 0,
+  tournament_wins integer NOT NULL DEFAULT 0,
+  win_rate real NOT NULL DEFAULT 0,
+  matches_played integer NOT NULL DEFAULT 0,
+  matches_won integer NOT NULL DEFAULT 0,
+  matches_lost integer NOT NULL DEFAULT 0,
+  loss_rate real NOT NULL DEFAULT 0,
+  points real NOT NULL DEFAULT 0,
+  country text,
+  discord_id text,
+  bio text,
+  clean_sheets integer NOT NULL DEFAULT 0,
+  rating integer NOT NULL DEFAULT 0,
+  market_value integer NOT NULL DEFAULT 0,
+  goals_scored integer NOT NULL DEFAULT 0,
+  draws integer NOT NULL DEFAULT 0,
+  goals_conceded integer NOT NULL DEFAULT 0,
+  man_of_the_match integer NOT NULL DEFAULT 0,
+  yellow_cards integer NOT NULL DEFAULT 0,
+  red_cards integer NOT NULL DEFAULT 0,
+  gaming_device text,
+  device_name text,
+  konami_id text,
+  blood_group text,
+  profile_complete boolean NOT NULL DEFAULT false,
+  is_active boolean NOT NULL DEFAULT true,
+  badges text[] NOT NULL DEFAULT '{}',
+  role text NOT NULL DEFAULT 'player',
+  created_at timestamp NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS teams (
+  id serial PRIMARY KEY,
+  name text NOT NULL UNIQUE,
+  tag text,
+  logo_url text,
+  captain_id integer NOT NULL,
+  coach_id integer,
+  wins integer NOT NULL DEFAULT 0,
+  losses integer NOT NULL DEFAULT 0,
+  points integer NOT NULL DEFAULT 0,
+  description text,
+  achievements text[] NOT NULL DEFAULT '{}',
+  created_at timestamp NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS tournaments (
+  id serial PRIMARY KEY,
+  name text NOT NULL,
+  description text,
+  status text NOT NULL DEFAULT 'upcoming',
+  format text NOT NULL DEFAULT 'single-elimination',
+  game text NOT NULL DEFAULT 'eFootball',
+  max_participants integer NOT NULL DEFAULT 16,
+  current_participants integer NOT NULL DEFAULT 0,
+  prize_pool text NOT NULL DEFAULT '$0',
+  start_date text NOT NULL,
+  end_date text,
+  rules text,
+  stream_url text,
+  winner_id integer,
+  winner_name text,
+  logo_url text,
+  hosted_by text,
+  tournament_type text,
+  created_at timestamp NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS matches (
+  id serial PRIMARY KEY,
+  tournament_id integer NOT NULL,
+  round integer NOT NULL DEFAULT 1,
+  round_name text,
+  status text NOT NULL DEFAULT 'scheduled',
+  participant1_id integer,
+  participant1_name text,
+  participant1_score integer,
+  participant2_id integer,
+  participant2_name text,
+  participant2_score integer,
+  winner_id integer,
+  winner_name text,
+  scheduled_at text,
+  stream_url text,
+  man_of_the_match_id integer,
+  man_of_the_match_name text,
+  participant1_yellow_cards integer NOT NULL DEFAULT 0,
+  participant1_red_cards integer NOT NULL DEFAULT 0,
+  participant2_yellow_cards integer NOT NULL DEFAULT 0,
+  participant2_red_cards integer NOT NULL DEFAULT 0,
+  created_at timestamp NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS news (
+  id serial PRIMARY KEY,
+  title text NOT NULL,
+  slug text NOT NULL UNIQUE,
+  category text,
+  content text NOT NULL,
+  excerpt text,
+  image_url text,
+  author_id integer,
+  author_name text,
+  team_id integer,
+  is_featured boolean NOT NULL DEFAULT false,
+  published_at text,
+  created_at timestamp NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS media (
+  id serial PRIMARY KEY,
+  title text NOT NULL,
+  platform text NOT NULL,
+  url text NOT NULL,
+  embed_url text NOT NULL,
+  thumbnail_url text,
+  description text,
+  published_at text,
+  created_at timestamp NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS hall_of_fame (
+  id serial PRIMARY KEY,
+  player_id integer NOT NULL,
+  achievement text NOT NULL,
+  year integer NOT NULL,
+  description text,
+  created_at timestamp NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS tournament_participants (
+  id serial PRIMARY KEY,
+  tournament_id integer NOT NULL,
+  type text NOT NULL DEFAULT 'player',
+  player_id integer,
+  team_id integer,
+  seed integer,
+  created_at timestamp NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS discord_tokens (
+  id serial PRIMARY KEY,
+  player_id integer NOT NULL UNIQUE REFERENCES players(id) ON DELETE CASCADE,
+  access_token text NOT NULL,
+  refresh_token text NOT NULL,
+  expires_at timestamp NOT NULL,
+  last_synced_at timestamp NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS match_player_games (
+  id serial PRIMARY KEY,
+  match_id integer NOT NULL,
+  home_player_id integer,
+  home_player_name text,
+  away_player_id integer,
+  away_player_name text,
+  home_score integer,
+  away_score integer,
+  status text NOT NULL DEFAULT 'scheduled',
+  created_at timestamp NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS community_posts (
+  id serial PRIMARY KEY,
+  author_id integer NOT NULL,
+  content text NOT NULL,
+  image_url text,
+  created_at timestamp NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS community_post_likes (
+  id serial PRIMARY KEY,
+  post_id integer NOT NULL,
+  user_id integer NOT NULL,
+  created_at timestamp NOT NULL DEFAULT now(),
+  CONSTRAINT community_post_likes_post_user UNIQUE (post_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS community_post_comments (
+  id serial PRIMARY KEY,
+  post_id integer NOT NULL,
+  author_id integer NOT NULL,
+  content text NOT NULL,
+  created_at timestamp NOT NULL DEFAULT now()
+);
