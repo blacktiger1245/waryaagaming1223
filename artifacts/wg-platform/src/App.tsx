@@ -38,6 +38,7 @@ import AdminMatchesPage from "@/pages/admin/matches";
 import AdminNewsPage from "@/pages/admin/news";
 import AdminMediaPage from "@/pages/admin/media";
 import AdminHallOfFamePage from "@/pages/admin/hall-of-fame";
+import AdminSeasonsPage from "@/pages/admin/seasons";
 import ManageAdminsPage from "@/pages/admin/manage-admins";
 
 const queryClient = new QueryClient({
@@ -95,6 +96,7 @@ function AdminRouter() {
         <Route path="/admin/matches" component={AdminMatchesPage} />
         <Route path="/admin/news" component={AdminNewsPage} />
         <Route path="/admin/media" component={AdminMediaPage} />
+        <Route path="/admin/seasons" component={AdminSeasonsPage} />
         <Route path="/admin/hall-of-fame" component={AdminHallOfFamePage} />
         <Route path="/admin/manage-admins" component={ManageAdminsPage} />
         <Route component={NotFound} />

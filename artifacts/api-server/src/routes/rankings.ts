@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { playersTable, teamsTable, hallOfFameTable } from "@workspace/db";
-import { eq, desc, asc } from "drizzle-orm";
+import { playersTable, teamsTable, hallOfFameTable, tournamentsTable, matchesTable } from "@workspace/db";
+import { eq, desc, inArray, sql } from "drizzle-orm";
 import { GetPlayerRankingsQueryParams } from "@workspace/api-zod";
 
 const router = Router();
@@ -11,6 +11,99 @@ router.get("/rankings/players", async (req, res) => {
   const query = GetPlayerRankingsQueryParams.safeParse(req.query);
   if (!query.success) return res.status(400).json({ error: "Invalid query" });
 
+  const seasonId = req.query.seasonId ? Number(req.query.seasonId) : undefined;
+
+  const teams = await db.select({ id: teamsTable.id, name: teamsTable.name }).from(teamsTable);
+  const teamMap = new Map(teams.map((t) => [t.id, t.name]));
+
+  // ── Seasonal: aggregate match stats for tournaments in this season ────────
+  if (seasonId) {
+    const seasonTournaments = await db
+      .select({ id: tournamentsTable.id })
+      .from(tournamentsTable)
+      .where(eq(tournamentsTable.seasonId, seasonId));
+
+    const tournamentIds = seasonTournaments.map((t) => t.id);
+
+    if (tournamentIds.length === 0) {
+      return res.json([]);
+    }
+
+    const matches = await db
+      .select()
+      .from(matchesTable)
+      .where(
+        sql`${matchesTable.tournamentId} = ANY(ARRAY[${sql.join(tournamentIds.map((id) => sql`${id}`), sql`, `)}]) AND ${matchesTable.status} = 'completed'`
+      );
+
+    // Aggregate per player
+    const statsMap = new Map<number, { wins: number; losses: number; draws: number; points: number }>();
+
+    const ensurePlayer = (id: number) => {
+      if (!statsMap.has(id)) statsMap.set(id, { wins: 0, losses: 0, draws: 0, points: 0 });
+      return statsMap.get(id)!;
+    };
+
+    for (const m of matches) {
+      const p1 = m.participant1Id;
+      const p2 = m.participant2Id;
+      if (!p1 || !p2) continue;
+
+      if (m.winnerId != null) {
+        const winnerId = m.winnerId;
+        const loserId = winnerId === p1 ? p2 : p1;
+        ensurePlayer(winnerId).wins += 1;
+        ensurePlayer(winnerId).points += 3;
+        ensurePlayer(loserId).losses += 1;
+      } else {
+        // draw
+        ensurePlayer(p1).draws += 1;
+        ensurePlayer(p1).points += 1;
+        ensurePlayer(p2).draws += 1;
+        ensurePlayer(p2).points += 1;
+      }
+    }
+
+    if (statsMap.size === 0) return res.json([]);
+
+    const playerIds = [...statsMap.keys()];
+    const idArray = sql`ARRAY[${sql.join(playerIds.map((id) => sql`${id}`), sql`, `)}]`;
+    const players = await db
+      .select()
+      .from(playersTable)
+      .where(sql`${playersTable.id} = ANY(${idArray})`);
+
+    const ranked = players
+      .map((p) => {
+        const s = statsMap.get(p.id) ?? { wins: 0, losses: 0, draws: 0, points: 0 };
+        return { player: p, ...s, matchesPlayed: s.wins + s.losses + s.draws };
+      })
+      .sort((a, b) => b.points - a.points || b.wins - a.wins);
+
+    return res.json(
+      ranked.map((r, i) => ({
+        rank: i + 1,
+        playerId: r.player.id,
+        username: r.player.username,
+        displayName: r.player.displayName,
+        avatarUrl: r.player.avatarUrl,
+        teamName: r.player.teamId ? (teamMap.get(r.player.teamId) ?? null) : null,
+        points: r.points,
+        matchesPlayed: r.matchesPlayed,
+        matchesWon: r.wins,
+        matchesLost: r.losses,
+        draws: r.draws,
+        winRate: r.matchesPlayed > 0 ? r.wins / r.matchesPlayed : 0,
+        lossRate: r.matchesPlayed > 0 ? r.losses / r.matchesPlayed : 0,
+        tournamentWins: r.player.tournamentWins,
+        rating: (r.player as any).rating ?? 0,
+        marketValue: (r.player as any).marketValue ?? 0,
+        change: null,
+      }))
+    );
+  }
+
+  // ── Overall / all-time ────────────────────────────────────────────────────
   const players = await db
     .select()
     .from(playersTable)
@@ -18,9 +111,6 @@ router.get("/rankings/players", async (req, res) => {
     .limit(50);
 
   const sorted = [...players].sort((a, b) => b.points - a.points);
-
-  const teams = await db.select({ id: teamsTable.id, name: teamsTable.name }).from(teamsTable);
-  const teamMap = new Map(teams.map((t) => [t.id, t.name]));
 
   return res.json(
     sorted.map((p, i) => ({
@@ -40,7 +130,6 @@ router.get("/rankings/players", async (req, res) => {
       lossRate: p.lossRate,
       rating: (p as any).rating ?? 0,
       marketValue: (p as any).marketValue ?? 0,
-      // previousRank 0 means never ranked before → no change to show
       change: p.previousRank > 0 ? p.previousRank - (i + 1) : null,
     }))
   );

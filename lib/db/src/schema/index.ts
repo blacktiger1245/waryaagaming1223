@@ -1,4 +1,5 @@
 export * from "./players";
+export * from "./seasons";
 export * from "./discord_tokens";
 export * from "./teams";
 export * from "./tournaments";

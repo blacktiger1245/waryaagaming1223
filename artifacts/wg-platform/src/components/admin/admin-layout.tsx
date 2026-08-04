@@ -13,12 +13,14 @@ import {
   ExternalLink,
   UserCog,
   Crown,
+  CalendarRange,
 } from "lucide-react";
 import { useAdminAuth } from "@/hooks/use-admin-auth";
 import { Button } from "@/components/ui/button";
 
 const baseNavItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/admin/seasons", label: "Seasons", icon: CalendarRange },
   { href: "/admin/players", label: "Players", icon: Users },
   { href: "/admin/teams", label: "Teams", icon: Shield },
   { href: "/admin/tournaments", label: "Tournaments", icon: Trophy },

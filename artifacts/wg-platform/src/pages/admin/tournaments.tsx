@@ -11,8 +11,15 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Loader2, Plus, Upload, X, Trophy, Calendar, DollarSign, User, Users, Shield } from "lucide-react";
+import { Loader2, Plus, Upload, X, Trophy, Calendar, DollarSign, User, Users, Shield, CalendarRange, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Link } from "wouter";
+
+interface Season {
+  id: number;
+  name: string;
+  isCurrent: boolean;
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface TournamentRow {
@@ -149,7 +156,14 @@ function CreateTournamentDialog({
   const [prizePool, setPrizePool] = useState("");
   const [hostedBy, setHostedBy] = useState("");
   const [tournamentType, setTournamentType] = useState<"solo" | "team">("solo");
+  const [seasonId, setSeasonId] = useState<number | "">("");
   const [saving, setSaving] = useState(false);
+
+  const { data: seasons = [] } = useQuery<Season[]>({
+    queryKey: ["admin", "seasons"],
+    queryFn: () => apiFetch("/api/admin/seasons"),
+    enabled: open,
+  });
 
   function reset() {
     setLogoFile(null);
@@ -160,6 +174,7 @@ function CreateTournamentDialog({
     setPrizePool("");
     setHostedBy("");
     setTournamentType("solo");
+    setSeasonId("");
     setSaving(false);
   }
 
@@ -202,6 +217,7 @@ function CreateTournamentDialog({
           hostedBy: hostedBy.trim() || undefined,
           logoUrl,
           tournamentType,
+          seasonId: seasonId !== "" ? seasonId : undefined,
         }),
       });
 
@@ -353,6 +369,39 @@ function CreateTournamentDialog({
               onChange={(e) => setHostedBy(e.target.value)}
               placeholder="e.g. Waryaa Gaming"
             />
+          </div>
+
+          {/* Season */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <CalendarRange className="w-3.5 h-3.5" />
+              Season
+            </label>
+            {seasons.length === 0 ? (
+              <div className="flex items-start gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
+                <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                <div className="text-xs text-amber-300 leading-snug">
+                  No seasons created yet.{" "}
+                  <Link href="/admin/seasons" onClick={() => handleClose()} className="font-bold underline hover:text-amber-200">
+                    Create a season
+                  </Link>{" "}
+                  first to enable seasonal rankings.
+                </div>
+              </div>
+            ) : (
+              <select
+                value={seasonId}
+                onChange={(e) => setSeasonId(e.target.value ? Number(e.target.value) : "")}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="">No season (all-time only)</option>
+                {seasons.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}{s.isCurrent ? " (Current)" : ""}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           <DialogFooter className="pt-2">

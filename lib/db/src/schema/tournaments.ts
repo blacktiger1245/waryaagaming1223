@@ -21,6 +21,7 @@ export const tournamentsTable = pgTable("tournaments", {
   logoUrl: text("logo_url"),
   hostedBy: text("hosted_by"),
   tournamentType: text("tournament_type").notNull().default("solo"),
+  seasonId: integer("season_id"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
