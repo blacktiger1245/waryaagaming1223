@@ -88,3 +88,5 @@ channel = "stable-25_05"
 [userenv]
 
 [userenv.shared]
+R2_BUCKET_NAME = "waryaagaming"
+R2_ENDPOINT = "https://f7db6e5abc99618c6619dfbad4a4b34f.r2.cloudflarestorage.com"
