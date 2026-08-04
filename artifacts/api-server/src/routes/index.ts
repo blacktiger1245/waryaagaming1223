@@ -10,6 +10,7 @@ import mediaRouter from "./media";
 import statsRouter from "./stats";
 import storageRouter from "./storage";
 import communityRouter from "./community";
+import seasonsRouter from "./seasons";
 
 const router: IRouter = Router();
 
@@ -24,6 +25,7 @@ router.use(mediaRouter);
 router.use(statsRouter);
 router.use(storageRouter);
 router.use(communityRouter);
+router.use(seasonsRouter);
 // Note: auth routes are mounted directly in app.ts
 
 export default router;

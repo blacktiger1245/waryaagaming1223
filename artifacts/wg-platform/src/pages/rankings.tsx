@@ -1,7 +1,14 @@
 import { useState, useMemo } from "react";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { Trophy, Star, TrendingUp, TrendingDown, ArrowUpDown, ChevronsUpDown, Search, Shield, X, Minus } from "lucide-react";
+import { Trophy, Star, TrendingUp, TrendingDown, ArrowUpDown, ChevronsUpDown, Search, Shield, X, Minus, CalendarRange, ChevronDown } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+
+interface Season {
+  id: number;
+  name: string;
+  isCurrent: boolean;
+}
 
 // ── TeamRankingsPanel ──────────────────────────────────────────────────────────
 type TeamPeriod = "overall" | "seasonal" | "monthly" | "comparison";
@@ -493,27 +500,63 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useGetPlayerRankings, useGetTeamRankings, useGetHallOfFame } from "@workspace/api-client-react";
 
 type Tab = "players" | "teams" | "hof";
-type Period = "all-time" | "monthly" | "weekly";
+type Period = "all-time" | "monthly" | "weekly" | "seasonal";
 
 export default function RankingsPage() {
   const [tab, setTab] = useState<Tab>("players");
   const [period, setPeriod] = useState<Period>("all-time");
+  const [selectedSeasonId, setSelectedSeasonId] = useState<number | null>(null);
+  const [seasonDropdownOpen, setSeasonDropdownOpen] = useState(false);
+
   type SortKey = "rank" | "rating" | "marketValue" | "matchesPlayed" | "matchesWon" | "draws" | "points";
   const [sortKey, setSortKey] = useState<SortKey>("rank");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
-  const { data: playerRankings, isLoading: loadingPlayers } = useGetPlayerRankings({ period });
+  // Load seasons list for the dropdown
+  const { data: seasons = [] } = useQuery<Season[]>({
+    queryKey: ["seasons"],
+    queryFn: async () => {
+      const res = await fetch(`${import.meta.env.BASE_URL}api/seasons`, { credentials: "include" });
+      return res.json();
+    },
+  });
+
+  // Auto-select the current season when seasons load
+  const currentSeason = seasons.find((s) => s.isCurrent) ?? seasons[0] ?? null;
+  const activeSeason = selectedSeasonId != null
+    ? seasons.find((s) => s.id === selectedSeasonId) ?? currentSeason
+    : currentSeason;
+
+  // Seasonal rankings: direct fetch (not through generated hook, needs seasonId param)
+  const { data: seasonalRankings, isLoading: loadingSeasonal } = useQuery({
+    queryKey: ["rankings", "seasonal", activeSeason?.id],
+    queryFn: async () => {
+      if (!activeSeason) return [];
+      const res = await fetch(
+        `${import.meta.env.BASE_URL}api/rankings/players?seasonId=${activeSeason.id}`,
+        { credentials: "include" }
+      );
+      return res.json();
+    },
+    enabled: period === "seasonal" && !!activeSeason,
+  });
+
+  const { data: playerRankings, isLoading: loadingPlayers } = useGetPlayerRankings({ period: period === "seasonal" ? "all-time" : period });
   const { data: teamRankings, isLoading: loadingTeams } = useGetTeamRankings();
   const { data: hof, isLoading: loadingHof } = useGetHallOfFame();
 
+  // Use the right data source depending on period
+  const activePlayerData = period === "seasonal" ? (seasonalRankings ?? []) : (playerRankings ?? []);
+  const activePlayerLoading = period === "seasonal" ? loadingSeasonal : loadingPlayers;
+
   const sortedPlayers = useMemo(() => {
-    if (!playerRankings) return [];
-    return [...playerRankings].sort((a, b) => {
-      const av = (a as any)[sortKey] ?? 0;
-      const bv = (b as any)[sortKey] ?? 0;
+    if (!activePlayerData) return [];
+    return [...activePlayerData].sort((a: any, b: any) => {
+      const av = a[sortKey] ?? 0;
+      const bv = b[sortKey] ?? 0;
       return sortDir === "asc" ? av - bv : bv - av;
     });
-  }, [playerRankings, sortKey, sortDir]);
+  }, [activePlayerData, sortKey, sortDir]);
 
   function handleSort(key: SortKey) {
     if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -566,15 +609,15 @@ export default function RankingsPage() {
         {/* Player Rankings */}
         {tab === "players" && (
           <div>
-            <div className="flex items-center gap-2 mb-6">
-              {(["all-time", "monthly", "weekly"] as Period[]).map((p) => (
+            <div className="flex flex-wrap items-center gap-2 mb-6">
+              {(["all-time", "seasonal", "monthly", "weekly"] as Period[]).map((p) => (
                 <button
                   key={p}
                   onClick={() => setPeriod(p)}
                   className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-all duration-200
-                    ${period === p ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                    ${period === p ? "bg-teal-400 text-black" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
                 >
-                  {p}
+                  {p === "all-time" ? "Overall" : p === "seasonal" ? "Seasonal" : p === "monthly" ? "Monthly" : "Weekly"}
                 </button>
               ))}
 
@@ -589,6 +632,46 @@ export default function RankingsPage() {
                 </button>
               </Link>
             </div>
+
+            {/* Season selector — only shown when Seasonal tab is active */}
+            {period === "seasonal" && (
+              <div className="flex items-center gap-3 mb-5">
+                <span className="text-sm font-bold text-muted-foreground flex items-center gap-1.5">
+                  <CalendarRange className="w-4 h-4" /> Season
+                </span>
+                {seasons.length === 0 ? (
+                  <span className="text-sm text-amber-400 font-semibold">
+                    No seasons created yet — ask an admin to create one.
+                  </span>
+                ) : (
+                  <div className="relative">
+                    <button
+                      onClick={() => setSeasonDropdownOpen((v) => !v)}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-teal-500/50 bg-zinc-900 text-sm font-bold text-white hover:border-teal-400 transition-colors min-w-[160px]"
+                    >
+                      <span className="flex-1 text-left">
+                        {activeSeason ? `${activeSeason.name}${activeSeason.isCurrent ? " (Current)" : ""}` : "Select season"}
+                      </span>
+                      <ChevronDown className="w-4 h-4 text-teal-400 shrink-0" />
+                    </button>
+                    {seasonDropdownOpen && (
+                      <div className="absolute top-full mt-1 left-0 z-50 min-w-[200px] rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl overflow-hidden">
+                        {seasons.map((s) => (
+                          <button
+                            key={s.id}
+                            onClick={() => { setSelectedSeasonId(s.id); setSeasonDropdownOpen(false); }}
+                            className={`w-full px-3 py-2 text-sm text-left flex items-center justify-between hover:bg-zinc-800 transition-colors ${activeSeason?.id === s.id ? "text-teal-400 font-bold" : "text-zinc-200"}`}
+                          >
+                            <span>{s.name}</span>
+                            {s.isCurrent && <span className="text-[10px] font-bold text-teal-400 bg-teal-400/10 px-1.5 py-0.5 rounded">Current</span>}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="rounded-xl border border-border overflow-x-auto">
               <table className="w-full min-w-[700px]">

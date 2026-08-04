@@ -10,6 +10,7 @@ import {
   newsTable,
   mediaTable,
   hallOfFameTable,
+  seasonsTable,
 } from "@workspace/db";
 import { eq, desc, and, inArray, type AnyColumn } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
@@ -397,13 +398,64 @@ function registerEntityRoutes(path: string, table: PgTable & { id: AnyColumn }) 
 registerEntityRoutes("players", playersTable);
 registerEntityRoutes("teams", teamsTable);
 
+// ── Seasons CRUD ──────────────────────────────────────────────────────────────
+router.get("/admin/seasons", requireAdmin, async (_req, res) => {
+  const seasons = await db.select().from(seasonsTable).orderBy(desc(seasonsTable.createdAt));
+  return res.json(seasons);
+});
+
+router.post("/admin/seasons", requireAdmin, async (req, res) => {
+  const { name, isCurrent } = req.body as { name?: string; isCurrent?: boolean };
+  if (!name?.trim()) return res.status(400).json({ error: "Season name is required" });
+  try {
+    if (isCurrent) {
+      // Unset any existing current season
+      await db.update(seasonsTable).set({ isCurrent: false });
+    }
+    const [season] = await db.insert(seasonsTable).values({
+      name: name.trim(),
+      isCurrent: isCurrent ?? false,
+    }).returning();
+    return res.status(201).json(season);
+  } catch (err: any) {
+    if (err?.code === "23505") return res.status(409).json({ error: "A season with that name already exists" });
+    req.log.error({ err }, "Failed to create season");
+    return res.status(500).json({ error: "Failed to create season" });
+  }
+});
+
+router.patch("/admin/seasons/:id", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  const { name, isCurrent } = req.body as { name?: string; isCurrent?: boolean };
+  try {
+    if (isCurrent) {
+      await db.update(seasonsTable).set({ isCurrent: false });
+    }
+    const updates: Record<string, unknown> = {};
+    if (name !== undefined) updates.name = name.trim();
+    if (isCurrent !== undefined) updates.isCurrent = isCurrent;
+    const [season] = await db.update(seasonsTable).set(updates).where(eq(seasonsTable.id, id)).returning();
+    if (!season) return res.status(404).json({ error: "Season not found" });
+    return res.json(season);
+  } catch (err: any) {
+    if (err?.code === "23505") return res.status(409).json({ error: "A season with that name already exists" });
+    return res.status(500).json({ error: "Failed to update season" });
+  }
+});
+
+router.delete("/admin/seasons/:id", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  await db.delete(seasonsTable).where(eq(seasonsTable.id, id));
+  return res.json({ ok: true });
+});
+
 // ── POST /admin/tournaments — custom create with team auto-enroll ─────────────
 router.post("/admin/tournaments", requireAdmin, async (req, res) => {
   try {
     const {
       name, description, status, format, game, maxParticipants,
       prizePool, startDate, endDate, rules, streamUrl, logoUrl,
-      hostedBy, tournamentType = "solo",
+      hostedBy, tournamentType = "solo", seasonId,
     } = req.body as Record<string, string | number | undefined>;
 
     if (!name) return res.status(400).json({ error: "Name is required" });
@@ -426,6 +478,7 @@ router.post("/admin/tournaments", requireAdmin, async (req, res) => {
       logoUrl: logoUrl ? String(logoUrl) : undefined,
       hostedBy: hostedBy ? String(hostedBy) : undefined,
       tournamentType: String(tournamentType),
+      seasonId: seasonId ? Number(seasonId) : undefined,
     }).returning();
 
     // 2. If team tournament, auto-enroll all registered teams
