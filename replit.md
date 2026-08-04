@@ -10,6 +10,7 @@ Waryaa Gaming is the Somali eSports Federation's official platform — tournamen
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL` — Postgres connection string (already provisioned); `SESSION_SECRET` — signs session cookies (already set as a secret; the API falls back to an insecure default if unset, so keep it set in every environment)
+- Storage env: `R2_ENDPOINT` and `R2_BUCKET_NAME` are set as shared env vars (bucket: `waryaagaming`, endpoint: Cloudflare R2 S3-compatible URL); `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` are Replit Secrets — generate from Cloudflare dashboard → R2 → Manage R2 API Tokens
 
 ## Stack
 
