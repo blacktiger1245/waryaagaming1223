@@ -106,9 +106,9 @@ router.post("/teams/register", async (req, res) => {
       // 2. Lock the player rows (FOR UPDATE) so concurrent transactions must wait,
       //    then verify none are already on a team.
       if (allPlayerIds.length > 0) {
-        const idArray = sql`ARRAY[${sql.join(allPlayerIds.map((id) => sql`${id}`), sql`, `)}]`;
+        const idArray = sql`ARRAY[${sql.join(allPlayerIds.map((id) => sql`${id}`), sql`, `)}]::int[]`;
         const lockedPlayers = await tx.execute(
-          sql`SELECT id, display_name, username, team_id FROM players WHERE id = ANY(${idArray}) FOR UPDATE`
+          sql`SELECT id, display_name, username, team_id FROM players WHERE id = ANY(${idArray}) ORDER BY id FOR UPDATE`
         );
         const rows = (lockedPlayers as any).rows as { id: number; display_name: string | null; username: string; team_id: number | null }[];
         const alreadyTeamed = rows.filter((p) => p.team_id !== null);
