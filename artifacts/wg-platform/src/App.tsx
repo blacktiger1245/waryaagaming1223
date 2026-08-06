@@ -1,7 +1,10 @@
+import { type ReactNode } from "react";
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useAuth } from "@/hooks/use-auth";
+import { BannedScreen } from "@/components/banned-screen";
 import { Layout } from "@/components/layout";
 import { AdminLayout } from "@/components/admin/admin-layout";
 import NotFound from "@/pages/not-found";
@@ -117,12 +120,22 @@ function Router() {
   );
 }
 
+/** Sits inside QueryClientProvider so it can call useAuth */
+function BanGate({ children }: { children: ReactNode }) {
+  const { user, isLoading } = useAuth();
+  if (isLoading) return null;
+  if (user?.isBanned) return <BannedScreen user={user} />;
+  return <>{children}</>;
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
+          <BanGate>
+            <Router />
+          </BanGate>
         </WouterRouter>
         <Toaster />
       </TooltipProvider>

@@ -8,6 +8,10 @@ export interface AuthUser {
   discordId: string;
   role: "player" | "admin" | "owner";
   profileComplete: boolean;
+  isBanned: boolean;
+  bannedUntil: string | null;
+  banReason: string | null;
+  bannedBy: string | null;
 }
 
 const LOGIN_PATH = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/api/auth/discord`;

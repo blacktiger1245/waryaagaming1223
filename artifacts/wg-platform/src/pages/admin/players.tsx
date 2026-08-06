@@ -13,13 +13,15 @@ interface Player {
   isActive: boolean;
   role: string;
   bannedUntil: string | null;
+  banReason: string | null;
+  bannedBy: string | null;
 }
 
 const BAN_DURATIONS = [
-  { value: "1d",      label: "1 Day" },
-  { value: "5d",      label: "5 Days" },
-  { value: "10d",     label: "10 Days" },
-  { value: "forever", label: "Forever" },
+  { value: "1d", label: "1 Day" },
+  { value: "5d", label: "5 Days" },
+  { value: "1w", label: "1 Week" },
+  { value: "1m", label: "1 Month" },
 ];
 
 async function apiFetch(path: string, opts?: RequestInit) {
@@ -37,7 +39,6 @@ function isBanned(player: Player): boolean {
 function banLabel(player: Player): string {
   if (!player.bannedUntil) return "";
   const d = new Date(player.bannedUntil);
-  if (d.getFullYear() >= 9999) return "Banned forever";
   return `Banned until ${d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`;
 }
 
@@ -53,6 +54,7 @@ export default function AdminPlayersPage() {
   const [filter, setFilter] = useState<"all" | "banned" | "active">("all");
   const [banMenuId, setBanMenuId] = useState<number | null>(null);
   const [selectedDuration, setSelectedDuration] = useState<string>("1d");
+  const [banReason, setBanReason] = useState("");
   const [unbanConfirmId, setUnbanConfirmId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -69,15 +71,20 @@ export default function AdminPlayersPage() {
     return matchSearch && matchFilter;
   });
 
-  async function banPlayer(playerId: number, duration: string) {
+  async function banPlayer(playerId: number, duration: string, reason: string) {
+    if (!reason.trim()) {
+      setError("Please enter a reason for the ban.");
+      return;
+    }
     setLoading(true); setError("");
     try {
       await apiFetch(`/api/admin/players/${playerId}/ban`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ duration }),
+        body: JSON.stringify({ duration, reason: reason.trim() }),
       });
       setBanMenuId(null);
+      setBanReason("");
       qc.invalidateQueries({ queryKey: ["admin-players"] });
     } catch (e: any) {
       setError(e.message);
@@ -204,7 +211,7 @@ export default function AdminPlayersPage() {
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 mt-0.5">
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       {banned ? (
                         <span className="text-[11px] font-bold text-red-400 flex items-center gap-1">
                           <Ban className="w-3 h-3" /> {banLabel(player)}
@@ -213,6 +220,11 @@ export default function AdminPlayersPage() {
                         <span className="text-[11px] text-zinc-500">
                           Rank #{player.rank} · {player.points} pts
                           {player.teamId && <span className="ml-1">· In team</span>}
+                        </span>
+                      )}
+                      {banned && player.banReason && (
+                        <span className="text-[11px] text-zinc-500 truncate max-w-[200px]">
+                          · "{player.banReason}"
                         </span>
                       )}
                     </div>
@@ -232,7 +244,11 @@ export default function AdminPlayersPage() {
                       </button>
                     ) : (
                       <button
-                        onClick={() => { setBanMenuId(isBanning ? null : player.id); setSelectedDuration("1d"); }}
+                        onClick={() => {
+                          setBanMenuId(isBanning ? null : player.id);
+                          setSelectedDuration("1d");
+                          setBanReason("");
+                        }}
                         className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors flex items-center gap-1.5
                           ${isBanning
                             ? "bg-red-500/20 border-red-500/40 text-red-400"
@@ -244,42 +260,62 @@ export default function AdminPlayersPage() {
                   </div>
                 </div>
 
-                {/* Ban duration picker */}
+                {/* Ban panel */}
                 {isBanning && (
-                  <div className="border-t border-zinc-800 px-4 py-3 bg-zinc-950/50">
-                    <p className="text-xs font-black text-red-400 mb-3">
-                      Select ban duration for {player.displayName ?? player.username}:
+                  <div className="border-t border-zinc-800 px-4 py-4 bg-zinc-950/50 space-y-3">
+                    <p className="text-xs font-black text-red-400">
+                      Ban {player.displayName ?? player.username}
                     </p>
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      {BAN_DURATIONS.map((d) => (
-                        <button
-                          key={d.value}
-                          onClick={() => setSelectedDuration(d.value)}
-                          className={`text-xs font-black px-3 py-1.5 rounded-lg border transition-colors
-                            ${selectedDuration === d.value
-                              ? d.value === "forever"
-                                ? "bg-red-500/30 border-red-500/60 text-red-300"
-                                : "bg-orange-500/20 border-orange-500/40 text-orange-300"
-                              : "text-zinc-400 bg-zinc-800 border-zinc-700 hover:border-zinc-500"}`}
-                        >
-                          {d.label}
-                        </button>
-                      ))}
+
+                    {/* Duration picker */}
+                    <div>
+                      <p className="text-[11px] font-bold text-zinc-500 mb-1.5">Duration</p>
+                      <div className="flex flex-wrap gap-2">
+                        {BAN_DURATIONS.map((d) => (
+                          <button
+                            key={d.value}
+                            onClick={() => setSelectedDuration(d.value)}
+                            className={`text-xs font-black px-3 py-1.5 rounded-lg border transition-colors
+                              ${selectedDuration === d.value
+                                ? "bg-orange-500/20 border-orange-500/40 text-orange-300"
+                                : "text-zinc-400 bg-zinc-800 border-zinc-700 hover:border-zinc-500"}`}
+                          >
+                            {d.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
+
+                    {/* Reason input */}
+                    <div>
+                      <p className="text-[11px] font-bold text-zinc-500 mb-1.5">
+                        Reason <span className="text-red-500">*</span>
+                      </p>
+                      <textarea
+                        value={banReason}
+                        onChange={(e) => setBanReason(e.target.value)}
+                        placeholder="Enter the reason for this ban…"
+                        rows={2}
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-red-500/50 transition-colors resize-none"
+                      />
+                    </div>
+
+                    {/* Action buttons */}
                     <div className="flex gap-2">
                       <button
-                        onClick={() => setBanMenuId(null)}
+                        onClick={() => { setBanMenuId(null); setBanReason(""); }}
                         className="text-xs font-black text-zinc-400 hover:text-white px-3 py-1.5 rounded-lg border border-zinc-700 transition-colors"
                       >
                         Cancel
                       </button>
                       <button
-                        onClick={() => banPlayer(player.id, selectedDuration)}
-                        disabled={loading}
-                        className={`text-xs font-black text-white px-4 py-1.5 rounded-lg transition-colors disabled:opacity-50
-                          ${selectedDuration === "forever" ? "bg-red-600 hover:bg-red-700" : "bg-orange-500 hover:bg-orange-600"}`}
+                        onClick={() => banPlayer(player.id, selectedDuration, banReason)}
+                        disabled={loading || !banReason.trim()}
+                        className="text-xs font-black text-white px-4 py-1.5 rounded-lg transition-colors bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed"
                       >
-                        {loading ? "Banning…" : `Ban for ${BAN_DURATIONS.find(d => d.value === selectedDuration)?.label}`}
+                        {loading
+                          ? "Banning…"
+                          : `Ban for ${BAN_DURATIONS.find((d) => d.value === selectedDuration)?.label}`}
                       </button>
                     </div>
                   </div>

@@ -8,6 +8,13 @@
       "when": 1785421790374,
       "tag": "0000_fuzzy_forge",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786013751656,
+      "tag": "0001_groovy_killmonger",
+      "breakpoints": true
     }
   ]
 }

@@ -787,7 +787,8 @@ export default function RankingsPage() {
         )}
 
         {/* Team Rankings */}
-        {tab === "teams" && <TeamRankingsPanel teams={teamRankings ?? []} loading={loadingTeams} />}
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        {tab === "teams" && <TeamRankingsPanel teams={(teamRankings ?? []) as any} loading={loadingTeams} />}
 
         {/* Hall of Fame */}
         {tab === "hof" && (

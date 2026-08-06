@@ -28,17 +28,17 @@ router.patch("/matches/:id", async (req, res) => {
   const body = UpdateMatchBody.safeParse(req.body);
   if (!body.success) return res.status(400).json({ error: "Invalid body" });
 
-  const { scheduledAt, ...rest } = body.data;
+  const { scheduledAt, ...rest } = body.data as typeof body.data & { scheduledAt?: string | null };
   const updateData = {
     ...rest,
     ...(scheduledAt !== undefined
-      ? { scheduledAt: scheduledAt ? new Date(scheduledAt) : null }
+      ? { scheduledAt: scheduledAt ? scheduledAt : null }
       : {}),
   };
 
   const [match] = await db
     .update(matchesTable)
-    .set(updateData)
+    .set(updateData as Parameters<ReturnType<typeof db.update>["set"]>[0])
     .where(eq(matchesTable.id, params.data.id))
     .returning();
 
@@ -55,7 +55,7 @@ router.get("/matches/:id/player-games", async (req, res) => {
     .from(matchPlayerGamesTable)
     .where(eq(matchPlayerGamesTable.matchId, matchId))
     .orderBy(matchPlayerGamesTable.id);
-  res.json(games);
+  return res.json(games);
 });
 
 export default router;

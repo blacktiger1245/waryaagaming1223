@@ -147,8 +147,10 @@ export default function ComparePage() {
   const [searchB, setSearchB] = useState("");
 
   const { data: allPlayers = [] } = useListPlayers();
-  const { data: detailA } = useGetPlayer(playerA?.id ?? 0, { query: { enabled: !!playerA } });
-  const { data: detailB } = useGetPlayer(playerB?.id ?? 0, { query: { enabled: !!playerB } });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: detailA } = useGetPlayer(playerA?.id ?? 0, { query: { enabled: !!playerA } } as any);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: detailB } = useGetPlayer(playerB?.id ?? 0, { query: { enabled: !!playerB } } as any);
 
   const players: PlayerSummary[] = allPlayers.map((p) => ({
     id: p.id,
@@ -165,7 +167,7 @@ export default function ComparePage() {
         { label: "Points",           a: detailA.points ?? 0,       b: detailB.points ?? 0 },
         { label: "Matches Won",      a: detailA.matchesWon ?? 0,   b: detailB.matchesWon ?? 0 },
         { label: "Matches Played",   a: detailA.matchesPlayed ?? 0,b: detailB.matchesPlayed ?? 0 },
-        { label: "Matches Lost",     a: detailA.matchesLost ?? 0,  b: detailB.matchesLost ?? 0,  higherIsBetter: false },
+        { label: "Matches Lost",     a: (detailA as any).matchesLost ?? 0,  b: (detailB as any).matchesLost ?? 0,  higherIsBetter: false },
         { label: "Draws",            a: da.draws ?? 0,             b: db2.draws ?? 0,            higherIsBetter: false },
         { label: "Goals Scored",     a: da.goalsScored ?? 0,       b: db2.goalsScored ?? 0 },
         { label: "Goals Conceded",   a: da.goalsConceded ?? 0,     b: db2.goalsConceded ?? 0,    higherIsBetter: false },

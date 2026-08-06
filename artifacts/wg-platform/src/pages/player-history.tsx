@@ -78,7 +78,7 @@ export default function PlayerHistoryPage() {
     const isP1 = match.participant1Id === id;
     const my = isP1 ? match.participant1Score : match.participant2Score;
     const opp = isP1 ? match.participant2Score : match.participant1Score;
-    if (my === null || opp === null) return null;
+    if (my == null || opp == null) return null;
     if (my > opp) return "win";
     if (my === opp) return "draw";
     return "loss";

@@ -432,25 +432,41 @@ router.post("/admin/players/:id/ban", async (req, res) => {
   const id = Number(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
 
-  const { duration } = req.body as { duration?: string };
-  const allowed = ["1d", "5d", "10d", "forever"];
+  const { duration, reason } = req.body as { duration?: string; reason?: string };
+  const allowed = ["1d", "5d", "1w", "1m"];
   if (!duration || !allowed.includes(duration)) {
-    return res.status(400).json({ error: "duration must be one of: 1d, 5d, 10d, forever" });
+    return res.status(400).json({ error: "duration must be one of: 1d, 5d, 1w, 1m" });
+  }
+  if (!reason || !reason.trim()) {
+    return res.status(400).json({ error: "A ban reason is required" });
   }
 
-  let bannedUntil: Date | null;
-  if (duration === "forever") {
-    bannedUntil = new Date("9999-12-31T23:59:59Z");
-  } else {
-    const days = parseInt(duration, 10);
-    bannedUntil = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
-  }
+  const durationMs: Record<string, number> = {
+    "1d": 1 * 24 * 60 * 60 * 1000,
+    "5d": 5 * 24 * 60 * 60 * 1000,
+    "1w": 7 * 24 * 60 * 60 * 1000,
+    "1m": 30 * 24 * 60 * 60 * 1000,
+  };
+  const bannedUntil = new Date(Date.now() + durationMs[duration]);
+
+  // Resolve the acting admin's name from their session
+  const bannedBy =
+    req.session.displayName ??
+    req.session.username ??
+    req.session.adminUsername ??
+    "Admin";
 
   const [updated] = await db
     .update(playersTable)
-    .set({ bannedUntil })
+    .set({ bannedUntil, banReason: reason.trim(), bannedBy })
     .where(eq(playersTable.id, id))
-    .returning({ id: playersTable.id, username: playersTable.username, bannedUntil: playersTable.bannedUntil });
+    .returning({
+      id: playersTable.id,
+      username: playersTable.username,
+      bannedUntil: playersTable.bannedUntil,
+      banReason: playersTable.banReason,
+      bannedBy: playersTable.bannedBy,
+    });
 
   if (!updated) return res.status(404).json({ error: "Player not found" });
   return res.json(updated);
@@ -463,7 +479,7 @@ router.delete("/admin/players/:id/ban", async (req, res) => {
 
   const [updated] = await db
     .update(playersTable)
-    .set({ bannedUntil: null })
+    .set({ bannedUntil: null, banReason: null, bannedBy: null })
     .where(eq(playersTable.id, id))
     .returning({ id: playersTable.id, username: playersTable.username, bannedUntil: playersTable.bannedUntil });
 
@@ -607,7 +623,7 @@ function generateSingleElim(participants: Participant[], tournamentId: number) {
   const seeded = [...participants];
   const bracket = nextPow2(seeded.length);
   // pad with BYEs
-  while (seeded.length < bracket) seeded.push({ id: 0, name: "BYE" });
+  while (seeded.length < bracket) seeded.push({ id: 0, playerId: 0, name: "BYE" });
 
   const matches: Array<typeof matchesTable.$inferInsert> = [];
   let round = 1;
@@ -662,7 +678,7 @@ function generateDoubleElim(participants: Participant[], tournamentId: number) {
 
 function generateRoundRobin(participants: Participant[], tournamentId: number) {
   const n = participants.length;
-  const list = n % 2 === 0 ? [...participants] : [...participants, { id: 0, name: "BYE" }];
+  const list = n % 2 === 0 ? [...participants] : [...participants, { id: 0, playerId: 0, name: "BYE" }];
   const total = list.length;
   const matches: Array<typeof matchesTable.$inferInsert> = [];
 
@@ -698,7 +714,7 @@ function generateGroupStage(participants: Participant[], tournamentId: number, g
   groups.forEach((group, gi) => {
     const letter = String.fromCharCode(65 + gi); // A, B, C…
     const n = group.length;
-    const list = n % 2 === 0 ? [...group] : [...group, { id: 0, name: "BYE" }];
+    const list = n % 2 === 0 ? [...group] : [...group, { id: 0, playerId: 0, name: "BYE" }];
     const total = list.length;
 
     for (let round = 0; round < total - 1; round++) {
@@ -875,7 +891,7 @@ router.get("/admin/matches/:id/player-games", requireAdmin, async (req, res) => 
     .from(matchPlayerGamesTable)
     .where(eq(matchPlayerGamesTable.matchId, matchId))
     .orderBy(matchPlayerGamesTable.id);
-  res.json(games);
+  return res.json(games);
 });
 
 // POST generate player pairings from team rosters
@@ -913,7 +929,7 @@ router.post("/admin/matches/:id/player-games/generate", requireAdmin, async (req
   }));
 
   const inserted = await db.insert(matchPlayerGamesTable).values(toInsert).returning();
-  res.json(inserted);
+  return res.json(inserted);
 });
 
 // POST add a single player pairing manually
@@ -925,7 +941,7 @@ router.post("/admin/matches/:id/player-games", requireAdmin, async (req, res) =>
     .insert(matchPlayerGamesTable)
     .values({ matchId, homePlayerName: String(homePlayerName ?? ""), awayPlayerName: String(awayPlayerName ?? ""), homePlayerId: homePlayerId ? Number(homePlayerId) : null, awayPlayerId: awayPlayerId ? Number(awayPlayerId) : null })
     .returning();
-  res.json(inserted);
+  return res.json(inserted);
 });
 
 // PATCH update a player game result
@@ -949,7 +965,7 @@ router.patch("/admin/player-games/:id", requireAdmin, async (req, res) => {
 
   if (!updated) return res.status(404).json({ error: "Player game not found" });
   await recalculateTeamScore(updated.matchId);
-  res.json(updated);
+  return res.json(updated);
 });
 
 // DELETE a player game
@@ -958,7 +974,7 @@ router.delete("/admin/player-games/:id", requireAdmin, async (req, res) => {
   const [deleted] = await db.delete(matchPlayerGamesTable).where(eq(matchPlayerGamesTable.id, id)).returning();
   if (!deleted) return res.status(404).json({ error: "Not found" });
   await recalculateTeamScore(deleted.matchId);
-  res.json({ ok: true });
+  return res.json({ ok: true });
 });
 
 router.get("/admin/stats", async (_req, res) => {

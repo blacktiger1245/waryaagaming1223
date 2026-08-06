@@ -75,9 +75,9 @@ export default function TournamentsPage() {
                     <div className="aspect-square rounded-2xl border border-border bg-card overflow-hidden hover:border-primary/50 transition-all duration-300 cursor-pointer group relative flex flex-col">
                       {/* Logo / Banner area — top 60% */}
                       <div className="flex-1 relative bg-black/40 flex items-center justify-center overflow-hidden">
-                        {t.logoUrl ? (
+                        {(t as any).logoUrl ? (
                           <img
-                            src={`/api/storage${t.logoUrl}`}
+                            src={`/api/storage${(t as any).logoUrl}`}
                             alt={t.name}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                           />
@@ -99,8 +99,8 @@ export default function TournamentsPage() {
                         <h3 className="font-black text-sm leading-tight group-hover:text-primary transition-colors line-clamp-1">
                           {t.name}
                         </h3>
-                        {t.hostedBy && (
-                          <p className="text-[10px] text-muted-foreground mt-0.5 truncate">by {t.hostedBy}</p>
+                        {(t as any).hostedBy && (
+                          <p className="text-[10px] text-muted-foreground mt-0.5 truncate">by {(t as any).hostedBy}</p>
                         )}
                         <div className="flex items-center justify-between mt-2.5 pt-2.5 border-t border-border">
                           <div>

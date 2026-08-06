@@ -7,6 +7,7 @@ import router from "./routes";
 import authRouter from "./routes/auth";
 import adminRouter from "./routes/admin";
 import { logger } from "./lib/logger";
+import { banCheck } from "./middleware/ban-check";
 
 const PgStore = connectPgSimple(session);
 
@@ -69,6 +70,9 @@ app.use(
 // "/api" and the frontend calls `/api/...`. Other hosts (Vercel/Railway/
 // Render/VPS) can set API_BASE_PATH="" to serve everything at the domain root.
 const API_PREFIX = (process.env["API_BASE_PATH"] ?? "/api").replace(/\/$/, "");
+
+// Reject mutations from banned accounts (runs before all route handlers)
+app.use(API_PREFIX, banCheck);
 
 app.use(API_PREFIX, authRouter);
 app.use(API_PREFIX, adminRouter);

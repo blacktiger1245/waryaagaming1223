@@ -467,7 +467,7 @@ export default function TeamDetailPage() {
   }
 
   // ── Team management state ───────────────────────────────────────────────────
-  const isCoach   = !!user && user.id === team?.coachId;
+  const isCoach   = !!user && user.id === (team as any)?.coachId;
   const isCaptain = !!user && user.id === team?.captainId;
 
   const [kickConfirmId,    setKickConfirmId]    = useState<number | null>(null);
@@ -848,7 +848,7 @@ export default function TeamDetailPage() {
 
             {/* ── SQUAD ── */}
             {activeTab === "squad" && (() => {
-              const isCoachOrCaptain = !!user && (user.id === team.coachId || user.id === team.captainId);
+              const isCoachOrCaptain = !!user && (user.id === (team as any).coachId || user.id === team.captainId);
               return (
                 <div className="space-y-4">
                   {/* Upload panel — coach & captain only */}
@@ -1525,7 +1525,7 @@ export default function TeamDetailPage() {
                       <div className="divide-y divide-zinc-800">
                         {members.map((m: any) => {
                           const isMemberCaptain = m.id === team.captainId;
-                          const isMemberCoach   = m.id === team.coachId;
+                          const isMemberCoach   = m.id === (team as any).coachId;
                           const isKicking        = kickConfirmId === m.id;
                           const isNewCaptain     = changeCaptainId === m.id;
                           const isNewCoach       = transferCoachId === m.id;
@@ -1643,7 +1643,7 @@ export default function TeamDetailPage() {
 
             {/* ── NEWS ── */}
             {activeTab === "news" && (() => {
-              const isCoachOrCaptain = !!user && (user.id === team.coachId || user.id === team.captainId);
+              const isCoachOrCaptain = !!user && (user.id === (team as any).coachId || user.id === team.captainId);
               return (
                 <div className="space-y-4">
                   {/* Post button / form — coach & captain only */}

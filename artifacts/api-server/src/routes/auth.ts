@@ -431,6 +431,10 @@ router.get("/auth/me", async (req, res) => {
     req.session.isAdmin = true;
   }
 
+  const now = new Date();
+  const isBanned =
+    !!freshPlayer.bannedUntil && new Date(freshPlayer.bannedUntil) > now;
+
   return res.json({
     id: freshPlayer.id,
     username: freshPlayer.username,
@@ -439,6 +443,10 @@ router.get("/auth/me", async (req, res) => {
     discordId: freshPlayer.discordId,
     role: freshPlayer.role,
     profileComplete: freshPlayer.profileComplete,
+    isBanned,
+    bannedUntil: isBanned ? freshPlayer.bannedUntil?.toISOString() ?? null : null,
+    banReason: isBanned ? freshPlayer.banReason ?? null : null,
+    bannedBy: isBanned ? freshPlayer.bannedBy ?? null : null,
   });
 });
 

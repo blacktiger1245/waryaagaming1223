@@ -411,9 +411,9 @@ export default function PlayerDetailPage() {
         key: `solo-${m.id}`,
         tournament: (m as any).tournamentName ?? null,
         roundLabel: (m as any).roundName ?? `Round ${m.round}`,
-        opponent: isP1 ? m.participant2Name : m.participant1Name,
-        myScore:  isP1 ? m.participant1Score : m.participant2Score,
-        oppScore: isP1 ? m.participant2Score : m.participant1Score,
+        opponent: isP1 ? (m.participant2Name ?? null) : (m.participant1Name ?? null),
+        myScore:  isP1 ? (m.participant1Score ?? null) : (m.participant2Score ?? null),
+        oppScore: isP1 ? (m.participant2Score ?? null) : (m.participant1Score ?? null),
         status: m.status,
         kind: "solo",
       };
