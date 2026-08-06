@@ -209,7 +209,7 @@ export default function HomePage() {
           <div className="flex flex-wrap gap-3">
             {/* Join Discord — purple-to-pink gradient pill */}
             <a
-              href="https://discord.gg"
+              href="https://discord.com/invite/PGC5KFpjkD"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-7 py-3 rounded-full font-bold text-sm text-white transition-opacity hover:opacity-90"
