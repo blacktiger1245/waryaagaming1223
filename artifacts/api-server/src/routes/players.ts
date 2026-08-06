@@ -19,24 +19,39 @@ router.get("/players", async (req, res) => {
   if (!query.success) return res.status(400).json({ error: "Invalid query" });
 
   const { search, limit = 50, offset = 0 } = query.data;
+
+  // When searching, fetch all matching players ordered by points so we can
+  // assign each one a global rank (their position among ALL players by points).
+  // Without a search filter we can use offset directly.
   const players = await db
     .select()
     .from(playersTable)
     .where(search ? ilike(playersTable.username, `%${search}%`) : undefined)
     .limit(limit)
     .offset(offset)
-    .orderBy(playersTable.rank);
+    .orderBy(desc(playersTable.points));
 
+  // For each player compute their true rank: how many players have strictly more points
   const teams = await db.select({ id: teamsTable.id, name: teamsTable.name }).from(teamsTable);
   const teamMap = new Map(teams.map((t) => [t.id, t.name]));
 
-  return res.json(
-    players.map((p) => ({
-      ...p,
-      teamName: p.teamId ? (teamMap.get(p.teamId) ?? null) : null,
-      createdAt: p.createdAt.toISOString(),
-    }))
+  // Resolve global rank for each returned player in parallel
+  const withRanks = await Promise.all(
+    players.map(async (p) => {
+      const [{ above }] = await db
+        .select({ above: sql<number>`count(*)` })
+        .from(playersTable)
+        .where(sql`${playersTable.points} > ${p.points}`);
+      return {
+        ...p,
+        rank: Number(above) + 1,
+        teamName: p.teamId ? (teamMap.get(p.teamId) ?? null) : null,
+        createdAt: p.createdAt.toISOString(),
+      };
+    })
   );
+
+  return res.json(withRanks);
 });
 
 router.post("/players", async (req, res) => {
@@ -76,7 +91,14 @@ router.get("/players/:id", async (req, res) => {
     teamCaptainId = team?.captainId ?? null;
   }
 
-  return res.json({ ...player, teamName, teamLogoUrl, teamTag, teamCaptainId, createdAt: player.createdAt.toISOString() });
+  // Compute rank dynamically: how many players have strictly more points
+  const [{ above }] = await db
+    .select({ above: sql<number>`count(*)` })
+    .from(playersTable)
+    .where(sql`${playersTable.points} > ${player.points}`);
+  const dynamicRank = Number(above) + 1;
+
+  return res.json({ ...player, rank: dynamicRank, teamName, teamLogoUrl, teamTag, teamCaptainId, createdAt: player.createdAt.toISOString() });
 });
 
 router.patch("/players/:id", async (req, res) => {
