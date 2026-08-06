@@ -10,3 +10,4 @@ export * from "./hall_of_fame";
 export * from "./news";
 export * from "./media";
 export * from "./community";
+export * from "./announcements";

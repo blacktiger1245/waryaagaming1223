@@ -1,15 +1,90 @@
+import { useState } from "react";
 import { Link } from "wouter";
-import { motion } from "framer-motion";
-import { Trophy, Users, Shield, Radio, ArrowRight, Zap, Star } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Trophy, Users, Shield, Radio, ArrowRight, Zap, Star, X, ExternalLink, Megaphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useQuery } from "@tanstack/react-query";
 import {
   useGetStatsSummary,
   useListTournaments,
   useGetPlayerRankings,
   useListNews,
 } from "@workspace/api-client-react";
+
+interface Announcement {
+  id: number;
+  message: string;
+  type: "info" | "warning" | "success" | "danger";
+  link: string | null;
+  linkText: string | null;
+}
+
+const TYPE_STYLES: Record<string, { bar: string; icon: string; text: string; link: string; close: string }> = {
+  info:    { bar: "bg-blue-950/80 border-blue-500/40",    icon: "text-blue-400",   text: "text-blue-100",   link: "text-blue-300 hover:text-blue-100",   close: "text-blue-400 hover:text-blue-100" },
+  warning: { bar: "bg-yellow-950/80 border-yellow-500/40", icon: "text-yellow-400", text: "text-yellow-100", link: "text-yellow-300 hover:text-yellow-100", close: "text-yellow-400 hover:text-yellow-100" },
+  success: { bar: "bg-green-950/80 border-green-500/40",  icon: "text-green-400",  text: "text-green-100",  link: "text-green-300 hover:text-green-100",   close: "text-green-400 hover:text-green-100" },
+  danger:  { bar: "bg-red-950/80 border-red-500/40",      icon: "text-red-400",    text: "text-red-100",    link: "text-red-300 hover:text-red-100",       close: "text-red-400 hover:text-red-100" },
+};
+
+function AnnouncementBanner() {
+  const { data: items = [] } = useQuery<Announcement[]>({
+    queryKey: ["announcements"],
+    queryFn: async () => {
+      const r = await fetch("/api/announcements", { credentials: "include" });
+      if (!r.ok) return [];
+      return r.json();
+    },
+    staleTime: 60_000,
+  });
+
+  const [dismissed, setDismissed] = useState<Set<number>>(new Set());
+  const visible = items.filter((a) => !dismissed.has(a.id));
+
+  if (visible.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      <AnimatePresence initial={false}>
+        {visible.map((a) => {
+          const s = TYPE_STYLES[a.type] ?? TYPE_STYLES.info;
+          return (
+            <motion.div
+              key={a.id}
+              initial={{ opacity: 0, y: -12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8, transition: { duration: 0.2 } }}
+              transition={{ duration: 0.3 }}
+              className={`flex items-center gap-3 px-4 py-2.5 border-b ${s.bar} backdrop-blur-sm`}
+            >
+              <Megaphone className={`w-4 h-4 flex-shrink-0 ${s.icon}`} />
+              <p className={`flex-1 text-sm font-semibold leading-snug ${s.text}`}>{a.message}</p>
+              {a.link && (
+                <a
+                  href={a.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`flex items-center gap-1 text-xs font-bold whitespace-nowrap transition-colors ${s.link}`}
+                >
+                  {a.linkText ?? "Learn more"}
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              )}
+              <button
+                onClick={() => setDismissed((d) => new Set([...d, a.id]))}
+                className={`flex-shrink-0 transition-colors ${s.close}`}
+                aria-label="Dismiss"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </motion.div>
+          );
+        })}
+      </AnimatePresence>
+    </div>
+  );
+}
 
 const fadeUp = {
   hidden: { opacity: 0, y: 30 },
@@ -27,6 +102,9 @@ export default function HomePage() {
 
   return (
     <div className="flex flex-col">
+      {/* Announcement banners */}
+      <AnnouncementBanner />
+
       {/* Hero — full-width cinematic: players image bg + text overlay left */}
       <section className="relative min-h-[90vh] flex overflow-hidden bg-black">
 

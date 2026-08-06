@@ -14,6 +14,7 @@ import {
   UserCog,
   Crown,
   CalendarRange,
+  Megaphone,
 } from "lucide-react";
 import { useAdminAuth } from "@/hooks/use-admin-auth";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,7 @@ const baseNavItems = [
   { href: "/admin/news", label: "News", icon: Newspaper },
   { href: "/admin/media", label: "Media", icon: PlaySquare },
   { href: "/admin/hall-of-fame", label: "Hall of Fame", icon: Star },
+  { href: "/admin/announcements", label: "Announcements", icon: Megaphone },
 ];
 
 // Extra nav item shown only to the owner.
