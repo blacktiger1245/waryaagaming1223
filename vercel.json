@@ -1,7 +1,7 @@
 {
   "framework": null,
   "buildCommand": "pnpm --filter @workspace/wg-platform run build",
-  "outputDirectory": "artifacts/wg-platform/dist/public",
+  "outputDirectory": "dist",
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index" },
     { "source": "/(.*)", "destination": "/index.html" }
