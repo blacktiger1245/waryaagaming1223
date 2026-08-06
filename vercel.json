@@ -1,0 +1,17 @@
+{
+  "framework": null,
+  "buildCommand": "pnpm --filter @workspace/wg-platform run build",
+  "outputDirectory": "artifacts/wg-platform/dist/public",
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    }
+  ]
+}
