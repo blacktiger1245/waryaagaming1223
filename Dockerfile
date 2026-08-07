@@ -99,8 +99,21 @@ COPY lib/object-storage-web/ lib/object-storage-web/
 # Copy frontend source
 COPY artifacts/wg-platform/ artifacts/wg-platform/
 
-# Vite outputs static files to artifacts/wg-platform/dist/
+# Vite output location has changed across imported project revisions.
+# Normalize any supported output layout into a stable location for nginx.
 RUN pnpm --filter @workspace/wg-platform run build
+RUN set -eu \
+    && mkdir -p /app/web-dist \
+    && if [ -d dist ]; then \
+         cp -a dist/. /app/web-dist/; \
+       elif [ -d artifacts/wg-platform/dist/public ]; then \
+         cp -a artifacts/wg-platform/dist/public/. /app/web-dist/; \
+       elif [ -d artifacts/wg-platform/dist ]; then \
+         cp -a artifacts/wg-platform/dist/. /app/web-dist/; \
+       else \
+         echo "ERROR: frontend build output was not found" >&2; \
+         exit 1; \
+       fi
 
 # ══════════════════════════════════════════════════════════════════════════════
 # STAGE 5 — production image
@@ -126,7 +139,7 @@ COPY --from=build-api    /app/artifacts/api-server/dist      ./artifacts/api-ser
 COPY --from=api-prod-deps /prod/api/node_modules             ./artifacts/api-server/node_modules
 
 # ── React SPA ──────────────────────────────────────────────────────────────
-COPY --from=build-web /app/artifacts/wg-platform/dist /usr/share/nginx/html
+COPY --from=build-web /app/web-dist/ /usr/share/nginx/html/
 
 # ── nginx configuration ────────────────────────────────────────────────────
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
