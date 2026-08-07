@@ -99,7 +99,7 @@ COPY lib/object-storage-web/ lib/object-storage-web/
 # Copy frontend source
 COPY artifacts/wg-platform/ artifacts/wg-platform/
 
-# Vite outputs static files to artifacts/wg-platform/dist/public/
+# Vite outputs static files to artifacts/wg-platform/dist/
 RUN pnpm --filter @workspace/wg-platform run build
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -126,7 +126,7 @@ COPY --from=build-api    /app/artifacts/api-server/dist      ./artifacts/api-ser
 COPY --from=api-prod-deps /prod/api/node_modules             ./artifacts/api-server/node_modules
 
 # ── React SPA ──────────────────────────────────────────────────────────────
-COPY --from=build-web /app/artifacts/wg-platform/dist/public /usr/share/nginx/html
+COPY --from=build-web /app/artifacts/wg-platform/dist /usr/share/nginx/html
 
 # ── nginx configuration ────────────────────────────────────────────────────
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
