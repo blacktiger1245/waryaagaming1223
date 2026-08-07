@@ -1,2 +1,2 @@
-- [WG platform workflow duplicates](wg-platform-notes.md) — legacy `API Server`/`Waryaa Gaming` workflows conflict on ports with real artifact workflows; their failures are expected noise.
+- [WG platform notes](wg-platform-notes.md) — legacy workflows conflict on ports, and Docker must normalize frontend output paths across imported revisions.
 - [connect-pg-simple table.sql ENOENT](connect-pg-simple-session-table.md) — esbuild bundling breaks its bundled table.sql lookup; create the session table manually and disable auto-create.
