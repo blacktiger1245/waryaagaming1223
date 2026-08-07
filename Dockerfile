@@ -99,16 +99,8 @@ COPY lib/object-storage-web/ lib/object-storage-web/
 # Copy frontend source
 COPY artifacts/wg-platform/ artifacts/wg-platform/
 
-# Vite normally outputs static files to artifacts/wg-platform/dist/public/.
-# Normalize the output into a stable location because older imported builds may
-# still emit directly to artifacts/wg-platform/dist/.
+# Vite outputs static files to artifacts/wg-platform/dist/
 RUN pnpm --filter @workspace/wg-platform run build
-RUN mkdir -p /app/web-dist \
-    && if [ -d artifacts/wg-platform/dist/public ]; then \
-         cp -a artifacts/wg-platform/dist/public/. /app/web-dist/; \
-       else \
-         cp -a artifacts/wg-platform/dist/. /app/web-dist/; \
-       fi
 
 # ══════════════════════════════════════════════════════════════════════════════
 # STAGE 5 — production image
@@ -134,7 +126,7 @@ COPY --from=build-api    /app/artifacts/api-server/dist      ./artifacts/api-ser
 COPY --from=api-prod-deps /prod/api/node_modules             ./artifacts/api-server/node_modules
 
 # ── React SPA ──────────────────────────────────────────────────────────────
-COPY --from=build-web /app/web-dist/ /usr/share/nginx/html/
+COPY --from=build-web /app/artifacts/wg-platform/dist /usr/share/nginx/html
 
 # ── nginx configuration ────────────────────────────────────────────────────
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf

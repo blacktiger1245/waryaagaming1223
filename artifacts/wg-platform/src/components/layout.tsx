@@ -64,7 +64,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Sidebar (toggle drawer on all screen sizes) */}
       <aside
-        className={`fixed top-0 left-0 h-screen w-64 flex-shrink-0 border-r border-sidebar-border bg-sidebar flex flex-col z-50 transition-transform duration-200
+        className={`fixed top-0 left-0 h-[100dvh] w-64 flex-shrink-0 border-r border-sidebar-border bg-sidebar flex flex-col z-50 transition-transform duration-200
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
       >
         <div className="h-16 flex-shrink-0" />
@@ -103,7 +103,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        <div className="p-3 border-t border-sidebar-border space-y-3 flex-shrink-0">
+        <div className="p-3 border-t border-sidebar-border space-y-3 flex-shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           {isLoading ? (
             <div className="h-9 w-full rounded-md bg-muted animate-pulse" />
           ) : isLoggedIn && user ? (
