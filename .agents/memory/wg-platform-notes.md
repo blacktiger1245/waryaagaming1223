@@ -16,3 +16,11 @@ The frontend Vite output directory has varied across imported project revisions 
 **Why:** deployment builds can use a different checked-out revision or build configuration than the current Replit preview, so a hardcoded frontend `COPY` path can fail even when Vite itself built successfully.
 
 **How to apply:** Keep the Docker build's output normalization and make any future Vite output-directory change update the normalization branches and image staging together.
+
+## Northflank container startup
+
+The combined nginx/Node image must wait for the internal API health endpoint before nginx starts accepting public port-80 traffic.
+
+**Why:** Northflank can send browser requests immediately after container startup, while the background Node process may still be initializing. Without a readiness gate, nginx returns `502 Connection refused` for `/api/*` even though the API becomes healthy seconds later.
+
+**How to apply:** Keep the entrypoint readiness probe aligned with the API's internal port and `/api/healthz` path whenever the container startup or API routing changes.
