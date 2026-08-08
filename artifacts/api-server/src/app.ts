@@ -15,6 +15,24 @@ const app: Express = express();
 
 app.set("trust proxy", 1);
 
+const configuredFrontendOrigins = (process.env["FRONTEND_ORIGINS"] ?? "")
+  .split(",")
+  .map((origin) => origin.trim().replace(/\/+$/, ""))
+  .filter(Boolean);
+
+function requestOrigin(req: import("express").Request): string | null {
+  const forwardedProto = (req.headers["x-forwarded-proto"] as string | undefined)
+    ?.split(",")[0]?.trim();
+  const protocol = forwardedProto ?? req.protocol;
+  const host = req.get("host");
+  return host ? `${protocol}://${host}` : null;
+}
+
+function isTrustedOrigin(req: import("express").Request, origin?: string): boolean {
+  if (!origin) return true;
+  return configuredFrontendOrigins.includes(origin) || origin === requestOrigin(req);
+}
+
 app.use(
   pinoHttp({
     logger,
@@ -35,13 +53,24 @@ app.use(
   }),
 );
 
-app.use(
-  cors({
-    origin: true,
-    credentials: true,
-  }),
-);
+app.use((req, res, next) => {
+  const origin = req.get("origin");
+  // No Origin header is normal for same-origin navigations, server-to-server
+  // calls, and health checks. Any browser request with an Origin header must
+  // be explicitly trusted before it receives credentialed CORS headers.
+  if (origin && !isTrustedOrigin(req, origin)) {
+    return res.status(403).json({ error: "Untrusted request origin" });
+  }
 
+  return cors({
+    origin: origin || false,
+    credentials: true,
+  })(req, res, next);
+});
+
+// Keep image bodies as Buffers for the direct upload endpoint. JSON requests
+// continue through the normal parser below.
+app.use(express.raw({ type: ["image/*", "application/octet-stream"], limit: "10mb" }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -58,8 +87,8 @@ app.use(
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: process.env["NODE_ENV"] === "production",
-      sameSite: "lax",
+      secure: process.env["NODE_ENV"] === "production" || process.env["COOKIE_SAME_SITE"] === "none",
+      sameSite: (process.env["COOKIE_SAME_SITE"] as "lax" | "strict" | "none" | undefined) ?? "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     },
   }),

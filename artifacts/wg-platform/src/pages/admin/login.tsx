@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAdminAuth } from "@/hooks/use-admin-auth";
 import { useAuth } from "@/hooks/use-auth";
+import { apiUrl } from "@/lib/api";
 
-const LOGIN_PATH = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/api/auth/discord`;
+const LOGIN_PATH = apiUrl("/api/auth/discord");
 
 function DiscordIcon() {
   return (

@@ -177,6 +177,41 @@ router.post(
 );
 
 /**
+ * POST /storage/uploads/direct
+ *
+ * Upload an image through the API. This avoids browser-to-R2 CORS failures
+ * when the frontend is hosted on a different origin.
+ */
+router.post(
+  '/storage/uploads/direct',
+  async (req: Request, res: Response) => {
+    if (!isAdmin(req)) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      res.status(400).json({ error: 'An image file is required' });
+      return;
+    }
+
+    const contentType = req.get('content-type') || 'application/octet-stream';
+    if (!contentType.startsWith('image/')) {
+      res.status(400).json({ error: 'Only image uploads are supported' });
+      return;
+    }
+
+    try {
+      const objectPath = await objectStorageService.uploadObject(req.body, contentType);
+      return res.status(201).json({ objectPath });
+    } catch (error) {
+      req.log.error({ err: error }, 'Error uploading object through API');
+      return res.status(500).json({ error: 'Failed to upload image' });
+    }
+  },
+);
+
+/**
  * GET /storage/public-objects/*
  *
  * Serve public assets from PUBLIC_OBJECT_SEARCH_PATHS.

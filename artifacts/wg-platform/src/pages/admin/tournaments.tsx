@@ -14,6 +14,7 @@ import {
 import { Loader2, Plus, Upload, X, Trophy, Calendar, DollarSign, User, Users, Shield, CalendarRange, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
+import { apiUrl, storageUrl } from "@/lib/api";
 
 interface Season {
   id: number;
@@ -35,7 +36,7 @@ interface TournamentRow {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
+  const res = await fetch(apiUrl(url), {
     credentials: "include",
     headers: { "Content-Type": "application/json" },
     ...options,
@@ -48,20 +49,19 @@ async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
 }
 
 async function uploadLogo(file: File): Promise<string> {
-  // Step 1: get presigned URL
-  const { uploadURL, objectPath } = await apiFetch<{ uploadURL: string; objectPath: string }>(
-    "/api/storage/uploads/request-url",
-    {
-      method: "POST",
-      body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
-    }
-  );
-  // Step 2: PUT file directly to GCS
-  await fetch(uploadURL, {
-    method: "PUT",
-    headers: { "Content-Type": file.type },
+  // Upload through the API instead of PUTing directly to R2. This avoids
+  // requiring a separate R2 CORS rule for every hosted frontend origin.
+  const res = await fetch(apiUrl("/api/storage/uploads/direct"), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": file.type || "application/octet-stream" },
     body: file,
   });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(data?.error ?? "Failed to upload tournament logo");
+  }
+  const { objectPath } = (await res.json()) as { objectPath: string };
   return objectPath;
 }
 
@@ -464,7 +464,7 @@ export default function AdminTournamentsPage() {
             render: (row) =>
               row.logoUrl ? (
                 <img
-                  src={`/api/storage${row.logoUrl as string}`}
+                  src={storageUrl(row.logoUrl as string)}
                   alt=""
                   className="w-9 h-9 rounded-md object-cover bg-black/20"
                 />

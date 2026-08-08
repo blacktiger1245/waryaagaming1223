@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiUrl } from "@/lib/api";
 
 export interface AuthUser {
   id: number;
@@ -14,17 +15,17 @@ export interface AuthUser {
   bannedBy: string | null;
 }
 
-const LOGIN_PATH = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/api/auth/discord`;
+const LOGIN_PATH = apiUrl("/api/auth/discord");
 
 async function fetchMe(): Promise<AuthUser | null> {
-  const res = await fetch("/api/auth/me", { credentials: "include" });
+  const res = await fetch(apiUrl("/api/auth/me"), { credentials: "include" });
   if (res.status === 401) return null;
   if (!res.ok) throw new Error("Failed to fetch user");
   return res.json() as Promise<AuthUser>;
 }
 
 async function logout(): Promise<void> {
-  await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+  await fetch(apiUrl("/api/auth/logout"), { method: "POST", credentials: "include" });
 }
 
 export function useAuth() {

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useListTournaments } from "@workspace/api-client-react";
+import { storageUrl } from "@/lib/api";
 
 type Status = "upcoming" | "active" | "completed" | undefined;
 
@@ -77,7 +78,7 @@ export default function TournamentsPage() {
                       <div className="flex-1 relative bg-black/40 flex items-center justify-center overflow-hidden">
                         {(t as any).logoUrl ? (
                           <img
-                            src={`/api/storage${(t as any).logoUrl}`}
+                            src={storageUrl((t as any).logoUrl)}
                             alt={t.name}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                           />

@@ -88,6 +88,25 @@ export class ObjectStorageService {
   }
 
   /**
+   * Upload bytes through the API and return the canonical object path.
+   * This is used by browser clients that cannot rely on bucket CORS rules.
+   */
+  async uploadObject(body: Uint8Array, contentType: string): Promise<string> {
+    const client = getR2Client();
+    const bucket = getR2BucketName();
+    const key = `uploads/${randomUUID()}`;
+
+    await client.send(new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+    }));
+
+    return `/objects/${key}`;
+  }
+
+  /**
    * Convert a raw presigned R2 URL into the canonical /objects/<key> path
    * that gets stored in the database and used in GET /storage/objects/*.
    *

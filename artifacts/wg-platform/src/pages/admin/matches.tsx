@@ -14,6 +14,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { apiUrl, storageUrl } from "@/lib/api";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface Tournament {
@@ -54,7 +55,7 @@ interface Match {
 
 // ── API helpers ────────────────────────────────────────────────────────────────
 async function apiFetch<T>(url: string, opts?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
+  const res = await fetch(apiUrl(url), {
     credentials: "include",
     headers: { "Content-Type": "application/json" },
     ...opts,
@@ -1212,7 +1213,7 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
         </Button>
         <div className="flex items-center gap-3 flex-1">
           {tournament.logoUrl ? (
-            <img src={`/api/storage${tournament.logoUrl}`} alt="" className="w-10 h-10 rounded-lg object-cover" />
+            <img src={storageUrl(tournament.logoUrl)} alt="" className="w-10 h-10 rounded-lg object-cover" />
           ) : (
             <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
               <Trophy className="w-5 h-5 text-primary/60" />
@@ -1849,7 +1850,7 @@ function TournamentPicker({ onSelect }: { onSelect: (t: Tournament) => void }) {
               <div className="flex-1 relative bg-black/40 flex items-center justify-center overflow-hidden">
                 {t.logoUrl ? (
                   <img
-                    src={`/api/storage${t.logoUrl}`}
+                    src={storageUrl(t.logoUrl)}
                     alt={t.name}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />

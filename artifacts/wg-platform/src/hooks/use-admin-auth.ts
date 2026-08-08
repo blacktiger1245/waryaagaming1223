@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiUrl } from "@/lib/api";
 
 export interface AdminUser {
   username: string;
@@ -8,14 +9,14 @@ export interface AdminUser {
 }
 
 async function fetchAdminMe(): Promise<AdminUser | null> {
-  const res = await fetch("/api/admin/me", { credentials: "include" });
+  const res = await fetch(apiUrl("/api/admin/me"), { credentials: "include" });
   if (res.status === 401) return null;
   if (!res.ok) throw new Error("Failed to fetch admin session");
   return res.json() as Promise<AdminUser>;
 }
 
 async function adminLogin(payload: { username: string; password: string }): Promise<AdminUser> {
-  const res = await fetch("/api/admin/login", {
+  const res = await fetch(apiUrl("/api/admin/login"), {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -29,7 +30,7 @@ async function adminLogin(payload: { username: string; password: string }): Prom
 }
 
 async function adminLogout(): Promise<void> {
-  await fetch("/api/admin/logout", { method: "POST", credentials: "include" });
+  await fetch(apiUrl("/api/admin/logout"), { method: "POST", credentials: "include" });
 }
 
 export function useAdminAuth() {

@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Users, Shield, Trophy, Swords, Newspaper, PlaySquare } from "lucide-react";
+import { apiUrl } from "@/lib/api";
 
 type Stats = {
   players: number;
@@ -11,7 +12,7 @@ type Stats = {
 };
 
 async function fetchStats(): Promise<Stats> {
-  const res = await fetch("/api/admin/stats", { credentials: "include" });
+  const res = await fetch(apiUrl("/api/admin/stats"), { credentials: "include" });
   if (!res.ok) throw new Error("Failed to load stats");
   return res.json() as Promise<Stats>;
 }

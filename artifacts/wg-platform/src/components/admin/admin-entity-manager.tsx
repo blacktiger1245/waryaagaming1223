@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Pencil, Trash2, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { apiUrl } from "@/lib/api";
 
 export type AdminField = {
   name: string;
@@ -46,7 +47,7 @@ type Props = {
 type Row = Record<string, unknown> & { id: number };
 
 async function api<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
+  const res = await fetch(apiUrl(url), {
     credentials: "include",
     headers: { "Content-Type": "application/json" },
     ...options,
