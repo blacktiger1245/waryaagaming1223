@@ -1,13 +1,9 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 
-const rawPort = process.env["PORT"];
-
-if (!rawPort) {
-  throw new Error(
-    "PORT environment variable is required but was not provided.",
-  );
-}
+// Replit's API artifact workflow supplies PORT=5000. Keep the same default
+// for direct `pnpm run dev` usage so the server does not fail before startup.
+const rawPort = process.env["PORT"] ?? "5000";
 
 const port = Number(rawPort);
 
