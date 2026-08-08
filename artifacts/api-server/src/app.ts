@@ -15,22 +15,40 @@ const app: Express = express();
 
 app.set("trust proxy", 1);
 
+function normalizeOrigin(origin: string): string | null {
+  try {
+    return new URL(origin.trim()).origin;
+  } catch {
+    return null;
+  }
+}
+
 const configuredFrontendOrigins = (process.env["FRONTEND_ORIGINS"] ?? "")
   .split(",")
-  .map((origin) => origin.trim().replace(/\/+$/, ""))
-  .filter(Boolean);
+  .map(normalizeOrigin)
+  .filter((origin): origin is string => origin !== null);
+
+function firstForwardedValue(value: string | string[] | undefined): string | undefined {
+  const headerValue = Array.isArray(value) ? value[0] : value;
+  return headerValue?.split(",")[0]?.trim() || undefined;
+}
 
 function requestOrigin(req: import("express").Request): string | null {
-  const forwardedProto = (req.headers["x-forwarded-proto"] as string | undefined)
-    ?.split(",")[0]?.trim();
+  const forwardedProto = firstForwardedValue(req.headers["x-forwarded-proto"]);
   const protocol = forwardedProto ?? req.protocol;
-  const host = req.get("host");
-  return host ? `${protocol}://${host}` : null;
+  const host =
+    firstForwardedValue(req.headers["x-forwarded-host"]) ?? req.get("host");
+  return host ? normalizeOrigin(`${protocol}://${host}`) : null;
 }
 
 function isTrustedOrigin(req: import("express").Request, origin?: string): boolean {
   if (!origin) return true;
-  return configuredFrontendOrigins.includes(origin) || origin === requestOrigin(req);
+  const normalizedOrigin = normalizeOrigin(origin);
+  return (
+    normalizedOrigin !== null &&
+    (configuredFrontendOrigins.includes(normalizedOrigin) ||
+      normalizedOrigin === requestOrigin(req))
+  );
 }
 
 app.use(
