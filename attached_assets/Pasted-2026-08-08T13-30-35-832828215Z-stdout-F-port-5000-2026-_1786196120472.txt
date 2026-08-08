@@ -1,0 +1,21 @@
+2026-08-08T13:30:35.832828215Z stdout F     port: 5000
+2026-08-08T13:30:35.832775459Z stdout F [13:30:33.887] INFO (4): Server listening
+2026-08-08T13:30:31.825609796Z stdout F 10.16.49.236 - - [08/Aug/2026:13:30:31 +0000] "GET /api/admin/tournaments HTTP/1.1" 502 559 "https://p01--waryaagaming1223--w5kk4bgjlsdp.code.run/admin/tournaments"; "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36" "192.145.170.176"
+2026-08-08T13:30:31.825568244Z stderr F 2026/08/08 13:30:31 [error] 6#6: *4 connect() failed (111: Connection refused) while connecting to upstream, client: 10.16.49.236, server: _, request: "GET /api/admin/tournaments HTTP/1.1", upstream: "http://127.0.0.1:5000/api/admin/tournaments";, host: "p01--waryaagaming1223--w5kk4bgjlsdp.code.run", referrer: "https://p01--waryaagaming1223--w5kk4bgjlsdp.code.run/admin/tournaments";
+2026-08-08T13:30:30.525574572Z stdout F 10.16.49.236 - - [08/Aug/2026:13:30:30 +0000] "GET /api/admin/tournaments HTTP/1.1" 502 559 "https://p01--waryaagaming1223--w5kk4bgjlsdp.code.run/admin/tournaments"; "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36" "192.145.170.176"
+2026-08-08T13:30:30.525558783Z stdout F 10.16.49.236 - - [08/Aug/2026:13:30:30 +0000] "GET /api/admin/me HTTP/1.1" 502 559 "https://p01--waryaagaming1223--w5kk4bgjlsdp.code.run/admin/tournaments"; "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36" "192.145.170.176"
+2026-08-08T13:30:30.5254984Z stderr F 2026/08/08 13:30:30 [error] 6#6: *4 connect() failed (111: Connection refused) while connecting to upstream, client: 10.16.49.236, server: _, request: "GET /api/admin/tournaments HTTP/1.1", upstream: "http://127.0.0.1:5000/api/admin/tournaments";, host: "p01--waryaagaming1223--w5kk4bgjlsdp.code.run", referrer: "https://p01--waryaagaming1223--w5kk4bgjlsdp.code.run/admin/tournaments";
+2026-08-08T13:30:30.525467276Z stderr F 2026/08/08 13:30:30 [error] 6#6: *3 connect() failed (111: Connection refused) while connecting to upstream, client: 10.16.49.236, server: _, request: "GET /api/admin/me HTTP/1.1", upstream: "http://127.0.0.1:5000/api/admin/me";, host: "p01--waryaagaming1223--w5kk4bgjlsdp.code.run", referrer: "https://p01--waryaagaming1223--w5kk4bgjlsdp.code.run/admin/tournaments";
+2026-08-08T13:30:30.524624532Z stdout F 10.16.49.236 - - [08/Aug/2026:13:30:30 +0000] "GET /api/auth/me HTTP/1.1" 502 559 "https://p01--waryaagaming1223--w5kk4bgjlsdp.code.run/admin/tournaments"; "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36" "192.145.170.176"
+2026-08-08T13:30:30.524517205Z stderr F 2026/08/08 13:30:30 [error] 6#6: *1 connect() failed (111: Connection refused) while connecting to upstream, client: 10.16.49.236, server: _, request: "GET /api/auth/me HTTP/1.1", upstream: "http://127.0.0.1:5000/api/auth/me";, host: "p01--waryaagaming1223--w5kk4bgjlsdp.code.run", referrer: "https://p01--waryaagaming1223--w5kk4bgjlsdp.code.run/admin/tournaments";
+2026-08-08T13:30:22.727586553Z stderr F 2026/08/08 13:30:22 [notice] 3#3: start worker process 6
+2026-08-08T13:30:22.727060875Z stderr F 2026/08/08 13:30:22 [notice] 3#3: start worker process 5
+2026-08-08T13:30:22.727009631Z stderr F 2026/08/08 13:30:22 [notice] 3#3: start worker processes
+2026-08-08T13:30:22.634214953Z stderr F 2026/08/08 13:30:22 [notice] 3#3: getrlimit(RLIMIT_NOFILE): 1048576:1048576
+2026-08-08T13:30:22.634213638Z stderr F 2026/08/08 13:30:22 [notice] 3#3: OS: Linux 6.12.60
+2026-08-08T13:30:22.634211826Z stderr F 2026/08/08 13:30:22 [notice] 3#3: built by gcc 14.2.0 (Alpine 14.2.0) 
+2026-08-08T13:30:22.634206304Z stderr F 2026/08/08 13:30:22 [notice] 3#3: nginx/1.27.5
+2026-08-08T13:30:22.633775092Z stderr F 2026/08/08 13:30:22 [notice] 3#3: using the "epoll" event method
+2026-08-08T13:30:21.941206747Z stdout F [2026-08-08T13:30:21Z INFO ] Starting container entrypoint...
+2026-08-08T13:30:21.939509383Z stdout F [2026-08-08T13:30:21Z INFO ] Successfully fetched environment variables
+2026-08-08T13:30:21.637643567Z stdout F [2026-08-08T13:30:21Z INFO ] Securely fetching environment variables
