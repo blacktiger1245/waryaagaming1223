@@ -19,6 +19,29 @@ fi
 PORT=5000 node --enable-source-maps /app/artifacts/api-server/dist/index.mjs &
 NODE_PID=$!
 
+# Do not let nginx accept traffic until the API is ready. Northflank can send
+# the first browser requests immediately after the container starts; without
+# this wait those requests reach nginx before Node is listening and return 502.
+API_READY=0
+for _ in $(seq 1 60); do
+  if wget -q -O /dev/null http://127.0.0.1:5000/api/healthz; then
+    API_READY=1
+    break
+  fi
+
+  if ! kill -0 "$NODE_PID" 2>/dev/null; then
+    echo "ERROR: API server exited before becoming ready" >&2
+    exit 1
+  fi
+
+  sleep 1
+done
+
+if [ "$API_READY" -ne 1 ]; then
+  echo "ERROR: API server did not become ready within 60 seconds" >&2
+  exit 1
+fi
+
 # Graceful shutdown: forward signals to the node process
 cleanup() {
   echo "Shutting down API server (PID $NODE_PID)..."
