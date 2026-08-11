@@ -42,7 +42,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/live", label: "Live", icon: Radio, live: true },
     { href: "/academy", label: "WG Academy", icon: GraduationCap },
     { href: "/partners", label: "Partners", icon: Handshake },
-    { href: "/marketplace", label: "Marketplace", icon: ShoppingBag },
+    { href: "/marketplace", label: "Transfer Market", icon: ShoppingBag },
   ];
 
   return (
