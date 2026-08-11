@@ -54,6 +54,17 @@ router.get("/players", async (req, res) => {
   return res.json(withRanks);
 });
 
+// Marketplace listings are intentionally limited to opted-in, unrostered players.
+router.get("/players/marketplace", async (_req, res) => {
+  const players = await db
+    .select()
+    .from(playersTable)
+    .where(sql`${playersTable.isFreeAgent} = true AND ${playersTable.teamId} IS NULL AND ${playersTable.isActive} = true`)
+    .orderBy(desc(playersTable.points));
+
+  return res.json(players.map((p) => ({ ...p, createdAt: p.createdAt.toISOString() })));
+});
+
 router.post("/players", async (req, res) => {
   const body = CreatePlayerBody.safeParse(req.body);
   if (!body.success) return res.status(400).json({ error: "Invalid body" });

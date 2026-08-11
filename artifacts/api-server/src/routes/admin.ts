@@ -11,6 +11,7 @@ import {
   mediaTable,
   hallOfFameTable,
   seasonsTable,
+  tournamentAdminsTable,
 } from "@workspace/db";
 import { eq, desc, and, inArray, type AnyColumn } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
@@ -570,6 +571,7 @@ router.post("/admin/tournaments", requireAdmin, async (req, res) => {
       hostedBy: hostedBy ? String(hostedBy) : undefined,
       tournamentType: String(tournamentType),
       seasonId: seasonId ? Number(seasonId) : undefined,
+      createdBy: req.session.userId ?? undefined,
     }).returning();
 
     // 2. If team tournament, auto-enroll all registered teams
@@ -589,6 +591,14 @@ router.post("/admin/tournaments", requireAdmin, async (req, res) => {
           .where(eq(tournamentsTable.id, tournament.id));
         tournament.currentParticipants = teams.length;
       }
+    }
+
+    if (req.session.userId) {
+      await db.insert(tournamentAdminsTable).values({
+        tournamentId: tournament.id,
+        playerId: req.session.userId,
+        role: "owner",
+      }).onConflictDoNothing();
     }
 
     return res.status(201).json({ ...tournament, createdAt: tournament.createdAt.toISOString() });

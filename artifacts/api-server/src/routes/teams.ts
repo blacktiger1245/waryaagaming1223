@@ -134,7 +134,7 @@ router.post("/teams/register", async (req, res) => {
       if (allPlayerIds.length > 0) {
         const updated = await tx
           .update(playersTable)
-          .set({ teamId: newTeam.id })
+          .set({ teamId: newTeam.id, isFreeAgent: false })
           .where(inArray(playersTable.id, allPlayerIds))
           .returning({ id: playersTable.id });
 
@@ -423,7 +423,7 @@ router.delete("/teams/:id/members/:playerId", async (req, res) => {
   if (playerId === team.captainId)
     return res.status(400).json({ error: "Cannot remove the captain. Change the captain first, then remove them." });
 
-  await db.update(playersTable).set({ teamId: null }).where(
+  await db.update(playersTable).set({ teamId: null, isFreeAgent: true }).where(
     sql`${playersTable.id} = ${playerId} AND ${playersTable.teamId} = ${teamId}`
   );
   return res.json({ ok: true });
@@ -449,7 +449,7 @@ router.post("/teams/:id/members", async (req, res) => {
   if (!player) return res.status(404).json({ error: "Player not found" });
   if (player.teamId != null) return res.status(409).json({ error: "Player is already on a team" });
 
-  await db.update(playersTable).set({ teamId }).where(eq(playersTable.id, playerId));
+  await db.update(playersTable).set({ teamId, isFreeAgent: false }).where(eq(playersTable.id, playerId));
   return res.json({ ok: true });
 });
 

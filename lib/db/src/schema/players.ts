@@ -35,6 +35,7 @@ export const playersTable = pgTable("players", {
   konamiId: text("konami_id"),
   bloodGroup: text("blood_group"),
   profileComplete: boolean("profile_complete").notNull().default(false),
+  isFreeAgent: boolean("is_free_agent").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
   badges: text("badges").array().notNull().default([]),
   role: text("role").notNull().default("player"),

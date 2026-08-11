@@ -457,12 +457,13 @@ router.post("/auth/onboarding", async (req, res) => {
     return res.status(401).json({ error: "Not authenticated" });
   }
 
-  const { gamingDevice, deviceName, konamiId, bloodGroup, country } = req.body as {
+  const { gamingDevice, deviceName, konamiId, bloodGroup, country, isFreeAgent } = req.body as {
     gamingDevice?: string;
     deviceName?: string;
     konamiId?: string;
     bloodGroup?: string;
     country?: string;
+    isFreeAgent?: boolean;
   };
 
   if (!gamingDevice || !["mobile", "pc"].includes(gamingDevice)) {
@@ -477,6 +478,7 @@ router.post("/auth/onboarding", async (req, res) => {
       konamiId: konamiId ?? null,
       bloodGroup: bloodGroup ?? null,
       country: country ?? null,
+      isFreeAgent: Boolean(isFreeAgent),
       profileComplete: true,
     })
     .where(eq(playersTable.id, req.session.userId));

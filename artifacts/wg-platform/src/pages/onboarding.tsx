@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import { Shield, Monitor, Smartphone, Search, ChevronDown } from "lucide-react";
+import { Shield, Monitor, Smartphone, Search, ChevronDown, UserSearch } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -101,6 +101,7 @@ export default function OnboardingPage() {
   const [konamiId, setKonamiId] = useState("");
   const [bloodGroup, setBloodGroup] = useState("");
   const [country, setCountry] = useState("");
+  const [isFreeAgent, setIsFreeAgent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -126,7 +127,7 @@ export default function OnboardingPage() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gamingDevice, deviceName, konamiId, bloodGroup, country }),
+        body: JSON.stringify({ gamingDevice, deviceName, konamiId, bloodGroup, country, isFreeAgent }),
       });
       if (!res.ok) {
         const data = (await res.json()) as { error?: string };
@@ -246,6 +247,28 @@ export default function OnboardingPage() {
               Country
             </Label>
             <CountryPicker value={country} onChange={setCountry} />
+          </div>
+
+          {/* Marketplace availability */}
+          <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-3">
+            <div className="flex items-start gap-3">
+              <UserSearch className="mt-0.5 size-5 shrink-0 text-primary" />
+              <div className="space-y-1">
+                <Label htmlFor="freeAgent" className="text-sm font-semibold uppercase tracking-wide cursor-pointer">
+                  Are you a free agent?
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Show your player profile to teams looking for new talent in the marketplace.
+                </p>
+              </div>
+              <input
+                id="freeAgent"
+                type="checkbox"
+                checked={isFreeAgent}
+                onChange={(e) => setIsFreeAgent(e.target.checked)}
+                className="ml-auto mt-1 size-4 accent-primary"
+              />
+            </div>
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}

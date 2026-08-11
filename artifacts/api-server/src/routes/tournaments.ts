@@ -6,6 +6,7 @@ import {
   matchesTable,
   playersTable,
   teamsTable,
+  tournamentAdminsTable,
 } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import {
@@ -35,11 +36,84 @@ router.get("/tournaments", async (req, res) => {
 });
 
 router.post("/tournaments", async (req, res) => {
+  if (!req.session?.userId) return res.status(401).json({ error: "Login with Discord first" });
   const body = CreateTournamentBody.safeParse(req.body);
   if (!body.success) return res.status(400).json({ error: "Invalid body" });
 
-  const [tournament] = await db.insert(tournamentsTable).values(body.data).returning();
+  const [tournament] = await db.insert(tournamentsTable).values({
+    ...body.data,
+    createdBy: req.session.userId,
+  }).returning();
+  await db.insert(tournamentAdminsTable).values({
+    tournamentId: tournament.id,
+    playerId: req.session.userId,
+    role: "owner",
+  });
   return res.status(201).json({ ...tournament, createdAt: tournament.createdAt.toISOString() });
+});
+
+async function canManageTournament(tournamentId: number, userId: number) {
+  const [tournament] = await db
+    .select({ createdBy: tournamentsTable.createdBy })
+    .from(tournamentsTable)
+    .where(eq(tournamentsTable.id, tournamentId));
+  if (!tournament) return { tournament: null, allowed: false };
+  if (tournament.createdBy === userId) return { tournament, allowed: true };
+  const [admin] = await db
+    .select({ id: tournamentAdminsTable.id })
+    .from(tournamentAdminsTable)
+    .where(and(eq(tournamentAdminsTable.tournamentId, tournamentId), eq(tournamentAdminsTable.playerId, userId)));
+  return { tournament, allowed: !!admin };
+}
+
+function hasGlobalAdminAccess(req: import("express").Request) {
+  return req.session.role === "admin" || req.session.role === "owner" || !!req.session.isAdmin;
+}
+
+router.get("/tournaments/:id/admins", async (req, res) => {
+  const tournamentId = Number(req.params.id);
+  if (Number.isNaN(tournamentId)) return res.status(400).json({ error: "Invalid tournament id" });
+  const admins = await db
+    .select({
+      id: tournamentAdminsTable.id,
+      playerId: tournamentAdminsTable.playerId,
+      role: tournamentAdminsTable.role,
+      username: playersTable.username,
+      displayName: playersTable.displayName,
+      avatarUrl: playersTable.avatarUrl,
+    })
+    .from(tournamentAdminsTable)
+    .innerJoin(playersTable, eq(tournamentAdminsTable.playerId, playersTable.id))
+    .where(eq(tournamentAdminsTable.tournamentId, tournamentId));
+  return res.json(admins);
+});
+
+router.post("/tournaments/:id/admins", async (req, res) => {
+  if (!req.session?.userId) return res.status(401).json({ error: "Login with Discord first" });
+  const tournamentId = Number(req.params.id);
+  const playerId = Number(req.body?.playerId);
+  if (Number.isNaN(tournamentId) || !Number.isInteger(playerId)) return res.status(400).json({ error: "A valid playerId is required" });
+  const access = await canManageTournament(tournamentId, req.session.userId);
+  if (!access.tournament) return res.status(404).json({ error: "Tournament not found" });
+  if (!access.allowed && !hasGlobalAdminAccess(req)) return res.status(403).json({ error: "Only the tournament owner or an admin can manage admins" });
+  const [player] = await db.select({ id: playersTable.id }).from(playersTable).where(eq(playersTable.id, playerId));
+  if (!player) return res.status(404).json({ error: "Player not found" });
+  const [admin] = await db.insert(tournamentAdminsTable).values({ tournamentId, playerId, role: "admin" })
+    .onConflictDoNothing().returning();
+  return res.status(admin ? 201 : 200).json({ ok: true, adminId: admin?.id ?? null });
+});
+
+router.delete("/tournaments/:id/admins/:playerId", async (req, res) => {
+  if (!req.session?.userId) return res.status(401).json({ error: "Login with Discord first" });
+  const tournamentId = Number(req.params.id);
+  const playerId = Number(req.params.playerId);
+  if (Number.isNaN(tournamentId) || Number.isNaN(playerId)) return res.status(400).json({ error: "Invalid id" });
+  const access = await canManageTournament(tournamentId, req.session.userId);
+  if (!access.tournament) return res.status(404).json({ error: "Tournament not found" });
+  if (!access.allowed && !hasGlobalAdminAccess(req)) return res.status(403).json({ error: "Only the tournament owner or an admin can manage admins" });
+  if (playerId === access.tournament.createdBy) return res.status(400).json({ error: "The tournament owner cannot be removed" });
+  await db.delete(tournamentAdminsTable).where(and(eq(tournamentAdminsTable.tournamentId, tournamentId), eq(tournamentAdminsTable.playerId, playerId)));
+  return res.json({ ok: true });
 });
 
 router.get("/tournaments/:id", async (req, res) => {

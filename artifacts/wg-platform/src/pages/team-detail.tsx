@@ -482,7 +482,7 @@ export default function TeamDetailPage() {
   const { data: freeAgents = [], isLoading: freeAgentsLoading } = useQuery<any[]>({
     queryKey: ["free-agents"],
     queryFn: async () => {
-      const r = await fetch("/api/players/discord-registered", { credentials: "include" });
+      const r = await fetch("/api/players/marketplace", { credentials: "include" });
       if (!r.ok) return [];
       const all: any[] = await r.json();
       return all.filter((p: any) => p.teamId == null);

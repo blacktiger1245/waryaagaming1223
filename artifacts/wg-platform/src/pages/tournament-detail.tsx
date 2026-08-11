@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useParams, Link } from "wouter";
 import { motion } from "framer-motion";
-import { Trophy, Users, Calendar, ExternalLink, ArrowLeft, CheckCircle2, Loader2, LogIn, ShieldOff, Shield, ChevronRight } from "lucide-react";
+import { Trophy, Users, Calendar, ExternalLink, ArrowLeft, CheckCircle2, Loader2, LogIn, ShieldOff, Shield, ChevronRight, UserPlus, UserMinus, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -457,6 +457,88 @@ function RegisterButton({ tournamentId, status, isFull }: { tournamentId: number
   );
 }
 
+function TournamentAdminPanel({ tournamentId, createdBy }: { tournamentId: number; createdBy?: number | null }) {
+  const { user, isAdmin: isGlobalAdmin } = useAuth();
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [playerId, setPlayerId] = useState("");
+  const [error, setError] = useState("");
+
+  const { data: admins = [] } = useQuery<any[]>({
+    queryKey: ["tournament-admins", tournamentId],
+    queryFn: async () => {
+      const res = await fetch(`/api/tournaments/${tournamentId}/admins`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load tournament admins");
+      return res.json();
+    },
+  });
+  const { data: players = [] } = useQuery<any[]>({
+    queryKey: ["discord-players-for-tournament-admins"],
+    queryFn: async () => {
+      const res = await fetch("/api/players/discord-registered", { credentials: "include" });
+      return res.ok ? res.json() : [];
+    },
+    enabled: open,
+  });
+
+  const canManage = !!user && (isGlobalAdmin || user.id === createdBy || admins.some((admin) => admin.playerId === user.id));
+  if (!canManage) return null;
+
+  async function updateAdmin(method: "POST" | "DELETE", targetId: number) {
+    setError("");
+    const url = method === "POST"
+      ? `/api/tournaments/${tournamentId}/admins`
+      : `/api/tournaments/${tournamentId}/admins/${targetId}`;
+    const res = await fetch(url, {
+      method,
+      credentials: "include",
+      headers: method === "POST" ? { "Content-Type": "application/json" } : undefined,
+      body: method === "POST" ? JSON.stringify({ playerId: targetId }) : undefined,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { setError(data.error ?? "Could not update tournament admins"); return; }
+    setPlayerId("");
+    qc.invalidateQueries({ queryKey: ["tournament-admins", tournamentId] });
+  }
+
+  const availablePlayers = players.filter((player) => !admins.some((admin) => admin.playerId === player.id));
+  return (
+    <div className="mb-8 rounded-xl border border-primary/25 bg-primary/5 p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-widest text-primary">Tournament staff</p>
+          <h2 className="text-lg font-black">Manage tournament admins</h2>
+          <p className="text-xs text-muted-foreground mt-1">Add trusted Discord members to help manage this tournament.</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => { setOpen((value) => !value); setError(""); }}>
+          <UserPlus className="w-4 h-4 mr-2" /> {open ? "Close" : "Manage admins"}
+        </Button>
+      </div>
+      {open && (
+        <div className="mt-4 space-y-3">
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <div className="flex flex-col sm:flex-row gap-2">
+            <select value={playerId} onChange={(event) => setPlayerId(event.target.value)} className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm">
+              <option value="">Select a Discord member…</option>
+              {availablePlayers.map((player) => <option key={player.id} value={player.id}>{player.displayName ?? player.username}</option>)}
+            </select>
+            <Button size="sm" disabled={!playerId} onClick={() => updateAdmin("POST", Number(playerId))}>Add admin</Button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {admins.map((admin) => (
+              <div key={admin.id} className="flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs">
+                <span className="font-bold">{admin.displayName ?? admin.username}</span>
+                <span className="text-muted-foreground">{admin.role === "owner" ? "Owner" : "Admin"}</span>
+                {admin.playerId !== createdBy && <button aria-label={`Remove ${admin.displayName ?? admin.username}`} onClick={() => updateAdmin("DELETE", admin.playerId)} className="text-muted-foreground hover:text-destructive"><UserMinus className="w-3.5 h-3.5" /></button>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function TournamentDetailPage() {
@@ -508,6 +590,7 @@ export default function TournamentDetailPage() {
 
   // The API returns tournamentType but the generated type is stale — cast through unknown
   const isTeamTournament = (tournament as unknown as { tournamentType?: string }).tournamentType === "team";
+  const createdBy = (tournament as unknown as { createdBy?: number | null }).createdBy;
 
   return (
     <div className="container mx-auto px-4 py-16">
@@ -556,6 +639,8 @@ export default function TournamentDetailPage() {
             )}
           </div>
         </div>
+
+        <TournamentAdminPanel tournamentId={tournament.id} createdBy={createdBy} />
 
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">

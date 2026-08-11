@@ -1,12 +1,16 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { Trophy, Calendar, Users, ArrowRight } from "lucide-react";
+import { Trophy, Calendar, Users, ArrowRight, Plus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useListTournaments } from "@workspace/api-client-react";
 import { storageUrl } from "@/lib/api";
+import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 
 type Status = "upcoming" | "active" | "completed" | undefined;
 
@@ -20,6 +24,46 @@ const statusColors: Record<string, string> = {
 export default function TournamentsPage() {
   const [filter, setFilter] = useState<Status>(undefined);
   const { data: tournaments, isLoading } = useListTournaments(filter ? { status: filter } : {});
+  const { user, loginWithDiscord } = useAuth();
+  const { toast } = useToast();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [maxParticipants, setMaxParticipants] = useState("16");
+  const [saving, setSaving] = useState(false);
+
+  async function createTournament(event: React.FormEvent) {
+    event.preventDefault();
+    if (!name.trim() || !startDate) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/tournaments", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          format: "single-elimination",
+          game: "eFootball",
+          maxParticipants: Number(maxParticipants) || 16,
+          prizePool: "$0",
+          startDate,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "Could not create tournament");
+      toast({ title: "Tournament created", description: "You are the owner and can now add tournament admins." });
+      setCreateOpen(false);
+      setName("");
+      setStartDate("");
+      setMaxParticipants("16");
+      window.location.href = `/tournaments/${data.id}`;
+    } catch (error) {
+      toast({ title: "Could not create tournament", description: (error as Error).message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  }
 
   const tabs: { label: string; value: Status }[] = [
     { label: "All", value: undefined },
@@ -31,10 +75,47 @@ export default function TournamentsPage() {
   return (
     <div className="container mx-auto px-4 py-16">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <div className="mb-10">
-          <p className="text-primary text-xs font-bold uppercase tracking-widest mb-2">Compete</p>
-          <h1 className="text-5xl font-black uppercase tracking-tight">Tournaments</h1>
+        <div className="mb-10 flex flex-col sm:flex-row sm:items-end justify-between gap-5">
+          <div>
+            <p className="text-primary text-xs font-bold uppercase tracking-widest mb-2">Compete</p>
+            <h1 className="text-5xl font-black uppercase tracking-tight">Tournaments</h1>
+          </div>
+          <Button
+            className="gap-2 font-bold"
+            onClick={() => user ? setCreateOpen(true) : loginWithDiscord()}
+          >
+            <Plus className="w-4 h-4" /> {user ? "Create Tournament" : "Login to Host"}
+          </Button>
         </div>
+
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create a tournament</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={createTournament} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Tournament name</label>
+                <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. WG Weekend Cup" required />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Start date</label>
+                <Input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} required />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Maximum participants</label>
+                <Input type="number" min="2" max="256" value={maxParticipants} onChange={(event) => setMaxParticipants(event.target.value)} required />
+              </div>
+              <p className="text-xs text-muted-foreground rounded-lg bg-primary/5 border border-primary/20 p-3">
+                You will become the tournament owner. After creation, add trusted Discord members as tournament admins from the tournament page.
+              </p>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
+                <Button type="submit" disabled={saving}>{saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Create tournament</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
 
         {/* Filter tabs */}
         <div className="flex gap-2 mb-8 border-b border-border pb-4">
