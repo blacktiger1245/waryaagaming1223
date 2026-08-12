@@ -71,12 +71,6 @@ function SiteRouter() {
         <Route path="/news/:id" component={NewsDetailPage} />
         <Route path="/media" component={MediaPage} />
         <Route path="/live" component={LivePage} />
-        <Route path="/academy">
-          <ComingSoonPage section="WG Academy" />
-        </Route>
-        <Route path="/partners">
-          <ComingSoonPage section="Partners" />
-        </Route>
         <Route path="/marketplace" component={MarketplacePage} />
         <Route path="/login" component={LoginPage} />
         <Route path="/onboarding" component={OnboardingPage} />
@@ -118,6 +112,12 @@ function Router() {
     <Switch>
       <Route path="/admin" component={AdminRouter} />
       <Route path="/admin/:rest*" component={AdminRouter} />
+      <Route path="/academy">
+        <ComingSoonPage section="WG Academy" />
+      </Route>
+      <Route path="/partners">
+        <ComingSoonPage section="Partners" />
+      </Route>
       <Route>
         <SiteRouter />
       </Route>
