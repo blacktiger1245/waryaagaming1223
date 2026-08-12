@@ -21,6 +21,7 @@ import NewsPage from "@/pages/news";
 import NewsDetailPage from "@/pages/news-detail";
 import MediaPage from "@/pages/media";
 import LivePage from "@/pages/live";
+import ComingSoonPage from "@/pages/coming-soon";
 import MarketplacePage from "@/pages/marketplace";
 import LoginPage from "@/pages/login";
 import OnboardingPage from "@/pages/onboarding";
@@ -70,6 +71,12 @@ function SiteRouter() {
         <Route path="/news/:id" component={NewsDetailPage} />
         <Route path="/media" component={MediaPage} />
         <Route path="/live" component={LivePage} />
+        <Route path="/academy">
+          <ComingSoonPage section="WG Academy" />
+        </Route>
+        <Route path="/partners">
+          <ComingSoonPage section="Partners" />
+        </Route>
         <Route path="/marketplace" component={MarketplacePage} />
         <Route path="/login" component={LoginPage} />
         <Route path="/onboarding" component={OnboardingPage} />

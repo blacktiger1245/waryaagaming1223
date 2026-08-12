@@ -12,6 +12,8 @@ import {
   LogOut,
   ChevronDown,
   Home,
+  GraduationCap,
+  Handshake,
   ShoppingBag,
   LayoutDashboard,
   CalendarDays,
@@ -38,6 +40,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/media", label: "Media", icon: PlaySquare },
     { href: "/community", label: "Community", icon: MessageSquare },
     { href: "/live", label: "Live", icon: Radio, live: true },
+    { href: "/academy", label: "WG Academy", icon: GraduationCap },
+    { href: "/partners", label: "Partners", icon: Handshake },
     { href: "/marketplace", label: "Transfer Market", icon: ShoppingBag },
   ];
 
@@ -280,6 +284,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       { href: "/news",        label: "News" },
                       { href: "/media",       label: "Media" },
                       { href: "/live",        label: "Live Streams" },
+                      { href: "/academy",     label: "WG Academy" },
+                      { href: "/partners",    label: "Partners" },
                     ].map(({ href, label }) => (
                       <li key={href}>
                         <Link href={href} className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5 group">
