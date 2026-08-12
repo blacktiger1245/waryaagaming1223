@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Shield, Users, Trophy, ArrowLeft, UserCircle2,
   Star, Crown, TrendingUp, ChevronRight, Calendar, Clock, Swords,
-  UserPlus, UserMinus, RefreshCw, Search, X, Check, AlertTriangle,
+  UserPlus, UserMinus, RefreshCw, Search, X, Check, AlertTriangle, ArrowLeftRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -144,6 +144,107 @@ function PlayerCard({ member, isCaptain }: { member: any; isCaptain: boolean }) 
         </div>
       </motion.div>
     </Link>
+  );
+}
+
+type TransferEvent = {
+  id: number;
+  playerId: number;
+  playerName: string | null;
+  playerUsername: string;
+  avatarUrl: string | null;
+  fromTeamId: number | null;
+  fromTeamName: string | null;
+  toTeamId: number | null;
+  toTeamName: string | null;
+  transferredAt: string;
+};
+
+function TransferHistory({
+  transfers,
+  isLoading,
+  teamId,
+}: {
+  transfers: TransferEvent[];
+  isLoading: boolean;
+  teamId: number;
+}) {
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <div key={index} className="h-28 animate-pulse rounded-2xl border border-zinc-800 bg-zinc-900" />
+        ))}
+      </div>
+    );
+  }
+
+  if (transfers.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-zinc-800 py-20 text-center">
+        <ArrowLeftRight className="mx-auto mb-3 h-10 w-10 text-zinc-700" />
+        <p className="font-bold text-zinc-400">No transfers yet</p>
+        <p className="mt-1 text-xs text-zinc-600">Player movements for this team will appear here.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {transfers.map((transfer) => {
+        const incoming = transfer.toTeamId === teamId;
+        const playerName = transfer.playerName ?? transfer.playerUsername;
+        const from = transfer.fromTeamName ?? "Free agent";
+        const to = transfer.toTeamName ?? "Free agent";
+
+        return (
+          <Link key={transfer.id} href={`/players/${transfer.playerId}`}>
+            <motion.article
+              whileHover={{ x: 3 }}
+              className="group flex items-start gap-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-4 transition-colors hover:border-teal-500/40"
+            >
+              <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-teal-400/10 text-teal-400">
+                <ArrowLeftRight className="h-4 w-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-cyan-400 px-3 py-1 text-[11px] font-black text-slate-950">
+                    Transfer
+                  </span>
+                  <span className="text-xs text-zinc-500">
+                    {new Date(transfer.transferredAt).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </span>
+                </div>
+                <div className="mt-3 flex items-center gap-3">
+                  <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full border border-zinc-700 bg-zinc-800">
+                    {transfer.avatarUrl ? (
+                      <img src={transfer.avatarUrl} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <UserCircle2 className="m-2 h-6 w-6 text-zinc-500" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-black text-white group-hover:text-teal-400">
+                      {playerName}
+                    </p>
+                    <p className="truncate text-sm text-zinc-400">
+                      {incoming ? "from" : "from"}{" "}
+                      <span className="font-semibold text-zinc-300">{from}</span>
+                      {" "}to{" "}
+                      <span className="font-semibold text-teal-400">{to}</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </motion.article>
+          </Link>
+        );
+      })}
+    </div>
   );
 }
 
@@ -442,6 +543,16 @@ export default function TeamDetailPage() {
     enabled: activeTab === "news",
   });
 
+  const { data: transferHistory = [], isLoading: transfersLoading } = useQuery<TransferEvent[]>({
+    queryKey: ["team-transfers", id],
+    queryFn: async () => {
+      const r = await fetch(`/api/teams/${id}/transfers`, { credentials: "include" });
+      if (!r.ok) return [];
+      return r.json();
+    },
+    enabled: activeTab === "transfer",
+  });
+
   const [newsTitle, setNewsTitle] = useState("");
   const [newsContent, setNewsContent] = useState("");
   const [newsError, setNewsError] = useState("");
@@ -502,6 +613,7 @@ export default function TeamDetailPage() {
       if (!r.ok) { setMgmtError(d.error ?? "Failed to remove player"); return; }
       setKickConfirmId(null);
       qc.invalidateQueries({ queryKey: ["team", id] });
+      qc.invalidateQueries({ queryKey: ["team-transfers", id] });
     } finally { setMgmtLoading(false); }
   }
 
@@ -517,6 +629,7 @@ export default function TeamDetailPage() {
       if (!r.ok) { setMgmtError(d.error ?? "Failed to add player"); return; }
       setAddPlayerOpen(false); setAddSearch("");
       qc.invalidateQueries({ queryKey: ["team", id] });
+      qc.invalidateQueries({ queryKey: ["team-transfers", id] });
     } finally { setMgmtLoading(false); }
   }
 
@@ -1442,16 +1555,32 @@ export default function TeamDetailPage() {
 
               if (!canManage) {
                 return (
-                  <div className="text-center py-24 border border-zinc-800 rounded-2xl">
-                    <Users className="w-12 h-12 mx-auto opacity-20 mb-3" />
-                    <p className="font-bold text-zinc-400">Transfer market coming soon</p>
-                    <p className="text-xs text-zinc-600 mt-1">Player transfers and signings will appear here</p>
+                  <div className="space-y-4">
+                    <div className="flex items-end justify-between gap-3">
+                      <div>
+                        <h3 className="text-lg font-black">Transfer History</h3>
+                        <p className="mt-1 text-xs text-zinc-500">Arrivals and departures recorded for {team.name}</p>
+                      </div>
+                      <ArrowLeftRight className="h-5 w-5 text-teal-400" />
+                    </div>
+                    <TransferHistory transfers={transferHistory} isLoading={transfersLoading} teamId={id} />
+                    <div className="rounded-2xl border border-zinc-800 bg-zinc-900 px-5 py-4 text-sm text-zinc-500">
+                      Only the team coach or captain can manage player transfers.
+                    </div>
                   </div>
                 );
               }
 
               return (
                 <div className="space-y-4">
+                  <div className="flex items-end justify-between gap-3">
+                    <div>
+                      <h3 className="text-lg font-black">Transfer History</h3>
+                      <p className="mt-1 text-xs text-zinc-500">Arrivals and departures recorded for {team.name}</p>
+                    </div>
+                    <ArrowLeftRight className="h-5 w-5 text-teal-400" />
+                  </div>
+                  <TransferHistory transfers={transferHistory} isLoading={transfersLoading} teamId={id} />
                   {mgmtError && (
                     <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-sm text-red-400">
                       <AlertTriangle className="w-4 h-4 shrink-0" />

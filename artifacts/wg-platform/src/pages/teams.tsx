@@ -7,18 +7,25 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useListTeams } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
+import { useQuery } from "@tanstack/react-query";
 
 export default function TeamsPage() {
   const [search, setSearch] = useState("");
   const { data: teams, isLoading } = useListTeams(search ? { search } : {});
-  const { isLoggedIn, user } = useAuth();
+  const { isLoggedIn } = useAuth();
   const [, navigate] = useLocation();
+  const { data: myTeam, isLoading: myTeamLoading } = useQuery<any | null>({
+    queryKey: ["my-team"],
+    queryFn: async () => {
+      const res = await fetch("/api/teams/mine", { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: isLoggedIn,
+  });
 
   // Show "Register Your Team" only if the user is logged in and not already on a team
-  const hasTeam = isLoggedIn && teams?.some((t) =>
-    t.members?.some((m: { id: number }) => m.id === user?.id)
-  );
-  const showRegisterBtn = isLoggedIn && !hasTeam;
+  const hasTeam = isLoggedIn && !!myTeam;
 
   return (
     <div className="container mx-auto px-4 py-16">
@@ -28,13 +35,13 @@ export default function TeamsPage() {
             <p className="text-primary text-xs font-bold uppercase tracking-widest mb-2">Squads</p>
             <h1 className="text-5xl font-black uppercase tracking-tight">Teams</h1>
           </div>
-          {showRegisterBtn && (
+          {isLoggedIn && !myTeamLoading && (
             <Button
-              onClick={() => navigate("/register-team")}
+              onClick={() => navigate(hasTeam ? `/teams/${myTeam.id}` : "/register-team")}
               className="flex items-center gap-2 font-bold uppercase tracking-wide"
             >
               <Plus className="w-4 h-4" />
-              Register Your Team
+              {hasTeam ? "Manage Your Team" : "Register Your Team"}
             </Button>
           )}
         </div>

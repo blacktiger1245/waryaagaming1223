@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { teamsTable, playersTable, newsTable, matchesTable, tournamentsTable } from "@workspace/db";
-import { eq, ilike, isNotNull, inArray, desc, sql, or } from "drizzle-orm";
+import { teamsTable, playersTable, newsTable, matchesTable, tournamentsTable, playerTransfersTable } from "@workspace/db";
+import { eq, ilike, isNotNull, inArray, desc, sql, or, aliasedTable } from "drizzle-orm";
 import {
   ListTeamsQueryParams,
   GetTeamParams,
@@ -48,6 +48,21 @@ router.get("/teams", async (req, res) => {
     .orderBy(teamsTable.points);
 
   return res.json(await Promise.all(teams.map(enrichTeam)));
+});
+
+// ── GET /teams/mine (current user's team, if any) ──────────────────────────────
+router.get("/teams/mine", async (req, res) => {
+  if (!req.session?.userId) return res.json(null);
+
+  const userId = req.session.userId;
+  const [team] = await db
+    .select({ team: teamsTable })
+    .from(teamsTable)
+    .leftJoin(playersTable, eq(playersTable.teamId, teamsTable.id))
+    .where(or(eq(teamsTable.coachId, userId), eq(teamsTable.captainId, userId), eq(playersTable.id, userId)))
+    .limit(1);
+
+  return res.json(team?.team ? await enrichTeam(team.team) : null);
 });
 
 // ── GET /players/discord-registered ───────────────────────────────────────────
@@ -145,6 +160,10 @@ router.post("/teams/register", async (req, res) => {
           (err as any).status = 409;
           throw err;
         }
+
+        await tx.insert(playerTransfersTable).values(
+          allPlayerIds.map((playerId) => ({ playerId, fromTeamId: null, toTeamId: newTeam.id })),
+        );
       }
 
       return newTeam;
@@ -212,6 +231,39 @@ router.get("/teams/:id/squad-images", async (req, res) => {
     teamId: r.team_id,
     objectPath: r.object_path,
     uploadedBy: r.uploaded_by,
+  })));
+});
+
+// ── GET /teams/:id/transfers (player movement history for this team) ───────────
+router.get("/teams/:id/transfers", async (req, res) => {
+  const teamId = Number(req.params.id);
+  if (isNaN(teamId)) return res.status(400).json({ error: "Invalid team id" });
+
+  const fromTeams = aliasedTable(teamsTable, "from_team");
+  const toTeams = aliasedTable(teamsTable, "to_team");
+  const rows = await db
+    .select({
+      id: playerTransfersTable.id,
+      playerId: playerTransfersTable.playerId,
+      playerName: playersTable.displayName,
+      playerUsername: playersTable.username,
+      avatarUrl: playersTable.avatarUrl,
+      fromTeamId: playerTransfersTable.fromTeamId,
+      fromTeamName: fromTeams.name,
+      toTeamId: playerTransfersTable.toTeamId,
+      toTeamName: toTeams.name,
+      transferredAt: playerTransfersTable.transferredAt,
+    })
+    .from(playerTransfersTable)
+    .innerJoin(playersTable, eq(playersTable.id, playerTransfersTable.playerId))
+    .leftJoin(fromTeams, eq(fromTeams.id, playerTransfersTable.fromTeamId))
+    .leftJoin(toTeams, eq(toTeams.id, playerTransfersTable.toTeamId))
+    .where(or(eq(playerTransfersTable.fromTeamId, teamId), eq(playerTransfersTable.toTeamId, teamId)))
+    .orderBy(desc(playerTransfersTable.transferredAt));
+
+  return res.json(rows.map((row) => ({
+    ...row,
+    transferredAt: row.transferredAt.toISOString(),
   })));
 });
 
@@ -423,9 +475,15 @@ router.delete("/teams/:id/members/:playerId", async (req, res) => {
   if (playerId === team.captainId)
     return res.status(400).json({ error: "Cannot remove the captain. Change the captain first, then remove them." });
 
+  const [player] = await db.select({ id: playersTable.id }).from(playersTable).where(
+    sql`${playersTable.id} = ${playerId} AND ${playersTable.teamId} = ${teamId}`
+  );
+  if (!player) return res.status(404).json({ error: "Player is not a member of this team" });
+
   await db.update(playersTable).set({ teamId: null, isFreeAgent: true }).where(
     sql`${playersTable.id} = ${playerId} AND ${playersTable.teamId} = ${teamId}`
   );
+  await db.insert(playerTransfersTable).values({ playerId, fromTeamId: teamId, toTeamId: null });
   return res.json({ ok: true });
 });
 
@@ -450,6 +508,7 @@ router.post("/teams/:id/members", async (req, res) => {
   if (player.teamId != null) return res.status(409).json({ error: "Player is already on a team" });
 
   await db.update(playersTable).set({ teamId, isFreeAgent: false }).where(eq(playersTable.id, playerId));
+  await db.insert(playerTransfersTable).values({ playerId, fromTeamId: null, toTeamId: teamId });
   return res.json({ ok: true });
 });
 
