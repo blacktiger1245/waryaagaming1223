@@ -38,7 +38,7 @@ Waryaa Gaming is the Somali eSports Federation's official platform — tournamen
 
 ## Product
 
-Public site: home, tournaments, players, teams, rankings, news, media, live, WG academy, partners, marketplace. Discord login for visitors, plus an admin dashboard (`/admin`, login `black_tiger`) with full CRUD over players, teams, tournaments, matches, news, media, and hall of fame.
+Public site: home, tournaments, players, teams, rankings, news, media, live, and marketplace. Discord login for visitors, plus an admin dashboard (`/admin`, login `black_tiger`) with full CRUD over players, teams, tournaments, matches, news, media, and hall of fame.
 
 ## Branding
 

@@ -21,8 +21,6 @@ import NewsPage from "@/pages/news";
 import NewsDetailPage from "@/pages/news-detail";
 import MediaPage from "@/pages/media";
 import LivePage from "@/pages/live";
-import AcademyPage from "@/pages/academy";
-import PartnersPage from "@/pages/partners";
 import MarketplacePage from "@/pages/marketplace";
 import LoginPage from "@/pages/login";
 import OnboardingPage from "@/pages/onboarding";
@@ -72,8 +70,6 @@ function SiteRouter() {
         <Route path="/news/:id" component={NewsDetailPage} />
         <Route path="/media" component={MediaPage} />
         <Route path="/live" component={LivePage} />
-        <Route path="/academy" component={AcademyPage} />
-        <Route path="/partners" component={PartnersPage} />
         <Route path="/marketplace" component={MarketplacePage} />
         <Route path="/login" component={LoginPage} />
         <Route path="/onboarding" component={OnboardingPage} />
