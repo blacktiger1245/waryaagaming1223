@@ -30,5 +30,9 @@ export interface Tournament {
   winnerId?: number | null;
   /** @nullable */
   winnerName?: string | null;
+  /** @nullable */
+  logoUrl?: string | null;
+  /** @nullable */
+  hostedBy?: string | null;
   createdAt?: string;
 }

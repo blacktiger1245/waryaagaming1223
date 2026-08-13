@@ -12,7 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 export default function TeamsPage() {
   const [search, setSearch] = useState("");
   const { data: teams, isLoading } = useListTeams(search ? { search } : {});
-  const { isLoggedIn } = useAuth();
+  const { user, isLoggedIn } = useAuth();
   const [, navigate] = useLocation();
   const { data: myTeam, isLoading: myTeamLoading } = useQuery<any | null>({
     queryKey: ["my-team"],
@@ -37,7 +37,11 @@ export default function TeamsPage() {
           </div>
           {isLoggedIn && !myTeamLoading && (
             <Button
-              onClick={() => navigate(hasTeam ? `/teams/${myTeam.id}` : "/register-team")}
+              onClick={() => navigate(
+                hasTeam
+                  ? (myTeam.coachId === user?.id ? `/teams/${myTeam.id}/manage` : `/teams/${myTeam.id}`)
+                  : "/register-team"
+              )}
               className="flex items-center gap-2 font-bold uppercase tracking-wide"
             >
               <Plus className="w-4 h-4" />

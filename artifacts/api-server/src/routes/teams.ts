@@ -219,6 +219,36 @@ router.get("/teams/:id", async (req, res) => {
   });
 });
 
+// ── DELETE /teams/:id (team owner only) ───────────────────────────────────────
+router.delete("/teams/:id", async (req, res) => {
+  if (!req.session?.userId) return res.status(401).json({ error: "Login required" });
+
+  const teamId = Number(req.params.id);
+  if (isNaN(teamId)) return res.status(400).json({ error: "Invalid team id" });
+
+  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
+  if (!team) return res.status(404).json({ error: "Team not found" });
+
+  if (req.session.userId !== team.coachId) {
+    return res.status(403).json({ error: "Only the team owner can delete this team" });
+  }
+
+  await db.transaction(async (tx) => {
+    // Release the roster so players can join another team after deletion.
+    await tx.update(playersTable)
+      .set({ teamId: null, isFreeAgent: true })
+      .where(eq(playersTable.teamId, teamId));
+
+    // Keep historical match and transfer records, but remove active team links.
+    await tx.execute(sql`UPDATE news SET team_id = NULL WHERE team_id = ${teamId}`);
+    await tx.execute(sql`UPDATE tournament_participants SET team_id = NULL WHERE team_id = ${teamId}`);
+    await tx.execute(sql`DELETE FROM team_squad_images WHERE team_id = ${teamId}`);
+    await tx.delete(teamsTable).where(eq(teamsTable.id, teamId));
+  });
+
+  return res.status(204).send();
+});
+
 // ── GET /teams/:id/squad-images ───────────────────────────────────────────────
 router.get("/teams/:id/squad-images", async (req, res) => {
   const teamId = Number(req.params.id);

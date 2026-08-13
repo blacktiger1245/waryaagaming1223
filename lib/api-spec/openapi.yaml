@@ -222,6 +222,25 @@ paths:
                 $ref: "#/components/schemas/Team"
         "404":
           description: Not found
+    delete:
+      operationId: deleteTeam
+      tags: [teams]
+      summary: Delete a team owned by the current user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Team deleted
+        "401":
+          description: Login required
+        "403":
+          description: Only the team owner can delete the team
+        "404":
+          description: Not found
 
   /tournaments:
     get:
@@ -740,6 +759,10 @@ components:
         winnerId:
           type: ["integer", "null"]
         winnerName:
+          type: ["string", "null"]
+        logoUrl:
+          type: ["string", "null"]
+        hostedBy:
           type: ["string", "null"]
         createdAt:
           type: string

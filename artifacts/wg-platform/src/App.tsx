@@ -16,6 +16,7 @@ import PlayerDetailPage from "@/pages/player-detail";
 import PlayerHistoryPage from "@/pages/player-history";
 import TeamsPage from "@/pages/teams";
 import TeamDetailPage from "@/pages/team-detail";
+import TeamManagePage from "@/pages/team-manage";
 import RankingsPage from "@/pages/rankings";
 import NewsPage from "@/pages/news";
 import NewsDetailPage from "@/pages/news-detail";
@@ -64,6 +65,7 @@ function SiteRouter() {
         <Route path="/players/:id" component={PlayerDetailPage} />
         <Route path="/players/:id/history" component={PlayerHistoryPage} />
         <Route path="/teams" component={TeamsPage} />
+        <Route path="/teams/:id/manage" component={TeamManagePage} />
         <Route path="/teams/:id" component={TeamDetailPage} />
         <Route path="/fixtures" component={FixturesPage} />
         <Route path="/rankings" component={RankingsPage} />

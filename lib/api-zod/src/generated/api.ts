@@ -335,6 +335,16 @@ export const GetTeamResponse = zod.object({
 
 
 /**
+ * @summary Delete a team owned by the current user
+ */
+export const DeleteTeamParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteTeamResponse = zod.void()
+
+
+/**
  * @summary List all tournaments
  */
 export const ListTournamentsQueryParams = zod.object({
@@ -395,6 +405,8 @@ export const CreateTournamentResponse = zod.object({
   "streamUrl": zod.string().nullish(),
   "winnerId": zod.number().nullish(),
   "winnerName": zod.string().nullish(),
+  "logoUrl": zod.string().nullish(),
+  "hostedBy": zod.string().nullish(),
   "createdAt": zod.string().optional()
 })
 
@@ -422,6 +434,8 @@ export const GetTournamentResponse = zod.object({
   "streamUrl": zod.string().nullish(),
   "winnerId": zod.number().nullish(),
   "winnerName": zod.string().nullish(),
+  "logoUrl": zod.string().nullish(),
+  "hostedBy": zod.string().nullish(),
   "createdAt": zod.string().optional()
 })
 
@@ -843,23 +857,3 @@ export const GetLiveMatchesResponseItem = zod.object({
   "tournamentName": zod.string().nullish()
 })
 export const GetLiveMatchesResponse = zod.array(GetLiveMatchesResponseItem)
-
-// ── Object Storage ────────────────────────────────────────────────────────────
-export const RequestUploadUrlBody = zod.object({
-  name: zod.string(),
-  size: zod.number(),
-  contentType: zod.string(),
-});
-export type RequestUploadUrlBody = zod.infer<typeof RequestUploadUrlBody>;
-
-export const RequestUploadUrlResponse = zod.object({
-  uploadURL: zod.string(),
-  objectPath: zod.string(),
-  metadata: zod.object({
-    name: zod.string(),
-    size: zod.number(),
-    contentType: zod.string(),
-  }),
-});
-export type RequestUploadUrlResponse = zod.infer<typeof RequestUploadUrlResponse>;
-
