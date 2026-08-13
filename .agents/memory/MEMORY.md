@@ -1,2 +1,3 @@
 - [WG platform notes](wg-platform-notes.md) — legacy workflows conflict on ports, and Docker must normalize frontend output paths across imported revisions.
 - [connect-pg-simple table.sql ENOENT](connect-pg-simple-session-table.md) — esbuild bundling breaks its bundled table.sql lookup; create the session table manually and disable auto-create.
+- [Drizzle nullable bulk inserts](drizzle-nullable-bulk-inserts.md) — deployed Drizzle versions can emit malformed multi-row SQL when nullable fields are explicitly null.
