@@ -161,9 +161,19 @@ router.post("/teams/register", async (req, res) => {
           throw err;
         }
 
-        await tx.insert(playerTransfersTable).values(
-          allPlayerIds.map((playerId) => ({ playerId, fromTeamId: null, toTeamId: newTeam.id })),
-        );
+        // Insert one transfer row at a time.  Some deployed Drizzle versions
+        // generate inconsistent value tuples for a multi-row insert when a
+        // nullable column is explicitly set to null.  That produces malformed
+        // SQL such as a row with a missing `to_team_id` placeholder.  Keeping
+        // these writes in the same transaction preserves the all-or-nothing
+        // behavior without relying on that broken bulk SQL generation.
+        for (const playerId of allPlayerIds) {
+          await tx.insert(playerTransfersTable).values({
+            playerId,
+            fromTeamId: null,
+            toTeamId: newTeam.id,
+          });
+        }
       }
 
       return newTeam;
