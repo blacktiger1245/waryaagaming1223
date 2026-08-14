@@ -32,8 +32,9 @@ router.get("/players", async (req, res) => {
     .orderBy(desc(playersTable.points));
 
   // For each player compute their true rank: how many players have strictly more points
-  const teams = await db.select({ id: teamsTable.id, name: teamsTable.name }).from(teamsTable);
+  const teams = await db.select({ id: teamsTable.id, name: teamsTable.name, logoUrl: teamsTable.logoUrl }).from(teamsTable);
   const teamMap = new Map(teams.map((t) => [t.id, t.name]));
+  const teamLogoMap = new Map(teams.map((t) => [t.id, t.logoUrl]));
 
   // Resolve global rank for each returned player in parallel
   const withRanks = await Promise.all(
@@ -46,6 +47,7 @@ router.get("/players", async (req, res) => {
         ...p,
         rank: Number(above) + 1,
         teamName: p.teamId ? (teamMap.get(p.teamId) ?? null) : null,
+        teamLogoUrl: p.teamId ? (teamLogoMap.get(p.teamId) ?? null) : null,
         createdAt: p.createdAt.toISOString(),
       };
     })

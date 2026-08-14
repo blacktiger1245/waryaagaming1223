@@ -172,9 +172,15 @@ export default function TeamManagePage() {
         return;
       }
       success();
-      await qc.invalidateQueries({ queryKey: getGetTeamQueryKey(id) });
-      await qc.invalidateQueries({ queryKey: ["/api/teams"] });
-      await qc.invalidateQueries({ queryKey: ["my-team"] });
+      // Cache refresh must not turn a completed server mutation into a
+      // misleading failure state.
+      await Promise.allSettled([
+        qc.invalidateQueries({ queryKey: getGetTeamQueryKey(id) }),
+        qc.invalidateQueries({ queryKey: ["/api/teams"] }),
+        qc.invalidateQueries({ queryKey: ["my-team"] }),
+      ]);
+    } catch {
+      setError("Something went wrong. Please try again.");
     } finally {
       setBusy(false);
     }

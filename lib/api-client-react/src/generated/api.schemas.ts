@@ -20,6 +20,8 @@ export interface Player {
   teamId?: number | null;
   /** @nullable */
   teamName?: string | null;
+  /** @nullable */
+  teamLogoUrl?: string | null;
   rank: number;
   tournamentWins: number;
   winRate: number;
@@ -178,6 +180,8 @@ export interface TournamentParticipant {
   /** @nullable */
   teamName?: string | null;
   /** @nullable */
+  teamLogoUrl?: string | null;
+  /** @nullable */
   seed?: number | null;
 }
 
@@ -260,6 +264,8 @@ export interface PlayerRanking {
   avatarUrl?: string | null;
   /** @nullable */
   teamName?: string | null;
+  /** @nullable */
+  teamLogoUrl?: string | null;
   points: number;
   tournamentWins: number;
   winRate: number;

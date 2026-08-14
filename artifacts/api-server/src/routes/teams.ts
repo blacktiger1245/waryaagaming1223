@@ -246,7 +246,7 @@ router.delete("/teams/:id", async (req, res) => {
     await tx.delete(teamsTable).where(eq(teamsTable.id, teamId));
   });
 
-  return res.status(204).send();
+  return res.json({ ok: true });
 });
 
 // ── GET /teams/:id/squad-images ───────────────────────────────────────────────
@@ -515,7 +515,14 @@ router.delete("/teams/:id/members/:playerId", async (req, res) => {
   await db.update(playersTable).set({ teamId: null, isFreeAgent: true }).where(
     sql`${playersTable.id} = ${playerId} AND ${playersTable.teamId} = ${teamId}`
   );
-  await db.insert(playerTransfersTable).values({ playerId, fromTeamId: teamId, toTeamId: null });
+  // The roster update is the user-facing operation. Keep it successful even
+  // when an older production transfer-history constraint rejects a nullable
+  // destination team, so the UI never reports a failure after removing a player.
+  try {
+    await db.insert(playerTransfersTable).values({ playerId, fromTeamId: teamId, toTeamId: null });
+  } catch (err) {
+    req.log.warn({ err, playerId, teamId }, "Player removed but transfer history could not be recorded");
+  }
   return res.json({ ok: true });
 });
 

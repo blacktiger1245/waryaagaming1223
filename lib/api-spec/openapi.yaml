@@ -622,6 +622,8 @@ components:
           type: ["integer", "null"]
         teamName:
           type: ["string", "null"]
+        teamLogoUrl:
+          type: ["string", "null"]
         rank:
           type: integer
         tournamentWins:
@@ -821,6 +823,8 @@ components:
           type: ["integer", "null"]
         teamName:
           type: ["string", "null"]
+        teamLogoUrl:
+          type: ["string", "null"]
         seed:
           type: ["integer", "null"]
 
@@ -914,6 +918,8 @@ components:
         avatarUrl:
           type: ["string", "null"]
         teamName:
+          type: ["string", "null"]
+        teamLogoUrl:
           type: ["string", "null"]
         points:
           type: integer

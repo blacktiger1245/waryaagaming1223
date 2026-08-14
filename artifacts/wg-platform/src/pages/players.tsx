@@ -97,7 +97,9 @@ export default function PlayersPage() {
                         </div>
                         {player.teamName && (
                           <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
-                            <Shield className="w-3 h-3" />
+                            {player.teamLogoUrl
+                              ? <img src={player.teamLogoUrl} alt="" className="w-3.5 h-3.5 rounded-full object-cover" />
+                              : <Shield className="w-3 h-3" />}
                             {player.teamName}
                           </div>
                         )}

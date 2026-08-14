@@ -19,5 +19,7 @@ export interface TournamentParticipant {
   /** @nullable */
   teamName?: string | null;
   /** @nullable */
+  teamLogoUrl?: string | null;
+  /** @nullable */
   seed?: number | null;
 }

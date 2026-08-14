@@ -748,7 +748,14 @@ export default function RankingsPage() {
                                       <span className="font-bold text-sm hover:text-primary transition-colors cursor-pointer">{p.displayName ?? p.username}</span>
                                       {isTop3 && <Star className="w-3 h-3 text-primary fill-primary" />}
                                     </div>
-                                    {p.teamName && <span className="text-[10px] text-muted-foreground">{p.teamName}</span>}
+                                    {p.teamName && (
+                                      <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                                        {p.teamLogoUrl
+                                          ? <img src={p.teamLogoUrl} alt="" className="h-3.5 w-3.5 rounded-full object-cover" />
+                                          : <Shield className="h-3 w-3" />}
+                                        {p.teamName}
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
                               </Link>
@@ -765,7 +772,14 @@ export default function RankingsPage() {
                             </td>
                             {/* Club */}
                             <td className="px-3 py-3 text-center text-sm text-muted-foreground hidden md:table-cell">
-                              {p.teamName ?? "—"}
+                              {p.teamName ? (
+                                <span className="inline-flex items-center gap-1.5">
+                                  {p.teamLogoUrl
+                                    ? <img src={p.teamLogoUrl} alt="" className="h-5 w-5 rounded-full object-cover" />
+                                    : <Shield className="h-4 w-4" />}
+                                  {p.teamName}
+                                </span>
+                              ) : "—"}
                             </td>
                             {/* Match */}
                             <td className="px-3 py-3 text-center text-sm font-bold">{p.matchesPlayed}</td>

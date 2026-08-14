@@ -17,6 +17,8 @@ export interface Player {
   teamId?: number | null;
   /** @nullable */
   teamName?: string | null;
+  /** @nullable */
+  teamLogoUrl?: string | null;
   rank: number;
   tournamentWins: number;
   winRate: number;

@@ -13,8 +13,9 @@ router.get("/rankings/players", async (req, res) => {
 
   const seasonId = req.query.seasonId ? Number(req.query.seasonId) : undefined;
 
-  const teams = await db.select({ id: teamsTable.id, name: teamsTable.name }).from(teamsTable);
+  const teams = await db.select({ id: teamsTable.id, name: teamsTable.name, logoUrl: teamsTable.logoUrl }).from(teamsTable);
   const teamMap = new Map(teams.map((t) => [t.id, t.name]));
+  const teamLogoMap = new Map(teams.map((t) => [t.id, t.logoUrl]));
 
   // ── Seasonal: aggregate match stats for tournaments in this season ────────
   if (seasonId) {
@@ -88,6 +89,7 @@ router.get("/rankings/players", async (req, res) => {
         displayName: r.player.displayName,
         avatarUrl: r.player.avatarUrl,
         teamName: r.player.teamId ? (teamMap.get(r.player.teamId) ?? null) : null,
+        teamLogoUrl: r.player.teamId ? (teamLogoMap.get(r.player.teamId) ?? null) : null,
         points: r.points,
         matchesPlayed: r.matchesPlayed,
         matchesWon: r.wins,
@@ -120,6 +122,7 @@ router.get("/rankings/players", async (req, res) => {
       displayName: p.displayName,
       avatarUrl: p.avatarUrl,
       teamName: p.teamId ? (teamMap.get(p.teamId) ?? null) : null,
+      teamLogoUrl: p.teamId ? (teamLogoMap.get(p.teamId) ?? null) : null,
       points: p.points,
       tournamentWins: p.tournamentWins,
       matchesPlayed: p.matchesPlayed,

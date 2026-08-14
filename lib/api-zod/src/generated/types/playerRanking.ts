@@ -16,6 +16,8 @@ export interface PlayerRanking {
   avatarUrl?: string | null;
   /** @nullable */
   teamName?: string | null;
+  /** @nullable */
+  teamLogoUrl?: string | null;
   points: number;
   tournamentWins: number;
   winRate: number;
