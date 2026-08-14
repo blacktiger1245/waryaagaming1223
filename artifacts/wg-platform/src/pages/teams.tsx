@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useListTeams } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
+import { storageUrl } from "@/lib/api";
 
 export default function TeamsPage() {
   const [search, setSearch] = useState("");
@@ -76,8 +77,8 @@ export default function TeamsPage() {
                   <Link href={`/teams/${team.id}`}>
                     <div className="rounded-xl border border-border bg-card p-5 hover:border-primary/40 transition-all duration-300 cursor-pointer group h-full flex flex-col gap-3">
                       <div className="w-14 h-14 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center overflow-hidden">
-                        {team.logoUrl
-                          ? <img src={team.logoUrl} alt={team.name} className="w-full h-full object-cover" />
+                        {storageUrl(team.logoUrl)
+                          ? <img src={storageUrl(team.logoUrl)} alt={team.name} className="w-full h-full object-cover" />
                           : <Shield className="w-7 h-7 text-primary" />}
                       </div>
 

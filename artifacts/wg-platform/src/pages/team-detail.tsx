@@ -18,6 +18,7 @@ import { useGetTeam } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useQueries, useQueryClient } from "@tanstack/react-query";
 import { useUpload } from "@workspace/object-storage-web";
+import { storageUrl } from "@/lib/api";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell,
@@ -728,8 +729,8 @@ export default function TeamDetailPage() {
             {/* Circular logo */}
             <div className="flex-shrink-0">
               <div className="w-24 h-24 rounded-full bg-zinc-800 border-4 border-zinc-600 overflow-hidden flex items-center justify-center shadow-xl ring-2 ring-white/10">
-                {team.logoUrl
-                  ? <img src={team.logoUrl} alt={team.name} className="w-full h-full object-cover" />
+                {storageUrl(team.logoUrl)
+                  ? <img src={storageUrl(team.logoUrl)} alt={team.name} className="w-full h-full object-cover" />
                   : <Shield className="w-11 h-11 text-zinc-500" />}
               </div>
             </div>

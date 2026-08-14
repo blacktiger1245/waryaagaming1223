@@ -15,6 +15,11 @@ export function apiUrl(path: string): string {
 
 export function storageUrl(objectPath: string | null | undefined): string | undefined {
   if (!objectPath) return undefined;
-  if (/^https?:\/\//i.test(objectPath)) return objectPath;
+  if (/^(?:https?:|data:|blob:)/i.test(objectPath)) return objectPath;
+  // Some older registrations stored the API path instead of the raw
+  // object-storage path. Do not prefix those paths a second time.
+  if (objectPath.startsWith("/api/storage/") || objectPath === "/api/storage") {
+    return apiUrl(objectPath);
+  }
   return apiUrl(`/api/storage${objectPath.startsWith("/") ? objectPath : `/${objectPath}`}`);
 }

@@ -17,6 +17,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getGetTeamQueryKey, useGetTeam } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
+import { storageUrl } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -279,7 +280,7 @@ export default function TeamManagePage() {
           <section className="rounded-xl border border-zinc-800 bg-zinc-900 p-5 sm:p-6">
             <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
               <div className="flex h-32 w-32 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-zinc-700 bg-zinc-800">
-                {team.logoUrl ? <img src={team.logoUrl} alt={team.name} className="h-full w-full object-cover" /> : <Shield className="h-14 w-14 text-yellow-400" />}
+                {storageUrl(team.logoUrl) ? <img src={storageUrl(team.logoUrl)} alt={team.name} className="h-full w-full object-cover" /> : <Shield className="h-14 w-14 text-yellow-400" />}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-baseline gap-2">

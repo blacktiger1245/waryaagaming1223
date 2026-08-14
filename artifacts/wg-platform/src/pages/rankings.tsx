@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { motion } from "framer-motion";
 import { Trophy, Star, TrendingUp, TrendingDown, ArrowUpDown, ChevronsUpDown, Search, Shield, X, Minus, CalendarRange, ChevronDown } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { storageUrl } from "@/lib/api";
 
 interface Season {
   id: number;
@@ -62,8 +63,8 @@ function TeamSelector({
       {selected ? (
         <div className="flex flex-col items-center gap-2 flex-1 justify-center">
           <div className="w-16 h-16 rounded-full bg-zinc-800 border-2 border-teal-400/40 flex items-center justify-center overflow-hidden">
-            {selected.logoUrl
-              ? <img src={selected.logoUrl} alt={selected.name} className="w-full h-full object-cover" />
+            {storageUrl(selected.logoUrl)
+              ? <img src={storageUrl(selected.logoUrl)} alt={selected.name} className="w-full h-full object-cover" />
               : <Shield className="w-7 h-7 text-zinc-500" />}
           </div>
           <p className="font-black text-base text-white text-center leading-tight">
@@ -101,8 +102,8 @@ function TeamSelector({
               className="w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-zinc-800 transition-colors text-left"
             >
               <div className="w-6 h-6 rounded-full bg-zinc-700 flex items-center justify-center overflow-hidden shrink-0">
-                {t.logoUrl
-                  ? <img src={t.logoUrl} alt={t.name} className="w-full h-full object-cover" />
+                {storageUrl(t.logoUrl)
+                  ? <img src={storageUrl(t.logoUrl)} alt={t.name} className="w-full h-full object-cover" />
                   : <Shield className="w-3.5 h-3.5 text-zinc-500" />}
               </div>
               <span className="font-bold text-zinc-200">{t.name}</span>
@@ -426,8 +427,8 @@ function TeamRankingsPanel({ teams, loading }: { teams: TeamRankRow[]; loading: 
                       <Link href={`/teams/${t.teamId}`}>
                         <div className="flex items-center gap-3 cursor-pointer group/club">
                           <div className="w-10 h-10 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center overflow-hidden flex-shrink-0">
-                            {t.logoUrl
-                              ? <img src={t.logoUrl} alt={t.name} className="w-full h-full object-cover" />
+                            {storageUrl(t.logoUrl)
+                              ? <img src={storageUrl(t.logoUrl)} alt={t.name} className="w-full h-full object-cover" />
                               : <Shield className="w-5 h-5 text-zinc-500" />}
                           </div>
                           <span className="font-bold text-sm group-hover/club:text-teal-400 transition-colors">

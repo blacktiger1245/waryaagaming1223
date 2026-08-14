@@ -226,27 +226,48 @@ router.delete("/teams/:id", async (req, res) => {
   const teamId = Number(req.params.id);
   if (isNaN(teamId)) return res.status(400).json({ error: "Invalid team id" });
 
-  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
-  if (!team) return res.status(404).json({ error: "Team not found" });
+  try {
+    const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
+    if (!team) return res.status(404).json({ error: "Team not found" });
 
-  if (req.session.userId !== team.coachId) {
-    return res.status(403).json({ error: "Only the team owner can delete this team" });
+    if (req.session.userId !== team.coachId) {
+      return res.status(403).json({ error: "Only the team owner can delete this team" });
+    }
+
+    await db.transaction(async (tx) => {
+      // Release the roster so players can join another team after deletion.
+      await tx.update(playersTable)
+        .set({ teamId: null, isFreeAgent: true })
+        .where(eq(playersTable.teamId, teamId));
+
+      // Keep historical records, but remove active references to the team.
+      await tx.execute(sql`UPDATE news SET team_id = NULL WHERE team_id = ${teamId}`);
+      await tx.execute(sql`UPDATE tournament_participants SET team_id = NULL WHERE team_id = ${teamId}`);
+      const playerTransfersTable = await tx.execute(
+        sql`SELECT to_regclass('public.player_transfers') AS table_name`,
+      );
+      if ((playerTransfersTable.rows[0] as { table_name?: string | null })?.table_name) {
+        await tx.execute(sql`UPDATE player_transfers SET from_team_id = NULL WHERE from_team_id = ${teamId}`);
+        await tx.execute(sql`UPDATE player_transfers SET to_team_id = NULL WHERE to_team_id = ${teamId}`);
+      }
+
+      // This table was added after the original schema and may not exist in
+      // older databases. Deletion should not fail just because it is absent.
+      const squadImagesTable = await tx.execute(
+        sql`SELECT to_regclass('public.team_squad_images') AS table_name`,
+      );
+      if ((squadImagesTable.rows[0] as { table_name?: string | null })?.table_name) {
+        await tx.execute(sql`DELETE FROM team_squad_images WHERE team_id = ${teamId}`);
+      }
+
+      await tx.delete(teamsTable).where(eq(teamsTable.id, teamId));
+    });
+
+    return res.json({ ok: true });
+  } catch (error) {
+    req.log.error({ err: error, teamId }, "Failed to delete team");
+    return res.status(500).json({ error: "Unable to delete the team right now. Please try again." });
   }
-
-  await db.transaction(async (tx) => {
-    // Release the roster so players can join another team after deletion.
-    await tx.update(playersTable)
-      .set({ teamId: null, isFreeAgent: true })
-      .where(eq(playersTable.teamId, teamId));
-
-    // Keep historical match and transfer records, but remove active team links.
-    await tx.execute(sql`UPDATE news SET team_id = NULL WHERE team_id = ${teamId}`);
-    await tx.execute(sql`UPDATE tournament_participants SET team_id = NULL WHERE team_id = ${teamId}`);
-    await tx.execute(sql`DELETE FROM team_squad_images WHERE team_id = ${teamId}`);
-    await tx.delete(teamsTable).where(eq(teamsTable.id, teamId));
-  });
-
-  return res.json({ ok: true });
 });
 
 // ── GET /teams/:id/squad-images ───────────────────────────────────────────────
