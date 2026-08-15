@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { useQueryClient } from "@tanstack/react-query";
+import { apiUrl, uploadTeamLogo } from "@/lib/api";
 
 // ── types ──────────────────────────────────────────────────────────────────────
 interface DiscordPlayer {
@@ -22,36 +23,12 @@ interface DiscordPlayer {
 }
 
 // ── helpers ────────────────────────────────────────────────────────────────────
-function getApiBase() {
-  return import.meta.env.BASE_URL.replace(/\/$/, "");
-}
-
 async function fetchAllPlayers(): Promise<DiscordPlayer[]> {
-  const res = await fetch(`${getApiBase()}/api/players`, {
+  const res = await fetch(apiUrl("/api/players"), {
     credentials: "include",
   });
   if (!res.ok) throw new Error("Failed to load players");
   return res.json();
-}
-
-async function requestLogoUploadUrl(file: File): Promise<{ uploadURL: string; objectPath: string }> {
-  const res = await fetch(`${getApiBase()}/api/storage/uploads/team-logo`, {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
-  });
-  if (!res.ok) throw new Error("Failed to get upload URL");
-  return res.json();
-}
-
-async function uploadFileToBucket(uploadURL: string, file: File): Promise<void> {
-  const res = await fetch(uploadURL, {
-    method: "PUT",
-    headers: { "Content-Type": file.type },
-    body: file,
-  });
-  if (!res.ok) throw new Error("Upload failed");
 }
 
 async function registerTeam(payload: {
@@ -62,7 +39,7 @@ async function registerTeam(payload: {
   captainId: number;
   playerIds: number[];
 }) {
-  const res = await fetch(`${getApiBase()}/api/teams/register`, {
+  const res = await fetch(apiUrl("/api/teams/register"), {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -291,16 +268,10 @@ export default function RegisterTeamPage() {
     try {
       let logoUrl: string | undefined;
 
-      // Upload logo if provided — non-blocking: if storage isn't configured
-      // in this environment the registration still goes through without a logo.
+       // Upload through the API so this flow does not depend on R2 bucket CORS.
       if (logoFile) {
-        try {
-          const { uploadURL, objectPath } = await requestLogoUploadUrl(logoFile);
-          await uploadFileToBucket(uploadURL, logoFile);
-          logoUrl = `/api/storage${objectPath}`;
-        } catch {
-          // Continue without logo — don't block team registration
-        }
+         const objectPath = await uploadTeamLogo(logoFile);
+         logoUrl = `/api/storage${objectPath}`;
       }
 
       const team = await registerTeam({

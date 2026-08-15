@@ -219,6 +219,27 @@ router.get("/teams/:id", async (req, res) => {
   });
 });
 
+// ── PATCH /teams/:id/logo (team owner only) ───────────────────────────────────
+router.patch("/teams/:id/logo", async (req, res) => {
+  if (!req.session?.userId) return res.status(401).json({ error: "Login required" });
+
+  const teamId = Number(req.params.id);
+  const logoUrl = req.body?.logoUrl;
+  if (isNaN(teamId)) return res.status(400).json({ error: "Invalid team id" });
+  if (typeof logoUrl !== "string" || !logoUrl.trim()) {
+    return res.status(400).json({ error: "A logo path is required" });
+  }
+
+  const [team] = await db.select({ coachId: teamsTable.coachId }).from(teamsTable).where(eq(teamsTable.id, teamId));
+  if (!team) return res.status(404).json({ error: "Team not found" });
+  if (req.session.userId !== team.coachId) {
+    return res.status(403).json({ error: "Only the team owner can change this logo" });
+  }
+
+  await db.update(teamsTable).set({ logoUrl: logoUrl.trim() }).where(eq(teamsTable.id, teamId));
+  return res.json({ ok: true, logoUrl: logoUrl.trim() });
+});
+
 // ── DELETE /teams/:id (team owner only) ───────────────────────────────────────
 router.delete("/teams/:id", async (req, res) => {
   if (!req.session?.userId) return res.status(401).json({ error: "Login required" });

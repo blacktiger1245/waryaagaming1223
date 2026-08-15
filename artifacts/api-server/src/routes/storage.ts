@@ -54,6 +54,41 @@ router.post(
 );
 
 /**
+ * POST /storage/uploads/team-logo/direct
+ *
+ * Upload a team logo through the API. This avoids browser-to-R2 CORS
+ * requirements on hosts where the bucket does not expose PUT to the browser.
+ */
+router.post(
+  '/storage/uploads/team-logo/direct',
+  async (req: Request, res: Response) => {
+    if (!req.session?.userId) {
+      res.status(401).json({ error: 'You must be logged in to upload a team logo' });
+      return;
+    }
+
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      res.status(400).json({ error: 'An image file is required' });
+      return;
+    }
+
+    const contentType = req.get('content-type') || 'application/octet-stream';
+    if (!contentType.startsWith('image/')) {
+      res.status(400).json({ error: 'Only image uploads are supported' });
+      return;
+    }
+
+    try {
+      const objectPath = await objectStorageService.uploadObject(req.body, contentType);
+      return res.status(201).json({ objectPath });
+    } catch (error) {
+      req.log.error({ err: error }, 'Error uploading team logo through API');
+      return res.status(500).json({ error: 'Failed to upload team logo' });
+    }
+  },
+);
+
+/**
  * POST /storage/uploads/squad-image
  *
  * Request a presigned URL for squad image upload.

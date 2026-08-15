@@ -23,3 +23,18 @@ export function storageUrl(objectPath: string | null | undefined): string | unde
   }
   return apiUrl(`/api/storage${objectPath.startsWith("/") ? objectPath : `/${objectPath}`}`);
 }
+
+export async function uploadTeamLogo(file: File): Promise<string> {
+  const response = await fetch(apiUrl("/api/storage/uploads/team-logo/direct"), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": file.type },
+    body: file,
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error ?? "Failed to upload team logo");
+  if (typeof data.objectPath !== "string" || !data.objectPath) {
+    throw new Error("The logo upload did not return a file path");
+  }
+  return data.objectPath;
+}

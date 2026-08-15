@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link, useLocation, useParams } from "wouter";
 import {
   ArrowLeft,
@@ -13,11 +13,13 @@ import {
   UserPlus,
   Users,
   X,
+  Loader2,
+  Upload,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getGetTeamQueryKey, useGetTeam } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
-import { storageUrl } from "@/lib/api";
+import { apiUrl, storageUrl, uploadTeamLogo } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -127,8 +129,10 @@ export default function TeamManagePage() {
   const [pendingCoachId, setPendingCoachId] = useState<number | null>(null);
   const [removeId, setRemoveId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
+  const [logoBusy, setLogoBusy] = useState(false);
   const [error, setError] = useState("");
   const [page, setPage] = useState(1);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   const members = (team?.members ?? []) as TeamMember[];
   const captain = members.find((member) => member.id === team?.captainId);
@@ -230,6 +234,32 @@ export default function TeamManagePage() {
     });
   }
 
+  async function changeLogo(file: File) {
+    setLogoBusy(true);
+    setError("");
+    try {
+      const objectPath = await uploadTeamLogo(file);
+      const response = await fetch(apiUrl(`/api/teams/${id}/logo`), {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ logoUrl: `/api/storage${objectPath}` }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error ?? "Failed to save team logo");
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: getGetTeamQueryKey(id) }),
+        qc.invalidateQueries({ queryKey: ["/api/teams"] }),
+        qc.invalidateQueries({ queryKey: ["my-team"] }),
+      ]);
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Failed to save team logo");
+    } finally {
+      setLogoBusy(false);
+      if (logoInputRef.current) logoInputRef.current.value = "";
+    }
+  }
+
   if (authLoading || teamLoading) {
     return (
       <div className="container mx-auto max-w-5xl space-y-4 px-4 py-10">
@@ -288,6 +318,27 @@ export default function TeamManagePage() {
                   {team.tag && <span className="text-sm font-bold text-zinc-500">[{team.tag}]</span>}
                 </div>
                 <p className="mt-2 line-clamp-2 text-sm text-zinc-400">{team.description || "No team description yet."}</p>
+                 <input
+                   ref={logoInputRef}
+                   type="file"
+                   accept="image/*"
+                   className="hidden"
+                   onChange={(event) => {
+                     const file = event.target.files?.[0];
+                     if (file) void changeLogo(file);
+                   }}
+                 />
+                 <Button
+                   type="button"
+                   variant="outline"
+                   size="sm"
+                   disabled={logoBusy}
+                   onClick={() => logoInputRef.current?.click()}
+                   className="mt-3 gap-2 border-zinc-700 text-zinc-300"
+                 >
+                   {logoBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                   {logoBusy ? "Uploading logo…" : "Change logo"}
+                 </Button>
                 <div className="mt-5 grid grid-cols-4 divide-x divide-zinc-800">
                   <div className="pr-3"><p className="text-xs text-zinc-500">Players</p><p className="mt-1 text-2xl font-black text-yellow-400">{team.memberCount ?? members.length}</p></div>
                   <div className="px-3"><p className="text-xs text-zinc-500">Wins</p><p className="mt-1 text-2xl font-black text-green-400">{team.wins}</p></div>

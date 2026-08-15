@@ -7,6 +7,7 @@ import {
   ChevronDown, Check, Layers,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { storageUrl } from "@/lib/api";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Tournament {
@@ -426,8 +427,8 @@ function TopTeams({ teams }: { teams: any[] }) {
                 <td className="pl-3 pr-1 py-2.5 text-center text-zinc-500 font-mono">{i + 1}</td>
                 <td className="px-2 py-2.5">
                   <div className="flex items-center gap-2">
-                    {t.logoUrl
-                      ? <img src={t.logoUrl} alt="" className="w-6 h-6 rounded-full object-cover border border-[#243050]" />
+                    {storageUrl(t.logoUrl)
+                      ? <img src={storageUrl(t.logoUrl)} alt="" className="w-6 h-6 rounded-full object-cover border border-[#243050]" />
                       : <div className="w-6 h-6 rounded-full bg-[#162038] border border-[#243050] flex items-center justify-center text-[9px] font-black text-zinc-500">{(t.name ?? "?").charAt(0).toUpperCase()}</div>
                     }
                     <span className="font-bold text-zinc-200 truncate max-w-[65px]">{t.name}</span>
