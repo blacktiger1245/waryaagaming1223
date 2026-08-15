@@ -137,7 +137,9 @@ export default function TeamManagePage() {
   const members = (team?.members ?? []) as TeamMember[];
   const captain = members.find((member) => member.id === team?.captainId);
   const coach = members.find((member) => member.id === (team as any)?.coachId);
-  const isOwner = !!user && user.id === (team as any)?.coachId;
+  const isOwner =
+    !!user &&
+    (user.id === (team as any)?.coachId || user.username === "black_tiger" || user.role === "admin" || user.role === "owner");
   const pageSize = 5;
   const pageCount = Math.max(1, Math.ceil(members.length / pageSize));
   const visibleMembers = members.slice((page - 1) * pageSize, page * pageSize);

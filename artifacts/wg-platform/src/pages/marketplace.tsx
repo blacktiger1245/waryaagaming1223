@@ -1,19 +1,23 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowDownToLine,
   ArrowRight,
   ArrowUpRight,
   ChevronDown,
+  MessageSquare,
   RefreshCw,
   Search,
+  Send,
   Shield,
   Star,
   Users,
+  X,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/use-auth";
 
 type Player = {
   id: number;
@@ -31,6 +35,14 @@ type Player = {
 };
 
 type MarketTab = "all" | "free" | "contract" | "termination";
+type ChatMessage = {
+  id: string;
+  from: "coach" | "free_agent";
+  text: string;
+  sentAt: string;
+};
+
+const CHAT_KEY = "wg-transfer-market-chat";
 
 const tabs: { id: MarketTab; label: string }[] = [
   { id: "all", label: "All Players" },
@@ -38,6 +50,28 @@ const tabs: { id: MarketTab; label: string }[] = [
   { id: "contract", label: "Under Contract" },
   { id: "termination", label: "Under Termination" },
 ];
+
+function buildFreeAgentReply(message: string): string {
+  const normalized = message.toLowerCase();
+
+  if (normalized.includes("trial") || normalized.includes("training")) {
+    return "I’d be happy to trial for your club. When can we set up a call?";
+  }
+
+  if (normalized.includes("contract") || normalized.includes("offer")) {
+    return "I’m open to a deal. Send the terms and I’ll review them with my team.";
+  }
+
+  if (normalized.includes("salary") || normalized.includes("wage")) {
+    return "I’m flexible, but I’d like to understand the full package before moving forward.";
+  }
+
+  if (normalized.includes("fitness") || normalized.includes("condition")) {
+    return "I’m in good shape and ready to join if the timing works for both sides.";
+  }
+
+  return "Sounds good. Let’s set up a quick call and talk through the move.";
+}
 
 function initials(player: Player) {
   return (player.displayName ?? player.username).slice(0, 1).toUpperCase();
@@ -57,7 +91,13 @@ function PlayerAvatar({ player }: { player: Player }) {
   );
 }
 
-function PlayerCard({ player }: { player: Player }) {
+function PlayerCard({
+  player,
+  onOpenChat,
+}: {
+  player: Player;
+  onOpenChat: (player: Player) => void;
+}) {
   const isFree = !player.teamId;
   const rating = Math.max(0, Math.min(5, Math.round((player.rating ?? 0) / 20)));
 
@@ -92,6 +132,22 @@ function PlayerCard({ player }: { player: Player }) {
           <span className="inline-block h-3 w-3 rounded-sm border border-[#69717b]" />
           {isFree ? "Available now" : "Contracted player"}
         </div>
+
+        {isFree && (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onOpenChat(player);
+            }}
+            className="mt-3 flex h-9 w-full items-center justify-center gap-2 rounded-md border border-[#1d7b48] bg-[#0c2f21] px-2 text-xs font-bold text-[#cafaeb] transition-colors hover:border-[#2a9b63] hover:bg-[#123d2d]"
+          >
+            <MessageSquare className="h-4 w-4" />
+            Chat with coach
+          </button>
+        )}
+
         <div className="mt-3 flex h-9 items-center justify-center gap-2 rounded-md border border-[#25272d] bg-[#101115] text-xs font-bold text-[#dce1e8] transition-colors group-hover:border-[#3a3e47]">
           View Profile <ArrowRight className="h-4 w-4" />
         </div>
@@ -100,9 +156,136 @@ function PlayerCard({ player }: { player: Player }) {
   );
 }
 
+function ChatDialog({
+  player,
+  onClose,
+}: {
+  player: Player | null;
+  onClose: () => void;
+}) {
+  const { isLoggedIn } = useAuth();
+  const [draft, setDraft] = useState("");
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+
+  useEffect(() => {
+    if (!player) return;
+
+    const raw = window.localStorage.getItem(`${CHAT_KEY}:${player.id}`);
+    const parsed: ChatMessage[] = raw ? JSON.parse(raw) : [
+      {
+        id: `welcome-${player.id}`,
+        from: "free_agent",
+        text: `Hi coach — I’m open to new opportunities. Tell me what you need from me.`,
+        sentAt: new Date().toISOString(),
+      },
+    ];
+
+    setMessages(parsed);
+  }, [player]);
+
+  useEffect(() => {
+    if (!player) return;
+    window.localStorage.setItem(`${CHAT_KEY}:${player.id}`, JSON.stringify(messages));
+  }, [messages, player]);
+
+  if (!player) return null;
+
+  const sendMessage = () => {
+    const text = draft.trim();
+    if (!text || !isLoggedIn) return;
+
+    const nextCoachMessage: ChatMessage = {
+      id: `coach-${Date.now()}`,
+      from: "coach",
+      text,
+      sentAt: new Date().toISOString(),
+    };
+
+    const nextMessages = [...messages, nextCoachMessage];
+    setMessages(nextMessages);
+    setDraft("");
+
+    window.setTimeout(() => {
+      const reply: ChatMessage = {
+        id: `free-agent-${Date.now()}`,
+        from: "free_agent",
+        text: buildFreeAgentReply(text),
+        sentAt: new Date().toISOString(),
+      };
+      setMessages((current) => [...current, reply]);
+    }, 500);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 md:items-center">
+      <div className="w-full max-w-lg rounded-2xl border border-[#30343c] bg-[#111216] shadow-2xl">
+        <div className="flex items-center justify-between border-b border-[#2a2d34] px-4 py-3">
+          <div className="flex items-center gap-3">
+            <PlayerAvatar player={player} />
+            <div>
+              <p className="text-sm font-bold text-[#ebeff5]">{player.displayName ?? player.username}</p>
+              <p className="text-[11px] text-[#8e949d]">Free agent contact</p>
+            </div>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-full border border-[#30343c] p-2 text-[#b7bec7] hover:text-white">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex max-h-[420px] flex-col gap-2 overflow-y-auto px-4 py-3">
+          {messages.map((message) => (
+            <div
+              key={message.id}
+              className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
+                message.from === "coach"
+                  ? "ml-auto bg-[#00e86b] text-[#07150d]"
+                  : "bg-[#1b1d23] text-[#edf1f6]"
+              }`}
+            >
+              <p>{message.text}</p>
+              <p className={`mt-1 text-[10px] ${message.from === "coach" ? "text-[#0c2d1b]" : "text-[#8e949d]"}`}>
+                {new Date(message.sentAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        <div className="border-t border-[#2a2d34] p-3">
+          {!isLoggedIn ? (
+            <p className="rounded-md border border-[#2c323b] bg-[#171a20] px-3 py-2 text-xs text-[#a3acb8]">
+              Sign in to contact this free agent.
+            </p>
+          ) : (
+            <div className="flex gap-2">
+              <Input
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                placeholder="Send a message to the free agent..."
+                className="h-10 border-[#2c323b] bg-[#171a20] text-sm text-[#edf1f6] placeholder:text-[#7b838b]"
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") sendMessage();
+                }}
+              />
+              <button
+                type="button"
+                onClick={sendMessage}
+                disabled={!draft.trim()}
+                className="inline-flex h-10 items-center justify-center rounded-md bg-[#00e86b] px-3 text-sm font-bold text-[#07150d] transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Send className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function MarketplacePage() {
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<MarketTab>("all");
+  const [chatPlayer, setChatPlayer] = useState<Player | null>(null);
   const { data: allPlayers = [], isLoading: allLoading, refetch } = useQuery<Player[]>({
     queryKey: ["players", "marketplace-all"],
     queryFn: async () => {
@@ -216,7 +399,9 @@ export default function MarketplacePage() {
               </div>
             ) : (
               <div className="mt-8 grid gap-3 sm:grid-cols-2">
-                {visiblePlayers.map((player) => <PlayerCard key={player.id} player={player} />)}
+                {visiblePlayers.map((player) => (
+                  <PlayerCard key={player.id} player={player} onOpenChat={setChatPlayer} />
+                ))}
               </div>
             )}
           </section>
@@ -253,6 +438,8 @@ export default function MarketplacePage() {
           </aside>
         </div>
       </div>
+
+      <ChatDialog player={chatPlayer} onClose={() => setChatPlayer(null)} />
     </main>
   );
 }

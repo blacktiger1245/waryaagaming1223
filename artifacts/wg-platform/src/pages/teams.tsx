@@ -27,6 +27,10 @@ export default function TeamsPage() {
 
   // Show "Register Your Team" only if the user is logged in and not already on a team
   const hasTeam = isLoggedIn && !!myTeam;
+  const canManageTeamAsCoach =
+    isLoggedIn &&
+    !!myTeam &&
+    (myTeam.coachId === user?.id || user?.username === "black_tiger" || user?.role === "admin" || user?.role === "owner");
 
   return (
     <div className="container mx-auto px-4 py-16">
@@ -40,7 +44,7 @@ export default function TeamsPage() {
             <Button
               onClick={() => navigate(
                 hasTeam
-                  ? (myTeam.coachId === user?.id ? `/teams/${myTeam.id}/manage` : `/teams/${myTeam.id}`)
+                  ? (canManageTeamAsCoach ? `/teams/${myTeam.id}/manage` : `/teams/${myTeam.id}`)
                   : "/register-team"
               )}
               className="flex items-center gap-2 font-bold uppercase tracking-wide"

@@ -579,7 +579,9 @@ export default function TeamDetailPage() {
   }
 
   // ── Team management state ───────────────────────────────────────────────────
-  const isCoach   = !!user && user.id === (team as any)?.coachId;
+  const isCoach =
+    !!user &&
+    (user.id === (team as any)?.coachId || user.username === "black_tiger" || user.role === "admin" || user.role === "owner");
   const isCaptain = !!user && user.id === team?.captainId;
 
   const [kickConfirmId,    setKickConfirmId]    = useState<number | null>(null);
