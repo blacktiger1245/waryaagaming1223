@@ -24,6 +24,7 @@ import MediaPage from "@/pages/media";
 import LivePage from "@/pages/live";
 import ComingSoonPage from "@/pages/coming-soon";
 import MarketplacePage from "@/pages/marketplace";
+import AgentMessagesPage from "@/pages/agent-messages";
 import LoginPage from "@/pages/login";
 import OnboardingPage from "@/pages/onboarding";
 import RegisterPage from "@/pages/register";
@@ -74,6 +75,7 @@ function SiteRouter() {
         <Route path="/media" component={MediaPage} />
         <Route path="/live" component={LivePage} />
         <Route path="/marketplace" component={MarketplacePage} />
+        <Route path="/agent-messages" component={AgentMessagesPage} />
         <Route path="/login" component={LoginPage} />
         <Route path="/onboarding" component={OnboardingPage} />
         <Route path="/register" component={RegisterPage} />

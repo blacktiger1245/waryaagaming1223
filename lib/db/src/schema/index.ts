@@ -13,3 +13,4 @@ export * from "./media";
 export * from "./community";
 export * from "./announcements";
 export * from "./player_transfers";
+export * from "./agent_chat";

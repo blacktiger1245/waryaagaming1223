@@ -12,6 +12,7 @@ import storageRouter from "./storage";
 import communityRouter from "./community";
 import seasonsRouter from "./seasons";
 import announcementsRouter from "./announcements";
+import agentChatRouter from "./agent-chat";
 
 const router: IRouter = Router();
 
@@ -28,6 +29,7 @@ router.use(storageRouter);
 router.use(communityRouter);
 router.use(seasonsRouter);
 router.use(announcementsRouter);
+router.use(agentChatRouter);
 // Note: auth routes are mounted directly in app.ts
 
 export default router;
