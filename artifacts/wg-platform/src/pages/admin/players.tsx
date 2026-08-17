@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { User, Ban, CheckCircle, AlertTriangle, X, ChevronDown } from "lucide-react";
+import { marketValueLabel } from "@/lib/player-stats";
 
 interface Player {
   id: number;
@@ -9,6 +10,7 @@ interface Player {
   avatarUrl: string | null;
   rank: number;
   points: number;
+  marketValue: number;
   teamId: number | null;
   isActive: boolean;
   role: string;
@@ -218,7 +220,7 @@ export default function AdminPlayersPage() {
                         </span>
                       ) : (
                         <span className="text-[11px] text-zinc-500">
-                          Rank #{player.rank} · {player.points} pts
+                          Rank #{player.rank} · {player.points} pts · {marketValueLabel(player.marketValue ?? 0)} MV
                           {player.teamId && <span className="ml-1">· In team</span>}
                         </span>
                       )}

@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { AgentChatDialog } from "@/components/agent-chat";
+import { marketValueLabel, pointsToMarketValue } from "@/lib/player-stats";
 
 type Player = {
   id: number;
@@ -100,6 +101,16 @@ function PlayerCard({
         <div className="mt-2 flex items-center gap-1.5 text-[11px] text-[#858b96]">
           <span className="inline-block h-3 w-3 rounded-sm border border-[#69717b]" />
           {isFree ? "Available now" : "Contracted player"}
+        </div>
+
+        {/* Points + Market Value */}
+        <div className="mt-2 flex items-center justify-between text-[11px]">
+          <span className="font-semibold text-[#858b96]">
+            {Math.round(player.points ?? 0)} pts
+          </span>
+          <span className="font-black text-[#00e86b]">
+            {marketValueLabel(player.marketValue ?? pointsToMarketValue(player.points ?? 0))}
+          </span>
         </div>
 
         {isFree && (

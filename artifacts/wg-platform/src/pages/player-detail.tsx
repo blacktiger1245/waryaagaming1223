@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { useGetPlayer, useGetPlayerMatchHistory } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
+import { marketValueLabel, pointsToMarketValue } from "@/lib/player-stats";
 
 // Fetch individual player games inside team-tournament matches
 function usePlayerGames(playerId: number) {
@@ -342,15 +343,12 @@ export default function PlayerDetailPage() {
     const { played, wins: won, draws: drawn, losses: lost, goals: goalsScored } = overall;
     const winPct = played > 0 ? Math.round((won / played) * 100) : 0;
 
-    // Cosmetic market value based on points
-    const pts = player.points ?? 0;
-    const marketValue = pts >= 100 ? `${Math.round(pts * 2)}M`
-      : pts >= 10 ? `${Math.round(pts)}M`
-      : pts > 0   ? `${(pts * 0.1).toFixed(1)}M`
-      : "0M";
+    // Market Value is derived from the player's TOTAL POINTS (persisted value,
+    // with a live fallback computed from points).
+    const marketValue = marketValueLabel((player as any).marketValue ?? pointsToMarketValue(player.points ?? 0));
 
     const stats = [
-      { icon: <TrendingUp className="w-6 h-6 text-violet-400" />,  value: (player.points ?? 0).toFixed(1), label: "Points" },
+      { icon: <TrendingUp className="w-6 h-6 text-violet-400" />,  value: Math.round(player.points ?? 0), label: "Points" },
       { icon: <User        className="w-6 h-6 text-violet-400" />,  value: played,                          label: "Appearances" },
       { icon: <Trophy      className="w-6 h-6 text-amber-400"  />,  value: won,                             label: "Win" },
       { icon: <Handshake   className="w-6 h-6 text-amber-300"  />,  value: drawn,                           label: "Draw" },
@@ -585,11 +583,7 @@ export default function PlayerDetailPage() {
       ? Math.round((teamGameStats.wins / teamGameStats.played) * 100)
       : 0;
 
-    const pts = player.points ?? 0;
-    const marketValue = pts >= 100 ? `${Math.round(pts * 2)}M`
-      : pts >= 10 ? `${Math.round(pts)}M`
-      : pts > 0   ? `${(pts * 0.1).toFixed(1)}M`
-      : "0M";
+    const marketValue = marketValueLabel((player as any).marketValue ?? pointsToMarketValue(player.points ?? 0));
 
     const stats = [
       { icon: <User        className="w-6 h-6 text-violet-400" />,  value: teamGameStats.played,       label: "Appearances" },
@@ -664,11 +658,7 @@ export default function PlayerDetailPage() {
     const { played, wins: won, losses: lost, draws: drawn, goals, cleanSheets, motm, deciderWins } = liveStats;
     const winRate = played > 0 ? Math.round((won / played) * 100) : 0;
 
-    const pts = player.points ?? 0;
-    const marketValue = pts >= 100 ? `${Math.round(pts * 2)}M`
-      : pts >= 10 ? `${Math.round(pts)}M`
-      : pts > 0   ? `${(pts * 0.1).toFixed(1)}M`
-      : "0M";
+    const marketValue = marketValueLabel((player as any).marketValue ?? pointsToMarketValue(player.points ?? 0));
 
     const stats = [
       { icon: <User        className="w-6 h-6 text-violet-400" />, value: played,                      label: "Appearances" },

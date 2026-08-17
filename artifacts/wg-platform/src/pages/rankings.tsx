@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Trophy, Star, TrendingUp, TrendingDown, ArrowUpDown, ChevronsUpDown, Search, Shield, X, Minus, CalendarRange, ChevronDown } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { storageUrl } from "@/lib/api";
+import { marketValueLabel } from "@/lib/player-stats";
 
 interface Season {
   id: number;
@@ -767,8 +768,8 @@ export default function RankingsPage() {
                             </td>
                             {/* Market Value */}
                             <td className="px-3 py-3 text-center hidden lg:table-cell">
-                              <span className="text-[10px] font-semibold uppercase tracking-wider text-red-500 italic">
-                                Coming Soon
+                              <span className="text-xs font-black text-emerald-400">
+                                {marketValueLabel((p as any).marketValue ?? 0)}
                               </span>
                             </td>
                             {/* Club */}
@@ -790,7 +791,7 @@ export default function RankingsPage() {
                             <td className="px-3 py-3 text-center text-sm font-bold text-muted-foreground">{pp.draws ?? 0}</td>
                             {/* Points */}
                             <td className="px-3 py-3 text-center">
-                              <span className="text-sm font-black text-primary">{p.points}</span>
+                              <span className="text-sm font-black text-primary">{Math.round(p.points)}</span>
                             </td>
                           </tr>
                         );

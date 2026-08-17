@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { marketValueLabel } from "@/lib/player-stats";
 import {
   Dialog,
   DialogContent,
@@ -143,6 +144,17 @@ function PlayerCard({ member, isCaptain }: { member: any; isCaptain: boolean }) 
             <p className="text-[10px] text-zinc-600 uppercase tracking-wider">Rate</p>
           </div>
         </div>
+        <div className="w-full grid grid-cols-2 gap-1 text-center pt-1 border-t border-zinc-800">
+          <div>
+            <p className="text-xs font-black text-amber-400">{Math.round(member.points ?? 0)}</p>
+            <p className="text-[10px] text-zinc-600 uppercase tracking-wider">Points</p>
+          </div>
+          <div>
+            <p className="text-xs font-black text-emerald-400">{marketValueLabel(member.marketValue ?? 0)}</p>
+            <p className="text-[10px] text-zinc-600 uppercase tracking-wider">Value</p>
+          </div>
+        </div>
+
       </motion.div>
     </Link>
   );

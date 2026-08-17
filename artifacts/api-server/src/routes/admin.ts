@@ -13,6 +13,8 @@ import {
   hallOfFameTable,
   seasonsTable,
   tournamentAdminsTable,
+  playerPoints,
+  pointsToMarketValue,
 } from "@workspace/db";
 import { eq, desc, and, inArray, type AnyColumn } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
@@ -186,6 +188,8 @@ function registerEntityRoutes(path: string, table: PgTable & { id: AnyColumn }) 
         delete body.lossRate;
         delete body.tournamentWins;
         delete body.points;
+        // Market Value is always derived from Points; never set manually.
+        delete body.marketValue;
       }
       if (typeof body.scheduledAt === "string") body.scheduledAt = body.scheduledAt ? new Date(body.scheduledAt) : null;
       if (typeof body.createdAt === "string") body.createdAt = new Date(body.createdAt);
@@ -304,11 +308,22 @@ function registerEntityRoutes(path: string, table: PgTable & { id: AnyColumn }) 
               const matchesLost = matchesPlayed - matchesWon;
               const winRate = matchesWon * 0.4;
               const lossRate = matchesLost * 0.4;
-              // Points: 3 per win only
-              const points = matchesWon * 3;
+              // Points are derived automatically from the player's statistics.
+              // Losses, Decider Wins and Tournament Wins award 0 points.
+              const points = playerPoints({
+                appearances: matchesPlayed,
+                wins: matchesWon,
+                cleanSheets,
+                goals: goalsScored,
+                motm: manOfTheMatch,
+                draws,
+              });
+              // Market Value is derived ONLY from TOTAL POINTS (in M coins).
+              const marketValue = pointsToMarketValue(points);
 
               await db.update(playersTable).set({
                 points,
+                marketValue,
                 matchesPlayed,
                 matchesWon,
                 matchesLost,

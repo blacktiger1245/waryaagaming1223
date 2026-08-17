@@ -8,6 +8,7 @@ export * from "./tournament_participants";
 export * from "./tournament_admins";
 export * from "./matches";
 export * from "./match_player_games";
+export * from "../player-stats";
 export * from "./hall_of_fame";
 export * from "./news";
 export * from "./media";
