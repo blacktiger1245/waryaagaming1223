@@ -23,6 +23,7 @@ export const tournamentsTable = pgTable("tournaments", {
   tournamentType: text("tournament_type").notNull().default("solo"),
   seasonId: integer("season_id"),
   categoryId: integer("category_id"),
+  groupCount: integer("group_count").notNull().default(4),
   qualifyCount: integer("qualify_count"),
   thirdPlaceMatch: boolean("third_place_match").notNull().default(false),
   createdBy: integer("created_by"),

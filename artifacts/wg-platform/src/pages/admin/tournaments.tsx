@@ -45,7 +45,7 @@ interface Category {
   createdAt: string;
 }
 
-type StageValue = "round-robin" | "round-robin-knockout" | "single-elimination";
+type StageValue = "round-robin" | "group-stage-knockout" | "single-elimination";
 
 const STAGE_OPTIONS: {
   value: StageValue;
@@ -56,19 +56,19 @@ const STAGE_OPTIONS: {
   {
     value: "round-robin",
     title: "Round Robin",
-    description: "Every participant plays every other participant.",
+    description: "All teams play against every other team. One league-style standings table is used to determine the final ranking.",
     icon: ListOrdered,
   },
   {
-    value: "round-robin-knockout",
-    title: "Round Robin + Knock-out Rounds",
-    description: "Participants first play Round Robin, then the qualified participants enter a knockout bracket.",
+    value: "group-stage-knockout",
+    title: "Group Stage + Knock-out Rounds",
+    description: "Teams are divided into groups. The top 2 teams from each group qualify for the Knock-out Stage.",
     icon: GitBranch,
   },
   {
     value: "single-elimination",
     title: "Knock-out Rounds",
-    description: "Participants immediately enter an elimination bracket.",
+    description: "Teams enter a direct elimination bracket. Losing a match eliminates the team.",
     icon: Swords,
   },
 ];
@@ -354,7 +354,8 @@ function CreateTournamentDialog({
   const [hostedBy, setHostedBy] = useState("");
   const [seasonId, setSeasonId] = useState<number | "">("");
   const [stage, setStage] = useState<StageValue>("round-robin");
-  const [qualifyCount, setQualifyCount] = useState(8);
+  const [groupCount, setGroupCount] = useState(4);
+  const [qualifyCount, setQualifyCount] = useState(2);
   const [thirdPlaceMatch, setThirdPlaceMatch] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -374,7 +375,8 @@ function CreateTournamentDialog({
     setHostedBy("");
     setSeasonId("");
     setStage("round-robin");
-    setQualifyCount(8);
+    setGroupCount(4);
+    setQualifyCount(2);
     setThirdPlaceMatch(false);
     setSaving(false);
   }
@@ -395,7 +397,7 @@ function CreateTournamentDialog({
     setLogoPreview(null);
   }
 
-  const isFinalStep = step === 3 || (step === 2 && stage !== "round-robin-knockout");
+  const isFinalStep = step === 3 || (step === 2 && stage === "round-robin");
 
   function goNext() {
     if (step === 1) {
@@ -406,7 +408,7 @@ function CreateTournamentDialog({
         toast({ title: "Tournament name is required", variant: "destructive" });
         return;
       }
-      if (stage === "round-robin-knockout") setStep(3);
+      if (stage !== "round-robin") setStep(3);
     }
   }
 
@@ -433,8 +435,9 @@ function CreateTournamentDialog({
           seasonId: seasonId !== "" ? seasonId : undefined,
           categoryId: categoryId ?? undefined,
           format: stage,
-          qualifyCount: stage === "round-robin-knockout" ? qualifyCount : undefined,
-          thirdPlaceMatch: stage === "round-robin-knockout" ? thirdPlaceMatch : undefined,
+          groupCount: stage === "group-stage-knockout" ? groupCount : undefined,
+          qualifyCount: stage === "group-stage-knockout" ? qualifyCount : undefined,
+          thirdPlaceMatch: stage !== "round-robin" ? thirdPlaceMatch : undefined,
         }),
       });
 
@@ -564,24 +567,41 @@ function CreateTournamentDialog({
 
           {step === 3 && (
             <div className="space-y-5">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                  <Layers className="w-3.5 h-3.5" />
-                  Qualified Participants
-                </label>
-                <select
-                  value={qualifyCount}
-                  onChange={(e) => setQualifyCount(Number(e.target.value))}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                >
-                  {[2, 4, 8, 16].map((n) => (
-                    <option key={n} value={n}>Top {n}</option>
-                  ))}
-                </select>
-                <p className="text-xs text-muted-foreground">
-                  After the Round Robin stage, the top ranked participants advance to the knockout bracket.
-                </p>
-              </div>
+              {stage === "group-stage-knockout" && (
+                <>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5" />
+                      Number of Groups
+                    </label>
+                    <select
+                      value={groupCount}
+                      onChange={(e) => setGroupCount(Number(e.target.value))}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      {[2, 4, 6, 8].map((n) => (
+                        <option key={n} value={n}>{n} Groups</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      Qualification Rule
+                    </label>
+                    <div className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-2.5 text-sm text-primary font-bold">
+                      Top {qualifyCount} from each group qualify
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      The top {qualifyCount} teams from every group advance to the Knock-out Stage.
+                    </p>
+                  </div>
+                </>
+              )}
+              {stage === "single-elimination" && (
+                <div className="rounded-lg border border-border bg-muted/20 px-3 py-2.5 text-xs text-muted-foreground">
+                  Seeding and byes are handled automatically. If the number of teams is not a power of 2, byes are added to fill the bracket correctly.
+                </div>
+              )}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                   Third-place Match

@@ -28,6 +28,7 @@ interface Tournament {
   hostedBy?: string | null;
   tournamentType?: string | null;
   format?: string | null;
+  groupCount?: number | null;
 }
 
 interface Match {
@@ -931,12 +932,12 @@ function SoloGenerateDialog({
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [groupCount, setGroupCount] = useState(4);
+  const [groupCount, setGroupCount] = useState(tournament.groupCount ?? 4);
 
   const format = tournament.format ?? "group-stage";
-  const isGroupStage = format === "group-stage";
+  const isGroupStage = format === "group-stage" || format === "group-stage-knockout";
   const isKnockout = format === "single-elimination";
-  const isRRKnockout = format === "round-robin-knockout";
+  const isGroupKnockout = format === "group-stage-knockout";
 
   // Fetch participants for the live preview
   const { data: participants = [], isLoading: loadingP } = useQuery<Participant[]>({
@@ -974,7 +975,7 @@ function SoloGenerateDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-primary" />
-            {isGroupStage ? "Generate Group Stage" : isKnockout ? "Generate Knockout Bracket" : isRRKnockout ? "Generate Round Robin (Stage 1)" : "Generate Round Robin"}
+            {isGroupStage ? "Generate Group Stage" : isKnockout ? "Generate Knockout Bracket" : "Generate Round Robin"}
           </DialogTitle>
         </DialogHeader>
 
@@ -1062,8 +1063,6 @@ function SoloGenerateDialog({
               <p className="text-sm text-muted-foreground">
                 {isKnockout
                   ? "A single-elimination bracket will be generated. Participants are seeded and byes are added automatically if the count is not a power of 2."
-                  : isRRKnockout
-                  ? "Round Robin fixtures (Stage 1) will be generated. After all matches are complete, use Generate Knockout to build the seeded bracket from final standings."
                   : "Round Robin fixtures will be generated. Every participant plays every other participant once."}
               </p>
               {participants.length >= 2 && (
@@ -1158,7 +1157,7 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
     onError: (err: Error) => toast({ title: "Delete failed", description: err.message, variant: "destructive" }),
   });
 
-  const isRRKnockout = tournament.format === "round-robin-knockout";
+  const isGroupKnockout = tournament.format === "group-stage-knockout";
 
   const { mutate: generateKnockout, isPending: knockoutPending } = useMutation({
     mutationFn: () =>
@@ -1281,7 +1280,7 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
           <Button size="sm" variant="outline" className="gap-2 font-bold" onClick={() => setGenerateOpen(true)}>
             <Sparkles className="w-4 h-4" /> Generate
           </Button>
-          {isRRKnockout && (
+          {isGroupKnockout && (
             <Button
               size="sm"
               variant="outline"

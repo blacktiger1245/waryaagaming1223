@@ -551,7 +551,7 @@ router.post("/admin/tournaments", requireAdmin, async (req, res) => {
       name, description, status, format, game, maxParticipants,
       prizePool, startDate, endDate, rules, streamUrl, logoUrl,
       hostedBy, tournamentType = "solo", seasonId,
-      categoryId, qualifyCount, thirdPlaceMatch,
+      categoryId, groupCount, qualifyCount, thirdPlaceMatch,
     } = req.body as Record<string, string | number | boolean | undefined>;
 
     if (!name) return res.status(400).json({ error: "Name is required" });
@@ -576,6 +576,7 @@ router.post("/admin/tournaments", requireAdmin, async (req, res) => {
       tournamentType: String(tournamentType),
       seasonId: seasonId ? Number(seasonId) : undefined,
       categoryId: categoryId ? Number(categoryId) : undefined,
+      groupCount: groupCount ? Number(groupCount) : undefined,
       qualifyCount: qualifyCount ? Number(qualifyCount) : undefined,
       thirdPlaceMatch: thirdPlaceMatch !== undefined ? Boolean(thirdPlaceMatch) : undefined,
       createdBy: req.session.userId ?? undefined,
@@ -899,7 +900,60 @@ function generateSeededKnockout(
   return matches;
 }
 
-// Compute round-robin standings from completed matches (3/1/0 scoring).
+// Generate a knockout bracket from group-stage qualification (top N per group).
+// Pairs groups (A-B, C-D, …) and cross-seeds: A1 vs B2, B1 vs A2, …
+function generateGroupKnockout(
+  qualifiedByGroup: Map<number, Participant[]>,
+  numGroups: number,
+  tournamentId: number,
+  startRound: number,
+  thirdPlaceMatch: boolean,
+) {
+  const BYE: Participant = { id: 0, playerId: 0, name: "BYE" };
+  const matches: Array<typeof matchesTable.$inferInsert> = [];
+
+  // First round — pair groups (0,1), (2,3), … and cross-seed.
+  const firstRound: Participant[][] = [];
+  for (let i = 0; i < numGroups; i += 2) {
+    const g1 = qualifiedByGroup.get(i) ?? [];
+    const g2 = qualifiedByGroup.get(i + 1) ?? [];
+    firstRound.push([g1[0] ?? BYE, g2[1] ?? BYE]); // A1 vs B2
+    firstRound.push([g2[0] ?? BYE, g1[1] ?? BYE]); // B1 vs A2
+  }
+
+  const slots = firstRound.length;
+  let round = startRound;
+  for (const [p1, p2] of firstRound) {
+    matches.push({
+      tournamentId,
+      round,
+      roundName: eliminationRoundName(slots),
+      status: "scheduled",
+      participant1Id: p1.playerId || null,
+      participant1Name: p1.name,
+      participant2Id: p2.playerId || null,
+      participant2Name: p2.name,
+    });
+  }
+
+  // Subsequent rounds — TBD placeholders.
+  let s = slots / 2;
+  round++;
+  while (s >= 1) {
+    for (let i = 0; i < Math.max(1, s / 2); i++) {
+      matches.push({ tournamentId, round, roundName: eliminationRoundName(s), status: "scheduled" });
+    }
+    if (s === 1) break;
+    s /= 2;
+    round++;
+  }
+
+  if (thirdPlaceMatch) {
+    matches.push({ tournamentId, round: round + 1, roundName: "Third Place", status: "scheduled" });
+  }
+
+  return matches;
+}
 async function computeRoundRobinStandings(tournamentId: number, participants: Participant[]) {
   const matches = await db
     .select()
@@ -944,7 +998,64 @@ async function computeRoundRobinStandings(tournamentId: number, participants: Pa
     });
 }
 
-// Advance a completed knockout match's winner into the next round's first open slot.
+// Compute per-group standings and return qualified teams per group (top N each).
+async function computeGroupStandings(
+  tournamentId: number,
+  participants: Participant[],
+  qualifyPerGroup: number,
+) {
+  const allMatches = await db
+    .select()
+    .from(matchesTable)
+    .where(and(eq(matchesTable.tournamentId, tournamentId), eq(matchesTable.status, "completed")));
+
+  // Group matches by roundName ("Group A", "Group B", …)
+  const groupMatches = new Map<string, typeof allMatches>();
+  for (const m of allMatches) {
+    const key = m.roundName ?? "Unknown";
+    if (!groupMatches.has(key)) groupMatches.set(key, []);
+    groupMatches.get(key)!.push(m);
+  }
+
+  const sortedGroupNames = Array.from(groupMatches.keys()).sort();
+  const result = new Map<number, Participant[]>();
+
+  sortedGroupNames.forEach((groupName, gi) => {
+    const ms = groupMatches.get(groupName)!;
+    const stats = new Map<number, { mp: number; w: number; d: number; l: number; gf: number; ga: number; pts: number }>();
+    const ensure = (id: number) => {
+      let row = stats.get(id);
+      if (!row) {
+        row = { mp: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 };
+        stats.set(id, row);
+      }
+      return row;
+    };
+    for (const m of ms) {
+      const p1 = m.participant1Id, p2 = m.participant2Id;
+      if (p1 == null || p2 == null) continue;
+      const s1 = m.participant1Score ?? 0, s2 = m.participant2Score ?? 0;
+      const a = ensure(p1), b = ensure(p2);
+      a.mp++; b.mp++;
+      a.gf += s1; a.ga += s2; b.gf += s2; b.ga += s1;
+      if (s1 > s2) { a.w++; b.l++; a.pts += 3; }
+      else if (s1 < s2) { b.w++; a.l++; b.pts += 3; }
+      else { a.d++; b.d++; a.pts++; b.pts++; }
+    }
+    const ranked = participants
+      .filter((p) => stats.has(p.playerId))
+      .sort((x, y) => {
+        const a = stats.get(x.playerId)!, b = stats.get(y.playerId)!;
+        if (b.pts !== a.pts) return b.pts - a.pts;
+        const gd = (b.gf - b.ga) - (a.gf - a.ga);
+        if (gd !== 0) return gd;
+        return b.gf - a.gf;
+      });
+    result.set(gi, ranked.slice(0, qualifyPerGroup));
+  });
+
+  return result;
+}
 async function advanceKnockoutWinner(match: typeof matchesTable.$inferSelect) {
   if (match.status !== "completed" || !match.winnerId) return;
   if (!isKnockoutRoundName(match.roundName)) return;
@@ -1025,9 +1136,13 @@ router.post("/admin/tournaments/:id/generate-matches", requireAdmin, async (req,
     toInsert = generateDoubleElim(participants, tournamentId);
   } else if (fmt === "round-robin") {
     toInsert = generateRoundRobin(participants, tournamentId);
+  } else if (fmt === "group-stage-knockout") {
+    // Stage 1: group stage. The knockout bracket is generated separately
+    // (POST /admin/tournaments/:id/generate-knockout) after group standings are final.
+    const safeGroupCount = Math.max(2, Math.min(tournament.groupCount || groupCount, Math.floor(participants.length / 2)));
+    toInsert = generateGroupStage(participants, tournamentId, safeGroupCount);
   } else if (fmt === "round-robin-knockout") {
-    // Stage 1: round robin. The knockout bracket is generated separately
-    // (POST /admin/tournaments/:id/generate-knockout) after standings are final.
+    // Legacy: single round robin then knockout.
     toInsert = generateRoundRobin(participants, tournamentId);
   } else { // group-stage (default fallback)
     const safeGroupCount = Math.max(2, Math.min(groupCount, Math.floor(participants.length / 2)));
@@ -1072,6 +1187,39 @@ router.post("/admin/tournaments/:id/generate-knockout", requireAdmin, async (req
 
   if (participants.length < 2) {
     return res.status(400).json({ error: "Need at least 2 registered participants" });
+  }
+
+  // ── Group Stage + Knock-out: compute per-group standings and cross-seed ──
+  if (tournament.format === "group-stage-knockout") {
+    const groupCount = tournament.groupCount ?? 4;
+    const qualifyPerGroup = tournament.qualifyCount ?? 2;
+    const qualifiedByGroup = await computeGroupStandings(tournamentId, participants, qualifyPerGroup);
+
+    const totalQualified = Array.from(qualifiedByGroup.values()).reduce((sum, arr) => sum + arr.length, 0);
+    if (totalQualified < 2) {
+      return res.status(400).json({ error: "Complete all group-stage matches before generating the knockout bracket" });
+    }
+
+    const existing = await db
+      .select({ round: matchesTable.round })
+      .from(matchesTable)
+      .where(eq(matchesTable.tournamentId, tournamentId));
+    const maxRound = existing.reduce((mx, m) => Math.max(mx, m.round ?? 0), 0);
+    const startRound = maxRound + 1;
+
+    if (clearExistingKnockout) {
+      await db
+        .delete(matchesTable)
+        .where(and(eq(matchesTable.tournamentId, tournamentId), gt(matchesTable.round, maxRound)));
+    }
+
+    const toInsert = generateGroupKnockout(qualifiedByGroup, groupCount, tournamentId, startRound, Boolean(tournament.thirdPlaceMatch));
+    const inserted = await db.insert(matchesTable).values(toInsert).returning();
+
+    const qualifiedList: Array<{ group: number; rank: number } & Participant> = [];
+    qualifiedByGroup.forEach((arr, gi) => arr.forEach((p, ri) => qualifiedList.push({ group: gi, rank: ri + 1, ...p })));
+
+    return res.json({ generated: inserted.length, qualified: qualifiedList, matches: inserted });
   }
 
   // Rank by round-robin standings.

@@ -10,5 +10,6 @@ CREATE TABLE IF NOT EXISTS "tournament_categories" (
 );
 
 ALTER TABLE "tournaments" ADD COLUMN IF NOT EXISTS "category_id" integer;
+ALTER TABLE "tournaments" ADD COLUMN IF NOT EXISTS "group_count" integer NOT NULL DEFAULT 4;
 ALTER TABLE "tournaments" ADD COLUMN IF NOT EXISTS "qualify_count" integer;
 ALTER TABLE "tournaments" ADD COLUMN IF NOT EXISTS "third_place_match" boolean NOT NULL DEFAULT false;
