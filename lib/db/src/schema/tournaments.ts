@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, boolean, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -22,6 +22,9 @@ export const tournamentsTable = pgTable("tournaments", {
   hostedBy: text("hosted_by"),
   tournamentType: text("tournament_type").notNull().default("solo"),
   seasonId: integer("season_id"),
+  categoryId: integer("category_id"),
+  qualifyCount: integer("qualify_count"),
+  thirdPlaceMatch: boolean("third_place_match").notNull().default(false),
   createdBy: integer("created_by"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminEntityManager } from "@/components/admin/admin-entity-manager";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,11 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Loader2, Plus, Upload, X, Trophy, Calendar, DollarSign, User, Users, Shield, CalendarRange, AlertTriangle } from "lucide-react";
+import {
+  Loader2, Plus, Upload, X, Trophy, Calendar, DollarSign, User,
+  CalendarRange, AlertTriangle, Folder, Layers, ArrowRight, ChevronLeft, Swords,
+  ListOrdered, GitBranch,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import { apiUrl, storageUrl } from "@/lib/api";
@@ -34,6 +38,41 @@ interface TournamentRow {
   currentParticipants: number;
 }
 
+interface Category {
+  id: number;
+  name: string;
+  logoUrl?: string | null;
+  createdAt: string;
+}
+
+type StageValue = "round-robin" | "round-robin-knockout" | "single-elimination";
+
+const STAGE_OPTIONS: {
+  value: StageValue;
+  title: string;
+  description: string;
+  icon: typeof ListOrdered;
+}[] = [
+  {
+    value: "round-robin",
+    title: "Round Robin",
+    description: "Every participant plays every other participant.",
+    icon: ListOrdered,
+  },
+  {
+    value: "round-robin-knockout",
+    title: "Round Robin + Knock-out Rounds",
+    description: "Participants first play Round Robin, then the qualified participants enter a knockout bracket.",
+    icon: GitBranch,
+  },
+  {
+    value: "single-elimination",
+    title: "Knock-out Rounds",
+    description: "Participants immediately enter an elimination bracket.",
+    icon: Swords,
+  },
+];
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(apiUrl(url), {
@@ -49,8 +88,6 @@ async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
 }
 
 async function uploadLogo(file: File): Promise<string> {
-  // Upload through the API instead of PUTing directly to R2. This avoids
-  // requiring a separate R2 CORS rule for every hosted frontend origin.
   const res = await fetch(apiUrl("/api/storage/uploads/direct"), {
     method: "POST",
     credentials: "include",
@@ -59,7 +96,7 @@ async function uploadLogo(file: File): Promise<string> {
   });
   if (!res.ok) {
     const data = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(data?.error ?? "Failed to upload tournament logo");
+    throw new Error(data?.error ?? "Failed to upload logo");
   }
   const { objectPath } = (await res.json()) as { objectPath: string };
   return objectPath;
@@ -87,7 +124,7 @@ function LogoDropZone({
       const dropped = e.dataTransfer.files[0];
       if (dropped && dropped.type.startsWith("image/")) onFile(dropped);
     },
-    [onFile]
+    [onFile],
   );
 
   if (preview && file) {
@@ -114,10 +151,7 @@ function LogoDropZone({
       onDragLeave={() => setDragging(false)}
       onDrop={handleDrop}
       onClick={() => inputRef.current?.click()}
-      className={`
-        flex flex-col items-center justify-center gap-3 h-40 rounded-xl border-2 border-dashed cursor-pointer transition-colors
-        ${dragging ? "border-primary bg-primary/10" : "border-border hover:border-primary/60 hover:bg-primary/5"}
-      `}
+      className={`flex flex-col items-center justify-center gap-3 h-40 rounded-xl border-2 border-dashed cursor-pointer transition-colors ${dragging ? "border-primary bg-primary/10" : "border-border hover:border-primary/60 hover:bg-primary/5"}`}
     >
       <input
         ref={inputRef}
@@ -137,8 +171,64 @@ function LogoDropZone({
   );
 }
 
-// ── Create Dialog ─────────────────────────────────────────────────────────────
-function CreateTournamentDialog({
+// ── Add Tournament Chooser ─────────────────────────────────────────────────────
+function TournamentChooser({
+  open,
+  onClose,
+  onSelect,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSelect: (mode: "single" | "categories") => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Plus className="w-5 h-5 text-primary" />
+            Add Tournament
+          </DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-3 py-2">
+          <button
+            type="button"
+            onClick={() => onSelect("single")}
+            className="flex items-start gap-3 rounded-xl border border-border p-4 text-left transition-colors hover:border-primary/60 hover:bg-primary/5"
+          >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Trophy className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-foreground">Single Tournament</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Create one tournament with its own stages (Round Robin, Knock-out, or both).
+              </p>
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => onSelect("categories")}
+            className="flex items-start gap-3 rounded-xl border border-border p-4 text-left transition-colors hover:border-primary/60 hover:bg-primary/5"
+          >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Folder className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-foreground">Tournament with Categories</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Group multiple tournaments under a category (e.g. Under 18).
+              </p>
+            </div>
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Create Category Dialog ────────────────────────────────────────────────────
+function CreateCategoryDialog({
   open,
   onClose,
   onCreated,
@@ -151,30 +241,12 @@ function CreateTournamentDialog({
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [name, setName] = useState("");
-  const [status, setStatus] = useState<"upcoming" | "active">("upcoming");
-  const [startDate, setStartDate] = useState("");
-  const [prizePool, setPrizePool] = useState("");
-  const [hostedBy, setHostedBy] = useState("");
-  const [tournamentType, setTournamentType] = useState<"solo" | "team">("solo");
-  const [seasonId, setSeasonId] = useState<number | "">("");
   const [saving, setSaving] = useState(false);
-
-  const { data: seasons = [] } = useQuery<Season[]>({
-    queryKey: ["admin", "seasons"],
-    queryFn: () => apiFetch("/api/admin/seasons"),
-    enabled: open,
-  });
 
   function reset() {
     setLogoFile(null);
     setLogoPreview(null);
     setName("");
-    setStatus("upcoming");
-    setStartDate("");
-    setPrizePool("");
-    setHostedBy("");
-    setTournamentType("solo");
-    setSeasonId("");
     setSaving(false);
   }
 
@@ -185,8 +257,7 @@ function CreateTournamentDialog({
 
   function handleLogoFile(f: File) {
     setLogoFile(f);
-    const url = URL.createObjectURL(f);
-    setLogoPreview(url);
+    setLogoPreview(URL.createObjectURL(f));
   }
 
   function clearLogo() {
@@ -197,27 +268,172 @@ function CreateTournamentDialog({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim()) { toast({ title: "Name is required", variant: "destructive" }); return; }
-    if (status === "upcoming" && !startDate) { toast({ title: "Start date is required for upcoming tournaments", variant: "destructive" }); return; }
-
+    if (!name.trim()) {
+      toast({ title: "Category name is required", variant: "destructive" });
+      return;
+    }
     setSaving(true);
     try {
       let logoUrl: string | undefined;
-      if (logoFile) {
-        logoUrl = await uploadLogo(logoFile);
+      if (logoFile) logoUrl = await uploadLogo(logoFile);
+      await apiFetch("/api/admin/categories", {
+        method: "POST",
+        body: JSON.stringify({ name: name.trim(), logoUrl }),
+      });
+      toast({ title: "Category created!" });
+      onCreated();
+      handleClose();
+    } catch (err) {
+      toast({ title: "Failed to create category", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Folder className="w-5 h-5 text-primary" />
+            Create Category
+          </DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-5 py-2">
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Category Logo / Image
+            </label>
+            <LogoDropZone file={logoFile} preview={logoPreview} onFile={handleLogoFile} onClear={clearLogo} />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              Category Name <span className="text-destructive">*</span>
+            </label>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Under 18"
+              required
+            />
+          </div>
+          <DialogFooter className="pt-2">
+            <Button type="button" variant="outline" onClick={handleClose} disabled={saving}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={saving} className="gap-2 min-w-[120px]">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Folder className="w-4 h-4" />}
+              Create Category
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Create Tournament Dialog (multi-step) ─────────────────────────────────────
+function CreateTournamentDialog({
+  open,
+  onClose,
+  onCreated,
+  categoryId,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onCreated: () => void;
+  categoryId?: number | null;
+}) {
+  const { toast } = useToast();
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [prizePool, setPrizePool] = useState("");
+  const [hostedBy, setHostedBy] = useState("");
+  const [seasonId, setSeasonId] = useState<number | "">("");
+  const [stage, setStage] = useState<StageValue>("round-robin");
+  const [qualifyCount, setQualifyCount] = useState(8);
+  const [thirdPlaceMatch, setThirdPlaceMatch] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const { data: seasons = [] } = useQuery<Season[]>({
+    queryKey: ["admin", "seasons"],
+    queryFn: () => apiFetch("/api/admin/seasons"),
+    enabled: open,
+  });
+
+  function reset() {
+    setStep(1);
+    setLogoFile(null);
+    setLogoPreview(null);
+    setName("");
+    setStartDate("");
+    setPrizePool("");
+    setHostedBy("");
+    setSeasonId("");
+    setStage("round-robin");
+    setQualifyCount(8);
+    setThirdPlaceMatch(false);
+    setSaving(false);
+  }
+
+  function handleClose() {
+    reset();
+    onClose();
+  }
+
+  function handleLogoFile(f: File) {
+    setLogoFile(f);
+    setLogoPreview(URL.createObjectURL(f));
+  }
+
+  function clearLogo() {
+    if (logoPreview) URL.revokeObjectURL(logoPreview);
+    setLogoFile(null);
+    setLogoPreview(null);
+  }
+
+  const isFinalStep = step === 3 || (step === 2 && stage !== "round-robin-knockout");
+
+  function goNext() {
+    if (step === 1) {
+      if (!name.trim()) {
+        toast({ title: "Tournament name is required", variant: "destructive" });
+        return;
       }
+      setStep(2);
+    } else if (step === 2) {
+      if (stage === "round-robin-knockout") setStep(3);
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) {
+      toast({ title: "Tournament name is required", variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+    try {
+      let logoUrl: string | undefined;
+      if (logoFile) logoUrl = await uploadLogo(logoFile);
 
       await apiFetch("/api/admin/tournaments", {
         method: "POST",
         body: JSON.stringify({
           name: name.trim(),
-          status,
+          status: "upcoming",
           startDate: startDate || new Date().toISOString().split("T")[0],
           prizePool: prizePool.trim() || "$0",
           hostedBy: hostedBy.trim() || undefined,
           logoUrl,
-          tournamentType,
           seasonId: seasonId !== "" ? seasonId : undefined,
+          categoryId: categoryId ?? undefined,
+          format: stage,
+          qualifyCount: stage === "round-robin-knockout" ? qualifyCount : undefined,
+          thirdPlaceMatch: stage === "round-robin-knockout" ? thirdPlaceMatch : undefined,
         }),
       });
 
@@ -237,190 +453,185 @@ function CreateTournamentDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Trophy className="w-5 h-5 text-primary" />
-            Create Tournament
+            {categoryId ? "Add Tournament" : "Create Tournament"}
           </DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-5 py-2">
-          {/* Logo */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Tournament Logo
-            </label>
-            <LogoDropZone
-              file={logoFile}
-              preview={logoPreview}
-              onFile={handleLogoFile}
-              onClear={clearLogo}
-            />
-          </div>
+          {step === 1 && (
+            <>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Tournament Logo
+                </label>
+                <LogoDropZone file={logoFile} preview={logoPreview} onFile={handleLogoFile} onClear={clearLogo} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  Tournament Name <span className="text-destructive">*</span>
+                </label>
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Waryaa Cup Season 3"
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5" />
+                  Start Date
+                </label>
+                <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <DollarSign className="w-3.5 h-3.5" />
+                  Prize Pool
+                </label>
+                <Input value={prizePool} onChange={(e) => setPrizePool(e.target.value)} placeholder="e.g. $500 or 50,000 SP" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5" />
+                  Hosted By
+                </label>
+                <Input value={hostedBy} onChange={(e) => setHostedBy(e.target.value)} placeholder="e.g. Waryaa Gaming" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <CalendarRange className="w-3.5 h-3.5" />
+                  Season
+                </label>
+                {seasons.length === 0 ? (
+                  <div className="flex items-start gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
+                    <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                    <div className="text-xs text-amber-300 leading-snug">
+                      No seasons created yet.{" "}
+                      <Link href="/admin/seasons" onClick={() => handleClose()} className="font-bold underline hover:text-amber-200">
+                        Create a season
+                      </Link>{" "}
+                      first to enable seasonal rankings.
+                    </div>
+                  </div>
+                ) : (
+                  <select
+                    value={seasonId}
+                    onChange={(e) => setSeasonId(e.target.value ? Number(e.target.value) : "")}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="">No season (all-time only)</option>
+                    {seasons.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}{s.isCurrent ? " (Current)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </>
+          )}
 
-          {/* Name */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              Tournament Name <span className="text-destructive">*</span>
-            </label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Waryaa Cup Season 3"
-              required
-            />
-          </div>
-
-          {/* Tournament Type */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Tournament Type <span className="text-destructive">*</span>
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {(["solo", "team"] as const).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setTournamentType(t)}
-                  className={`
-                    py-3 rounded-lg text-sm font-bold transition-all border flex flex-col items-center gap-1.5
-                    ${tournamentType === t
-                      ? t === "team"
-                        ? "bg-teal-500/20 border-teal-500 text-teal-400"
-                        : "bg-primary/20 border-primary text-primary"
-                      : "border-border text-muted-foreground hover:border-border/80 hover:text-foreground"}
-                  `}
-                >
-                  {t === "team"
-                    ? <Shield className="w-5 h-5" />
-                    : <User className="w-5 h-5" />}
-                  {t === "team" ? "Team Tournament" : "Solo Tournament"}
-                </button>
-              ))}
-            </div>
-            {tournamentType === "team" && (
-              <p className="text-xs text-teal-400 bg-teal-400/10 border border-teal-400/20 rounded-lg px-3 py-2 flex items-start gap-2">
-                <Users className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                All registered teams will be automatically enrolled as participants when the tournament is created.
-              </p>
-            )}
-          </div>
-
-          {/* Status */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              Status
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {(["upcoming", "active"] as const).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setStatus(s)}
-                  className={`
-                    py-2.5 rounded-lg text-sm font-bold capitalize transition-all border
-                    ${status === s
-                      ? s === "active"
-                        ? "bg-emerald-500/20 border-emerald-500 text-emerald-400"
-                        : "bg-primary/20 border-primary text-primary"
-                      : "border-border text-muted-foreground hover:border-border/80 hover:text-foreground"}
-                  `}
-                >
-                  {s === "active" ? "🟢 Active" : "🕐 Upcoming"}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Start Date — only for upcoming */}
-          {status === "upcoming" && (
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5" />
-                Start Date <span className="text-destructive">*</span>
-              </label>
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                required
-              />
+          {step === 2 && (
+            <div className="space-y-3">
+              <p className="text-sm font-bold text-foreground">Tournament Stages</p>
+              {STAGE_OPTIONS.map((option) => {
+                const Icon = option.icon;
+                const active = stage === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setStage(option.value)}
+                    className={`flex w-full items-start gap-3 rounded-xl border p-4 text-left transition-all ${
+                      active ? "border-primary bg-primary/10" : "border-border hover:border-primary/60 hover:bg-primary/5"
+                    }`}
+                  >
+                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${active ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}>
+                      <Icon className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-foreground">{option.title}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{option.description}</p>
+                    </div>
+                    <span className={`mt-1 h-4 w-4 shrink-0 rounded-full border-2 ${active ? "border-primary bg-primary" : "border-muted-foreground/40"}`} />
+                  </button>
+                );
+              })}
             </div>
           )}
 
-          {/* Prize Pool */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <DollarSign className="w-3.5 h-3.5" />
-              Prize Pool
-            </label>
-            <Input
-              value={prizePool}
-              onChange={(e) => setPrizePool(e.target.value)}
-              placeholder="e.g. $500 or 50,000 SP"
-            />
-          </div>
-
-          {/* Hoster */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <User className="w-3.5 h-3.5" />
-              Hosted By
-            </label>
-            <Input
-              value={hostedBy}
-              onChange={(e) => setHostedBy(e.target.value)}
-              placeholder="e.g. Waryaa Gaming"
-            />
-          </div>
-
-          {/* Season */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <CalendarRange className="w-3.5 h-3.5" />
-              Season
-            </label>
-            {seasons.length === 0 ? (
-              <div className="flex items-start gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
-                <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
-                <div className="text-xs text-amber-300 leading-snug">
-                  No seasons created yet.{" "}
-                  <Link href="/admin/seasons" onClick={() => handleClose()} className="font-bold underline hover:text-amber-200">
-                    Create a season
-                  </Link>{" "}
-                  first to enable seasonal rankings.
+          {step === 3 && (
+            <div className="space-y-5">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5" />
+                  Qualified Participants
+                </label>
+                <select
+                  value={qualifyCount}
+                  onChange={(e) => setQualifyCount(Number(e.target.value))}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  {[2, 4, 8, 16].map((n) => (
+                    <option key={n} value={n}>Top {n}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  After the Round Robin stage, the top ranked participants advance to the knockout bracket.
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Third-place Match
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {([false, true] as const).map((v) => (
+                    <button
+                      key={String(v)}
+                      type="button"
+                      onClick={() => setThirdPlaceMatch(v)}
+                      className={`py-2.5 rounded-lg text-sm font-bold capitalize transition-all border ${
+                        thirdPlaceMatch === v
+                          ? "bg-primary/20 border-primary text-primary"
+                          : "border-border text-muted-foreground hover:border-border/80 hover:text-foreground"
+                      }`}
+                    >
+                      {v ? "Yes" : "No"}
+                    </button>
+                  ))}
                 </div>
               </div>
-            ) : (
-              <select
-                value={seasonId}
-                onChange={(e) => setSeasonId(e.target.value ? Number(e.target.value) : "")}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-              >
-                <option value="">No season (all-time only)</option>
-                {seasons.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}{s.isCurrent ? " (Current)" : ""}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
+            </div>
+          )}
 
           <DialogFooter className="pt-2">
-            <Button type="button" variant="outline" onClick={handleClose} disabled={saving}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={saving} className="gap-2 min-w-[120px]">
-              {saving ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  {logoFile ? "Uploading…" : "Creating…"}
-                </>
-              ) : (
-                <>
-                  <Trophy className="w-4 h-4" />
-                  Create Tournament
-                </>
-              )}
-            </Button>
+            {step > 1 && (
+              <Button type="button" variant="outline" onClick={() => setStep((step - 1) as 1 | 2 | 3)} disabled={saving}>
+                <ChevronLeft className="w-4 h-4" />
+                Back
+              </Button>
+            )}
+            {!isFinalStep ? (
+              <Button type="button" onClick={goNext} className="gap-2 min-w-[120px]">
+                Continue
+                <ArrowRight className="w-4 h-4" />
+              </Button>
+            ) : (
+              <Button type="submit" disabled={saving} className="gap-2 min-w-[120px]">
+                {saving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    {logoFile ? "Uploading…" : "Creating…"}
+                  </>
+                ) : (
+                  <>
+                    <Trophy className="w-4 h-4" />
+                    Create Tournament
+                  </>
+                )}
+              </Button>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>
@@ -428,31 +639,163 @@ function CreateTournamentDialog({
   );
 }
 
-// ── Main Page ─────────────────────────────────────────────────────────────────
-export default function AdminTournamentsPage() {
-  const qc = useQueryClient();
-  const [createOpen, setCreateOpen] = useState(false);
+// ── Category Detail ────────────────────────────────────────────────────────────
+function CategoryDetail({
+  categoryId,
+  onBack,
+  onAddTournament,
+}: {
+  categoryId: number;
+  onBack: () => void;
+  onAddTournament: () => void;
+}) {
+  const { data: category, isLoading } = useQuery<Category & { tournaments: TournamentRow[] }>({
+    queryKey: ["admin", "category", categoryId],
+    queryFn: () => apiFetch(`/api/admin/categories/${categoryId}`),
+  });
 
   return (
     <div className="space-y-4">
-      {/* Custom Create Button + Dialog */}
-      <div className="flex justify-end">
-        <Button
-          size="sm"
-          className="gap-2 font-bold"
-          onClick={() => setCreateOpen(true)}
-        >
+      <button type="button" onClick={onBack} className="flex items-center gap-1.5 text-sm font-bold text-muted-foreground hover:text-foreground">
+        <ChevronLeft className="w-4 h-4" />
+        All categories
+      </button>
+
+      <div className="flex items-center gap-4 rounded-xl border border-border bg-card p-4">
+        {category?.logoUrl ? (
+          <img src={storageUrl(category.logoUrl)} alt="" className="h-14 w-14 rounded-lg object-cover bg-black/20" />
+        ) : (
+          <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-border">
+            <Folder className="w-6 h-6 text-muted-foreground" />
+          </div>
+        )}
+        <div className="flex-1">
+          <h2 className="text-lg font-extrabold text-foreground">{category?.name ?? "…"}</h2>
+          <p className="text-xs text-muted-foreground">
+            {category?.tournaments.length ?? 0} tournament{(category?.tournaments.length ?? 0) === 1 ? "" : "s"}
+          </p>
+        </div>
+        <Button size="sm" className="gap-2 font-bold" onClick={onAddTournament}>
           <Plus className="w-4 h-4" /> Add Tournament
         </Button>
       </div>
 
+      {isLoading ? (
+        <p className="py-8 text-center text-sm text-muted-foreground">Loading…</p>
+      ) : category && category.tournaments.length > 0 ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {category.tournaments.map((t) => (
+            <div key={t.id} className="rounded-xl border border-border bg-card p-4">
+              {t.logoUrl ? (
+                <img src={storageUrl(t.logoUrl)} alt="" className="mb-3 h-12 w-12 rounded-md object-cover bg-black/20" />
+              ) : (
+                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-md bg-border">
+                  <Trophy className="w-5 h-5 text-muted-foreground" />
+                </div>
+              )}
+              <p className="text-sm font-bold text-foreground">{t.name}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t.prizePool} · {t.status}</p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="py-8 text-center text-sm text-muted-foreground">
+          No tournaments yet. Click "Add Tournament" to create one inside this category.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
+export default function AdminTournamentsPage() {
+  const qc = useQueryClient();
+  const [chooserOpen, setChooserOpen] = useState(false);
+  const [singleOpen, setSingleOpen] = useState(false);
+  const [categoryOpen, setCategoryOpen] = useState(false);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const [categoryTournamentOpen, setCategoryTournamentOpen] = useState(false);
+
+  const { data: categories = [] } = useQuery<Category[]>({
+    queryKey: ["admin", "categories"],
+    queryFn: () => apiFetch("/api/admin/categories"),
+  });
+
+  function handleSelect(mode: "single" | "categories") {
+    setChooserOpen(false);
+    if (mode === "single") setSingleOpen(true);
+    else setCategoryOpen(true);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <Button size="sm" className="gap-2 font-bold" onClick={() => setChooserOpen(true)}>
+          <Plus className="w-4 h-4" /> Add Tournament
+        </Button>
+      </div>
+
+      <TournamentChooser open={chooserOpen} onClose={() => setChooserOpen(false)} onSelect={handleSelect} />
       <CreateTournamentDialog
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
+        open={singleOpen}
+        onClose={() => setSingleOpen(false)}
         onCreated={() => qc.invalidateQueries({ queryKey: ["admin", "tournaments"] })}
       />
+      <CreateCategoryDialog
+        open={categoryOpen}
+        onClose={() => setCategoryOpen(false)}
+        onCreated={() => qc.invalidateQueries({ queryKey: ["admin", "categories"] })}
+      />
+      <CreateTournamentDialog
+        open={categoryTournamentOpen}
+        onClose={() => setCategoryTournamentOpen(false)}
+        onCreated={() => {
+          qc.invalidateQueries({ queryKey: ["admin", "tournaments"] });
+          qc.invalidateQueries({ queryKey: ["admin", "category", selectedCategoryId] });
+        }}
+        categoryId={selectedCategoryId}
+      />
 
-      {/* Existing table via AdminEntityManager (edit/delete still work) */}
+      {selectedCategoryId !== null ? (
+        <CategoryDetail
+          categoryId={selectedCategoryId}
+          onBack={() => setSelectedCategoryId(null)}
+          onAddTournament={() => setCategoryTournamentOpen(true)}
+        />
+      ) : (
+        <div className="space-y-3">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Categories</h2>
+          {categories.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+              No categories yet. Click "Add Tournament" → "Tournament with Categories" to create one.
+            </p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {categories.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setSelectedCategoryId(c.id)}
+                  className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-primary/60 hover:bg-primary/5"
+                >
+                  {c.logoUrl ? (
+                    <img src={storageUrl(c.logoUrl)} alt="" className="h-12 w-12 rounded-lg object-cover bg-black/20" />
+                  ) : (
+                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-border">
+                      <Folder className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-foreground">{c.name}</p>
+                    <p className="text-xs text-muted-foreground">Open category</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <AdminEntityManager
         endpoint="tournaments"
         title="Tournament"
@@ -513,3 +856,9 @@ export default function AdminTournamentsPage() {
     </div>
   );
 }
+
+
+
+
+
+

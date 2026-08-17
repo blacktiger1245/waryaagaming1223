@@ -3,6 +3,7 @@ export * from "./seasons";
 export * from "./discord_tokens";
 export * from "./teams";
 export * from "./tournaments";
+export * from "./tournament_categories";
 export * from "./tournament_participants";
 export * from "./tournament_admins";
 export * from "./matches";
