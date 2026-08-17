@@ -13,6 +13,15 @@ export const matchesTable = pgTable("matches", {
   round: integer("round").notNull().default(1),
   roundName: text("round_name"),
   stage: integer("stage").notNull().default(1),
+  // Stable bracket relationships (used by the Stage 2 Knock-out bracket).
+  // parentMatch1Id/parentMatch2Id = the two matches whose winners fill this
+  // match's participant1/participant2 slots (null for pre-seeded teams/BYEs).
+  // nextMatchId + nextSlot = the match this match's winner advances to, and
+  // whether it lands in that next match's participant1 (1) or participant2 (2).
+  parentMatch1Id: integer("parent_match1_id"),
+  parentMatch2Id: integer("parent_match2_id"),
+  nextMatchId: integer("next_match_id"),
+  nextSlot: integer("next_slot"),
   status: text("status").notNull().default("scheduled"),
   participant1Id: integer("participant1_id"),
   participant1Name: text("participant1_name"),

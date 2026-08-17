@@ -199,9 +199,10 @@ function registerEntityRoutes(path: string, table: PgTable & { id: AnyColumn }) 
       // ── Sync player stats + XP when a match is completed ────────────────
       if (path === "matches") {
         const match = rows[0] as typeof matchesTable.$inferSelect;
+        // Propagate knockout winners on any match update (enter OR edit a stage-2
+        // result), so QF -> SF -> Final slot changes are recomputed and persisted.
+        await advanceKnockoutWinner(match);
         if (match.status === "completed") {
-          // Advance knockout winners into the next round's open slot.
-          await advanceKnockoutWinner(match);
           // Skip player-stats sync for team-tournament matches:
           // participant1Id/participant2Id are *team* IDs there, not player IDs,
           // so running the sync would corrupt player rows whose IDs happen to
@@ -903,20 +904,27 @@ function generateSeededKnockout(
 
 // Generate a safe, deterministic knockout bracket from group-stage
 // qualification (top N per group). Round 1 pairs groups cross-seeded
-// (A1 vs B2, B1 vs A2, …) and never pairs two teams from the same group.
-// Non-power-of-two counts are padded with BYEs (auto-advances) so the bracket
-// is always valid. All generated matches belong to stage 2.
+// (A1 vs B2, B1 vs A2, and so on) and never pairs two teams from the same
+// group. Non-power-of-two counts are padded with BYEs (auto-advances) so the
+// bracket is always valid. All generated matches belong to stage 2.
+//
+// Returns the rows to insert PLUS a `links` array which records, per match
+// (by flat index into `rows`), which parent matches feed its two slots
+// (parent1 feeds participant1, parent2 feeds participant2) and which next-round
+// match + slot its winner advances to. These stable DB relationships
+// (parent_match1_id, parent_match2_id, next_match_id, next_slot) drive the
+// QF -> SF -> Final progression and make result edits safe to recompute.
 function generateGroupKnockout(
   qualifiedByGroup: Map<string, Participant[]>,
   tournamentId: number,
   startRound: number,
   thirdPlaceMatch: boolean,
-): Array<typeof matchesTable.$inferInsert> {
+): {
+  rows: Array<typeof matchesTable.$inferInsert>;
+  links: Array<{ index: number; parent1: number | null; parent2: number | null; next: number | null; nextSlot: number | null }>;
+} {
   const BYE: Participant = { id: 0, playerId: 0, name: "BYE" };
-  const groupNames = Array.from(qualifiedByGroup.keys()).sort(); // A, B, C, …
-  const matches: Array<typeof matchesTable.$inferInsert> = [];
-
-  // Deterministic qualified order: A1, A2, B1, B2, …
+  const groupNames = Array.from(qualifiedByGroup.keys()).sort();
   const ordered: Participant[] = [];
   for (const g of groupNames) {
     const arr = qualifiedByGroup.get(g) ?? [];
@@ -924,40 +932,39 @@ function generateGroupKnockout(
     if (arr[1]) ordered.push(arr[1]);
   }
   const total = ordered.length;
-  if (total < 2) return [];
+  if (total < 2) return { rows: [], links: [] };
 
   const size = nextPow2(total);
   const byes = size - total;
 
+  interface Node {
+    round: number;
+    name: string;
+    p1: Participant | null;
+    p2: Participant | null;
+    parent1: number | null;
+    parent2: number | null;
+  }
+  type Entrant = { kind: "match"; idx: number } | { kind: "team"; p: Participant | null };
+
+  const nodes: Node[] = [];
+  const entrants: Entrant[] = [];
   let round = startRound;
-  // `current`: each round-1 pair position's entrant into round 2.
-  // null = TBD (real match winner), Participant = known auto-advance (bye).
-  let current: (Participant | null)[] = [];
 
   if (byes === 0) {
-    // Power of two → every qualified team plays round 1, cross-group paired.
     const r1Name = eliminationRoundName(total);
     for (let i = 0; i < groupNames.length; i += 2) {
       const g1 = groupNames[i];
       const g2 = groupNames[i + 1];
       const arr1 = qualifiedByGroup.get(g1) ?? [];
       const arr2 = qualifiedByGroup.get(g2) ?? [];
-      const push = (p1: Participant, p2: Participant) => {
-        matches.push({
-          tournamentId, round, roundName: r1Name, stage: 2, status: "scheduled",
-          participant1Id: p1.playerId || null, participant1Name: p1.name,
-          participant2Id: p2.playerId || null, participant2Name: p2.name,
-        });
-        current.push(null);
-      };
-      // A1 vs B2
-      push(arr1[0] ?? BYE, arr2[1] ?? BYE);
-      // B1 vs A2
-      push(arr2[0] ?? BYE, arr1[1] ?? BYE);
+      nodes.push({ round, name: r1Name, p1: arr1[0] ?? BYE, p2: arr2[1] ?? BYE, parent1: null, parent2: null });
+      entrants.push({ kind: "match", idx: nodes.length - 1 });
+      nodes.push({ round, name: r1Name, p1: arr2[0] ?? BYE, p2: arr1[1] ?? BYE, parent1: null, parent2: null });
+      entrants.push({ kind: "match", idx: nodes.length - 1 });
     }
   } else {
-    // BYEs required — seat via bracket seed order so the top seeds advance.
-    const order = bracketSeedOrder(size); // 1-based seeds in slot order
+    const order = bracketSeedOrder(size);
     const slotTeam = new Array<Participant | null>(size + 1).fill(null);
     for (let s = 1; s <= size; s++) slotTeam[s] = s <= total ? ordered[s - 1] : null;
     const r1Name = eliminationRoundName(size);
@@ -965,47 +972,117 @@ function generateGroupKnockout(
       const a = slotTeam[order[i]] ?? null;
       const b = slotTeam[order[i + 1]] ?? null;
       if (a && b) {
-        matches.push({
-          tournamentId, round, roundName: r1Name, stage: 2, status: "scheduled",
-          participant1Id: a.playerId || null, participant1Name: a.name,
-          participant2Id: b.playerId || null, participant2Name: b.name,
-        });
-        current.push(null); // winner TBD
+        nodes.push({ round, name: r1Name, p1: a, p2: b, parent1: null, parent2: null });
+        entrants.push({ kind: "match", idx: nodes.length - 1 });
       } else if (a || b) {
-        // bye → the real team advances straight to round 2 (no fake match)
-        current.push(a ?? b);
+        entrants.push({ kind: "team", p: a ?? b });
       }
     }
   }
-
-  // ── Subsequent rounds (pair consecutive winners, standard bracket) ──
-  while (current.length > 1) {
-    const slots = current.length;
-    const rName = eliminationRoundName(slots);
+  // Subsequent rounds: pair consecutive entrants (standard bracket).
+  let cur = entrants;
+  while (cur.length > 1) {
+    const rName = eliminationRoundName(cur.length);
     round++;
-    const next: (Participant | null)[] = [];
-    for (let i = 0; i < slots; i += 2) {
-      const a = current[i] ?? null;
-      const b = current[i + 1] ?? null;
-      matches.push({
-        tournamentId, round, roundName: rName, stage: 2, status: "scheduled",
-        participant1Id: a ? a.playerId || null : null,
-        participant1Name: a ? a.name : null,
-        participant2Id: b ? b.playerId || null : null,
-        participant2Name: b ? b.name : null,
-      });
-      next.push(null);
+    const nextEntrants: Entrant[] = [];
+    for (let i = 0; i < cur.length; i += 2) {
+      const left = cur[i];
+      const right = cur[i + 1];
+      const p1 = left.kind === "team" ? left.p : null;
+      const p2 = right.kind === "team" ? right.p : null;
+      const parent1 = left.kind === "match" ? left.idx : null;
+      const parent2 = right.kind === "match" ? right.idx : null;
+      nodes.push({ round, name: rName, p1, p2, parent1, parent2 });
+      nextEntrants.push({ kind: "match", idx: nodes.length - 1 });
     }
-    current = next;
+    cur = nextEntrants;
   }
+
+  // Derive next-match / next-slot links from the parent relationships.
+  const links: Array<{ index: number; parent1: number | null; parent2: number | null; next: number | null; nextSlot: number | null }> = [];
+  for (let i = 0; i < nodes.length; i++) {
+    let next: number | null = null;
+    let nextSlot: number | null = null;
+    for (let j = 0; j < nodes.length; j++) {
+      if (nodes[j].parent1 === i) { next = j; nextSlot = 1; break; }
+      if (nodes[j].parent2 === i) { next = j; nextSlot = 2; break; }
+    }
+    links.push({ index: i, parent1: nodes[i].parent1, parent2: nodes[i].parent2, next, nextSlot });
+  }
+
+  const rows: Array<typeof matchesTable.$inferInsert> = nodes.map((n) => ({
+    tournamentId, round: n.round, roundName: n.name, stage: 2, status: "scheduled",
+    participant1Id: n.p1 ? n.p1.playerId || null : null,
+    participant1Name: n.p1 ? n.p1.name : null,
+    participant2Id: n.p2 ? n.p2.playerId || null : null,
+    participant2Name: n.p2 ? n.p2.name : null,
+  }));
 
   if (thirdPlaceMatch) {
-    matches.push({
-      tournamentId, round: round + 1, roundName: "Third Place", stage: 2, status: "scheduled",
-    });
+    links.push({ index: rows.length, parent1: null, parent2: null, next: null, nextSlot: null });
+    rows.push({ tournamentId, round: round + 1, roundName: "Third Place", stage: 2, status: "scheduled" });
   }
 
-  return matches;
+  return { rows, links };
+}
+// Resolve the winner of a match from its stored winnerId, falling back to the
+// scores when winnerId is null. Returns null when there is no determinate
+// winner (incomplete, a draw with no decided winner, or a BYE placeholder).
+function resolveMatchWinner(match: typeof matchesTable.$inferSelect | null): { id: number; name: string | null } | null {
+  if (!match || match.status !== "completed") return null;
+  if (match.winnerId != null && match.winnerId > 0 && match.winnerName !== "BYE") {
+    return { id: match.winnerId, name: match.winnerName };
+  }
+  const s1 = match.participant1Score;
+  const s2 = match.participant2Score;
+  if (s1 != null && s2 != null && s1 !== s2) {
+    if (s1 > s2 && match.participant1Id) return { id: match.participant1Id, name: match.participant1Name };
+    if (s2 > s1 && match.participant2Id) return { id: match.participant2Id, name: match.participant2Name };
+  }
+  return null;
+}
+
+// Recompute the Stage 2 bracket from its stable parent/next relationships.
+// For every match, each linked slot (parent_match1 feeds participant1,
+// parent_match2 feeds participant2) is set to its parent's resolved winner.
+// This means: when a QF result is entered its winner lands in the correct SF
+// slot; when a result is EDITED, the old winner is removed from that slot and
+// the new winner replaces it; and when a match becomes incomplete its winner
+// is removed from the next round. Slots without a parent (seeded teams, BYE
+// recipients) are never touched. Group-stage (stage 1) rows are never changed.
+async function syncKnockoutProgression(tournamentId: number, stage: number) {
+  const rows = await db
+    .select()
+    .from(matchesTable)
+    .where(and(eq(matchesTable.tournamentId, tournamentId), eq(matchesTable.stage, stage)))
+    .orderBy(matchesTable.id);
+  const byId = new Map(rows.map((m) => [m.id, m]));
+
+  for (const m of rows) {
+    const a = m.parentMatch1Id != null ? resolveMatchWinner(byId.get(m.parentMatch1Id) ?? null) : null;
+    const b = m.parentMatch2Id != null ? resolveMatchWinner(byId.get(m.parentMatch2Id) ?? null) : null;
+
+    const set: Partial<typeof matchesTable.$inferInsert> = {};
+    if (m.parentMatch1Id != null) {
+      set.participant1Id = a ? a.id : null;
+      set.participant1Name = a ? a.name : null;
+    }
+    if (m.parentMatch2Id != null) {
+      set.participant2Id = b ? b.id : null;
+      set.participant2Name = b ? b.name : null;
+    }
+    const changed =
+      (set.participant1Id ?? null) !== (m.participant1Id ?? null) ||
+      (set.participant2Id ?? null) !== (m.participant2Id ?? null);
+    if (changed) {
+      await db.update(matchesTable).set(set).where(eq(matchesTable.id, m.id));
+      // Keep the in-memory copy in sync for downstream links in this pass.
+      m.participant1Id = set.participant1Id ?? null;
+      m.participant1Name = set.participant1Name ?? null;
+      m.participant2Id = set.participant2Id ?? null;
+      m.participant2Name = set.participant2Name ?? null;
+    }
+  }
 }
 async function computeRoundRobinStandings(tournamentId: number, participants: Participant[]) {
   const matches = await db
@@ -1128,10 +1205,17 @@ async function computeGroupStandings(
   return { qualifiedByGroup, complete };
 }
 
-// Advance the winner of a completed knockout match (stage 2) into the next
-// round's open slot for that same stage. Ignores group-stage matches, BYE ids
-// (0), and matches without a valid winner.
+// Entrance point for winner advancement on any match update.
+//   * Linked Stage 2 brackets (Group Stage + Knock-out) recompute the whole
+//     bracket from parent/next relationships, replacing stale team slots when
+//     results are entered or edited.
+//   * Legacy brackets (plain direct knock-out, no links) keep the old
+//     fill-first-empty-slot behaviour.
 async function advanceKnockoutWinner(match: typeof matchesTable.$inferSelect) {
+  if ((match.stage ?? 1) === 2 || match.nextMatchId != null) {
+    await syncKnockoutProgression(match.tournamentId, 2);
+    return;
+  }
   if (match.status !== "completed" || !match.winnerId) return;
   if (match.winnerId === 0 || match.winnerName === "BYE") return;
   if (!isKnockoutRoundName(match.roundName)) return;
@@ -1163,7 +1247,6 @@ async function advanceKnockoutWinner(match: typeof matchesTable.$inferSelect) {
     }
   }
 }
-
 // POST /admin/tournaments/:id/generate-matches
 router.post("/admin/tournaments/:id/generate-matches", requireAdmin, async (req, res) => {
   const tournamentId = Number(req.params.id);
@@ -1317,14 +1400,25 @@ router.post("/admin/tournaments/:id/generate-knockout", requireAdmin, async (req
       .limit(1);
     const startRound = (maxGroupRoundRow?.r ?? 0) + 1;
 
-    const toInsert = generateGroupKnockout(qualifiedByGroup, tournamentId, startRound, Boolean(tournament.thirdPlaceMatch));
-    if (toInsert.length === 0) {
+    const { rows: koRows, links: koLinks } = generateGroupKnockout(qualifiedByGroup, tournamentId, startRound, Boolean(tournament.thirdPlaceMatch));
+    if (koRows.length === 0) {
       return res.status(400).json({ error: "Could not build a valid Knock-out bracket" });
     }
 
     let inserted: Array<typeof matchesTable.$inferSelect> = [];
     await db.transaction(async (tx) => {
-      inserted = await tx.insert(matchesTable).values(toInsert).returning();
+      inserted = await tx.insert(matchesTable).values(koRows).returning();
+      // Persist the stable bracket relationships (parents, next match, next slot)
+      // so QF -> SF -> Final progression is database-driven, not order-based.
+      for (const l of koLinks) {
+        const set: Partial<typeof matchesTable.$inferInsert> = {};
+        if (l.parent1 != null) set.parentMatch1Id = inserted[l.parent1].id;
+        if (l.parent2 != null) set.parentMatch2Id = inserted[l.parent2].id;
+        if (l.next != null) { set.nextMatchId = inserted[l.next].id; set.nextSlot = l.nextSlot ?? 1; }
+        if (Object.keys(set).length > 0) {
+          await tx.update(matchesTable).set(set).where(eq(matchesTable.id, inserted[l.index].id));
+        }
+      }
     });
 
     const qualifiedList: Array<{ group: string; rank: number } & Participant> = [];
