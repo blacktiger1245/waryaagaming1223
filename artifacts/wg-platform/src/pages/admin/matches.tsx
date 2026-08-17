@@ -27,6 +27,7 @@ interface Tournament {
   prizePool: string;
   hostedBy?: string | null;
   tournamentType?: string | null;
+  format?: string | null;
 }
 
 interface Match {
@@ -932,6 +933,11 @@ function SoloGenerateDialog({
   const { toast } = useToast();
   const [groupCount, setGroupCount] = useState(4);
 
+  const format = tournament.format ?? "group-stage";
+  const isGroupStage = format === "group-stage";
+  const isKnockout = format === "single-elimination";
+  const isRRKnockout = format === "round-robin-knockout";
+
   // Fetch participants for the live preview
   const { data: participants = [], isLoading: loadingP } = useQuery<Participant[]>({
     queryKey: ["admin-tournament-participants", tournament.id],
@@ -948,10 +954,14 @@ function SoloGenerateDialog({
     mutationFn: () =>
       apiFetch(`/api/admin/tournaments/${tournament.id}/generate-matches`, {
         method: "POST",
-        body: JSON.stringify({ clearExisting: true, groupCount, formatOverride: "group-stage" }),
+        body: JSON.stringify(
+          isGroupStage
+            ? { clearExisting: true, groupCount, formatOverride: "group-stage" }
+            : { clearExisting: true },
+        ),
       }),
     onSuccess: (data: { generated: number }) => {
-      toast({ title: `Generated ${data.generated} group stage matches!` });
+      toast({ title: `Generated ${data.generated} ${isGroupStage ? "group stage" : isKnockout ? "knockout" : "round-robin"} matches!` });
       qc.invalidateQueries({ queryKey: ["admin-tournament-matches", tournament.id] });
       onClose();
     },
@@ -964,11 +974,13 @@ function SoloGenerateDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-primary" />
-            Generate Group Stage
+            {isGroupStage ? "Generate Group Stage" : isKnockout ? "Generate Knockout Bracket" : isRRKnockout ? "Generate Round Robin (Stage 1)" : "Generate Round Robin"}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-5 py-2">
+          {isGroupStage ? (
+          <>
           {/* Group count picker */}
           <div className="space-y-2">
             <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
@@ -1044,6 +1056,23 @@ function SoloGenerateDialog({
               Round-robin matches will be generated within each group. Each player plays every other player in their group once.
             </p>
           )}
+          </>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                {isKnockout
+                  ? "A single-elimination bracket will be generated. Participants are seeded and byes are added automatically if the count is not a power of 2."
+                  : isRRKnockout
+                  ? "Round Robin fixtures (Stage 1) will be generated. After all matches are complete, use Generate Knockout to build the seeded bracket from final standings."
+                  : "Round Robin fixtures will be generated. Every participant plays every other participant once."}
+              </p>
+              {participants.length >= 2 && (
+                <p className="text-[10px] text-muted-foreground">
+                  {participants.length} participants registered.
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         <DialogFooter>
@@ -1055,7 +1084,7 @@ function SoloGenerateDialog({
           >
             {isPending
               ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</>
-              : <><Sparkles className="w-4 h-4" /> Generate Rounds</>}
+              : <><Sparkles className="w-4 h-4" /> {isGroupStage ? "Generate Rounds" : isKnockout ? "Generate Bracket" : "Generate Fixtures"}</>}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -1127,6 +1156,21 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
       qc.invalidateQueries({ queryKey: ["admin-tournament-matches", tournament.id] });
     },
     onError: (err: Error) => toast({ title: "Delete failed", description: err.message, variant: "destructive" }),
+  });
+
+  const isRRKnockout = tournament.format === "round-robin-knockout";
+
+  const { mutate: generateKnockout, isPending: knockoutPending } = useMutation({
+    mutationFn: () =>
+      apiFetch(`/api/admin/tournaments/${tournament.id}/generate-knockout`, {
+        method: "POST",
+        body: JSON.stringify({ clearExistingKnockout: true }),
+      }),
+    onSuccess: (data: { generated: number }) => {
+      toast({ title: `Knockout bracket generated!`, description: `${data.generated} matches seeded from final standings.` });
+      qc.invalidateQueries({ queryKey: ["admin-tournament-matches", tournament.id] });
+    },
+    onError: (err: Error) => toast({ title: "Knockout generation failed", description: err.message, variant: "destructive" }),
   });
 
   async function deleteSelected() {
@@ -1237,6 +1281,18 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
           <Button size="sm" variant="outline" className="gap-2 font-bold" onClick={() => setGenerateOpen(true)}>
             <Sparkles className="w-4 h-4" /> Generate
           </Button>
+          {isRRKnockout && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-2 font-bold border-amber-500/40 text-amber-400 hover:border-amber-500 hover:text-amber-400"
+              onClick={() => generateKnockout()}
+              disabled={knockoutPending}
+            >
+              {knockoutPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Swords className="w-4 h-4" />}
+              Generate Knockout
+            </Button>
+          )}
           <Button size="sm" className="gap-2 font-bold" onClick={() => setCreateOpen(true)}>
             <Plus className="w-4 h-4" /> Add Match
           </Button>
