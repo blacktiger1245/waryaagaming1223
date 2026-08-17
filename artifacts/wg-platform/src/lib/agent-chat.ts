@@ -22,8 +22,11 @@ export interface AgentChatLastMessage {
 
 export interface AgentChatConversation {
   id: number;
+  meRole: AgentChatRole;
+  counterpart: AgentChatParticipant | null;
   agentPlayer: AgentChatParticipant | null;
   player: AgentChatParticipant | null;
+  unread: number;
   unreadByAgent: number;
   unreadByPlayer: number;
   lastMessage: AgentChatLastMessage | null;
@@ -60,9 +63,14 @@ async function chatRequest<T>(path: string, init?: RequestInit): Promise<T> {
   return data as T;
 }
 
-/** Agent inbox: every conversation where the current user is the agent. */
+/** Inbox: every conversation where the current user is the agent OR the player. */
 export function fetchAgentInbox(): Promise<{ conversations: AgentChatConversation[]; totalUnread: number }> {
   return chatRequest("/api/agent-chat/inbox");
+}
+
+/** Total unread count for the current user (either side) — for the header badge. */
+export function fetchUnreadCount(): Promise<{ totalUnread: number }> {
+  return chatRequest("/api/agent-chat/unread-count");
 }
 
 /** Get or create the conversation between the current user and an agent. */

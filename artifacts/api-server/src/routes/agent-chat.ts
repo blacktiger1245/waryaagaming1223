@@ -8,6 +8,7 @@ import {
 import {
   eq,
   and,
+  or,
   desc,
   asc,
   sql,
@@ -56,24 +57,34 @@ function messageJson(m: typeof agentMessagesTable.$inferSelect) {
   };
 }
 
-// ── GET /agent-chat/inbox (agent side) ──────────────────────────────────────
-// Lists every conversation where the current user is the "agent", showing the
-// counterpart player's profile, last message, time, and unread count. Polling
-// this endpoint also keeps the agent's online indicator fresh.
+// ── GET /agent-chat/inbox (both sides) ──────────────────────────────────────
+// Lists every conversation where the current user is either the agent or the
+// player, showing the counterpart's profile, last message, time, and the
+// caller's unread count. Polling keeps both online indicators fresh.
 router.get("/agent-chat/inbox", async (req: Request, res: Response) => {
   const me = req.session?.userId;
   if (!me) { res.status(401).json({ error: "Login required" }); return; }
 
   const now = new Date();
+  // Keep both online indicators fresh (whichever side the caller is).
   await db
     .update(agentConversationsTable)
     .set({ agentLastSeenAt: now })
     .where(eq(agentConversationsTable.agentPlayerId, me));
+  await db
+    .update(agentConversationsTable)
+    .set({ playerLastSeenAt: now })
+    .where(eq(agentConversationsTable.playerId, me));
 
   const conversations = await db
     .select()
     .from(agentConversationsTable)
-    .where(eq(agentConversationsTable.agentPlayerId, me))
+    .where(
+      or(
+        eq(agentConversationsTable.agentPlayerId, me),
+        eq(agentConversationsTable.playerId, me),
+      ),
+    )
     .orderBy(desc(agentConversationsTable.updatedAt));
 
   if (conversations.length === 0) {
@@ -106,14 +117,25 @@ router.get("/agent-chat/inbox", async (req: Request, res: Response) => {
 
   let totalUnread = 0;
   const summary = conversations.map((conv) => {
+    const meRole = conv.playerId === me ? "player" : "agent";
     const agentPlayer = playerMap.get(conv.agentPlayerId);
     const player = playerMap.get(conv.playerId);
+    const counterpart = meRole === "agent" ? player : agentPlayer;
+    const unread = meRole === "agent" ? conv.unreadByAgent : conv.unreadByPlayer;
     const last = lastPerConv.get(conv.id) ?? null;
-    totalUnread += conv.unreadByAgent;
+    totalUnread += unread;
     return {
       id: conv.id,
+      meRole,
+      counterpart: counterpart
+        ? participantJson(
+            counterpart,
+            isOnline(meRole === "agent" ? conv.playerLastSeenAt : conv.agentLastSeenAt),
+          )
+        : null,
       agentPlayer: agentPlayer ? participantJson(agentPlayer, isOnline(conv.agentLastSeenAt)) : null,
       player: player ? participantJson(player, isOnline(conv.playerLastSeenAt)) : null,
+      unread,
       unreadByAgent: conv.unreadByAgent,
       unreadByPlayer: conv.unreadByPlayer,
       lastMessage: last ? { ...messageJson(last), senderPlayerId: last.senderPlayerId } : null,
@@ -319,6 +341,31 @@ router.post("/agent-chat/conversations/:id/messages", async (req: Request, res: 
   }
 
   res.status(201).json(messageJson(message));
+});
+
+// ── GET /agent-chat/unread-count (both sides) ───────────────────────────────
+// Lightweight total unread for the current user (either side), used by the
+// header notification badge. Does not touch online/last-seen timestamps.
+router.get("/agent-chat/unread-count", async (req: Request, res: Response) => {
+  const me = req.session?.userId;
+  if (!me) { res.status(401).json({ error: "Login required" }); return; }
+
+  const conversations = await db
+    .select()
+    .from(agentConversationsTable)
+    .where(
+      or(
+        eq(agentConversationsTable.agentPlayerId, me),
+        eq(agentConversationsTable.playerId, me),
+      ),
+    );
+
+  const totalUnread = conversations.reduce(
+    (sum, conv) => sum + (conv.playerId === me ? conv.unreadByPlayer : conv.unreadByAgent),
+    0,
+  );
+
+  res.json({ totalUnread });
 });
 
 export default router;

@@ -15,7 +15,7 @@ import {
 const INBOX_POLL_MS = 4000;
 
 function participantName(conversation: AgentChatConversation): string {
-  const participant = conversation.player;
+  const participant = conversation.counterpart ?? conversation.player;
   return participant ? participant.displayName ?? participant.username : "Player";
 }
 
@@ -55,7 +55,7 @@ export default function AgentMessagesPage() {
     const query = search.trim().toLowerCase();
     if (!query) return conversations;
     return conversations.filter((conversation) => {
-      const participant = conversation.player;
+      const participant = conversation.counterpart ?? conversation.player;
       if (!participant) return false;
       return [participant.displayName, participant.username]
         .filter(Boolean)
@@ -64,7 +64,7 @@ export default function AgentMessagesPage() {
   }, [conversations, search]);
 
   const totalUnread = useMemo(
-    () => conversations.reduce((sum, conversation) => sum + conversation.unreadByAgent, 0),
+    () => conversations.reduce((sum, conversation) => sum + conversation.unread, 0),
     [conversations],
   );
 
@@ -105,7 +105,7 @@ export default function AgentMessagesPage() {
             Agent <span className="text-[#4d8dff]">Messages</span>
           </h1>
           <p className="mt-2 text-sm text-[#8fa3c8]">
-            Every conversation with a player who wants to know more about your listed players.
+            Your conversations with agents and players from the Transfer Market.
           </p>
         </header>
 
@@ -149,7 +149,7 @@ export default function AgentMessagesPage() {
               ) : (
                 <div className="flex gap-3 overflow-x-auto pb-1">
                   {following.map((conversation) => {
-                    const participant = conversation.player;
+                    const participant = conversation.counterpart ?? conversation.player;
                     if (!participant) return null;
                     const active = selectedId === conversation.id;
                     return (
@@ -188,12 +188,12 @@ export default function AgentMessagesPage() {
                 <p className="px-3 py-8 text-center text-xs text-[#6f82a5]">
                   {search
                     ? "No conversations match your search."
-                    : "No messages yet. Players who click “Chat with agent” on your Transfer Market listing will appear here."}
+                    : "No messages yet. Start a chat from the Transfer Market, or players who contact you will appear here."}
                 </p>
               ) : (
                 <div className="flex flex-col gap-1">
                   {filtered.map((conversation) => {
-                    const participant = conversation.player;
+                    const participant = conversation.counterpart ?? conversation.player;
                     const active = selectedId === conversation.id;
                     const last = conversation.lastMessage;
                     return (
@@ -230,9 +230,9 @@ export default function AgentMessagesPage() {
                             <p className="truncate text-xs text-[#8fa3c8]">
                               {last ? last.text : "No messages yet"}
                             </p>
-                            {conversation.unreadByAgent > 0 && (
+                            {conversation.unread > 0 && (
                               <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#2b7bff] to-[#1e5fd0] px-1.5 text-[10px] font-bold text-white">
-                                {conversation.unreadByAgent}
+                                {conversation.unread}
                               </span>
                             )}
                           </div>
@@ -265,7 +265,7 @@ export default function AgentMessagesPage() {
                 </div>
                 <p className="text-sm font-bold text-[#dbe6fa]">Select a conversation</p>
                 <p className="max-w-[280px] text-xs leading-relaxed text-[#7c90b5]">
-                  Choose a player from your messages to open the chat and reply as their agent.
+                  Choose a conversation to open the chat and continue the discussion.
                 </p>
               </div>
             )}

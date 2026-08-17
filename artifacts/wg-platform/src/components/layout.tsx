@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import {
   Trophy,
@@ -19,10 +19,12 @@ import {
   CalendarDays,
   BarChart2,
   MessageSquare,
+  MessageCircle,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { Crown, ShieldCheck } from "lucide-react";
+import { fetchUnreadCount } from "@/lib/agent-chat";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -60,6 +62,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <img src={`${import.meta.env.BASE_URL}logo.jpg`} alt="Waryaa Gaming" className="size-8 rounded-sm glow-primary object-cover" />
           <span className="font-black text-lg tracking-widest text-primary uppercase">Waryaa Gaming</span>
         </Link>
+        <AgentChatBell />
       </div>
 
       {/* Sidebar (toggle drawer on all screen sizes) */}
@@ -314,6 +317,51 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </footer>
       </div>
     </div>
+  );
+}
+
+function AgentChatBell() {
+  const { isLoggedIn } = useAuth();
+  const [unread, setUnread] = useState(0);
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setUnread(0);
+      return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const data = await fetchUnreadCount();
+        if (!cancelled) setUnread(data.totalUnread);
+      } catch {
+        // Transient errors keep the last known count; the interval retries.
+      }
+    };
+    load();
+    const timer = window.setInterval(load, 30000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [isLoggedIn]);
+
+  if (!isLoggedIn) return null;
+
+  return (
+    <Link
+      href="/agent-messages"
+      className="relative ml-auto flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+      data-testid="link-agent-messages"
+      aria-label="Agent messages"
+    >
+      <MessageCircle className="w-5 h-5" />
+      {unread > 0 && (
+        <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-pink-accent px-1 text-[10px] font-bold text-white">
+          {unread > 99 ? "99+" : unread}
+        </span>
+      )}
+    </Link>
   );
 }
 
