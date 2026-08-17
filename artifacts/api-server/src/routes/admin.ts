@@ -577,7 +577,7 @@ router.post("/admin/tournaments", requireAdmin, async (req, res) => {
       seasonId: seasonId ? Number(seasonId) : undefined,
       categoryId: categoryId ? Number(categoryId) : undefined,
       qualifyCount: qualifyCount ? Number(qualifyCount) : undefined,
-      thirdPlaceMatch: Boolean(thirdPlaceMatch),
+      thirdPlaceMatch: thirdPlaceMatch !== undefined ? Boolean(thirdPlaceMatch) : undefined,
       createdBy: req.session.userId ?? undefined,
     }).returning();
 
