@@ -36,6 +36,7 @@ interface Match {
   tournamentId: number;
   round: number;
   roundName?: string | null;
+  stage?: number | null;
   status: "scheduled" | "live" | "completed" | "cancelled";
   participant1Id?: number | null;
   participant1Name?: string | null;
@@ -95,6 +96,17 @@ const matchStatusColors: Record<string, string> = {
   completed: "bg-primary/10 text-primary border-primary/30",
   cancelled: "bg-destructive/10 text-destructive border-destructive/30",
 };
+
+// Stage classification for Round Robin + Knock-out tournaments:
+//   stage 1 = Group Stage (roundName is the group, e.g. "Group A")
+//   stage 2 = Knock-out (roundName is the round, e.g. "Quarter Finals")
+const KNOCKOUT_ROUND_RE = /final|round of|quarter|semi|third place/i;
+function isKnockoutRoundName(name?: string | null): boolean {
+  return !!name && KNOCKOUT_ROUND_RE.test(name);
+}
+function stageOfMatch(m: { stage?: number | null; roundName?: string | null }): number {
+  return m.stage === 2 || isKnockoutRoundName(m.roundName) ? 2 : 1;
+}
 
 // ── Match Form Dialog ──────────────────────────────────────────────────────────
 function MatchFormDialog({
@@ -1102,11 +1114,17 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [view, setView] = useState<"groups" | "matches">("groups");
+  const [stageTab, setStageTab] = useState<"group" | "knockout">("group");
 
   const { data: matches = [], isLoading } = useQuery<Match[]>({
     queryKey: ["admin-tournament-matches", tournament.id],
     queryFn: () => apiFetch(`/api/admin/tournaments/${tournament.id}/matches`),
   });
+
+  // Split matches by stage (Round Robin + Knock-out). Group Stage = stage 1,
+  // Knock-out = stage 2. Rounds of the same stage never bleed into the other.
+  const groupStageMatches = useMemo(() => matches.filter((m) => stageOfMatch(m) === 1), [matches]);
+  const knockoutMatches = useMemo(() => matches.filter((m) => stageOfMatch(m) === 2), [matches]);
 
   const { data: participants = [] } = useQuery<Participant[]>({
     queryKey: ["admin-tournament-participants", tournament.id],
@@ -1163,10 +1181,15 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
     mutationFn: () =>
       apiFetch(`/api/admin/tournaments/${tournament.id}/generate-knockout`, {
         method: "POST",
-        body: JSON.stringify({ clearExistingKnockout: true }),
+        body: JSON.stringify({}),
       }),
-    onSuccess: (data: { generated: number }) => {
-      toast({ title: `Knockout bracket generated!`, description: `${data.generated} matches seeded from final standings.` });
+    onSuccess: (data: { generated: number; alreadyGenerated?: boolean; message?: string }) => {
+      if (data.alreadyGenerated) {
+        toast({ title: "Knock-out already generated", description: data.message ?? "The 2nd Stage — Knock-out bracket already exists." });
+      } else {
+        toast({ title: "Knock-out bracket generated!", description: `${data.generated} Stage 2 matches seeded from final group standings.` });
+      }
+      setStageTab("knockout");
       qc.invalidateQueries({ queryKey: ["admin-tournament-matches", tournament.id] });
     },
     onError: (err: Error) => toast({ title: "Knockout generation failed", description: err.message, variant: "destructive" }),
@@ -1186,18 +1209,22 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
   const isTeamTournament = tournament.tournamentType === "team";
 
   // ── Detect group-stage mode ────────────────────────────────────────────────
-  const isGroupStage = !isTeamTournament && matches.some((m) => m.roundName?.startsWith("Group "));
+  const isGroupStage =
+    !isTeamTournament &&
+    (tournament.format === "group-stage-knockout" ||
+      tournament.format === "group-stage" ||
+      matches.some((m) => m.roundName?.startsWith("Group ")));
 
-  // ── Group stage: bucket by roundName (= group label) ──────────────────────
+  // ── Group stage: bucket by roundName (= group label), stage 1 only ────────
   const groupBuckets = useMemo(() => {
     if (!isGroupStage) return {};
     const out: Record<string, Match[]> = {};
-    matches.forEach((m) => {
+    groupStageMatches.forEach((m) => {
       const key = m.roundName ?? "Group ?";
       (out[key] ??= []).push(m);
     });
     return out;
-  }, [matches, isGroupStage]);
+  }, [groupStageMatches, isGroupStage]);
   const sortedGroups = Object.keys(groupBuckets).sort();
 
   // ── Standings computation ──────────────────────────────────────────────────
@@ -1246,6 +1273,18 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
     return out;
   }, [matches]);
   const sortedRounds = Object.keys(rounds).map(Number).sort((a, b) => a - b);
+
+  // ── Knock-out view: group Stage 2 matches by round name, ordered by round ──
+  const knockoutRoundGroups = useMemo(() => {
+    const buckets: Record<string, Match[]> = {};
+    [...knockoutMatches]
+      .sort((a, b) => a.round - b.round || a.id - b.id)
+      .forEach((m) => {
+        const key = m.roundName ?? `Round ${m.round}`;
+        (buckets[key] ??= []).push(m);
+      });
+    return Object.entries(buckets).map(([name, matches]) => ({ name, matches }));
+  }, [knockoutMatches]);
 
   return (
     <div className="space-y-6">
@@ -1298,29 +1337,57 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
         </div>
       </div>
 
-      {/* View tabs — only shown when group stage matches exist */}
-      {isGroupStage && matches.length > 0 && (
-        <div className="flex gap-1 p-1 rounded-xl bg-muted/40 border border-border w-fit">
-          <button
-            onClick={() => setView("groups")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-black transition-all ${
-              view === "groups"
-                ? "bg-card shadow text-foreground border border-border"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Users className="w-3.5 h-3.5" /> Group Stage
-          </button>
-          <button
-            onClick={() => setView("matches")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-black transition-all ${
-              view === "matches"
-                ? "bg-card shadow text-foreground border border-border"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Swords className="w-3.5 h-3.5" /> Matches
-          </button>
+      {/* Stage / view tabs — Round Robin + Knock-out shows two clear stages */}
+      {matches.length > 0 && (
+        <div className="space-y-2">
+          {isGroupKnockout && (
+            <div className="flex gap-1 p-1 rounded-xl bg-muted/40 border border-border w-fit">
+              <button
+                onClick={() => setStageTab("group")}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-black transition-all ${
+                  stageTab === "group"
+                    ? "bg-card shadow text-foreground border border-border"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Users className="w-3.5 h-3.5" /> 1st Stage — Group Stage
+              </button>
+              <button
+                onClick={() => setStageTab("knockout")}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-black transition-all ${
+                  stageTab === "knockout"
+                    ? "bg-card shadow text-foreground border border-border"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Swords className="w-3.5 h-3.5" /> 2nd Stage — Knock-out
+              </button>
+            </div>
+          )}
+          {isGroupStage && (!isGroupKnockout || stageTab === "group") && (
+            <div className="flex gap-1 p-1 rounded-xl bg-muted/40 border border-border w-fit">
+              <button
+                onClick={() => setView("groups")}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-black transition-all ${
+                  view === "groups"
+                    ? "bg-card shadow text-foreground border border-border"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Users className="w-3.5 h-3.5" /> Group Stage
+              </button>
+              <button
+                onClick={() => setView("matches")}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-black transition-all ${
+                  view === "matches"
+                    ? "bg-card shadow text-foreground border border-border"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Swords className="w-3.5 h-3.5" /> Matches
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -1554,6 +1621,71 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
 
           {isGroupStage ? (
             <>
+              {/* ── 2nd Stage — Knock-out (Round Robin + Knock-out) ── */}
+              {isGroupKnockout && stageTab === "knockout" && (
+                <div className="space-y-8 pt-2">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="rounded-md bg-amber-500/15 text-amber-400 border border-amber-500/30 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest">2nd Stage</span>
+                    <span className="text-sm font-black uppercase tracking-widest text-muted-foreground">Knock-out</span>
+                  </div>
+                  {knockoutRoundGroups.map(({ name, matches: koMatches }) => (
+                    <motion.div key={name} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+                      <h3 className="text-sm font-black uppercase tracking-widest text-foreground flex items-center gap-2 mb-3">
+                        <span className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-black">{koMatches.length}</span>
+                        {name}
+                      </h3>
+                      <div className="grid gap-3">
+                        {koMatches.map((match) => {
+                          const p1win = match.winnerId && match.winnerId === match.participant1Id;
+                          const p2win = match.winnerId && match.winnerId === match.participant2Id;
+                          const hasScore = match.participant1Score !== null && match.participant1Score !== undefined;
+                          return (
+                            <div key={match.id} className={`rounded-xl border bg-card flex items-center gap-3 px-4 py-3 transition-colors ${p1win || p2win ? "border-emerald-500/40" : "border-border"}`}>
+                              <div className="flex-1 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                                <div className={`flex items-center justify-end gap-2 ${p1win ? "text-emerald-400" : "text-foreground"}`}>
+                                  <span className="text-sm font-black truncate">{match.participant1Name ?? "TBD"}</span>
+                                  {avatarMap[match.participant1Name ?? ""] ? (
+                                    <img src={avatarMap[match.participant1Name ?? ""]!} alt="" className="w-7 h-7 rounded-full object-cover shrink-0 ring-1 ring-border" />
+                                  ) : (
+                                    <div className="w-7 h-7 rounded-full bg-muted shrink-0 flex items-center justify-center text-[10px] font-black text-muted-foreground ring-1 ring-border">{((match.participant1Name ?? "?").charAt(0)).toUpperCase()}</div>
+                                  )}
+                                </div>
+                                <div className="text-center shrink-0 min-w-[60px]">
+                                  {hasScore ? (
+                                    <span className="font-mono font-black text-base bg-muted px-2 py-0.5 rounded">{match.participant1Score} — {match.participant2Score ?? 0}</span>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground font-bold">vs</span>
+                                  )}
+                                </div>
+                                <div className={`flex items-center gap-2 ${p2win ? "text-emerald-400" : "text-foreground"}`}>
+                                  {avatarMap[match.participant2Name ?? ""] ? (
+                                    <img src={avatarMap[match.participant2Name ?? ""]!} alt="" className="w-7 h-7 rounded-full object-cover shrink-0 ring-1 ring-border" />
+                                  ) : (
+                                    <div className="w-7 h-7 rounded-full bg-muted shrink-0 flex items-center justify-center text-[10px] font-black text-muted-foreground ring-1 ring-border">{((match.participant2Name ?? "?").charAt(0)).toUpperCase()}</div>
+                                  )}
+                                  <span className="text-sm font-black truncate">{match.participant2Name ?? "TBD"}</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <Badge className={`text-[9px] uppercase tracking-widest ${matchStatusColors[match.status] ?? ""}`}>
+                                  {match.status === "live" && <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 mr-1 animate-pulse" />}
+                                  {match.status}
+                                </Badge>
+                                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setEditing(match)}><Pencil className="w-3 h-3" /></Button>
+                                <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive hover:text-destructive" onClick={() => { if (confirm("Delete this match?")) deleteMatch(match.id); }}><Trash2 className="w-3 h-3" /></Button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+
+              {/* ── 1st Stage — Group Stage (standings + match entry) ── */}
+              {(!isGroupKnockout || stageTab === "group") && (
+                <>
               {/* ── GROUP STAGE tab: standings only ── */}
               {view === "groups" && (
                 <div className="space-y-8 pt-2">
@@ -1758,6 +1890,8 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
                     );
                   })}
                 </div>
+              )}
+                </>
               )}
             </>
           ) : (

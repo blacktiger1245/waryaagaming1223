@@ -95,6 +95,16 @@ function fmtTime(iso: string | null) {
   catch { return null; }
 }
 
+// Replace the bare tournament name on fixture rows with a clear stage label for
+// Round Robin + Knock-out tournaments: "Group Stage · Group A" or
+// "Knock-out · Quarter Finals". Everything else keeps the tournament name.
+function stageLabel(m: { roundName?: string | null; tournamentName?: string }): string {
+  const rn = m.roundName ?? "";
+  if (rn.startsWith("Group ")) return `Group Stage · ${rn}`;
+  if (/final|round of|quarter|semi|third place/i.test(rn)) return `Knock-out · ${rn}`;
+  return m.tournamentName ?? "";
+}
+
 // ── Avatar ────────────────────────────────────────────────────────────────────
 function Av({ name, size = "md", url }: { name: string; size?: "sm" | "md" | "lg"; url?: string | null }) {
   const sz = size === "sm" ? "w-9 h-9 text-sm" : size === "lg" ? "w-14 h-14 text-xl" : "w-11 h-11 text-base";
@@ -145,8 +155,8 @@ function MatchCard({ m, logoMap }: { m: FlatMatch; logoMap: Map<number, string |
             ) : (
               <span className="font-black text-base text-zinc-400">VS</span>
             )}
-            <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-wide mt-0.5 text-center max-w-[80px] truncate">
-              {m.tournamentName}
+            <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-wide mt-0.5 text-center max-w-[110px] truncate">
+              {stageLabel(m)}
             </span>
           </div>
 
@@ -216,8 +226,8 @@ function MatchCard({ m, logoMap }: { m: FlatMatch; logoMap: Map<number, string |
           ) : (
             <span className="font-black text-sm text-zinc-400">VS</span>
           )}
-          <span className="text-[9px] font-bold text-zinc-600 truncate max-w-[86px] text-center uppercase tracking-wide">
-            {m.tournamentName}
+          <span className="text-[9px] font-bold text-zinc-600 truncate max-w-[110px] text-center uppercase tracking-wide">
+            {stageLabel(m)}
           </span>
         </div>
 

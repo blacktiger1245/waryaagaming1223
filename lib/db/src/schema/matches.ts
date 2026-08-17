@@ -2,11 +2,17 @@ import { pgTable, serial, integer, text, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
+// Stage semantics (used for Round Robin + Knock-out tournaments):
+//   stage = 1 → Group Stage (roundName is the group, e.g. "Group A")
+//   stage = 2 → Knock-out (roundName is the round, e.g. "Quarter Finals")
+// Other formats (single elimination, plain round robin, double elimination)
+// keep the default stage = 1 and are unaffected.
 export const matchesTable = pgTable("matches", {
   id: serial("id").primaryKey(),
   tournamentId: integer("tournament_id").notNull(),
   round: integer("round").notNull().default(1),
   roundName: text("round_name"),
+  stage: integer("stage").notNull().default(1),
   status: text("status").notNull().default("scheduled"),
   participant1Id: integer("participant1_id"),
   participant1Name: text("participant1_name"),
