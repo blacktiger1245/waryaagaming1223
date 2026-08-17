@@ -399,12 +399,13 @@ function CreateTournamentDialog({
 
   function goNext() {
     if (step === 1) {
+      // Stage selection first — default is "round-robin", no validation needed.
+      setStep(2);
+    } else if (step === 2) {
       if (!name.trim()) {
         toast({ title: "Tournament name is required", variant: "destructive" });
         return;
       }
-      setStep(2);
-    } else if (step === 2) {
       if (stage === "round-robin-knockout") setStep(3);
     }
   }
@@ -458,7 +459,7 @@ function CreateTournamentDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-5 py-2">
-          {step === 1 && (
+          {step === 2 && (
             <>
               <div className="space-y-1.5">
                 <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
@@ -532,7 +533,7 @@ function CreateTournamentDialog({
             </>
           )}
 
-          {step === 2 && (
+          {step === 1 && (
             <div className="space-y-3">
               <p className="text-sm font-bold text-foreground">Tournament Stages</p>
               {STAGE_OPTIONS.map((option) => {
