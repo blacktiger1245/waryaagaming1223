@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Shield, Upload, X, Check, ChevronDown, Loader2,
-  UserCircle2, Crown, Users, Image as ImageIcon,
+  UserCircle2, Crown, Users, Star, Image as ImageIcon,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -420,7 +420,7 @@ export default function RegisterTeamPage() {
                 <UserCircle2 className="w-10 h-10 text-muted-foreground" />
               )}
               <div>
-                <div className="font-black flex items-center gap-1.5">{user?.displayName ?? user?.username}</div>
+                <div className="font-black flex items-center gap-1.5"><Crown className="w-3.5 h-3.5 text-yellow-400" />{user?.displayName ?? user?.username}</div>
                 <div className="text-xs text-muted-foreground">@{user?.username}</div>
               </div>
               <div className="ml-auto">
@@ -512,7 +512,7 @@ export default function RegisterTeamPage() {
                       )}
                       <div>
                         <div className="font-black flex items-center gap-1.5">
-                          <Crown className="w-3.5 h-3.5 text-yellow-400" />
+                          <Star className="w-3.5 h-3.5 text-blue-400" />
                           {captain.displayName ?? captain.username}
                         </div>
                         <div className="text-xs text-muted-foreground">@{captain.username}</div>
@@ -625,7 +625,7 @@ export default function RegisterTeamPage() {
                       <UserCircle2 className="w-6 h-6 text-muted-foreground" />
                     )}
                     <span className="text-sm font-semibold">{captain.displayName ?? captain.username}</span>
-                    <Crown className="w-3.5 h-3.5 text-yellow-400" />
+                    <Star className="w-3.5 h-3.5 text-blue-400" />
                   </div>
                 )}
                 {players.map((p) => (

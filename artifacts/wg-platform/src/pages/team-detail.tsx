@@ -655,7 +655,7 @@ export default function TeamDetailPage() {
       const r = await fetch(`/api/teams/${id}/captain`, {
         method: "PATCH", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ playerId }),
+        body: JSON.stringify({ captainId: playerId }),
       });
       const d = await r.json();
       if (!r.ok) { setMgmtError(d.error ?? "Failed to change captain"); return; }
@@ -670,7 +670,7 @@ export default function TeamDetailPage() {
       const r = await fetch(`/api/teams/${id}/coach`, {
         method: "PATCH", credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ playerId }),
+        body: JSON.stringify({ coachId: playerId }),
       });
       const d = await r.json();
       if (!r.ok) { setMgmtError(d.error ?? "Failed to transfer coach role"); return; }
@@ -913,7 +913,7 @@ export default function TeamDetailPage() {
                         role="President"
                         name={(team as any).president.name}
                         avatarUrl={(team as any).president.avatarUrl}
-                        icon={<Shield className="w-3 h-3 text-yellow-400" />}
+                        icon={<Crown className="w-3 h-3 text-yellow-400" />}
                       />
                     )}
                     {(team as any).coach && (
@@ -929,7 +929,7 @@ export default function TeamDetailPage() {
                         role="Captain"
                         name={captain.displayName ?? captain.username}
                         avatarUrl={captain.avatarUrl}
-                        icon={<Crown className="w-3 h-3 text-yellow-400" />}
+                        icon={<Star className="w-3 h-3 text-blue-400" />}
                       />
                     )}
                     {!(team as any).president && !(team as any).coach && !captain && !team.members?.length && (
@@ -1677,6 +1677,7 @@ export default function TeamDetailPage() {
                     ) : (
                       <div className="divide-y divide-zinc-800">
                         {members.map((m: any) => {
+                          const isMemberPresident = m.id === (team as any).presidentId;
                           const isMemberCaptain = m.id === team.captainId;
                           const isMemberCoach   = m.id === (team as any).coachId;
                           const isKicking        = kickConfirmId === m.id;
@@ -1695,9 +1696,14 @@ export default function TeamDetailPage() {
                                 <div className="flex-1 min-w-0">
                                   <p className="text-sm font-bold truncate">{m.displayName ?? m.username}</p>
                                   <div className="flex items-center gap-1.5 mt-0.5">
-                                    {isMemberCaptain && (
+                                    {isMemberPresident && (
                                       <span className="flex items-center gap-0.5 text-[10px] font-black text-yellow-400 bg-yellow-400/10 border border-yellow-400/20 px-1.5 py-0.5 rounded-full">
-                                        <Crown className="w-2.5 h-2.5" /> Captain
+                                        <Crown className="w-2.5 h-2.5" /> President
+                                      </span>
+                                    )}
+                                    {isMemberCaptain && (
+                                      <span className="flex items-center gap-0.5 text-[10px] font-black text-blue-400 bg-blue-400/10 border border-blue-400/20 px-1.5 py-0.5 rounded-full">
+                                        <Star className="w-2.5 h-2.5" /> Captain
                                       </span>
                                     )}
                                     {isMemberCoach && (
@@ -1721,8 +1727,8 @@ export default function TeamDetailPage() {
                                         <Crown className="w-3 h-3" />
                                       </button>
                                     )}
-                                    {/* Transfer Coach */}
-                                    {!isMemberCoach && (
+                                    {/* Transfer Coach — President only */}
+                                    {isPresident && !isMemberCoach && (
                                       <button
                                         onClick={() => setTransferCoachId(isNewCoach ? null : m.id)}
                                         className={`text-[10px] font-black px-2 py-1 rounded-lg border transition-colors

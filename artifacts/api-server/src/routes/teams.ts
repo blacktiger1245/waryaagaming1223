@@ -458,7 +458,8 @@ router.patch("/teams/:id/captain", async (req, res) => {
   if (!req.session?.userId) return res.status(401).json({ error: "Login required" });
   const teamId = Number(req.params.id);
   const { captainId } = req.body ?? {};
-  if (isNaN(teamId) || !Number.isInteger(captainId) || captainId <= 0) {
+  const targetId = captainId ?? req.body?.playerId;
+  if (isNaN(teamId) || !Number.isInteger(targetId) || targetId <= 0) {
     return res.status(400).json({ error: "Invalid captain id" });
   }
 
@@ -467,15 +468,15 @@ router.patch("/teams/:id/captain", async (req, res) => {
   if (role !== "president" && role !== "coach" && !isPlatformStaff(req)) {
     return res.status(403).json({ error: "Only the President or Coach can change the Captain" });
   }
-  if (captainId === team.presidentId || captainId === team.coachId) {
+  if (targetId === team.presidentId || targetId === team.coachId) {
     return res.status(400).json({ error: "The Captain must be a regular team member, not the President or Coach" });
   }
-  const [candidate] = await db.select({ teamId: playersTable.teamId }).from(playersTable).where(eq(playersTable.id, captainId));
+  const [candidate] = await db.select({ teamId: playersTable.teamId }).from(playersTable).where(eq(playersTable.id, targetId));
   if (!candidate || candidate.teamId !== teamId) {
     return res.status(400).json({ error: "The new Captain must already be a member of this team" });
   }
 
-  await db.update(teamsTable).set({ captainId }).where(eq(teamsTable.id, teamId));
+  await db.update(teamsTable).set({ captainId: targetId }).where(eq(teamsTable.id, teamId));
   const [updated] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
   return res.json(await enrichTeam(updated, req.session?.userId));
 });
@@ -485,7 +486,8 @@ router.patch("/teams/:id/coach", async (req, res) => {
   if (!req.session?.userId) return res.status(401).json({ error: "Login required" });
   const teamId = Number(req.params.id);
   const { coachId } = req.body ?? {};
-  if (isNaN(teamId) || !Number.isInteger(coachId) || coachId <= 0) {
+  const targetId = coachId ?? req.body?.playerId;
+  if (isNaN(teamId) || !Number.isInteger(targetId) || targetId <= 0) {
     return res.status(400).json({ error: "Invalid coach id" });
   }
 
@@ -494,15 +496,15 @@ router.patch("/teams/:id/coach", async (req, res) => {
   if (role !== "president" && !isPlatformStaff(req)) {
     return res.status(403).json({ error: "Only the President can change the Coach" });
   }
-  if (coachId === team.presidentId || coachId === team.captainId) {
+  if (targetId === team.presidentId || targetId === team.captainId) {
     return res.status(400).json({ error: "The Coach must be a regular team member, not the President or Captain" });
   }
-  const [candidate] = await db.select({ teamId: playersTable.teamId }).from(playersTable).where(eq(playersTable.id, coachId));
+  const [candidate] = await db.select({ teamId: playersTable.teamId }).from(playersTable).where(eq(playersTable.id, targetId));
   if (!candidate || candidate.teamId !== teamId) {
     return res.status(400).json({ error: "The new Coach must already be a member of this team" });
   }
 
-  await db.update(teamsTable).set({ coachId }).where(eq(teamsTable.id, teamId));
+  await db.update(teamsTable).set({ coachId: targetId }).where(eq(teamsTable.id, teamId));
   const [updated] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
   return res.json(await enrichTeam(updated, req.session?.userId));
 });

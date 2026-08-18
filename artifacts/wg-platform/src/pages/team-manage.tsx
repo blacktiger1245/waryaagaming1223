@@ -8,6 +8,8 @@ import {
   Crown,
   Search,
   Shield,
+  ShieldCheck,
+  Star,
   Trash2,
   UserMinus,
   UserPlus,
@@ -71,21 +73,28 @@ function RoleCard({
   label,
   person,
   accent,
+  icon,
 }: {
   label: string;
   person?: TeamMember | null;
-  accent: "yellow" | "teal";
+  accent: "yellow" | "teal" | "blue";
+  icon?: React.ReactNode;
 }) {
   const name = person?.displayName ?? person?.username ?? "Not assigned";
+  const accentText =
+    accent === "yellow" ? "text-yellow-400" : accent === "teal" ? "text-teal-400" : "text-blue-400";
   return (
     <div className="rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3">
-      <p className={`mb-2 text-[10px] font-black uppercase tracking-[0.18em] ${accent === "yellow" ? "text-yellow-400" : "text-teal-400"}`}>
+      <p className={`mb-2 text-[10px] font-black uppercase tracking-[0.18em] ${accentText}`}>
         {label}
       </p>
       <div className="flex items-center gap-3">
         <PersonAvatar person={person} />
         <div className="min-w-0">
-          <p className="truncate text-sm font-bold text-white">{name}</p>
+          <p className="flex items-center gap-1.5 truncate text-sm font-bold text-white">
+            {icon}
+            <span className="truncate">{name}</span>
+          </p>
           <p className="truncate text-xs text-zinc-500">@{person?.username ?? "unassigned"}</p>
         </div>
       </div>
@@ -127,6 +136,7 @@ export default function TeamManagePage() {
   const [addSearch, setAddSearch] = useState("");
   const [pendingCaptainId, setPendingCaptainId] = useState<number | null>(null);
   const [pendingCoachId, setPendingCoachId] = useState<number | null>(null);
+  const [transferOwnershipOpen, setTransferOwnershipOpen] = useState(false);
   const [removeId, setRemoveId] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [logoBusy, setLogoBusy] = useState(false);
@@ -219,18 +229,44 @@ export default function TeamManagePage() {
   }
 
   function updateRole(role: "captain" | "coach", playerId: number) {
+    const body = role === "captain" ? { captainId: playerId } : { coachId: playerId };
     void mutateRoster(
       `/api/teams/${id}/${role}`,
       {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ playerId }),
+        body: JSON.stringify(body),
       },
       () => {
         if (role === "captain") setPendingCaptainId(null);
         else setPendingCoachId(null);
       },
     );
+  }
+
+  // Transfer ownership (make another member the new President). President only.
+  async function changePresident(newPresidentId: number) {
+    setBusy(true); setError("");
+    try {
+      const response = await fetch(`/api/teams/${id}/transfer`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newPresidentId }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) { setError(data?.error ?? "Could not transfer ownership."); return; }
+      setTransferOwnershipOpen(false);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: getGetTeamQueryKey(id) }),
+        qc.invalidateQueries({ queryKey: ["/api/teams"] }),
+        qc.invalidateQueries({ queryKey: ["my-team"] }),
+      ]);
+    } catch {
+      setError("Could not transfer ownership right now. Please try again.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   function deleteTeam() {
@@ -389,16 +425,21 @@ export default function TeamManagePage() {
             </div>
           </section>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
-            <RoleCard label="President" person={president ?? (user as TeamMember)} accent="yellow" />
-            <RoleCard label="Coach" person={coach} accent="teal" />
-            <RoleCard label="Captain" person={captain} accent="yellow" />
+            <RoleCard label="President" person={president ?? (user as TeamMember)} accent="yellow" icon={<Crown className="h-3.5 w-3.5 text-yellow-400" />} />
+            <RoleCard label="Coach" person={coach} accent="teal" icon={<ShieldCheck className="h-3.5 w-3.5 text-teal-400" />} />
+            <RoleCard label="Captain" person={captain} accent="blue" icon={<Star className="h-3.5 w-3.5 text-blue-400" />} />
           </div>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-3">
           <ActionButton icon={<UserPlus className="h-4 w-4" />} onClick={() => setAddPlayerOpen(true)} tone="yellow">Add Player</ActionButton>
           <ActionButton icon={<Crown className="h-4 w-4" />} onClick={() => setPendingCaptainId(pendingCaptainId ? null : -1)}>Change Captain</ActionButton>
-          <ActionButton icon={<Users className="h-4 w-4" />} onClick={() => setPendingCoachId(pendingCoachId ? null : -1)}>Change Coach</ActionButton>
+          {isPresident && (
+            <ActionButton icon={<Users className="h-4 w-4" />} onClick={() => setPendingCoachId(pendingCoachId ? null : -1)}>Change Coach</ActionButton>
+          )}
+          {isPresident && (
+            <ActionButton icon={<Shield className="h-4 w-4" />} onClick={() => setTransferOwnershipOpen(!transferOwnershipOpen)}>Transfer Ownership</ActionButton>
+          )}
         </div>
 
         {error && <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-bold text-red-300">{error}</div>}
@@ -413,6 +454,7 @@ export default function TeamManagePage() {
           </div>
           <div className="divide-y divide-zinc-800">
             {visibleMembers.map((member, index) => {
+              const isPresidentMember = member.id === (team as any).presidentId;
               const isCaptain = member.id === team.captainId;
               const isCoach = member.id === (team as any).coachId;
               return (
@@ -424,8 +466,21 @@ export default function TeamManagePage() {
                       <p className="truncate text-sm font-bold text-white">{member.displayName ?? member.username}</p>
                       <p className="truncate text-xs text-zinc-500">@{member.username}</p>
                       <div className="mt-1 flex gap-1.5">
-                        {isCaptain && <span className="rounded bg-yellow-400/10 px-1.5 py-0.5 text-[9px] font-black uppercase text-yellow-400">Captain</span>}
-                        {isCoach && <span className="rounded bg-teal-400/10 px-1.5 py-0.5 text-[9px] font-black uppercase text-teal-400">Owner</span>}
+                        {isPresidentMember && (
+                          <span className="flex items-center gap-1 rounded bg-yellow-400/15 px-1.5 py-0.5 text-[9px] font-black uppercase text-yellow-400">
+                            <Crown className="h-2.5 w-2.5" /> President
+                          </span>
+                        )}
+                        {isCoach && (
+                          <span className="flex items-center gap-1 rounded bg-teal-400/15 px-1.5 py-0.5 text-[9px] font-black uppercase text-teal-400">
+                            <ShieldCheck className="h-2.5 w-2.5" /> Coach
+                          </span>
+                        )}
+                        {isCaptain && (
+                          <span className="flex items-center gap-1 rounded bg-blue-400/15 px-1.5 py-0.5 text-[9px] font-black uppercase text-blue-400">
+                            <Star className="h-2.5 w-2.5" /> Captain
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -459,8 +514,11 @@ export default function TeamManagePage() {
         {pendingCaptainId !== null && (
           <RolePicker title="Choose a new captain" members={members.filter((member) => member.id !== team.captainId)} onClose={() => setPendingCaptainId(null)} onChoose={(playerId) => updateRole("captain", playerId)} busy={busy} />
         )}
-        {pendingCoachId !== null && (
+        {isPresident && pendingCoachId !== null && (
           <RolePicker title="Choose a new coach" members={members.filter((member) => member.id !== (team as any).coachId)} onClose={() => setPendingCoachId(null)} onChoose={(playerId) => updateRole("coach", playerId)} busy={busy} />
+        )}
+        {isPresident && transferOwnershipOpen && (
+          <RolePicker title="Transfer ownership (new President)" members={members.filter((member) => member.id !== (team as any).presidentId)} onClose={() => setTransferOwnershipOpen(false)} onChoose={(playerId) => changePresident(playerId)} busy={busy} />
         )}
 
         {addPlayerOpen && (
