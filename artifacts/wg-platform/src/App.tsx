@@ -24,6 +24,7 @@ import NewsDetailPage from "@/pages/news-detail";
 import MediaPage from "@/pages/media";
 import LivePage from "@/pages/live";
 import ComingSoonPage from "@/pages/coming-soon";
+import PartnershipPage from "@/pages/partnership";
 import MarketplacePage from "@/pages/marketplace";
 import AgentMessagesPage from "@/pages/agent-messages";
 import LoginPage from "@/pages/login";
@@ -121,7 +122,10 @@ function Router() {
         <ComingSoonPage section="WG Academy" />
       </Route>
       <Route path="/partners">
-        <ComingSoonPage section="Partners" />
+        <PartnershipPage />
+      </Route>
+      <Route path="/partnership">
+        <PartnershipPage />
       </Route>
       <Route>
         <SiteRouter />
