@@ -22,6 +22,7 @@ import RankingsPage from "@/pages/rankings";
 import NewsPage from "@/pages/news";
 import NewsDetailPage from "@/pages/news-detail";
 import MediaPage from "@/pages/media";
+import MediaHubPage from "@/pages/media-hub";
 import LivePage from "@/pages/live";
 import ComingSoonPage from "@/pages/coming-soon";
 import PartnershipPage from "@/pages/partnership";
@@ -47,6 +48,7 @@ import AdminHallOfFamePage from "@/pages/admin/hall-of-fame";
 import AdminSeasonsPage from "@/pages/admin/seasons";
 import ManageAdminsPage from "@/pages/admin/manage-admins";
 import AdminAnnouncementsPage from "@/pages/admin/announcements";
+import AdminRegistrationLogsPage from "@/pages/admin/registration-logs";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -75,6 +77,7 @@ function SiteRouter() {
         <Route path="/news" component={NewsPage} />
         <Route path="/news/:id" component={NewsDetailPage} />
         <Route path="/media" component={MediaPage} />
+        <Route path="/media-hub" component={MediaHubPage} />
         <Route path="/live" component={LivePage} />
         <Route path="/marketplace" component={MarketplacePage} />
         <Route path="/agent-messages" component={AgentMessagesPage} />
@@ -109,6 +112,7 @@ function AdminRouter() {
         <Route path="/admin/hall-of-fame" component={AdminHallOfFamePage} />
         <Route path="/admin/manage-admins" component={ManageAdminsPage} />
         <Route path="/admin/announcements" component={AdminAnnouncementsPage} />
+        <Route path="/admin/registration-logs" component={AdminRegistrationLogsPage} />
         <Route component={NotFound} />
       </Switch>
     </AdminLayout>

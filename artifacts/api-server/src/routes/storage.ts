@@ -87,6 +87,41 @@ router.post(
     }
   },
 );
+/**
+ * POST /storage/uploads/serial-screenshot/direct
+ *
+ * Upload a serial-number proof screenshot through the API. Reuses the same
+ * object-storage pipeline as the team-logo direct upload so the browser never
+ * talks to the bucket directly. Any logged-in user may upload an image.
+ */
+router.post(
+  '/storage/uploads/serial-screenshot/direct',
+  async (req: Request, res: Response) => {
+    if (!req.session?.userId) {
+      res.status(401).json({ error: 'You must be logged in to upload a screenshot' });
+      return;
+    }
+
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      res.status(400).json({ error: 'An image file is required' });
+      return;
+    }
+
+    const contentType = req.get('content-type') || 'application/octet-stream';
+    if (!contentType.startsWith('image/')) {
+      res.status(400).json({ error: 'Only image uploads are supported' });
+      return;
+    }
+
+    try {
+      const objectPath = await objectStorageService.uploadObject(req.body, contentType);
+      return res.status(201).json({ objectPath });
+    } catch (error) {
+      req.log.error({ err: error }, 'Error uploading serial screenshot through API');
+      return res.status(500).json({ error: 'Failed to upload screenshot' });
+    }
+  },
+);
 
 /**
  * POST /storage/uploads/squad-image

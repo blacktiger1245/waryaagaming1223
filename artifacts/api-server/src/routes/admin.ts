@@ -13,6 +13,7 @@ import {
   hallOfFameTable,
   seasonsTable,
   tournamentAdminsTable,
+  teamMemberDevicesTable,
   playerPoints,
   pointsToMarketValue,
 } from "@workspace/db";
@@ -1669,6 +1670,85 @@ router.get("/admin/stats", async (_req, res) => {
     db.$count(mediaTable),
   ]);
   res.json({ players, teams, tournaments, matches, news, media });
+});
+
+// ─── Registration Logs (admin only) ───────────────────────────────────────────
+// Logs are created automatically whenever a user submits "Add Your Details"
+// (the same row that powers the member device registration). Admins may view,
+// edit (status + details) and delete each log. requireAdmin is enforced below.
+
+const REGISTRATION_STATUSES = ["pending", "approved", "rejected"] as const;
+
+router.get("/admin/registration-logs", requireAdmin, async (_req, res) => {
+  const rows = await db
+    .select({
+      id: teamMemberDevicesTable.id,
+      userId: teamMemberDevicesTable.playerId,
+      deviceName: teamMemberDevicesTable.deviceName,
+      serialNumber: teamMemberDevicesTable.serialNumber,
+      screenshotPath: teamMemberDevicesTable.screenshotPath,
+      status: teamMemberDevicesTable.status,
+      submittedAt: teamMemberDevicesTable.createdAt,
+      username: playersTable.username,
+      displayName: playersTable.displayName,
+      teamName: teamsTable.name,
+    })
+    .from(teamMemberDevicesTable)
+    .leftJoin(playersTable, eq(teamMemberDevicesTable.playerId, playersTable.id))
+    .leftJoin(teamsTable, eq(teamMemberDevicesTable.teamId, teamsTable.id))
+    .orderBy(desc(teamMemberDevicesTable.createdAt));
+
+  return res.json(
+    rows.map((row) => ({
+      ...row,
+      userName: row.displayName ?? row.username ?? "Unknown",
+      submittedAt: row.submittedAt.toISOString(),
+    })),
+  );
+});
+
+router.patch("/admin/registration-logs/:id", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (Number.isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+
+  const { status, serialNumber, deviceName } = req.body as {
+    status?: string;
+    serialNumber?: string;
+    deviceName?: string;
+  };
+
+  const patch: { status?: string; serialNumber?: string; deviceName?: string } = {};
+  if (typeof status === "string" && (REGISTRATION_STATUSES as readonly string[]).includes(status)) {
+    patch.status = status;
+  }
+  if (typeof serialNumber === "string") patch.serialNumber = serialNumber.trim();
+  if (typeof deviceName === "string") patch.deviceName = deviceName.trim();
+
+  if (Object.keys(patch).length === 0) {
+    return res.status(400).json({ error: "Nothing to update" });
+  }
+
+  const [row] = await db
+    .update(teamMemberDevicesTable)
+    .set(patch)
+    .where(eq(teamMemberDevicesTable.id, id))
+    .returning();
+  if (!row) return res.status(404).json({ error: "Log not found" });
+
+  return res.json({ ok: true, ...row, submittedAt: row.createdAt.toISOString() });
+});
+
+router.delete("/admin/registration-logs/:id", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (Number.isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+
+  const [deleted] = await db
+    .delete(teamMemberDevicesTable)
+    .where(eq(teamMemberDevicesTable.id, id))
+    .returning();
+  if (!deleted) return res.status(404).json({ error: "Log not found" });
+
+  return res.json({ ok: true });
 });
 
 export default router;

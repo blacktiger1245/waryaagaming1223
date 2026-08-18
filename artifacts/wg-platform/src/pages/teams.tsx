@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Search, Shield, Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import TeamDeviceModal from "@/components/team-device-modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useListTeams } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
@@ -17,6 +18,7 @@ export default function TeamsPage() {
   const [, navigate] = useLocation();
   const qc = useQueryClient();
   const [leaveError, setLeaveError] = useState<string | null>(null);
+  const [deviceModalOpen, setDeviceModalOpen] = useState(false);
   const { data: myTeam, isLoading: myTeamLoading } = useQuery<any | null>({
     queryKey: ["my-team"],
     queryFn: async () => {
@@ -63,12 +65,29 @@ export default function TeamsPage() {
           </div>
           {isLoggedIn && !myTeamLoading && (
             <div className="flex flex-col items-end gap-2">
-              <Button
-                onClick={hasTeam ? leaveTeam : () => navigate("/register-team")}
-                className={`flex items-center gap-2 font-bold uppercase tracking-wide ${hasTeam ? "bg-transparent border border-destructive/50 text-destructive hover:bg-destructive/10" : ""}`}
-              >
-                {hasTeam ? "Leave Your Team" : "Register Your Team"}
-              </Button>
+              {hasTeam ? (
+                <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+                  <Button
+                    onClick={() => setDeviceModalOpen(true)}
+                    className="flex items-center gap-2 font-bold uppercase tracking-wide"
+                  >
+                    Add Your Details
+                  </Button>
+                  <Button
+                    onClick={leaveTeam}
+                    className="flex items-center justify-center gap-2 bg-transparent border border-destructive/50 text-destructive font-bold uppercase tracking-wide hover:bg-destructive/10"
+                  >
+                    Leave Your Team
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  onClick={() => navigate("/register-team")}
+                  className="flex items-center gap-2 font-bold uppercase tracking-wide"
+                >
+                  Register Your Team
+                </Button>
+              )}
               {hasTeam && (
                 <button
                   onClick={() => navigate(myRole === "player" ? `/teams/${myTeam.id}` : `/teams/${myTeam.id}/manage`)}
@@ -146,6 +165,19 @@ export default function TeamsPage() {
               ))}
         </div>
       </motion.div>
+
+      {isLoggedIn && myTeam && (
+        <TeamDeviceModal
+          open={deviceModalOpen}
+          onClose={() => setDeviceModalOpen(false)}
+          teamId={myTeam.id}
+          teamName={myTeam.name}
+          onSaved={() => {
+            qc.invalidateQueries({ queryKey: ["my-team"] });
+            qc.invalidateQueries({ queryKey: ["teams"] });
+          }}
+        />
+      )}
     </div>
   );
 }

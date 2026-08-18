@@ -7,12 +7,14 @@ import matchesRouter from "./matches";
 import rankingsRouter from "./rankings";
 import newsRouter from "./news";
 import mediaRouter from "./media";
+import mediaHubRouter from "./media-hub";
 import statsRouter from "./stats";
 import storageRouter from "./storage";
 import communityRouter from "./community";
 import seasonsRouter from "./seasons";
 import announcementsRouter from "./announcements";
 import agentChatRouter from "./agent-chat";
+import memberDeviceRouter from "./member-device";
 
 const router: IRouter = Router();
 
@@ -24,12 +26,14 @@ router.use(matchesRouter);
 router.use(rankingsRouter);
 router.use(newsRouter);
 router.use(mediaRouter);
+router.use(mediaHubRouter);
 router.use(statsRouter);
 router.use(storageRouter);
 router.use(communityRouter);
 router.use(seasonsRouter);
 router.use(announcementsRouter);
 router.use(agentChatRouter);
+router.use(memberDeviceRouter);
 // Note: auth routes are mounted directly in app.ts
 
 export default router;

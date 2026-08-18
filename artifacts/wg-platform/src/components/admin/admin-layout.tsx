@@ -15,6 +15,7 @@ import {
   Crown,
   CalendarRange,
   Megaphone,
+  ClipboardList,
 } from "lucide-react";
 import { useAdminAuth } from "@/hooks/use-admin-auth";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ const baseNavItems = [
   { href: "/admin/media", label: "Media", icon: PlaySquare },
   { href: "/admin/hall-of-fame", label: "Hall of Fame", icon: Star },
   { href: "/admin/announcements", label: "Announcements", icon: Megaphone },
+  { href: "/admin/registration-logs", label: "Registration Logs", icon: ClipboardList },
 ];
 
 // Extra nav item shown only to the owner.
