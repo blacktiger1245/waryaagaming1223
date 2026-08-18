@@ -137,9 +137,12 @@ export default function TeamManagePage() {
   const members = (team?.members ?? []) as TeamMember[];
   const captain = members.find((member) => member.id === team?.captainId);
   const coach = members.find((member) => member.id === (team as any)?.coachId);
-  const isOwner =
-    !!user &&
-    (user.id === (team as any)?.coachId || user.username === "black_tiger" || user.role === "admin" || user.role === "owner");
+  const president = members.find((member) => member.id === (team as any)?.presidentId);
+  // Role is computed server-side and exposed as `selfRole`; never trust the client.
+  const role = (team as any)?.selfRole ?? null;
+  const isPlatformStaff = !!user && (user.username === "black_tiger" || user.role === "admin" || user.role === "owner");
+  const isManager = !!user && (role === "president" || role === "coach" || isPlatformStaff);
+  const isPresident = !!user && (role === "president" || isPlatformStaff);
   const pageSize = 5;
   const pageCount = Math.max(1, Math.ceil(members.length / pageSize));
   const visibleMembers = members.slice((page - 1) * pageSize, page * pageSize);
@@ -152,7 +155,7 @@ export default function TeamManagePage() {
       const players = await response.json();
       return players.filter((player: TeamMember & { teamId?: number | null }) => player.teamId == null);
     },
-    enabled: addPlayerOpen && isOwner,
+    enabled: addPlayerOpen && isManager,
   });
 
   const filteredFreeAgents = useMemo(
@@ -236,6 +239,30 @@ export default function TeamManagePage() {
     });
   }
 
+  async function leaveTeam() {
+    if (!window.confirm("Are you sure you want to leave this team?")) return;
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/teams/${id}/leave`, { method: "POST", credentials: "include" });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        setError(data?.error ?? "Could not leave the team.");
+        return;
+      }
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: getGetTeamQueryKey(id) }),
+        qc.invalidateQueries({ queryKey: ["/api/teams"] }),
+        qc.invalidateQueries({ queryKey: ["my-team"] }),
+      ]);
+      navigate("/teams");
+    } catch {
+      setError("Could not leave the team right now. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function changeLogo(file: File) {
     setLogoBusy(true);
     setError("");
@@ -284,12 +311,12 @@ export default function TeamManagePage() {
     );
   }
 
-  if (!isOwner) {
+  if (!isManager) {
     return (
       <div className="container mx-auto px-4 py-20 text-center">
         <Shield className="mx-auto mb-4 h-14 w-14 text-zinc-700" />
-        <h1 className="text-2xl font-black text-white">Owner access required</h1>
-        <p className="mt-2 text-sm text-zinc-500">Only the team owner can manage this team.</p>
+        <h1 className="text-2xl font-black text-white">Manager access required</h1>
+        <p className="mt-2 text-sm text-zinc-500">Only the President or Coach can manage team settings and the roster.</p>
         <Button className="mt-5 gap-2" asChild><Link href={`/teams/${id}`}><ArrowLeft className="h-4 w-4" /> View team profile</Link></Button>
       </div>
     );
@@ -302,9 +329,20 @@ export default function TeamManagePage() {
           <p className="text-xs font-bold uppercase tracking-widest text-zinc-500">Dashboard <span className="px-1 text-zinc-700">›</span> Teams <span className="px-1 text-zinc-700">›</span> <span className="text-yellow-400">Manage Team</span></p>
           <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
             <h1 className="text-3xl font-black tracking-tight text-white">Manage Team</h1>
-            <Button variant="ghost" size="sm" className="gap-2 text-zinc-400 hover:text-white" asChild>
-              <Link href={`/teams/${id}`}><ArrowLeft className="h-4 w-4" /> View public profile</Link>
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-2 border border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-white"
+                onClick={leaveTeam}
+                disabled={busy}
+              >
+                <UserMinus className="h-4 w-4" /> {busy ? "Leaving…" : "Leave Team"}
+              </Button>
+              <Button variant="ghost" size="sm" className="gap-2 text-zinc-400 hover:text-white" asChild>
+                <Link href={`/teams/${id}`}><ArrowLeft className="h-4 w-4" /> View public profile</Link>
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -351,8 +389,9 @@ export default function TeamManagePage() {
             </div>
           </section>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+            <RoleCard label="President" person={president ?? (user as TeamMember)} accent="yellow" />
+            <RoleCard label="Coach" person={coach} accent="teal" />
             <RoleCard label="Captain" person={captain} accent="yellow" />
-            <RoleCard label="Coach / Owner" person={coach ?? (user as TeamMember)} accent="teal" />
           </div>
         </div>
 
@@ -436,18 +475,20 @@ export default function TeamManagePage() {
           </div>
         )}
 
-        <div className="mt-10 border-t border-red-500/20 pt-6">
-          <div className="flex flex-col justify-between gap-4 rounded-xl border border-red-500/20 bg-red-500/5 p-5 sm:flex-row sm:items-center">
-            <div><h2 className="font-black text-red-300">Danger zone</h2><p className="mt-1 text-sm text-zinc-500">Delete this team and release every player from its roster.</p></div>
-            <AlertDialog>
-              <AlertDialogTrigger asChild><Button variant="outline" className="gap-2 border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300"><Trash2 className="h-4 w-4" /> Delete Team</Button></AlertDialogTrigger>
-              <AlertDialogContent className="border-zinc-700 bg-zinc-900">
-                <AlertDialogHeader><AlertDialogTitle>Delete {team.name}?</AlertDialogTitle><AlertDialogDescription>This cannot be undone. The team will be removed and all {members.length} rostered players will become free agents.</AlertDialogDescription></AlertDialogHeader>
-                <AlertDialogFooter><AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel><AlertDialogAction disabled={busy} onClick={(event) => { event.preventDefault(); deleteTeam(); }} className="bg-red-500 text-white hover:bg-red-600">Delete Team</AlertDialogAction></AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+        {isPresident && (
+          <div className="mt-10 border-t border-red-500/20 pt-6">
+            <div className="flex flex-col justify-between gap-4 rounded-xl border border-red-500/20 bg-red-500/5 p-5 sm:flex-row sm:items-center">
+              <div><h2 className="font-black text-red-300">Danger zone</h2><p className="mt-1 text-sm text-zinc-500">Delete this team and release every player from its roster. Only the President can delete the team.</p></div>
+              <AlertDialog>
+                <AlertDialogTrigger asChild><Button variant="outline" className="gap-2 border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300"><Trash2 className="h-4 w-4" /> Delete Team</Button></AlertDialogTrigger>
+                <AlertDialogContent className="border-zinc-700 bg-zinc-900">
+                  <AlertDialogHeader><AlertDialogTitle>Delete {team.name}?</AlertDialogTitle><AlertDialogDescription>This cannot be undone. The team will be removed and all {members.length} rostered players will become free agents.</AlertDialogDescription></AlertDialogHeader>
+                  <AlertDialogFooter><AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel><AlertDialogAction disabled={busy} onClick={(event) => { event.preventDefault(); deleteTeam(); }} className="bg-red-500 text-white hover:bg-red-600">Delete Team</AlertDialogAction></AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

@@ -36,6 +36,7 @@ async function registerTeam(payload: {
   tag?: string;
   description?: string;
   logoUrl?: string;
+  coachId: number;
   captainId: number;
   playerIds: number[];
 }) {
@@ -206,6 +207,7 @@ export default function RegisterTeamPage() {
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [captain, setCaptain] = useState<DiscordPlayer | null>(null);
+  const [coach, setCoach] = useState<DiscordPlayer | null>(null);
   const [players, setPlayers] = useState<DiscordPlayer[]>([]);
 
   // async state
@@ -223,9 +225,8 @@ export default function RegisterTeamPage() {
     fetchAllPlayers()
       .then((allPlayers) => {
         setDiscordPlayers(allPlayers);
-        // Pre-select the coach as a squad member so they're always on their own team
-        const me = allPlayers.find((p) => p.id === user.id);
-        if (me) setPlayers([me]);
+        // The current user is the auto-assigned President, NOT a plain Player,
+        // so they are not pre-added to the squad.
       })
       .catch(() => setDiscordPlayers([]))
       .finally(() => setLoadingPlayers(false));
@@ -251,7 +252,10 @@ export default function RegisterTeamPage() {
   );
 
   const addPlayer = (p: DiscordPlayer) => {
-    setPlayers((prev) => [...prev, p]);
+    // Prevent the President (current user), Coach or Captain from also being
+    // added as a plain Player, and prevent duplicates.
+    if (p.id === user?.id || coach?.id === p.id || captain?.id === p.id) return;
+    setPlayers((prev) => (prev.some((x) => x.id === p.id) ? prev : [...prev, p]));
   };
 
   const removePlayer = (id: number) => {
@@ -261,7 +265,8 @@ export default function RegisterTeamPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!teamName.trim()) return setError("Team name is required");
-    if (!captain) return setError("Please select a team captain");
+    if (!coach) return setError("Please select a team Coach");
+    if (!captain) return setError("Please select a team Captain");
     setError(null);
     setSubmitting(true);
 
@@ -277,6 +282,7 @@ export default function RegisterTeamPage() {
       const team = await registerTeam({
         name: teamName.trim(),
         logoUrl,
+        coachId: coach.id,
         captainId: captain.id,
         playerIds: players.map((p) => p.id),
       });
@@ -284,6 +290,7 @@ export default function RegisterTeamPage() {
       // Invalidate teams + auth so everything refreshes
       qc.invalidateQueries({ queryKey: ["teams"] });
       qc.invalidateQueries({ queryKey: ["auth"] });
+      qc.invalidateQueries({ queryKey: ["my-team"] });
       navigate(`/teams/${team.id}`);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -291,8 +298,10 @@ export default function RegisterTeamPage() {
     }
   };
 
-  // all players who cannot be picked for "add players" (coach + captain + already picked)
+  // all players who cannot be picked for "add players" (president + coach + captain + already picked)
   const excludedFromPlayers = [
+    ...(user ? [user.id] : []),
+    ...(coach ? [coach.id] : []),
     ...(captain ? [captain.id] : []),
     ...players.map((p) => p.id),
   ];
@@ -324,7 +333,7 @@ export default function RegisterTeamPage() {
           <p className="text-primary text-xs font-bold uppercase tracking-widest mb-2">Teams</p>
           <h1 className="text-4xl font-black uppercase tracking-tight">Register Your Team</h1>
           <p className="text-muted-foreground mt-2 text-sm">
-            Fill in your team details below. You will be registered as the team coach.
+            Fill in your team details below. You will automatically become the team President.
           </p>
         </div>
 
@@ -399,25 +408,86 @@ export default function RegisterTeamPage() {
             </div>
           </div>
 
-          {/* ── Team Coach (auto, read-only) ── */}
+          {/* ── Team President (auto — current user, read-only) ── */}
           <div className="space-y-3">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Team Coach</h2>
-            <div className="flex items-center gap-3 bg-card border border-border rounded-xl px-4 py-3">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+              Team President <span className="text-red-500">*</span>
+            </h2>
+            <div className="flex items-center gap-3 bg-card border border-primary/30 rounded-xl px-4 py-3">
               {user?.avatarUrl ? (
                 <img src={user.avatarUrl} alt="" className="w-10 h-10 rounded-full" />
               ) : (
                 <UserCircle2 className="w-10 h-10 text-muted-foreground" />
               )}
               <div>
-                <div className="font-black">{user?.displayName ?? user?.username}</div>
+                <div className="font-black flex items-center gap-1.5">{user?.displayName ?? user?.username}</div>
                 <div className="text-xs text-muted-foreground">@{user?.username}</div>
               </div>
               <div className="ml-auto">
                 <span className="text-[10px] bg-primary/20 text-primary font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">
-                  You
+                  President
                 </span>
               </div>
             </div>
+            <p className="text-xs text-muted-foreground -mt-1">
+              You are automatically the President / owner of the team.
+            </p>
+          </div>
+
+          {/* ── Team Coach (select) ── */}
+          <div className="space-y-3">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+              Team Coach <span className="text-red-500">*</span>
+            </h2>
+
+            {loadingPlayers ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" /> Loading players…
+              </div>
+            ) : (
+              <>
+                {coach ? (
+                  <AnimatePresence>
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.96 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.96 }}
+                      className="flex items-center gap-3 bg-card border border-primary/40 rounded-xl px-4 py-3"
+                    >
+                      {coach.avatarUrl ? (
+                        <img src={coach.avatarUrl} alt="" className="w-10 h-10 rounded-full" />
+                      ) : (
+                        <UserCircle2 className="w-10 h-10 text-muted-foreground" />
+                      )}
+                      <div>
+                        <div className="font-black">{coach.displayName ?? coach.username}</div>
+                        <div className="text-xs text-muted-foreground">@{coach.username}</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setCoach(null)}
+                        className="ml-auto text-muted-foreground hover:text-red-400 transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </motion.div>
+                  </AnimatePresence>
+                ) : (
+                  <PlayerDropdown
+                    players={discordPlayers ?? []}
+                    selectedIds={[]}
+                    excludeIds={[...(user ? [user.id] : []), ...(captain ? [captain.id] : []), ...players.map((p) => p.id)]}
+                    placeholder="Select team coach…"
+                    onSelect={(p) => {
+                      setCoach(p);
+                      // Ensure the coach is not also a player or captain.
+                      setPlayers((prev) => prev.filter((x) => x.id !== p.id));
+                      if (captain?.id === p.id) setCaptain(null);
+                    }}
+                  />
+                )}
+              </>
+            )}
           </div>
 
           {/* ── Team Captain ── */}
@@ -460,12 +530,13 @@ export default function RegisterTeamPage() {
                   <PlayerDropdown
                     players={discordPlayers ?? []}
                     selectedIds={[]}
-                    excludeIds={[]}
+                    excludeIds={[...(user ? [user.id] : []), ...(coach ? [coach.id] : []), ...players.map((p) => p.id)]}
                     placeholder="Select team captain…"
                     onSelect={(p) => {
                       setCaptain(p);
-                      // Remove from squad if already added
+                      // The captain cannot also be the coach or a squad player.
                       setPlayers((prev) => prev.filter((x) => x.id !== p.id));
+                      if (coach?.id === p.id) setCoach(null);
                     }}
                   />
                 )}
@@ -523,9 +594,29 @@ export default function RegisterTeamPage() {
               className="rounded-2xl border border-border bg-card p-4 space-y-3"
             >
               <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                Roster Preview — {1 + players.length} member{players.length !== 0 ? "s" : ""}
+                Roster Preview — {1 + (coach ? 1 : 0) + (captain ? 1 : 0) + players.length} members
               </p>
               <div className="flex flex-wrap gap-2">
+                <div className="flex items-center gap-2 bg-primary/10 border border-primary/30 rounded-lg px-3 py-1.5">
+                  {user?.avatarUrl ? (
+                    <img src={user.avatarUrl} alt="" className="w-6 h-6 rounded-full" />
+                  ) : (
+                    <UserCircle2 className="w-6 h-6 text-muted-foreground" />
+                  )}
+                  <span className="text-sm font-semibold">{user?.displayName ?? user?.username}</span>
+                  <span className="text-[9px] font-bold bg-primary/20 text-primary uppercase tracking-wider px-1.5 py-0.5 rounded-full">President</span>
+                </div>
+                {coach && (
+                  <div className="flex items-center gap-2 bg-sky-400/10 border border-sky-400/30 rounded-lg px-3 py-1.5">
+                    {coach.avatarUrl ? (
+                      <img src={coach.avatarUrl} alt="" className="w-6 h-6 rounded-full" />
+                    ) : (
+                      <UserCircle2 className="w-6 h-6 text-muted-foreground" />
+                    )}
+                    <span className="text-sm font-semibold">{coach.displayName ?? coach.username}</span>
+                    <span className="text-[9px] font-bold bg-sky-400/20 text-sky-400 uppercase tracking-wider px-1.5 py-0.5 rounded-full">Coach</span>
+                  </div>
+                )}
                 {captain && (
                   <div className="flex items-center gap-2 bg-yellow-400/10 border border-yellow-400/30 rounded-lg px-3 py-1.5">
                     {captain.avatarUrl ? (

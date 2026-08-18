@@ -9,36 +9,85 @@ import {
 
 const router = Router();
 
-function canActAsCoach(req: import("express").Request, team: { coachId: number | null } | null | undefined) {
-  if (!team) return false;
-  const userId = req.session?.userId;
+// ── team role helpers ──────────────────────────────────────────────────────────
+type TeamRole = "president" | "coach" | "captain" | "player";
+
+// Admin/owner platform staff bypass ordinary member checks (kept from the old
+// system) but the four team roles always come from the database, never the body.
+function isPlatformStaff(req: import("express").Request) {
+  if (req.session?.isAdmin) return true;
   const username = (req.session?.username ?? "").toLowerCase();
-  const isAdminBypass = !!req.session?.isAdmin || username === "black_tiger" || req.session?.role === "admin" || req.session?.role === "owner";
-  return isAdminBypass || userId === team.coachId;
+  return username === "black_tiger" || req.session?.role === "admin" || req.session?.role === "owner";
 }
 
-// ── helpers ────────────────────────────────────────────────────────────────────
-async function enrichTeam(t: typeof teamsTable.$inferSelect) {
-  const [captain] = await db
-    .select({ username: playersTable.username, displayName: playersTable.displayName, avatarUrl: playersTable.avatarUrl })
+// Resolve the authenticated user's actual role in a team entirely from the DB.
+async function resolveTeamRole(
+  req: import("express").Request,
+  team: typeof teamsTable.$inferSelect | null | undefined,
+): Promise<TeamRole | null> {
+  if (!team) return null;
+  const uid = req.session?.userId;
+  if (!uid) return null;
+  if (team.presidentId === uid) return "president";
+  if (team.coachId === uid) return "coach";
+  if (team.captainId === uid) return "captain";
+  const [m] = await db
+    .select({ teamId: playersTable.teamId })
     .from(playersTable)
-    .where(eq(playersTable.id, t.captainId));
+    .where(eq(playersTable.id, uid));
+  return m?.teamId === team.id ? "player" : null;
+}
 
-  const coachId = t.coachId;
-  const coach = coachId
-    ? (await db
-        .select({ id: playersTable.id, username: playersTable.username, displayName: playersTable.displayName, avatarUrl: playersTable.avatarUrl })
-        .from(playersTable)
-        .where(eq(playersTable.id, coachId)))[0] ?? null
-    : null;
+async function resolveTeamWithCheck(req: import("express").Request, teamId: number) {
+  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
+  const role = await resolveTeamRole(req, team);
+  return { team, role };
+}
 
+async function playerBrief(id: number | null) {
+  if (id == null) return null;
+  const [p] = await db
+    .select({ id: playersTable.id, username: playersTable.username, displayName: playersTable.displayName, avatarUrl: playersTable.avatarUrl })
+    .from(playersTable)
+    .where(eq(playersTable.id, id));
+  return p ? { id: p.id, username: p.username, name: p.displayName ?? p.username, displayName: p.displayName, avatarUrl: p.avatarUrl } : null;
+}
+
+// Enriched team payload shared by list / detail / mine endpoints.
+// Each member is tagged with its role; leadership is exposed explicitly.
+async function enrichTeam(t: typeof teamsTable.$inferSelect, selfId?: number) {
   const members = await db.select().from(playersTable).where(eq(playersTable.teamId, t.id));
+  const withRoles = members.map((m) => {
+    const teamRole: TeamRole =
+      m.id === t.presidentId ? "president"
+      : m.id === t.coachId ? "coach"
+      : m.id === t.captainId ? "captain"
+      : "player";
+    return { ...m, teamName: t.name, teamRole, createdAt: m.createdAt.toISOString() };
+  });
+  let selfRole: TeamRole | null = null;
+  if (selfId != null) {
+    selfRole = withRoles.find((x) => x.id === selfId)?.teamRole ?? null;
+  }
+  const brief = (id: number | null) => withRoles.find((m) => m.id === id) ?? null;
+  const leaderBrief = (id: number | null) => {
+    const m = brief(id);
+    return m ? { id: m.id, name: m.displayName ?? m.username, username: m.username, avatarUrl: m.avatarUrl } : null;
+  };
+  const president = leaderBrief(t.presidentId);
+  const coach = leaderBrief(t.coachId);
+  const captain = leaderBrief(t.captainId);
   return {
     ...t,
-    captainName: captain?.displayName ?? captain?.username ?? "Unknown",
-    coach: coach ? { id: coach.id, name: coach.displayName ?? coach.username, avatarUrl: coach.avatarUrl } : null,
-    memberCount: members.length,
-    members: members.map((m) => ({ ...m, teamName: t.name, createdAt: m.createdAt.toISOString() })),
+    president,
+    coach,
+    captain,
+    captainName: captain?.name ?? "Unknown",
+    presidentName: president?.name ?? "Unknown",
+    memberCount: withRoles.length,
+    members: withRoles,
+    teammates: withRoles.filter((m) => m.teamRole === "player"),
+    selfRole,
     createdAt: t.createdAt.toISOString(),
   };
 }
@@ -55,7 +104,8 @@ router.get("/teams", async (req, res) => {
     .where(search ? ilike(teamsTable.name, `%${search}%`) : undefined)
     .orderBy(teamsTable.points);
 
-  return res.json(await Promise.all(teams.map(enrichTeam)));
+  const selfId = req.session?.userId;
+  return res.json(await Promise.all(teams.map((t) => enrichTeam(t, selfId))));
 });
 
 // ── GET /teams/mine (current user's team, if any) ──────────────────────────────
@@ -67,10 +117,10 @@ router.get("/teams/mine", async (req, res) => {
     .select({ team: teamsTable })
     .from(teamsTable)
     .leftJoin(playersTable, eq(playersTable.teamId, teamsTable.id))
-    .where(or(eq(teamsTable.coachId, userId), eq(teamsTable.captainId, userId), eq(playersTable.id, userId)))
+    .where(or(eq(teamsTable.coachId, userId), eq(teamsTable.captainId, userId), eq(teamsTable.presidentId, userId), eq(playersTable.id, userId)))
     .limit(1);
 
-  return res.json(team?.team ? await enrichTeam(team.team) : null);
+  return res.json(team?.team ? await enrichTeam(team.team, userId) : null);
 });
 
 // ── GET /players/discord-registered ───────────────────────────────────────────
@@ -92,33 +142,47 @@ router.get("/players/discord-registered", async (_req, res) => {
 });
 
 // ── POST /teams/register (requires auth) ──────────────────────────────────────
+// The authenticated user automatically becomes the team President.
+// Coach and Captain are selected from registered players; other members go under
+// "Players". Roles are derived from the DB, never from the client body.
 router.post("/teams/register", async (req, res) => {
-  if (!req.session?.userId) {
+  const userId = req.session?.userId;
+  if (!userId) {
     return res.status(401).json({ error: "You must be logged in to register a team" });
   }
 
-  const { name, tag, description, logoUrl, captainId, playerIds } = req.body ?? {};
+  const { name, tag, description, logoUrl, coachId, captainId, playerIds } = req.body ?? {};
 
   if (!name || typeof name !== "string" || name.trim().length < 2) {
     return res.status(400).json({ error: "Team name must be at least 2 characters" });
   }
-  if (typeof captainId !== "number") {
-    return res.status(400).json({ error: "captainId is required" });
+  if (typeof captainId !== "number" || typeof coachId !== "number") {
+    return res.status(400).json({ error: "Both a Coach and a Captain are required" });
+  }
+  if (!Number.isInteger(captainId) || !Number.isInteger(coachId) || captainId <= 0 || coachId <= 0) {
+    return res.status(400).json({ error: "Invalid Coach or Captain selection" });
   }
 
-  const coachId = req.session.userId;
+  // The auth user is the President/owner and cannot be assigned another role.
+  if (coachId === userId || captainId === userId) {
+    return res.status(400).json({ error: "The President must not also hold another team role" });
+  }
+  if (coachId === captainId) {
+    return res.status(400).json({ error: "Coach and Captain cannot be the same person" });
+  }
 
-  const extraIds: number[] = Array.isArray(playerIds) ? playerIds.filter((id: unknown) => typeof id === "number") : [];
-  // Always include the coach as a team member so the person registering
-  // the team is automatically part of their own squad.
-  const allPlayerIds = Array.from(new Set([captainId, coachId, ...extraIds]));
+  const extraIds: number[] = Array.isArray(playerIds)
+    ? Array.from(new Set(playerIds.filter((id: unknown): id is number => Number.isInteger(id) && (id as number) > 0)))
+    : [];
+  if (extraIds.includes(userId) || extraIds.includes(coachId) || extraIds.includes(captainId)) {
+    return res.status(400).json({ error: "President, Coach and Captain cannot also be listed as Players" });
+  }
 
-  // All work runs inside a serializable transaction so concurrent registrations
-  // cannot both pass the "player not yet on a team" check at the same time.
-  let team: typeof teamsTable.$inferSelect;
+  // Everyone in the new squad: President + Coach + Captain + Players.
+  const allPlayerIds = Array.from(new Set([userId, coachId, captainId, ...extraIds]));
+
   try {
-    team = await db.transaction(async (tx) => {
-      // 1. Ensure name is unique
+    const team = await db.transaction(async (tx) => {
       const [existing] = await tx.select({ id: teamsTable.id }).from(teamsTable).where(eq(teamsTable.name, name.trim()));
       if (existing) {
         const err = new Error("A team with that name already exists");
@@ -126,64 +190,61 @@ router.post("/teams/register", async (req, res) => {
         throw err;
       }
 
-      // 2. Lock the player rows (FOR UPDATE) so concurrent transactions must wait,
-      //    then verify none are already on a team.
-      if (allPlayerIds.length > 0) {
-        const idArray = sql`ARRAY[${sql.join(allPlayerIds.map((id) => sql`${id}`), sql`, `)}]::int[]`;
-        const lockedPlayers = await tx.execute(
-          sql`SELECT id, display_name, username, team_id FROM players WHERE id = ANY(${idArray}) ORDER BY id FOR UPDATE`
-        );
-        const rows = (lockedPlayers as any).rows as { id: number; display_name: string | null; username: string; team_id: number | null }[];
-        const alreadyTeamed = rows.filter((p) => p.team_id !== null);
-        if (alreadyTeamed.length > 0) {
-          const names = alreadyTeamed.map((p) => p.display_name ?? p.username).join(", ");
-          const err = new Error(`The following player(s) already belong to a team: ${names}`);
-          (err as any).status = 409;
-          throw err;
-        }
+      // Verify every selected user actually exists (President/Coach/Captain/Players).
+      const idArray = sql`ARRAY[${sql.join(allPlayerIds.map((id) => sql`${id}`), sql`, `)}]::int[]`;
+      const lockedPlayers = await tx.execute(
+        sql`SELECT id, display_name, username, team_id FROM players WHERE id = ANY(${idArray}) ORDER BY id FOR UPDATE`
+      );
+      const rows = (lockedPlayers as any).rows as { id: number; display_name: string | null; username: string; team_id: number | null }[];
+
+      // Every requested id must exist.
+      if (rows.length !== allPlayerIds.length) {
+        const found = new Set(rows.map((p) => p.id));
+        const missing = allPlayerIds.filter((id) => !found.has(id));
+        const err = new Error(`One or more selected players do not exist: ${missing.join(", ")}`);
+        (err as any).status = 400;
+        throw err;
       }
 
-      // 3. Create the team
+      // None may already belong to a team.
+      const alreadyTeamed = rows.filter((p) => p.team_id !== null);
+      if (alreadyTeamed.length > 0) {
+        const names = alreadyTeamed.map((p) => p.display_name ?? p.username).join(", ");
+        const err = new Error(`The following player(s) already belong to a team: ${names}`);
+        (err as any).status = 409;
+        throw err;
+      }
+
       const [newTeam] = await tx.insert(teamsTable).values({
         name: name.trim(),
         tag: tag ?? null,
         description: description ?? null,
         logoUrl: logoUrl ?? null,
+        presidentId: userId,
         captainId,
         coachId,
       }).returning();
 
-      // 4. Assign all selected players (including captain) to this team
-      if (allPlayerIds.length > 0) {
-        const updated = await tx
-          .update(playersTable)
-          .set({ teamId: newTeam.id, isFreeAgent: false })
-          .where(inArray(playersTable.id, allPlayerIds))
-          .returning({ id: playersTable.id });
+      const updated = await tx
+        .update(playersTable)
+        .set({ teamId: newTeam.id, isFreeAgent: false })
+        .where(inArray(playersTable.id, allPlayerIds))
+        .returning({ id: playersTable.id });
 
-        // Sanity check: if fewer rows were updated than expected, someone else
-        // won the race (shouldn't happen with FOR UPDATE, but be defensive).
-        if (updated.length !== allPlayerIds.length) {
-          const err = new Error("One or more players could not be assigned — they may have just joined another team");
-          (err as any).status = 409;
-          throw err;
-        }
-
-        // Initial roster assignment is not a transfer: every selected player
-        // was verified to have no team above.  Do not write transfer-history
-        // rows with a null from_team_id here, because production databases may
-        // still have an older constraint on that legacy history table.  Actual
-        // add/remove operations below continue to record transfers.
+      if (updated.length !== allPlayerIds.length) {
+        const err = new Error("One or more players could not be assigned — they may have just joined another team");
+        (err as any).status = 409;
+        throw err;
       }
 
       return newTeam;
     });
+
+    return res.status(201).json(await enrichTeam(team, userId));
   } catch (err: any) {
     const status = err.status ?? 500;
     return res.status(status).json({ error: err.message ?? "Registration failed" });
   }
-
-  return res.status(201).json(await enrichTeam(team));
 });
 
 // ── POST /teams (legacy — kept for admin compatibility) ───────────────────────
@@ -205,29 +266,10 @@ router.get("/teams/:id", async (req, res) => {
   const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, params.data.id));
   if (!team) return res.status(404).json({ error: "Team not found" });
 
-  const [captain, members] = await Promise.all([
-    db.select({ username: playersTable.username, displayName: playersTable.displayName, avatarUrl: playersTable.avatarUrl })
-      .from(playersTable).where(eq(playersTable.id, team.captainId)).then(r => r[0]),
-    db.select().from(playersTable).where(eq(playersTable.teamId, params.data.id)),
-  ]);
-
-  const coachId = team.coachId;
-  const coachRow = coachId
-    ? await db.select({ id: playersTable.id, username: playersTable.username, displayName: playersTable.displayName, avatarUrl: playersTable.avatarUrl })
-        .from(playersTable).where(eq(playersTable.id, coachId)).then(r => r[0] ?? null)
-    : null;
-
-  return res.json({
-    ...team,
-    captainName: captain?.displayName ?? captain?.username ?? "Unknown",
-    coach: coachRow ? { id: coachRow.id, name: coachRow.displayName ?? coachRow.username, avatarUrl: coachRow.avatarUrl } : null,
-    memberCount: members.length,
-    members: members.map((m) => ({ ...m, teamName: team.name, createdAt: m.createdAt.toISOString() })),
-    createdAt: team.createdAt.toISOString(),
-  });
+  return res.json(await enrichTeam(team, req.session?.userId));
 });
 
-// ── PATCH /teams/:id/logo (team owner only) ───────────────────────────────────
+// ── PATCH /teams/:id/logo (president or coach only) ───────────────────────────
 router.patch("/teams/:id/logo", async (req, res) => {
   if (!req.session?.userId) return res.status(401).json({ error: "Login required" });
 
@@ -238,10 +280,10 @@ router.patch("/teams/:id/logo", async (req, res) => {
     return res.status(400).json({ error: "A logo path is required" });
   }
 
-  const [team] = await db.select({ coachId: teamsTable.coachId }).from(teamsTable).where(eq(teamsTable.id, teamId));
+  const { team, role } = await resolveTeamWithCheck(req, teamId);
   if (!team) return res.status(404).json({ error: "Team not found" });
-  if (!canActAsCoach(req, team)) {
-    return res.status(403).json({ error: "Only the team owner can change this logo" });
+  if (role !== "president" && role !== "coach" && !isPlatformStaff(req)) {
+    return res.status(403).json({ error: "Only the President or Coach can change the team logo" });
   }
 
   await db.update(teamsTable).set({ logoUrl: logoUrl.trim() }).where(eq(teamsTable.id, teamId));
@@ -256,11 +298,12 @@ router.delete("/teams/:id", async (req, res) => {
   if (isNaN(teamId)) return res.status(400).json({ error: "Invalid team id" });
 
   try {
-    const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
+    const { team, role } = await resolveTeamWithCheck(req, teamId);
     if (!team) return res.status(404).json({ error: "Team not found" });
 
-    if (!canActAsCoach(req, team)) {
-      return res.status(403).json({ error: "Only the team owner can delete this team" });
+    // Only the President may delete the team. Coach/Captain/player cannot.
+    if (role !== "president" && !isPlatformStaff(req)) {
+      return res.status(403).json({ error: "Only the team President can delete this team" });
     }
 
     await db.transaction(async (tx) => {
@@ -297,6 +340,247 @@ router.delete("/teams/:id", async (req, res) => {
     req.log.error({ err: error, teamId }, "Failed to delete team");
     return res.status(500).json({ error: "Unable to delete the team right now. Please try again." });
   }
+});
+
+// ── PATCH /teams/:id (edit team info; president or coach) ─────────────────────
+router.patch("/teams/:id", async (req, res) => {
+  if (!req.session?.userId) return res.status(401).json({ error: "Login required" });
+  const teamId = Number(req.params.id);
+  if (isNaN(teamId)) return res.status(400).json({ error: "Invalid team id" });
+
+  const { name, tag, description } = req.body ?? {};
+  if (name != null && (typeof name !== "string" || name.trim().length < 2)) {
+    return res.status(400).json({ error: "Team name must be at least 2 characters" });
+  }
+
+  const { team, role } = await resolveTeamWithCheck(req, teamId);
+  if (!team) return res.status(404).json({ error: "Team not found" });
+  if (role !== "president" && role !== "coach" && !isPlatformStaff(req)) {
+    return res.status(403).json({ error: "Only the President or Coach can edit team information" });
+  }
+
+  await db.update(teamsTable).set({
+    name: name != null ? name.trim() : team.name,
+    tag: tag != null ? (typeof tag === "string" ? tag.trim() : null) : team.tag,
+    description: description != null ? (typeof description === "string" ? description : null) : team.description,
+  }).where(eq(teamsTable.id, teamId));
+
+  const [updated] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
+  return res.json(await enrichTeam(updated, req.session?.userId));
+});
+
+// ── POST /teams/:id/players (add players; president or coach) ─────────────────
+router.post("/teams/:id/players", async (req, res) => {
+  if (!req.session?.userId) return res.status(401).json({ error: "Login required" });
+  const teamId = Number(req.params.id);
+  const { playerIds } = req.body ?? {};
+  if (isNaN(teamId)) return res.status(400).json({ error: "Invalid team id" });
+
+  const ids = Array.isArray(playerIds)
+    ? Array.from(new Set(playerIds.filter((id: unknown): id is number => Number.isInteger(id) && (id as number) > 0)))
+    : [];
+  if (ids.length === 0) return res.status(400).json({ error: "At least one player id is required" });
+
+  const { team, role } = await resolveTeamWithCheck(req, teamId);
+  if (!team) return res.status(404).json({ error: "Team not found" });
+  if (role !== "president" && role !== "coach" && !isPlatformStaff(req)) {
+    return res.status(403).json({ error: "Only the President or Coach can add players" });
+  }
+
+  const conflictIds = [team.presidentId, team.coachId, team.captainId];
+  if (ids.some((id) => conflictIds.includes(id))) {
+    return res.status(400).json({ error: "Cannot add a player who already holds a team role" });
+  }
+
+  try {
+    await db.transaction(async (tx) => {
+      const idArray = sql`ARRAY[${sql.join(ids.map((id) => sql`${id}`), sql`, `)}]::int[]`;
+      const locked = await tx.execute(sql`SELECT id, team_id FROM players WHERE id = ANY(${idArray}) ORDER BY id FOR UPDATE`);
+      const rows = (locked as any).rows as { id: number; team_id: number | null }[];
+      if (rows.length !== ids.length) {
+        const found = new Set(rows.map((p) => p.id));
+        const missing = ids.filter((id) => !found.has(id));
+        const err = new Error(`One or more players do not exist: ${missing.join(", ")}`);
+        (err as any).status = 400;
+        throw err;
+      }
+      const alreadyTeamed = rows.filter((p) => p.team_id !== null);
+      if (alreadyTeamed.length > 0) {
+        const err = new Error("One or more selected players already belong to a team");
+        (err as any).status = 409;
+        throw err;
+      }
+      await tx.update(playersTable).set({ teamId, isFreeAgent: false }).where(inArray(playersTable.id, ids));
+      await tx.insert(playerTransfersTable).values(ids.map((pid) => ({ playerId: pid, toTeamId: teamId, fromTeamId: teamId })));
+    });
+  } catch (err: any) {
+    return res.status(err.status ?? 500).json({ error: err.message ?? "Could not add players" });
+  }
+
+  const [updated] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
+  return res.json(await enrichTeam(updated, req.session?.userId));
+});
+
+// ── DELETE /teams/:id/players/:playerId (remove a player; president or coach) ─
+router.delete("/teams/:id/players/:playerId", async (req, res) => {
+  if (!req.session?.userId) return res.status(401).json({ error: "Login required" });
+  const teamId = Number(req.params.id);
+  const playerId = Number(req.params.playerId);
+  if (isNaN(teamId) || isNaN(playerId)) return res.status(400).json({ error: "Invalid id" });
+
+  const { team, role } = await resolveTeamWithCheck(req, teamId);
+  if (!team) return res.status(404).json({ error: "Team not found" });
+  if (role !== "president" && role !== "coach" && !isPlatformStaff(req)) {
+    return res.status(403).json({ error: "Only the President or Coach can remove players" });
+  }
+
+  const leaders = [team.presidentId, team.coachId, team.captainId];
+  if (leaders.includes(playerId)) {
+    return res.status(400).json({ error: "Leadership roles cannot be removed from the roster — change the role first" });
+  }
+
+  const [member] = await db.select({ teamId: playersTable.teamId }).from(playersTable).where(eq(playersTable.id, playerId));
+  if (!member || member.teamId !== teamId) {
+    return res.status(404).json({ error: "Player is not a member of this team" });
+  }
+
+  await db.transaction(async (tx) => {
+    await tx.update(playersTable).set({ teamId: null, isFreeAgent: true }).where(eq(playersTable.id, playerId));
+    await tx.insert(playerTransfersTable).values({ playerId, fromTeamId: teamId, toTeamId: null });
+  });
+
+  const [updated] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
+  return res.json(await enrichTeam(updated, req.session?.userId));
+});
+
+// ── PATCH /teams/:id/captain (change captain; president or coach) ─────────────
+router.patch("/teams/:id/captain", async (req, res) => {
+  if (!req.session?.userId) return res.status(401).json({ error: "Login required" });
+  const teamId = Number(req.params.id);
+  const { captainId } = req.body ?? {};
+  if (isNaN(teamId) || !Number.isInteger(captainId) || captainId <= 0) {
+    return res.status(400).json({ error: "Invalid captain id" });
+  }
+
+  const { team, role } = await resolveTeamWithCheck(req, teamId);
+  if (!team) return res.status(404).json({ error: "Team not found" });
+  if (role !== "president" && role !== "coach" && !isPlatformStaff(req)) {
+    return res.status(403).json({ error: "Only the President or Coach can change the Captain" });
+  }
+  if (captainId === team.presidentId || captainId === team.coachId) {
+    return res.status(400).json({ error: "The Captain must be a regular team member, not the President or Coach" });
+  }
+  const [candidate] = await db.select({ teamId: playersTable.teamId }).from(playersTable).where(eq(playersTable.id, captainId));
+  if (!candidate || candidate.teamId !== teamId) {
+    return res.status(400).json({ error: "The new Captain must already be a member of this team" });
+  }
+
+  await db.update(teamsTable).set({ captainId }).where(eq(teamsTable.id, teamId));
+  const [updated] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
+  return res.json(await enrichTeam(updated, req.session?.userId));
+});
+
+// ── PATCH /teams/:id/coach (change coach; president only) ─────────────────────
+router.patch("/teams/:id/coach", async (req, res) => {
+  if (!req.session?.userId) return res.status(401).json({ error: "Login required" });
+  const teamId = Number(req.params.id);
+  const { coachId } = req.body ?? {};
+  if (isNaN(teamId) || !Number.isInteger(coachId) || coachId <= 0) {
+    return res.status(400).json({ error: "Invalid coach id" });
+  }
+
+  const { team, role } = await resolveTeamWithCheck(req, teamId);
+  if (!team) return res.status(404).json({ error: "Team not found" });
+  if (role !== "president" && !isPlatformStaff(req)) {
+    return res.status(403).json({ error: "Only the President can change the Coach" });
+  }
+  if (coachId === team.presidentId || coachId === team.captainId) {
+    return res.status(400).json({ error: "The Coach must be a regular team member, not the President or Captain" });
+  }
+  const [candidate] = await db.select({ teamId: playersTable.teamId }).from(playersTable).where(eq(playersTable.id, coachId));
+  if (!candidate || candidate.teamId !== teamId) {
+    return res.status(400).json({ error: "The new Coach must already be a member of this team" });
+  }
+
+  await db.update(teamsTable).set({ coachId }).where(eq(teamsTable.id, teamId));
+  const [updated] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
+  return res.json(await enrichTeam(updated, req.session?.userId));
+});
+
+// ── POST /teams/:id/transfer (transfer President; president only) ─────────────
+router.post("/teams/:id/transfer", async (req, res) => {
+  if (!req.session?.userId) return res.status(401).json({ error: "Login required" });
+  const teamId = Number(req.params.id);
+  const { newPresidentId } = req.body ?? {};
+  if (isNaN(teamId) || !Number.isInteger(newPresidentId) || newPresidentId <= 0) {
+    return res.status(400).json({ error: "Invalid member id" });
+  }
+
+  const { team, role } = await resolveTeamWithCheck(req, teamId);
+  if (!team) return res.status(404).json({ error: "Team not found" });
+  if (role !== "president" && !isPlatformStaff(req)) {
+    return res.status(403).json({ error: "Only the current President can transfer ownership" });
+  }
+
+  const [candidate] = await db.select({ teamId: playersTable.teamId }).from(playersTable).where(eq(playersTable.id, newPresidentId));
+  if (!candidate || candidate.teamId !== teamId) {
+    return res.status(400).json({ error: "The new President must already be a member of this team" });
+  }
+  if (newPresidentId === team.presidentId) {
+    return res.status(400).json({ error: "That member is already the President" });
+  }
+
+  await db.update(teamsTable).set({
+    presidentId: newPresidentId,
+    coachId: team.coachId === newPresidentId ? null : team.coachId,
+    captainId: team.captainId === newPresidentId ? null : team.captainId,
+  } as any).where(eq(teamsTable.id, teamId));
+
+  const [updated] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
+  return res.json(await enrichTeam(updated, req.session?.userId));
+});
+
+// ── POST /teams/:id/leave (any member) ────────────────────────────────────────
+// A President may not leave while other members would be left without a
+// President — they must transfer ownership first. Other roles leave freely.
+router.post("/teams/:id/leave", async (req, res) => {
+  if (!req.session?.userId) return res.status(401).json({ error: "Login required" });
+  const teamId = Number(req.params.id);
+  if (isNaN(teamId)) return res.status(400).json({ error: "Invalid team id" });
+  const uid = req.session.userId!;
+
+  const { team, role } = await resolveTeamWithCheck(req, teamId);
+  if (!team) return res.status(404).json({ error: "Team not found" });
+  if (role === "president") {
+    const [others] = await db
+      .select({ n: sql<number>`count(*)` })
+      .from(playersTable)
+      .where(sql`${playersTable.teamId} = ${teamId} AND ${playersTable.id} <> ${uid}`);
+    if (Number(others?.n ?? 0) > 0) {
+      return res.status(400).json({
+        error: "You are the President and cannot leave while other members remain. Transfer ownership to a teammate first.",
+      });
+    }
+  }
+
+  await db.transaction(async (tx) => {
+    await tx.update(playersTable).set({ teamId: null, isFreeAgent: true }).where(eq(playersTable.id, uid));
+    const [remaining] = await tx.select({ n: sql<number>`count(*)` }).from(playersTable).where(eq(playersTable.teamId, teamId));
+    const members = Number(remaining?.n ?? 0);
+    if (members === 0) {
+      await tx.execute(sql`UPDATE news SET team_id = NULL WHERE team_id = ${teamId}`);
+      await tx.execute(sql`UPDATE tournament_participants SET team_id = NULL WHERE team_id = ${teamId}`);
+      await tx.delete(teamsTable).where(eq(teamsTable.id, teamId));
+    } else {
+      await tx.update(teamsTable).set({
+        presidentId: team.presidentId === uid ? null : team.presidentId,
+        coachId: team.coachId === uid ? null : team.coachId,
+        captainId: team.captainId === uid ? null : team.captainId,
+      } as any).where(eq(teamsTable.id, teamId));
+    }
+  });
+
+  return res.json({ ok: true, removed: true });
 });
 
 // ── GET /teams/:id/squad-images ───────────────────────────────────────────────
@@ -360,8 +644,8 @@ router.post("/teams/:id/squad-images", async (req, res) => {
   if (!team) return res.status(404).json({ error: "Team not found" });
 
   const uid = req.session.userId;
-  if (uid !== team.coachId && uid !== team.captainId)
-    return res.status(403).json({ error: "Only the coach or captain can manage squad images" });
+  if (uid !== team.coachId && uid !== team.captainId && uid !== team.presidentId)
+    return res.status(403).json({ error: "Only a team leader can manage squad images" });
 
   const { objectPath, caption } = req.body ?? {};
   if (!objectPath || typeof objectPath !== "string")
@@ -389,8 +673,8 @@ router.delete("/teams/:id/squad-images/:imageId", async (req, res) => {
   if (!team) return res.status(404).json({ error: "Team not found" });
 
   const uid = req.session.userId;
-  if (uid !== team.coachId && uid !== team.captainId)
-    return res.status(403).json({ error: "Only the coach or captain can delete squad images" });
+  if (uid !== team.coachId && uid !== team.captainId && uid !== team.presidentId)
+    return res.status(403).json({ error: "Only a team leader can delete squad images" });
 
   await db.execute(sql`DELETE FROM team_squad_images WHERE id = ${imageId} AND team_id = ${teamId}`);
   return res.json({ ok: true });
@@ -425,8 +709,8 @@ router.post("/teams/:id/news", async (req, res) => {
   if (!team) return res.status(404).json({ error: "Team not found" });
 
   const uid = req.session.userId;
-  if (uid !== team.coachId && uid !== team.captainId) {
-    return res.status(403).json({ error: "Only the coach or captain can post team news" });
+  if (uid !== team.coachId && uid !== team.captainId && uid !== team.presidentId) {
+    return res.status(403).json({ error: "Only a team leader can post team news" });
   }
 
   const { title, content, excerpt } = req.body ?? {};
@@ -550,8 +834,9 @@ router.delete("/teams/:id/members/:playerId", async (req, res) => {
   const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
   if (!team) return res.status(404).json({ error: "Team not found" });
 
-  if (!canActAsCoach(req, team))
-    return res.status(403).json({ error: "Only the coach can remove players" });
+  const role = await resolveTeamRole(req, team);
+  if (role !== "president" && role !== "coach" && !isPlatformStaff(req))
+    return res.status(403).json({ error: "Only the President or Coach can remove players" });
 
   // Cannot remove the captain without reassigning first
   if (playerId === team.captainId)
@@ -586,8 +871,9 @@ router.post("/teams/:id/members", async (req, res) => {
   const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
   if (!team) return res.status(404).json({ error: "Team not found" });
 
-  if (!canActAsCoach(req, team))
-    return res.status(403).json({ error: "Only the coach can add players" });
+  const role = await resolveTeamRole(req, team);
+  if (role !== "president" && role !== "coach" && !isPlatformStaff(req))
+    return res.status(403).json({ error: "Only the President or Coach can add players" });
 
   const { playerId } = req.body ?? {};
   if (typeof playerId !== "number") return res.status(400).json({ error: "playerId is required" });
@@ -611,8 +897,9 @@ router.patch("/teams/:id/captain", async (req, res) => {
   const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
   if (!team) return res.status(404).json({ error: "Team not found" });
 
-  if (!canActAsCoach(req, team))
-    return res.status(403).json({ error: "Only the coach can change the captain" });
+  const role = await resolveTeamRole(req, team);
+  if (role !== "president" && role !== "coach" && !isPlatformStaff(req))
+    return res.status(403).json({ error: "Only the President or Coach can change the captain" });
 
   const { playerId } = req.body ?? {};
   if (typeof playerId !== "number") return res.status(400).json({ error: "playerId is required" });
@@ -635,8 +922,9 @@ router.patch("/teams/:id/coach", async (req, res) => {
   const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
   if (!team) return res.status(404).json({ error: "Team not found" });
 
-  if (!canActAsCoach(req, team))
-    return res.status(403).json({ error: "Only the current coach can transfer the coach role" });
+  const role = await resolveTeamRole(req, team);
+  if (role !== "president" && !isPlatformStaff(req))
+    return res.status(403).json({ error: "Only the President can change the Coach" });
 
   const { playerId } = req.body ?? {};
   if (typeof playerId !== "number") return res.status(400).json({ error: "playerId is required" });

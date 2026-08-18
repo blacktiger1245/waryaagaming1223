@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { Search, Shield, Users, Plus } from "lucide-react";
+import { Search, Shield, Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useListTeams } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { storageUrl } from "@/lib/api";
 
 export default function TeamsPage() {
@@ -15,6 +15,8 @@ export default function TeamsPage() {
   const { data: teams, isLoading } = useListTeams(search ? { search } : {});
   const { user, isLoggedIn } = useAuth();
   const [, navigate] = useLocation();
+  const qc = useQueryClient();
+  const [leaveError, setLeaveError] = useState<string | null>(null);
   const { data: myTeam, isLoading: myTeamLoading } = useQuery<any | null>({
     queryKey: ["my-team"],
     queryFn: async () => {
@@ -27,10 +29,29 @@ export default function TeamsPage() {
 
   // Show "Register Your Team" only if the user is logged in and not already on a team
   const hasTeam = isLoggedIn && !!myTeam;
-  const canManageTeamAsCoach =
-    isLoggedIn &&
-    !!myTeam &&
-    (myTeam.coachId === user?.id || user?.username === "black_tiger" || user?.role === "admin" || user?.role === "owner");
+  const myRole = (myTeam as any)?.selfRole ?? null;
+
+  async function leaveTeam() {
+    if (!myTeam) return;
+    const ok = window.confirm("Are you sure you want to leave this team?");
+    if (!ok) return;
+    setLeaveError(null);
+    try {
+      const res = await fetch(`/api/teams/${myTeam.id}/leave`, { method: "POST", credentials: "include" });
+      const data = await res.json();
+      if (!res.ok) {
+        setLeaveError(data.error ?? "Could not leave the team.");
+        return;
+      }
+      // Update state immediately without a full reload.
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["my-team"] }),
+        qc.invalidateQueries({ queryKey: ["teams"] }),
+      ]);
+    } catch {
+      setLeaveError("Could not leave the team right now. Please try again.");
+    }
+  }
 
   return (
     <div className="container mx-auto px-4 py-16">
@@ -41,17 +62,25 @@ export default function TeamsPage() {
             <h1 className="text-5xl font-black uppercase tracking-tight">Teams</h1>
           </div>
           {isLoggedIn && !myTeamLoading && (
-            <Button
-              onClick={() => navigate(
-                hasTeam
-                  ? (canManageTeamAsCoach ? `/teams/${myTeam.id}/manage` : `/teams/${myTeam.id}`)
-                  : "/register-team"
+            <div className="flex flex-col items-end gap-2">
+              <Button
+                onClick={hasTeam ? leaveTeam : () => navigate("/register-team")}
+                className={`flex items-center gap-2 font-bold uppercase tracking-wide ${hasTeam ? "bg-transparent border border-destructive/50 text-destructive hover:bg-destructive/10" : ""}`}
+              >
+                {hasTeam ? "Leave Your Team" : "Register Your Team"}
+              </Button>
+              {hasTeam && (
+                <button
+                  onClick={() => navigate(myRole === "player" ? `/teams/${myTeam.id}` : `/teams/${myTeam.id}/manage`)}
+                  className="text-xs text-muted-foreground hover:text-primary transition-colors"
+                >
+                  Manage / View team →
+                </button>
               )}
-              className="flex items-center gap-2 font-bold uppercase tracking-wide"
-            >
-              <Plus className="w-4 h-4" />
-              {hasTeam ? "Manage Your Team" : "Register Your Team"}
-            </Button>
+            </div>
+          )}
+          {leaveError && (
+            <div className="basis-full text-right text-sm text-red-400">⚠ {leaveError}</div>
           )}
         </div>
 

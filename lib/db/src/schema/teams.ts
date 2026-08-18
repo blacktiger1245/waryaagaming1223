@@ -7,6 +7,8 @@ export const teamsTable = pgTable("teams", {
   name: text("name").notNull().unique(),
   tag: text("tag"),
   logoUrl: text("logo_url"),
+  // Leadership roles (players table holds membership via team_id).
+  presidentId: integer("president_id"),
   captainId: integer("captain_id").notNull(),
   coachId: integer("coach_id"),
   wins: integer("wins").notNull().default(0),

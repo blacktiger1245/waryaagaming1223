@@ -591,9 +591,10 @@ export default function TeamDetailPage() {
   }
 
   // ── Team management state ───────────────────────────────────────────────────
+  const isPresident = !!user && user.id === (team as any)?.presidentId;
   const isCoach =
     !!user &&
-    (user.id === (team as any)?.coachId || user.username === "black_tiger" || user.role === "admin" || user.role === "owner");
+    (isPresident || user.id === (team as any)?.coachId || user.username === "black_tiger" || user.role === "admin" || user.role === "owner");
   const isCaptain = !!user && user.id === team?.captainId;
 
   const [kickConfirmId,    setKickConfirmId]    = useState<number | null>(null);
@@ -907,6 +908,14 @@ export default function TeamDetailPage() {
                   {/* Club Leadership */}
                   <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
                     <h3 className="text-sm font-black uppercase tracking-widest text-zinc-300 mb-4">Club Leadership</h3>
+                    {(team as any).president && (
+                      <LeaderCard
+                        role="President"
+                        name={(team as any).president.name}
+                        avatarUrl={(team as any).president.avatarUrl}
+                        icon={<Shield className="w-3 h-3 text-yellow-400" />}
+                      />
+                    )}
                     {(team as any).coach && (
                       <LeaderCard
                         role="Coach"
@@ -923,7 +932,7 @@ export default function TeamDetailPage() {
                         icon={<Crown className="w-3 h-3 text-yellow-400" />}
                       />
                     )}
-                    {!(team as any).coach && !captain && !team.members?.length && (
+                    {!(team as any).president && !(team as any).coach && !captain && !team.members?.length && (
                       <p className="text-sm text-zinc-600 py-2">No leadership data yet</p>
                     )}
                   </div>
