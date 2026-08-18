@@ -1,7 +1,5 @@
 import { motion } from "framer-motion";
-import { Link } from "wouter";
 import {
-  ArrowRight,
   ArrowUpRight,
   ExternalLink,
   Gamepad2,
@@ -10,7 +8,6 @@ import {
   HeartHandshake,
   Medal,
   Swords,
-  Sparkles,
   Trophy,
   TrendingUp,
   Users,
@@ -153,7 +150,7 @@ const SFF_POINTS = [
 ];
 export default function PartnershipPage() {
   return (
-    <div className="min-h-screen bg-[#04060f] text-white">
+    <div className="flex-1 bg-[#04060f] text-white">
       {/* ── HERO ─────────────────────────────────────────────────────────── */}
       <section className="relative overflow-hidden">
         <div className="pointer-events-none absolute inset-0">
@@ -417,73 +414,6 @@ export default function PartnershipPage() {
           </p>
         </FadeUp>
       </section>
-{/* ── FINAL CTA ───────────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden py-16 sm:py-20">
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute left-1/2 top-1/2 h-[480px] w-[820px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky-500/10 blur-[130px]" />
-          <div className="absolute right-10 bottom-0 h-56 w-56 rounded-full bg-orange-500/10 blur-[110px]" />
-        </div>
-
-        <div className="relative mx-auto max-w-6xl px-6">
-          <FadeUp>
-            <div className="relative overflow-hidden rounded-3xl border border-white/15 bg-gradient-to-br from-[#0a1428] to-[#110815] p-8 text-center shadow-[0_0_90px_rgba(56,189,248,0.18)] sm:p-14">
-              <div className="pointer-events-none absolute inset-0">
-                <div className="absolute left-1/4 top-0 h-40 w-40 rounded-full bg-sky-400/10 blur-3xl" />
-                <div className="absolute bottom-0 right-1/4 h-40 w-40 rounded-full bg-orange-400/10 blur-3xl" />
-              </div>
-
-              <Sparkles className="relative mx-auto h-8 w-8 text-sky-300" />
-              <h2 className="relative mx-auto mt-5 max-w-3xl text-3xl font-black uppercase leading-[1.02] tracking-tight sm:text-5xl">
-                <span className="bg-gradient-to-r from-sky-300 via-white to-orange-300 bg-clip-text text-transparent">
-                  United for the Future of Somali Football &amp; Esports
-                </span>
-              </h2>
-              <p className="relative mx-auto mt-5 max-w-2xl text-sm leading-relaxed text-zinc-400 sm:text-base">
-                Together, we are creating opportunities for players, teams, communities,
-                and the next generation of Somali talent.
-              </p>
-
-              <div className="relative mt-9 flex flex-col items-center justify-center gap-4 sm:flex-row">
-                <Link
-                  href="/"
-                  className="group inline-flex items-center gap-2.5 rounded-xl bg-sky-500 px-7 py-3.5 text-sm font-black uppercase tracking-wider text-white shadow-[0_0_40px_rgba(56,189,248,0.5)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-sky-400"
-                >
-                  <Gamepad2 className="h-4 w-4" />
-                  Join WG Community
-                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                </Link>
-
-                <a
-                  href={SFF_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group inline-flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 px-7 py-3.5 text-sm font-black uppercase tracking-wider text-white shadow-[0_0_40px_rgba(249,115,22,0.45)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_0_60px_rgba(249,115,22,0.6)]"
-                >
-                  <Globe className="h-4 w-4" />
-                  Visit SFF Website
-                  <ArrowUpRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                </a>
-              </div>
-
-              <p className="relative mt-6 flex items-center justify-center gap-2 text-[11px] uppercase tracking-widest text-zinc-500">
-                <Handshake className="h-4 w-4 text-sky-400/70" />
-                Waryaa Gaming
-                <span className="text-orange-400">×</span>
-                Somali Football Federation
-              </p>
-            </div>
-          </FadeUp>
-        </div>
-      </section>
-
-      {/* Footer strip */}
-      <div className="border-t border-white/5 bg-black/30 py-8 text-center">
-        <div className="flex flex-col items-center gap-3 text-xs text-zinc-600">
-          <img src={WG_LOGO} alt="Waryaa Gaming" className="h-8 w-8 rounded-lg object-cover opacity-80" />
-          <p className="uppercase tracking-widest">Waryaa Gaming × Somali Football Federation</p>
-          <p>© {new Date().getFullYear()} Waryaa Gaming. All rights reserved.</p>
-        </div>
-      </div>
     </div>
   );
 }

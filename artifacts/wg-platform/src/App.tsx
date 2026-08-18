@@ -85,6 +85,8 @@ function SiteRouter() {
         <Route path="/compare" component={ComparePage} />
         <Route path="/dashboard" component={DashboardPage} />
         <Route path="/community" component={CommunityPage} />
+        <Route path="/partners" component={PartnershipPage} />
+        <Route path="/partnership" component={PartnershipPage} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
@@ -120,12 +122,6 @@ function Router() {
       <Route path="/admin/:rest*" component={AdminRouter} />
       <Route path="/academy">
         <ComingSoonPage section="WG Academy" />
-      </Route>
-      <Route path="/partners">
-        <PartnershipPage />
-      </Route>
-      <Route path="/partnership">
-        <PartnershipPage />
       </Route>
       <Route>
         <SiteRouter />
