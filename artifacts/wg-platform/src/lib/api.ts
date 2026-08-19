@@ -38,3 +38,25 @@ export async function uploadTeamLogo(file: File): Promise<string> {
   }
   return data.objectPath;
 }
+
+export interface Referee {
+  id: number;
+  username: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  role: string;
+  country: string | null;
+  matchesPlayed: number;
+  matchesWon: number;
+  rating: number;
+  verified: boolean;
+  points: number;
+}
+
+/** Referees are users granted the `referee` role — always read live so the list
+ *  stays in sync with each user's role & account info. */
+export async function fetchReferees(): Promise<Referee[]> {
+  const res = await fetch(apiUrl("/api/players/referees"), { credentials: "include" });
+  if (!res.ok) throw new Error("Failed to load referees");
+  return res.json() as Promise<Referee[]>;
+}

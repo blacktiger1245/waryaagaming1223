@@ -118,8 +118,8 @@ router.patch("/admin/users/:id/role", requireOwner, async (req, res) => {
   const id = Number(req.params.id);
   const { role } = req.body as { role?: string };
 
-  if (!role || !["player", "admin"].includes(role)) {
-    return res.status(400).json({ error: "role must be 'player' or 'admin'" });
+  if (!role || !["player", "admin", "referee"].includes(role)) {
+    return res.status(400).json({ error: "role must be 'player', 'admin' or 'referee'" });
   }
 
   // Protect the owner row from accidental demotion.

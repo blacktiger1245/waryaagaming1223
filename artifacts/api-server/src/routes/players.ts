@@ -111,6 +111,30 @@ router.get("/players", async (req, res) => {
   return res.json(withRanks);
 });
 
+// Referees: every user granted the 'referee' role, read directly from their
+// account so the list always stays in sync with the assigned role and their
+// existing profile/stats (no duplicated referee records).
+router.get("/players/referees", async (_req, res) => {
+  const rows = await db
+    .select({
+      id: playersTable.id,
+      username: playersTable.username,
+      displayName: playersTable.displayName,
+      avatarUrl: playersTable.avatarUrl,
+      role: playersTable.role,
+      country: playersTable.country,
+      matchesPlayed: playersTable.matchesPlayed,
+      matchesWon: playersTable.matchesWon,
+      rating: playersTable.rating,
+      verified: playersTable.verified,
+      points: playersTable.points,
+    })
+    .from(playersTable)
+    .where(sql`${playersTable.role} = 'referee' AND ${playersTable.isActive} = true`)
+    .orderBy(desc(playersTable.points), desc(playersTable.rating));
+  return res.json(rows);
+});
+
 // Marketplace listings are intentionally limited to opted-in, unrostered players.
 router.get("/players/marketplace", async (_req, res) => {
   let players = await db

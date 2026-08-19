@@ -37,6 +37,8 @@ import FixturesPage from "@/pages/fixtures";
 import CommunityPage from "@/pages/community";
 import SupportPage from "@/pages/support";
 import SupportTicketPage from "@/pages/support-ticket";
+import RefereesPage from "@/pages/referees";
+import RefereeHome from "@/pages/referee";
 import AdminLoginPage from "@/pages/admin/login";
 import AdminDashboardPage from "@/pages/admin/dashboard";
 import AdminPlayersPage from "@/pages/admin/players";
@@ -95,6 +97,7 @@ function SiteRouter() {
         <Route path="/community" component={CommunityPage} />
         <Route path="/support" component={SupportPage} />
         <Route path="/support/tickets/:id" component={SupportTicketPage} />
+        <Route path="/referees" component={RefereesPage} />
         <Route path="/partners" component={PartnershipPage} />
         <Route path="/partnership" component={PartnershipPage} />
         <Route component={NotFound} />
@@ -142,6 +145,7 @@ function Router() {
           /admin/support/history, …) is routed into AdminRouter instead of
           falling through to the site 404. Render it both ways to stay safe. */}
       <Route path="/admin/*" component={AdminRouter} />
+      <Route path="/referee" component={RefereeHome} />
       <Route path="/academy">
         <ComingSoonPage section="WG Academy" />
       </Route>

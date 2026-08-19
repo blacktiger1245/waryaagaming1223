@@ -48,6 +48,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/partners", label: "Partners", icon: Handshake },
     { href: "/marketplace", label: "Transfer Market", icon: ShoppingBag },
     { href: "/support", label: "Support", icon: LifeBuoy },
+    { href: "/referees", label: "Referees", icon: ShieldCheck },
   ];
 
   return (
