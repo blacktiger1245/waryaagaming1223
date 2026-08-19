@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Search, Users2, Star, ShieldCheck } from "lucide-react";
+import { Search, Users2, Star, ShieldCheck, Trophy } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchReferees, type Referee } from "@/lib/api";
@@ -35,35 +35,37 @@ export default function RefereesPage() {
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
           <div className="rounded-xl border border-border bg-card p-5">
+            <div className="flex items-center gap-2 text-primary mb-1"><Users2 className="h-5 w-5" /></div>
             <div className="text-3xl font-black text-primary">{(referees ?? []).length}</div>
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">Active Referees</div>
+            <div className="text-xs text-muted-foreground uppercase tracking-wider mt-1">Referee Members</div>
           </div>
           <div className="rounded-xl border border-border bg-card p-5">
+            <div className="flex items-center gap-2 text-primary mb-1"><Trophy className="h-5 w-5" /></div>
             <div className="text-3xl font-black">{isLoading ? "—" : (referees ?? []).reduce((s, r) => s + r.matchesPlayed, 0)}</div>
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">Matches Officiated</div>
+            <div className="text-xs text-muted-foreground uppercase tracking-wider mt-1">Matches</div>
           </div>
           <div className="rounded-xl border border-border bg-card p-5">
-            <div className="text-3xl font-black">
-              {isLoading ? "—" : ((referees ?? []).reduce((s, r) => s + r.rating, 0) / Math.max(1, (referees ?? []).length) / 200).toFixed(1)}
-            </div>
-            <div className="text-[10px] text-muted-foreground uppercase tracking-wider mt-1">Avg. Rating</div>
+            <div className="flex items-center gap-2 text-yellow-400 mb-1"><Star className="h-5 w-5" /></div>
+            <div className="text-3xl font-black">{isLoading ? "—" : ((referees ?? []).reduce((s, r) => s + r.rating, 0) / Math.max(1, (referees ?? []).length) / 200).toFixed(1)}</div>
+            <div className="text-xs text-muted-foreground uppercase tracking-wider mt-1">Rating</div>
           </div>
         </div>
 
-        <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="space-y-3">
           {isLoading
-            ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-52 rounded-xl" />)
+            ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)
             : filtered.length === 0
             ? (
-              <div className="col-span-4 text-center py-20 text-muted-foreground border border-border rounded-xl">
+              <div className="text-center py-20 text-muted-foreground border border-border rounded-xl">
                 <Users2 className="w-12 h-12 mx-auto mb-4 opacity-20" />
                 <p className="font-bold">No referees yet</p>
                 <p className="text-sm">Assign the Referee role to a user and they will appear here automatically.</p>
               </div>
             )
-            : filtered.map((r, i) => (
-                <motion.div key={r.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
-                  <div className="rounded-xl border border-border bg-card p-5 transition-all duration-300 hover:border-primary/40 flex flex-col gap-3 h-full">
+            : (
+              <div className="overflow-hidden rounded-xl border border-border">
+                {filtered.map((r) => (
+                  <div key={r.id} className="flex items-center gap-4 border-b border-border bg-card px-5 py-4 transition-colors last:border-b-0 hover:bg-primary/5">
                     {r.avatarUrl ? (
                       <img
                         src={r.avatarUrl}
@@ -76,7 +78,7 @@ export default function RefereesPage() {
                       </div>
                     )}
 
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <div className="font-black text-lg flex items-center gap-1.5">
                         <span className="truncate">{r.displayName ?? r.username}</span>
                         {r.verified && (
@@ -93,22 +95,21 @@ export default function RefereesPage() {
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 text-center mt-auto">
-                      <div className="rounded-lg bg-muted/40 p-2">
-                        <div className="text-sm font-black text-primary">{r.matchesPlayed}</div>
+                    <div className="flex items-center gap-6 shrink-0">
+                      <div className="text-center">
+                        <div className="text-lg font-black text-primary">{r.matchesPlayed}</div>
                         <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Matches</div>
                       </div>
-                      <div className="rounded-lg bg-muted/40 p-2">
-                        <div className="text-sm font-black">{r.rating}</div>
+                      <div className="text-center">
+                        <div className="text-lg font-black">{r.rating}</div>
                         <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Rating</div>
                       </div>
-                    </div>
-                    <div className="flex justify-center">
                       <Stars rating={r.rating} />
                     </div>
                   </div>
-                </motion.div>
-              ))}
+                ))}
+              </div>
+            )}
         </div>
       </motion.div>
     </div>
