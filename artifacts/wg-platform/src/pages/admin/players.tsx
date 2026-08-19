@@ -90,6 +90,22 @@ export default function AdminPlayersPage() {
     }
   }
 
+  async function toggleReferee(playerId: number, referee: boolean) {
+    setLoading(true); setError("");
+    try {
+      await apiFetch(`/api/admin/players/${playerId}/referee`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ referee }),
+      });
+      qc.invalidateQueries({ queryKey: ["admin-players"] });
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function banPlayer(playerId: number, duration: string, reason: string) {
     if (!reason.trim()) {
       setError("Please enter a reason for the ban.");
@@ -270,6 +286,19 @@ export default function AdminPlayersPage() {
 
                   {/* Action buttons */}
                   <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => toggleReferee(player.id, player.role !== "referee")}
+                      disabled={loading}
+                      title={player.role === "referee" ? "Remove referee role" : "Grant referee role"}
+                      className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors flex items-center gap-1.5 ${
+                        player.role === "referee"
+                          ? "bg-teal-500/20 border-teal-500/40 text-teal-300"
+                          : "text-zinc-400 hover:text-teal-300 bg-zinc-800 border-zinc-700 hover:border-teal-400/30"
+                      }`}
+                    >
+                      <BadgeCheck className="w-3.5 h-3.5" />
+                      {player.role === "referee" ? "Remove Referee" : "Make Referee"}
+                    </button>
                     {banned ? (
                       <button
                         onClick={() => setUnbanConfirmId(isUnbanning ? null : player.id)}

@@ -142,6 +142,36 @@ router.patch("/admin/users/:id/role", requireOwner, async (req, res) => {
   return res.json(updated);
 });
 
+// Toggle the non-privileged 'referee' role from the Players admin page.
+// Any admin can grant/remove it; it only ever flips between 'player' and
+// 'referee' and can never touch admin/owner privileges.
+router.patch("/admin/players/:id/referee", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ error: "Invalid player id" });
+  }
+  const referee = (req.body as { referee?: unknown } | null)?.referee === true;
+
+  const [target] = await db.select({ role: playersTable.role }).from(playersTable).where(eq(playersTable.id, id));
+  if (!target) {
+    return res.status(404).json({ error: "Player not found" });
+  }
+
+  if (referee) {
+    if (target.role !== "player" && target.role !== "referee") {
+      return res.status(400).json({ error: "Only player accounts can become referees" });
+    }
+    await db.update(playersTable).set({ role: "referee" }).where(eq(playersTable.id, id));
+  } else {
+    if (target.role !== "referee") {
+      return res.status(400).json({ error: "Player is not a referee" });
+    }
+    await db.update(playersTable).set({ role: "player" }).where(eq(playersTable.id, id));
+  }
+
+  return res.json({ ok: true, id, role: referee ? "referee" : "player" });
+});
+
 // ─── Generic CRUD entity routes ───────────────────────────────────────────────
 function registerEntityRoutes(path: string, table: PgTable & { id: AnyColumn }) {
   router.get(`/admin/${path}`, async (_req, res) => {
