@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import {
   ArrowLeft, Star, ScrollText, Fingerprint, Activity, Building2, Swords, BookOpen,
   CalendarDays, MapPin, Droplets, Gamepad2, Shield, Trophy, Share2,
-  TrendingUp, Zap, Target, ShieldCheck, Award, Coins, Handshake, XCircle, Square, User, BarChart2,
+  TrendingUp, Zap, Target, ShieldCheck, Award, Coins, Handshake, XCircle, Square, User, BarChart2, BadgeCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -736,7 +736,12 @@ export default function PlayerDetailPage() {
             {/* Name / club / stars */}
             <div className="flex-1 pb-1">
               <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-2xl md:text-3xl font-black leading-none">{displayName}</h1>
+                <h1 className="text-2xl md:text-3xl font-black leading-none flex items-center gap-2">
+                        {displayName}
+                        {(player as any).verified && (
+                          <BadgeCheck className="h-5 w-5 shrink-0 text-sky-400" />
+                        )}
+                      </h1>
                 {player.country && (
                   <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
                     <span className="text-lg leading-none">{countryNameToFlag(player.country)}</span>

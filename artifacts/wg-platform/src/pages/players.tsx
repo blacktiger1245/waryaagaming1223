@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { Search, Users, Shield, Lock } from "lucide-react";
+import { Search, Users, Shield, Lock, BadgeCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useListPlayers } from "@workspace/api-client-react";
@@ -93,7 +93,10 @@ export default function PlayersPage() {
 
                       <div>
                         <div className="font-black text-lg group-hover:text-primary transition-colors">
-                          {player.displayName ?? player.username}
+                          <span className="truncate">{player.displayName ?? player.username}</span>
+                          {(player as any).verified && (
+                            <BadgeCheck className="h-4 w-4 shrink-0 text-sky-400" />
+                          )}
                         </div>
                         {player.teamName && (
                           <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
@@ -111,7 +114,7 @@ export default function PlayersPage() {
                           <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Rank</div>
                         </div>
                         <div>
-                          <div className="text-sm font-black">{player.tournamentWins}</div>
+                          <div className="text-sm font-black">{(player as any).wins ?? player.matchesWon ?? player.tournamentWins ?? 0}</div>
                           <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Wins</div>
                         </div>
                         <div>

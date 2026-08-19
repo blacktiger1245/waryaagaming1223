@@ -1672,6 +1672,27 @@ router.get("/admin/stats", async (_req, res) => {
   res.json({ players, teams, tournaments, matches, news, media });
 });
 
+// ─── Player verification tick (admin only) ───────────────────────────────────
+// Lets admins mark any player they want as verified (shown as a badge).
+router.patch("/admin/players/:id/verified", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (Number.isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+
+  const { verified } = req.body as { verified?: unknown };
+  if (typeof verified !== "boolean") {
+    return res.status(400).json({ error: "verified must be a boolean" });
+  }
+
+  const [player] = await db
+    .update(playersTable)
+    .set({ verified })
+    .where(eq(playersTable.id, id))
+    .returning();
+  if (!player) return res.status(404).json({ error: "Player not found" });
+
+  return res.json({ ok: true, verified: player.verified });
+});
+
 // ─── Registration Logs (admin only) ───────────────────────────────────────────
 // Logs are created automatically whenever a user submits "Add Your Details"
 // (the same row that powers the member device registration). Admins may view,

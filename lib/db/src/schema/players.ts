@@ -37,6 +37,7 @@ export const playersTable = pgTable("players", {
   profileComplete: boolean("profile_complete").notNull().default(false),
   isFreeAgent: boolean("is_free_agent").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
+  verified: boolean("verified").notNull().default(false),
   badges: text("badges").array().notNull().default([]),
   role: text("role").notNull().default("player"),
   bannedUntil: timestamp("banned_until"),

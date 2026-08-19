@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { User, Ban, CheckCircle, AlertTriangle, X, ChevronDown } from "lucide-react";
+import { User, Ban, CheckCircle, AlertTriangle, X, ChevronDown, BadgeCheck } from "lucide-react";
 import { marketValueLabel } from "@/lib/player-stats";
 
 interface Player {
@@ -14,6 +14,7 @@ interface Player {
   teamId: number | null;
   isActive: boolean;
   role: string;
+  verified: boolean;
   bannedUntil: string | null;
   banReason: string | null;
   bannedBy: string | null;
@@ -72,6 +73,22 @@ export default function AdminPlayersPage() {
       !banned;
     return matchSearch && matchFilter;
   });
+
+  async function toggleVerify(playerId: number, verified: boolean) {
+    setLoading(true); setError("");
+    try {
+      await apiFetch(`/api/admin/players/${playerId}/verified`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ verified }),
+      });
+      qc.invalidateQueries({ queryKey: ["admin-players"] });
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function banPlayer(playerId: number, duration: string, reason: string) {
     if (!reason.trim()) {
@@ -211,6 +228,25 @@ export default function AdminPlayersPage() {
                         <span className="text-[10px] font-black text-teal-400 bg-teal-400/10 border border-teal-400/20 px-1.5 py-0.5 rounded-full">
                           {player.role}
                         </span>
+                      )}
+                      {player.verified ? (
+                        <button
+                          onClick={() => toggleVerify(player.id, false)}
+                          disabled={loading}
+                          title="Remove verification"
+                          className="inline-flex items-center gap-1 text-[10px] font-black text-sky-400 bg-sky-400/10 border border-sky-400/20 px-1.5 py-0.5 rounded-full hover:bg-sky-400/20 disabled:opacity-50"
+                        >
+                          <BadgeCheck className="w-3 h-3" /> Verified
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => toggleVerify(player.id, true)}
+                          disabled={loading}
+                          title="Verify player"
+                          className="inline-flex items-center gap-1 text-[10px] font-black text-zinc-500 hover:text-sky-400 hover:border-sky-400/30 border border-zinc-700 px-1.5 py-0.5 rounded-full disabled:opacity-50"
+                        >
+                          <BadgeCheck className="w-3 h-3" /> Verify
+                        </button>
                       )}
                     </div>
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">

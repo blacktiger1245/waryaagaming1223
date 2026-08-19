@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { playersTable, teamsTable, matchesTable, matchPlayerGamesTable } from "@workspace/db";
 import { tournamentsTable } from "@workspace/db";
-import { eq, ilike, desc, sql, or } from "drizzle-orm";
+import { eq, ilike, desc, sql, or, and } from "drizzle-orm";
 import {
   ListPlayersQueryParams,
   CreatePlayerBody,
@@ -13,6 +13,60 @@ import {
 } from "@workspace/api-zod";
 
 const router = Router();
+
+// Counts a player's real match wins (solo tournament matches + team-tournament
+// individual games), mirroring the player profile's live "Wins" stat so the
+// Players list matches what you see on a player's profile.
+async function countPlayerWins(playerId: number): Promise<number> {
+  let wins = 0;
+
+  const matches = await db
+    .select({
+      p1: matchesTable.participant1Id,
+      p2: matchesTable.participant2Id,
+      s1: matchesTable.participant1Score,
+      s2: matchesTable.participant2Score,
+    })
+    .from(matchesTable)
+    .where(
+      and(
+        eq(matchesTable.status, "completed"),
+        or(eq(matchesTable.participant1Id, playerId), eq(matchesTable.participant2Id, playerId)),
+      ),
+    );
+  for (const m of matches) {
+    const isP1 = m.p1 === playerId;
+    const my = isP1 ? m.s1 : m.s2;
+    const opp = isP1 ? m.s2 : m.s1;
+    if ((my ?? 0) > (opp ?? 0)) wins++;
+  }
+
+  const games = await db
+    .select({
+      h: matchPlayerGamesTable.homePlayerId,
+      a: matchPlayerGamesTable.awayPlayerId,
+      hs: matchPlayerGamesTable.homeScore,
+      as: matchPlayerGamesTable.awayScore,
+    })
+    .from(matchPlayerGamesTable)
+    .where(
+      and(
+        eq(matchPlayerGamesTable.status, "completed"),
+        or(
+          eq(matchPlayerGamesTable.homePlayerId, playerId),
+          eq(matchPlayerGamesTable.awayPlayerId, playerId),
+        ),
+      ),
+    );
+  for (const g of games) {
+    const isHome = g.h === playerId;
+    const my = isHome ? g.hs : g.as;
+    const opp = isHome ? g.as : g.hs;
+    if ((my ?? 0) > (opp ?? 0)) wins++;
+  }
+
+  return wins;
+}
 
 router.get("/players", async (req, res) => {
   const query = ListPlayersQueryParams.safeParse(req.query);
@@ -46,6 +100,7 @@ router.get("/players", async (req, res) => {
       return {
         ...p,
         rank: Number(above) + 1,
+        wins: await countPlayerWins(p.id),
         teamName: p.teamId ? (teamMap.get(p.teamId) ?? null) : null,
         teamLogoUrl: p.teamId ? (teamLogoMap.get(p.teamId) ?? null) : null,
         createdAt: p.createdAt.toISOString(),
@@ -155,8 +210,9 @@ router.get("/players/:id", async (req, res) => {
     .from(playersTable)
     .where(sql`${playersTable.points} > ${player.points}`);
   const dynamicRank = Number(above) + 1;
+  const wins = await countPlayerWins(player.id);
 
-  return res.json({ ...player, rank: dynamicRank, teamName, teamLogoUrl, teamTag, teamCaptainId, createdAt: player.createdAt.toISOString() });
+  return res.json({ ...player, rank: dynamicRank, wins, teamName, teamLogoUrl, teamTag, teamCaptainId, createdAt: player.createdAt.toISOString() });
 });
 
 router.patch("/players/:id", async (req, res) => {
