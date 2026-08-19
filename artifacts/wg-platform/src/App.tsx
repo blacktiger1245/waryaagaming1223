@@ -138,6 +138,11 @@ function Router() {
     <Switch>
       <Route path="/admin" component={AdminRouter} />
       <Route path="/admin/:rest*" component={AdminRouter} />
+      {/* `*` (not `:rest*`) reliably matches multi-segment paths, so every
+          nested admin route (/admin/support, /admin/support/:id,
+          /admin/support/history, …) is routed into AdminRouter instead of
+          falling through to the site 404. Render it both ways to stay safe. */}
+      <Route path="/admin/*" component={AdminRouter} />
       <Route path="/academy">
         <ComingSoonPage section="WG Academy" />
       </Route>
