@@ -124,6 +124,8 @@ function AdminRouter() {
         <Route path="/admin/support" component={AdminSupportPage} />
         <Route path="/admin/support/history" component={AdminSupportHistoryPage} />
         <Route path="/admin/support/analytics" component={AdminSupportAnalyticsPage} />
+        <Route path="/admin/support/availability" component={AdminSupportPage} />
+        <Route path="/admin/support/history" component={AdminSupportHistoryPage} />
         <Route path="/admin/support/:id" component={AdminSupportTicketPage} />
         <Route component={NotFound} />
       </Switch>

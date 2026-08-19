@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "wouter";
-import { Loader2, LifeBuoy, Bell, CheckCheck } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link, useLocation } from "wouter";
+import { Loader2, LifeBuoy, Bell, CheckCheck, UserCheck } from "lucide-react";
 import { useAdminAuth } from "@/hooks/use-admin-auth";
 import { supportAdmin, type AdminInboxTicket } from "@/lib/support";
 
@@ -9,6 +9,8 @@ const TABS = [
   { key: "new", label: "New", match: (t: AdminInboxTicket) => t.status === "waiting" && !t.assignedAdminId },
   { key: "waiting", label: "Waiting", match: (t: AdminInboxTicket) => t.status === "waiting" },
   { key: "mine", label: "My Active", match: (t: AdminInboxTicket) => t.status === "active" && !!t.assignedAdminId },
+  { key: "unassigned", label: "Unassigned", match: (t: AdminInboxTicket) => !t.assignedAdminId && t.status !== "closed" },
+  { key: "assigned", label: "Assigned", match: (t: AdminInboxTicket) => !!t.assignedAdminId && t.status !== "closed" },
   { key: "closed", label: "Closed", match: (t: AdminInboxTicket) => t.status === "closed" },
   { key: "all", label: "All", match: () => true },
 ];
@@ -39,6 +41,7 @@ function beep() {
 
 export default function AdminSupportPage() {
   const qc = useQueryClient();
+  const [, navigate] = useLocation();
   const { admin } = useAdminAuth();
   const [tab, setTab] = useState("new");
   const [notifOpen, setNotifOpen] = useState(false);
@@ -80,6 +83,19 @@ export default function AdminSupportPage() {
     qc.invalidateQueries({ queryKey: ["support-notifs"] });
     qc.invalidateQueries({ queryKey: ["support-unread-badge"] });
   }, [qc]);
+
+  const accept = useMutation({
+    mutationFn: (id: number) => supportAdmin.accept(id),
+    onSuccess: (_d, id) => {
+      qc.invalidateQueries({ queryKey: ["support-inbox"] });
+      qc.invalidateQueries({ queryKey: ["support-unread-badge"] });
+      navigate(`/admin/support/${id}`);
+    },
+    onError: (e: any) => {
+      alert(e.message);
+      qc.invalidateQueries({ queryKey: ["support-inbox"] });
+    },
+  });
 
   const tickets = inbox?.tickets ?? [];
   const activeTab = TABS.find((t) => t.key === tab) ?? TABS[0];
@@ -146,7 +162,8 @@ export default function AdminSupportPage() {
       ) : (
         <div className="overflow-hidden rounded-xl border border-border">
           {filtered.map((t) => (
-            <Link key={t.id} href={`/admin/support/${t.id}`} className={`flex items-center gap-3 border-b border-border p-3 transition-colors last:border-b-0 hover:bg-muted ${t.isNewWaiting ? "bg-primary/5" : ""}`}>
+            <div key={t.id} className={`flex items-center gap-2 border-b border-border p-2 last:border-b-0 ${t.isNewWaiting ? "bg-primary/5" : ""}`}>
+              <Link href={`/admin/support/${t.id}`} className="flex min-w-0 flex-1 items-center gap-3 rounded-lg p-1.5 transition-colors hover:bg-muted">
               {t.user?.avatarUrl ? <img src={t.user.avatarUrl} alt="" className="h-10 w-10 rounded-full" /> : <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 text-sm font-black text-primary">{(t.user?.displayName ?? t.user?.username ?? "?").charAt(0).toUpperCase()}</div>}
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
@@ -164,6 +181,17 @@ export default function AdminSupportPage() {
                 </div>
               </div>
             </Link>
+              {t.isNewWaiting && (
+                <button
+                  onClick={() => accept.mutate(t.id)}
+                  disabled={accept.isPending}
+                  className="flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-black text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                >
+                  <UserCheck className="h-3.5 w-3.5" />
+                  {accept.isPending ? "Accepting…" : "Accept Ticket"}
+                </button>
+              )}
+            </div>
           ))}
         </div>
       )}

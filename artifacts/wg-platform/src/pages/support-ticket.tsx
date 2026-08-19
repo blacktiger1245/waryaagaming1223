@@ -32,7 +32,7 @@ function Bubble({ m, mine }: { m: SupportMessage; mine: boolean }) {
   );
 }
 
-function AdminCard({ admin }: { admin: { username: string; displayName: string | null; avatarUrl: string | null; role?: string } | null }) {
+function AdminCard({ admin }: { admin: { username: string; displayName: string | null; avatarUrl: string | null; role?: string; online?: boolean } | null }) {
   if (!admin) {
     return (
       <div className="rounded-xl border border-yellow-400/40 bg-yellow-400/10 p-3 text-center">
@@ -45,8 +45,8 @@ function AdminCard({ admin }: { admin: { username: string; displayName: string |
     <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
       {admin.avatarUrl ? <img src={admin.avatarUrl} alt="" className="h-10 w-10 rounded-full" /> : <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/20 text-sm font-black text-primary">{(admin.displayName ?? admin.username)[0]?.toUpperCase()}</div>}
       <div className="min-w-0">
-        <p className="truncate text-sm font-black">🟢 {admin.displayName ?? admin.username}</p>
-        <p className="text-xs capitalize text-muted-foreground">{admin.role === "owner" ? "Owner" : "Support Admin"}</p>
+        <p className="truncate text-sm font-black">{admin.online ? "🟢" : "⚫"} {admin.displayName ?? admin.username}</p>
+        <p className="text-xs capitalize text-muted-foreground">{admin.role === "owner" ? "Owner" : "Support Admin"} · {admin.online ? "Online" : "Offline"}</p>
       </div>
     </div>
   );

@@ -8,11 +8,12 @@ import {
   adminAvailabilityTable,
   adminNotificationsTable,
 } from "@workspace/db";
-import { eq, and, desc, inArray, sql } from "drizzle-orm";
+import { eq, and, desc, inArray, sql, isNull } from "drizzle-orm";
 import {
   toIso,
   MAX_TEXT,
   notifyAdmins,
+  listOnlineAdmins,
 } from "../lib/support-helpers";
 
 const router = Router();
@@ -192,27 +193,60 @@ router.get("/admin/support/tickets/:id", async (req: Request, res: Response) => 
 });
 
 // ── POST /admin/support/tickets/:id/accept ───────────────────────────────────
-// Accept a waiting ticket and become the assigned admin.
+// Accept a waiting ticket and become the assigned admin. The claim is atomic:
+// only one admin can ever win the UPDATE, so two admins can't both claim the
+// same ticket. After a successful claim, other online admins are told the
+// ticket has been taken so they stop trying to accept it.
 router.post("/admin/support/tickets/:id/accept", async (req: Request, res: Response) => {
   const me = req.session!.userId!;
+  const role = req.session?.role;
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid ticket id" }); return; }
 
-  const [ticket] = await db.select().from(supportTicketsTable).where(eq(supportTicketsTable.id, id));
+  const [ticket] = await db
+    .select({ id: supportTicketsTable.id, status: supportTicketsTable.status, assignedAdminId: supportTicketsTable.assignedAdminId, userId: supportTicketsTable.userId, subject: supportTicketsTable.subject })
+    .from(supportTicketsTable)
+    .where(eq(supportTicketsTable.id, id));
   if (!ticket) { res.status(404).json({ error: "Ticket not found" }); return; }
   if (ticket.status === "closed") { res.status(400).json({ error: "This ticket is closed" }); return; }
-  if (ticket.assignedAdminId && ticket.assignedAdminId !== me && req.session?.role !== "owner") {
-    res.status(403).json({ error: "This ticket is already assigned to another admin" });
+
+  const now = new Date();
+  let updated: typeof supportTicketsTable.$inferSelect | undefined;
+
+  if (role === "owner") {
+    // Owners may take over any (non-closed) ticket.
+    [updated] = await db
+      .update(supportTicketsTable)
+      .set({ assignedAdminId: me, status: "active", updatedAt: now, adminUnread: 0 })
+      .where(eq(supportTicketsTable.id, id))
+      .returning();
+  } else {
+    // A normal admin may only claim a ticket that is still unassigned (or their own).
+    [updated] = await db
+      .update(supportTicketsTable)
+      .set({ assignedAdminId: me, status: "active", updatedAt: now, adminUnread: 0 })
+      .where(and(eq(supportTicketsTable.id, id), isNull(supportTicketsTable.assignedAdminId)))
+      .returning();
+  }
+
+  if (!updated) {
+    res.status(409).json({ error: "This ticket has already been claimed by another admin" });
     return;
   }
 
-  const now = new Date();
-  await db
-    .update(supportTicketsTable)
-    .set({ assignedAdminId: me, status: "active", updatedAt: now, adminUnread: 0 })
-    .where(eq(supportTicketsTable.id, id));
+  // Tell the other online admins a ticket is no longer available to claim.
+  const online = await listOnlineAdmins();
+  const others = online.filter((a) => a.id !== me).map((a) => a.id);
+  await notifyAdmins({
+    adminIds: others,
+    userId: ticket.userId,
+    ticketId: id,
+    type: "claimed",
+    title: "✅ Ticket claimed",
+    body: `"${ticket.subject}" was accepted by another admin`,
+  });
 
-  res.json({ ...ticketJson({ ...ticket, assignedAdminId: me, status: "active", updatedAt: now }), ok: true });
+  res.json({ ok: true, assignedAdminId: me, status: "active" });
 });
 
 // ── POST /admin/support/tickets/:id/messages ─────────────────────────────────

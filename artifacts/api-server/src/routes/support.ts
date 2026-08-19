@@ -5,6 +5,7 @@ import {
   supportTicketsTable,
   supportTicketMessagesTable,
   supportTicketRatingsTable,
+  adminAvailabilityTable,
 } from "@workspace/db";
 import { eq, desc, inArray, sql } from "drizzle-orm";
 import {
@@ -145,6 +146,14 @@ router.get("/support/tickets", async (req: Request, res: Response) => {
     : [];
   const adminMap = new Map(adminRows.map((a) => [a.id, a]));
 
+  const availRows = adminIds.length
+    ? await db
+        .select({ adminId: adminAvailabilityTable.adminId, online: adminAvailabilityTable.online })
+        .from(adminAvailabilityTable)
+        .where(inArray(adminAvailabilityTable.adminId, adminIds))
+    : [];
+  const availMap = new Map(availRows.map((r) => [r.adminId, r.online]));
+
   const messages = await db
     .select()
     .from(supportTicketMessagesTable)
@@ -165,7 +174,7 @@ router.get("/support/tickets", async (req: Request, res: Response) => {
       return {
         ...ticketJson(t),
         assignedAdmin: admin
-          ? { id: admin.id, username: admin.username, displayName: admin.displayName, avatarUrl: admin.avatarUrl, role: admin.role }
+          ? { id: admin.id, username: admin.username, displayName: admin.displayName, avatarUrl: admin.avatarUrl, role: admin.role, online: availMap.get(admin.id) ?? false }
           : null,
         lastMessage: last
           ? { text: last.text, senderRole: last.senderRole, createdAt: toIso(last.createdAt), hasAttachment: !!last.attachmentPath }
@@ -201,18 +210,26 @@ router.get("/support/tickets/:id", async (req: Request, res: Response) => {
     .where(eq(playersTable.id, ticket.userId));
 
   let adminRow: { username: string; displayName: string | null; avatarUrl: string | null; role: string } | null = null;
+  let adminOnline = false;
   if (ticket.assignedAdminId) {
     const rows = await db
       .select({ username: playersTable.username, displayName: playersTable.displayName, avatarUrl: playersTable.avatarUrl, role: playersTable.role })
       .from(playersTable)
       .where(eq(playersTable.id, ticket.assignedAdminId));
     adminRow = rows[0] ?? null;
+    if (adminRow) {
+      const [av] = await db
+        .select({ online: adminAvailabilityTable.online })
+        .from(adminAvailabilityTable)
+        .where(eq(adminAvailabilityTable.adminId, ticket.assignedAdminId));
+      adminOnline = av?.online ?? false;
+    }
   }
 
   res.json({
     ...ticketJson(ticket),
     user: userRow ? { username: userRow.username, displayName: userRow.displayName, avatarUrl: userRow.avatarUrl } : null,
-    assignedAdmin: adminRow,
+    assignedAdmin: adminRow ? { ...adminRow, online: adminOnline } : null,
     messages: messages.map(messageJson),
   });
 });
