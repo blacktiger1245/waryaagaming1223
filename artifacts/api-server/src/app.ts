@@ -88,7 +88,7 @@ app.use((req, res, next) => {
 
 // Keep image bodies as Buffers for the direct upload endpoint. JSON requests
 // continue through the normal parser below.
-app.use(express.raw({ type: ["image/*", "application/octet-stream"], limit: "10mb" }));
+app.use(express.raw({ type: ["image/*", "video/*", "application/octet-stream"], limit: "10mb" }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

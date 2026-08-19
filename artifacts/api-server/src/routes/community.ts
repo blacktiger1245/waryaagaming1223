@@ -117,7 +117,7 @@ router.post("/community/posts", async (req: Request, res: Response) => {
     res.status(400).json({ error: "Content too long (max 2000 chars)" });
     return;
   }
-  if (videoUrl != null && (typeof videoUrl !== "string" || !/^https?:\/\//i.test(videoUrl))) {
+  if (videoUrl != null && (typeof videoUrl !== "string" || (!/^https?:\/\//i.test(videoUrl) && !/^\/objects\//.test(videoUrl)))) {
     res.status(400).json({ error: "Invalid video URL" });
     return;
   }
@@ -210,6 +210,7 @@ router.get("/community/posts/:id/comments", async (req: Request, res: Response) 
       authorUsername: playersTable.username,
       authorDisplayName: playersTable.displayName,
       authorAvatarUrl: playersTable.avatarUrl,
+      authorVerified: playersTable.verified,
     })
     .from(communityPostCommentsTable)
     .leftJoin(playersTable, eq(communityPostCommentsTable.authorId, playersTable.id))
@@ -251,6 +252,7 @@ router.post("/community/posts/:id/comments", async (req: Request, res: Response)
       authorUsername: playersTable.username,
       authorDisplayName: playersTable.displayName,
       authorAvatarUrl: playersTable.avatarUrl,
+      authorVerified: playersTable.verified,
     })
     .from(communityPostCommentsTable)
     .leftJoin(playersTable, eq(communityPostCommentsTable.authorId, playersTable.id))

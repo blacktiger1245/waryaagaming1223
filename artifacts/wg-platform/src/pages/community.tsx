@@ -45,23 +45,19 @@ const api = (path: string) => `${BASE}${path}`;
 const VERIFIED_SRC = `${BASE}/verified.png`;
 
 async function uploadCommunityFile(file: File) {
-  const metaRes = await fetch(api("/api/storage/uploads/community-image"), {
+  // Upload through the API (server→R2) rather than a browser→R2 presigned PUT.
+  // This avoids R2 bucket-CORS blocks that surface as "Failed to fetch".
+  const res = await fetch(api("/api/storage/uploads/community-media/direct"), {
     method: "POST",
     credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type || "application/octet-stream" }),
-  });
-  const meta: { uploadURL?: string; objectPath?: string; error?: string } = await metaRes.json();
-  if (!metaRes.ok || !meta.uploadURL || !meta.objectPath) {
-    throw new Error(meta.error ?? "Failed to start upload");
-  }
-  const putRes = await fetch(meta.uploadURL, {
-    method: "PUT",
     headers: { "Content-Type": file.type || "application/octet-stream" },
     body: file,
   });
-  if (!putRes.ok) throw new Error("Upload failed");
-  return `/api/storage${meta.objectPath}`;
+  const data: { objectPath?: string; error?: string } = await res.json().catch(() => ({}));
+  if (!res.ok || typeof data.objectPath !== "string" || !data.objectPath) {
+    throw new Error(data.error ?? "Failed to upload media");
+  }
+  return data.objectPath; // e.g. "/objects/<uuid>"
 }
 
 function timeAgo(iso: string) {

@@ -88,6 +88,41 @@ router.post(
   },
 );
 /**
+ * POST /storage/uploads/community-media/direct
+ *
+ * Upload a community post image/video through the API so the browser never
+ * talks to the bucket directly (avoids bucket CORS requirements). Accepted
+ * content types are image/* and video/*. Any logged-in user may upload.
+ */
+router.post(
+  '/storage/uploads/community-media/direct',
+  async (req: Request, res: Response) => {
+    if (!req.session?.userId) {
+      res.status(401).json({ error: 'You must be logged in to upload media' });
+      return;
+    }
+
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      res.status(400).json({ error: 'A media file is required' });
+      return;
+    }
+
+    const contentType = req.get('content-type') || 'application/octet-stream';
+    if (!contentType.startsWith('image/') && !contentType.startsWith('video/')) {
+      res.status(400).json({ error: 'Only image and video uploads are supported' });
+      return;
+    }
+
+    try {
+      const objectPath = await objectStorageService.uploadObject(req.body, contentType);
+      return res.status(201).json({ objectPath });
+    } catch (error) {
+      req.log.error({ err: error }, 'Error uploading community media through API');
+      return res.status(500).json({ error: 'Failed to upload media' });
+    }
+  },
+);
+/**
  * POST /storage/uploads/serial-screenshot/direct
  *
  * Upload a serial-number proof screenshot through the API. Reuses the same
