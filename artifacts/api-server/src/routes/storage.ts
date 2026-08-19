@@ -123,6 +123,42 @@ router.post(
   },
 );
 /**
+ * POST /storage/uploads/support-attachment/direct
+ *
+ * Upload a support ticket image attachment through the API so the browser
+ * never talks to the bucket directly (avoids bucket-CORS "Failed to fetch").
+ * Any logged-in user may upload (viewers upload screenshots for their own
+ * tickets; the support routes enforce ticket ownership on the message write).
+ */
+router.post(
+  '/storage/uploads/support-attachment/direct',
+  async (req: Request, res: Response) => {
+    if (!req.session?.userId) {
+      res.status(401).json({ error: 'You must be logged in to upload an attachment' });
+      return;
+    }
+
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      res.status(400).json({ error: 'An attachment is required' });
+      return;
+    }
+
+    const contentType = req.get('content-type') || 'application/octet-stream';
+    if (!contentType.startsWith('image/')) {
+      res.status(400).json({ error: 'Only image attachments are supported' });
+      return;
+    }
+
+    try {
+      const objectPath = await objectStorageService.uploadObject(req.body, contentType);
+      return res.status(201).json({ objectPath, attachmentType: contentType });
+    } catch (error) {
+      req.log.error({ err: error }, 'Error uploading support attachment through API');
+      return res.status(500).json({ error: 'Failed to upload attachment' });
+    }
+  },
+);
+/**
  * POST /storage/uploads/serial-screenshot/direct
  *
  * Upload a serial-number proof screenshot through the API. Reuses the same

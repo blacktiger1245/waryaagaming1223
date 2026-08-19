@@ -23,8 +23,10 @@ import {
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useAuth } from "@/hooks/use-auth";
-import { Crown, ShieldCheck } from "lucide-react";
+import { Crown, ShieldCheck, LifeBuoy } from "lucide-react";
 import { fetchUnreadCount } from "@/lib/agent-chat";
+import { useQuery } from "@tanstack/react-query";
+import { user as supportUser } from "@/lib/support";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -45,6 +47,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/academy", label: "WG Academy", icon: GraduationCap },
     { href: "/partners", label: "Partners", icon: Handshake },
     { href: "/marketplace", label: "Transfer Market", icon: ShoppingBag },
+    { href: "/support", label: "Support", icon: LifeBuoy },
   ];
 
   return (
@@ -62,6 +65,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <img src={`${import.meta.env.BASE_URL}logo.jpg`} alt="Waryaa Gaming" className="size-8 rounded-sm glow-primary object-cover" />
           <span className="font-black text-lg tracking-widest text-primary uppercase">Waryaa Gaming</span>
         </Link>
+        <SupportBell />
         <AgentChatBell />
       </div>
 
@@ -358,6 +362,32 @@ function AgentChatBell() {
       <MessageCircle className="w-5 h-5" />
       {unread > 0 && (
         <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-pink-accent px-1 text-[10px] font-bold text-white">
+          {unread > 99 ? "99+" : unread}
+        </span>
+      )}
+    </Link>
+  );
+}
+
+function SupportBell() {
+  const { isLoggedIn } = useAuth();
+  const { data } = useQuery({
+    queryKey: ["support-unread"],
+    queryFn: supportUser.unread,
+    enabled: isLoggedIn,
+    refetchInterval: 15_000,
+  });
+  const unread = data?.totalUnread ?? 0;
+  return (
+    <Link
+      href="/support"
+      className="relative ml-auto flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+      data-testid="link-support"
+      aria-label="Support"
+    >
+      <LifeBuoy className="h-5 w-5" />
+      {unread > 0 && (
+        <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">
           {unread > 99 ? "99+" : unread}
         </span>
       )}

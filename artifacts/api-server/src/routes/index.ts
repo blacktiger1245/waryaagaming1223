@@ -15,6 +15,8 @@ import seasonsRouter from "./seasons";
 import announcementsRouter from "./announcements";
 import agentChatRouter from "./agent-chat";
 import memberDeviceRouter from "./member-device";
+import supportRouter from "./support";
+import supportAdminRouter from "./support-admin";
 
 const router: IRouter = Router();
 
@@ -34,6 +36,8 @@ router.use(seasonsRouter);
 router.use(announcementsRouter);
 router.use(agentChatRouter);
 router.use(memberDeviceRouter);
+router.use(supportRouter);
+router.use(supportAdminRouter);
 // Note: auth routes are mounted directly in app.ts
 
 export default router;

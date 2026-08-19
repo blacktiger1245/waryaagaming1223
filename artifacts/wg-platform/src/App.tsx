@@ -36,6 +36,8 @@ import ComparePage from "@/pages/compare";
 import DashboardPage from "@/pages/dashboard";
 import FixturesPage from "@/pages/fixtures";
 import CommunityPage from "@/pages/community";
+import SupportPage from "@/pages/support";
+import SupportTicketPage from "@/pages/support-ticket";
 import AdminLoginPage from "@/pages/admin/login";
 import AdminDashboardPage from "@/pages/admin/dashboard";
 import AdminPlayersPage from "@/pages/admin/players";
@@ -49,6 +51,10 @@ import AdminSeasonsPage from "@/pages/admin/seasons";
 import ManageAdminsPage from "@/pages/admin/manage-admins";
 import AdminAnnouncementsPage from "@/pages/admin/announcements";
 import AdminRegistrationLogsPage from "@/pages/admin/registration-logs";
+import AdminSupportPage from "@/pages/admin/support";
+import AdminSupportTicketPage from "@/pages/admin/support-ticket";
+import AdminSupportAnalyticsPage from "@/pages/admin/support-analytics";
+import AdminSupportHistoryPage from "@/pages/admin/support-history";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -88,6 +94,8 @@ function SiteRouter() {
         <Route path="/compare" component={ComparePage} />
         <Route path="/dashboard" component={DashboardPage} />
         <Route path="/community" component={CommunityPage} />
+        <Route path="/support" component={SupportPage} />
+        <Route path="/support/tickets/:id" component={SupportTicketPage} />
         <Route path="/partners" component={PartnershipPage} />
         <Route path="/partnership" component={PartnershipPage} />
         <Route component={NotFound} />
@@ -113,6 +121,10 @@ function AdminRouter() {
         <Route path="/admin/manage-admins" component={ManageAdminsPage} />
         <Route path="/admin/announcements" component={AdminAnnouncementsPage} />
         <Route path="/admin/registration-logs" component={AdminRegistrationLogsPage} />
+        <Route path="/admin/support" component={AdminSupportPage} />
+        <Route path="/admin/support/history" component={AdminSupportHistoryPage} />
+        <Route path="/admin/support/analytics" component={AdminSupportAnalyticsPage} />
+        <Route path="/admin/support/:id" component={AdminSupportTicketPage} />
         <Route component={NotFound} />
       </Switch>
     </AdminLayout>

@@ -1,18 +1,11 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Crown, Shield, ShieldOff, UserCog } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { useAdminAuth } from "@/hooks/use-admin-auth";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Redirect } from "wouter";
+import { Loader2, Crown, Shield, ShieldOff, UserPlus, Star } from "lucide-react";
+import { useAdminAuth } from "@/hooks/use-admin-auth";
+import { supportAdmin } from "@/lib/support";
 
-interface PlayerRow {
-  id: number;
-  username: string;
-  displayName: string | null;
-  avatarUrl: string | null;
-  discordId: string | null;
-  role: string;
-}
+interface PlayerRow { id: number; username: string; displayName: string | null; avatarUrl: string | null; role: string; }
 
 async function fetchUsers(): Promise<PlayerRow[]> {
   const res = await fetch("/api/admin/users", { credentials: "include" });
@@ -20,174 +13,114 @@ async function fetchUsers(): Promise<PlayerRow[]> {
   return res.json() as Promise<PlayerRow[]>;
 }
 
-async function setRole(id: number, role: "player" | "admin"): Promise<void> {
-  const res = await fetch(`/api/admin/users/${id}/role`, {
-    method: "PATCH",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ role }),
-  });
-  if (!res.ok) {
-    const data = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(data?.error ?? "Failed to update role");
-  }
+function fmtAgo(iso?: string | null) {
+  if (!iso) return "";
+  const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  return h < 24 ? `${h}h ago` : "long ago";
+}
+
+function Stars({ n }: { n: number }) {
+  return <span className="inline-flex gap-0.5">{Array.from({ length: 5 }).map((_, i) => <Star key={i} className={`h-3 w-3 ${i < n ? "fill-yellow-400 text-yellow-400" : "text-zinc-600"}`} />)}</span>;
 }
 
 export default function ManageAdminsPage() {
   const { isOwner, isLoading: authLoading } = useAdminAuth();
   const qc = useQueryClient();
-  const [pendingId, setPendingId] = useState<number | null>(null);
 
-  const { data: users, isLoading } = useQuery({
-    queryKey: ["admin", "users"],
-    queryFn: fetchUsers,
-    enabled: isOwner,
-  });
+  const { data: adminsData, isLoading } = useQuery({ queryKey: ["support-admins"], queryFn: supportAdmin.admins, enabled: isOwner });
+  const { data: players = [] } = useQuery({ queryKey: ["admin-users"], queryFn: fetchUsers, enabled: isOwner });
 
-  const roleMutation = useMutation({
-    mutationFn: ({ id, role }: { id: number; role: "player" | "admin" }) => setRole(id, role),
-    onMutate: ({ id }) => setPendingId(id),
-    onSettled: () => {
-      setPendingId(null);
-      qc.invalidateQueries({ queryKey: ["admin", "users"] });
-    },
-  });
+  const [grantId, setGrantId] = useState<number | null>(null);
+  const [error, setError] = useState("");
+  const [busyId, setBusyId] = useState<number | null>(null);
 
-  if (authLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-6 h-6 animate-spin text-primary" />
-      </div>
-    );
+  async function run(fn: () => Promise<unknown>, id: number) {
+    setError(""); setBusyId(id);
+    try { await fn(); qc.invalidateQueries({ queryKey: ["support-admins"] }); }
+    catch (e: any) { setError(e.message); }
+    finally { setBusyId(null); }
   }
 
-  // Only the owner can reach this page.
+  async function grantAdmin() {
+    if (!grantId) return;
+    setError(""); setBusyId(grantId);
+    try {
+      await supportAdmin.setRole(grantId, "admin");
+      qc.invalidateQueries({ queryKey: ["support-admins"] });
+      qc.invalidateQueries({ queryKey: ["admin-users"] });
+      setGrantId(null);
+    } catch (e: any) { setError(e.message); }
+    finally { setBusyId(null); }
+  }
+
+  if (authLoading) return <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
   if (!isOwner) return <Redirect to="/admin" />;
+
+  const admins = adminsData?.admins ?? [];
+  const candidates = players.filter((p) => p.role !== "admin" && p.role !== "owner");
 
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-black uppercase tracking-wide flex items-center gap-3">
-          <UserCog className="w-6 h-6 text-primary" />
-          Manage Admins
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Grant or revoke admin access for registered players. Only you (the Owner) can do this.
-        </p>
+        <h1 className="flex items-center gap-3 text-2xl font-black uppercase tracking-tight"><UserPlus className="h-6 w-6 text-primary" /> Manage Admins</h1>
+        <p className="text-sm text-muted-foreground">Owner-only. Grant/revoke admin roles, promote owners and view each admin's support statistics.</p>
       </div>
 
-      {/* Role legend */}
-      <div className="flex flex-wrap gap-3">
-        {[
-          { label: "Owner", icon: Crown, color: "text-yellow-400", desc: "Full control — cannot be changed" },
-          { label: "Admin", icon: Shield, color: "text-primary", desc: "Full access to admin panel" },
-          { label: "Player", icon: ShieldOff, color: "text-muted-foreground", desc: "No admin access" },
-        ].map(({ label, icon: Icon, color, desc }) => (
-          <div key={label} className="flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2">
-            <Icon className={`w-4 h-4 ${color}`} />
-            <span className="font-bold text-sm">{label}</span>
-            <span className="text-xs text-muted-foreground hidden sm:inline">— {desc}</span>
-          </div>
-        ))}
+      {error && <p className="rounded-lg border border-red-400/40 bg-red-400/10 px-3 py-2 text-sm text-red-400">{error}</p>}
+
+      <div className="rounded-xl border border-border bg-card p-4">
+        <h2 className="mb-2 flex items-center gap-2 font-black uppercase tracking-wide"><Shield className="h-4 w-4 text-primary" /> Add Admin</h2>
+        <div className="flex gap-2">
+          <select value={grantId ?? ""} onChange={(e) => setGrantId(Number(e.target.value))} className="flex-1 rounded-lg border border-border bg-muted px-3 py-2 text-sm outline-none focus:border-primary">
+            <option value="">Select a player…</option>
+            {candidates.map((p) => <option key={p.id} value={p.id}>{p.displayName ?? p.username}</option>)}
+          </select>
+          <button onClick={grantAdmin} disabled={!grantId || busyId !== null} className="rounded-lg bg-primary px-4 py-2 text-sm font-black text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+            {busyId === grantId ? "…" : "Grant Admin"}
+          </button>
+        </div>
       </div>
 
       {isLoading ? (
-        <div className="flex items-center justify-center h-40">
-          <Loader2 className="w-6 h-6 animate-spin text-primary" />
-        </div>
+        <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+      ) : admins.length === 0 ? (
+        <p className="py-12 text-center text-sm text-muted-foreground">No admins yet.</p>
       ) : (
-        <div className="rounded-lg border border-border overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/30">
-                <th className="px-4 py-3 text-left font-bold uppercase tracking-wider text-xs text-muted-foreground">Player</th>
-                <th className="px-4 py-3 text-left font-bold uppercase tracking-wider text-xs text-muted-foreground">Discord ID</th>
-                <th className="px-4 py-3 text-left font-bold uppercase tracking-wider text-xs text-muted-foreground">Role</th>
-                <th className="px-4 py-3 text-right font-bold uppercase tracking-wider text-xs text-muted-foreground">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users?.map((u) => (
-                <tr key={u.id} className="border-b border-border/50 last:border-0 hover:bg-muted/20 transition-colors">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      {u.avatarUrl ? (
-                        <img src={u.avatarUrl} alt="avatar" className="w-8 h-8 rounded-full" />
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-black text-primary">
-                          {(u.displayName ?? u.username).charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                      <div>
-                        <p className="font-bold">{u.displayName ?? u.username}</p>
-                        <p className="text-xs text-muted-foreground">@{u.username}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                    {u.discordId ?? "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <RoleBadge role={u.role} />
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {u.role === "owner" ? (
-                      <span className="text-xs text-muted-foreground italic">Protected</span>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant={u.role === "admin" ? "outline" : "default"}
-                        className={`font-bold text-xs gap-1.5 ${u.role === "admin" ? "border-destructive/50 text-destructive hover:bg-destructive/10" : ""}`}
-                        disabled={pendingId === u.id}
-                        onClick={() => roleMutation.mutate({ id: u.id, role: u.role === "admin" ? "player" : "admin" })}
-                      >
-                        {pendingId === u.id ? (
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                        ) : u.role === "admin" ? (
-                          <>
-                            <ShieldOff className="w-3 h-3" />
-                            Remove Admin
-                          </>
-                        ) : (
-                          <>
-                            <Shield className="w-3 h-3" />
-                            Make Admin
-                          </>
-                        )}
-                      </Button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="overflow-hidden rounded-xl border border-border">
+          {admins.map((a) => (
+            <div key={a.id} className="flex flex-wrap items-center gap-4 border-b border-border p-4 last:border-b-0">
+              {a.avatarUrl ? <img src={a.avatarUrl} alt="" className="h-11 w-11 rounded-full" /> : <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/20 text-lg font-black text-primary">{(a.displayName ?? a.username)[0]?.toUpperCase()}</div>}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="font-black">{a.displayName ?? a.username}</p>
+                  {a.role === "owner" ? <span className="inline-flex items-center gap-1 rounded-full border border-yellow-400/40 bg-yellow-400/10 px-2 py-0.5 text-[10px] font-bold uppercase text-yellow-400"><Crown className="h-2.5 w-2.5" /> Owner</span> : <span className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase text-primary"><Shield className="h-2.5 w-2.5" /> Admin</span>}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  🟢 online · last seen {fmtAgo(a.lastActiveAt)} · {a.ticketsHandled} handled · {a.ticketsClosed} closed
+                </p>
+                <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
+                  <span className="font-bold text-yellow-400">{(a.avgRating ?? 0) > 0 ? a.avgRating : "—"}</span>
+                  <Stars n={Math.round(a.avgRating ?? 0)} />
+                  <span>{a.ratingCount} ratings</span>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {a.role === "owner" ? (
+                  <button onClick={() => { if (confirm(`Demote ${a.displayName ?? a.username} to Admin?`)) run(() => supportAdmin.demoteOwner(a.id), a.id); }} disabled={busyId === a.id} className="rounded-lg border border-yellow-400/40 px-3 py-1.5 text-xs font-bold text-yellow-400 hover:bg-yellow-400/10 disabled:opacity-50">Demote to Admin</button>
+                ) : (
+                  <>
+                    <button onClick={() => { if (confirm(`Promote ${a.displayName ?? a.username} to Owner?`)) run(() => supportAdmin.promoteOwner(a.id), a.id); }} disabled={busyId === a.id} className="flex items-center gap-1 rounded-lg border border-yellow-400/40 px-3 py-1.5 text-xs font-bold text-yellow-400 hover:bg-yellow-400/10 disabled:opacity-50"><Crown className="h-3 w-3" /> Make Owner</button>
+                    <button onClick={() => { if (confirm(`Remove ${a.displayName ?? a.username} as admin?`)) run(() => supportAdmin.setRole(a.id, "player"), a.id); }} disabled={busyId === a.id} className="flex items-center gap-1 rounded-lg border border-red-400/40 px-3 py-1.5 text-xs font-bold text-red-400 hover:bg-red-400/10 disabled:opacity-50"><ShieldOff className="h-3 w-3" /> Remove</button>
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
-  );
-}
-
-function RoleBadge({ role }: { role: string }) {
-  if (role === "owner") {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-yellow-400/10 border border-yellow-400/30 text-yellow-400 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide">
-        <Crown className="w-3 h-3" />
-        Owner
-      </span>
-    );
-  }
-  if (role === "admin") {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/30 text-primary px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide">
-        <Shield className="w-3 h-3" />
-        Admin
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-muted border border-border text-muted-foreground px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide">
-      <ShieldOff className="w-3 h-3" />
-      Player
-    </span>
   );
 }

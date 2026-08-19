@@ -16,6 +16,9 @@ import {
   CalendarRange,
   Megaphone,
   ClipboardList,
+  LifeBuoy,
+  History,
+  BarChart3,
 } from "lucide-react";
 import { useAdminAuth } from "@/hooks/use-admin-auth";
 import { Button } from "@/components/ui/button";
@@ -31,11 +34,16 @@ const baseNavItems = [
   { href: "/admin/media", label: "Media", icon: PlaySquare },
   { href: "/admin/hall-of-fame", label: "Hall of Fame", icon: Star },
   { href: "/admin/announcements", label: "Announcements", icon: Megaphone },
+  { href: "/admin/support", label: "Support", icon: LifeBuoy },
+  { href: "/admin/support/history", label: "Support History", icon: History },
   { href: "/admin/registration-logs", label: "Registration Logs", icon: ClipboardList },
 ];
 
-// Extra nav item shown only to the owner.
-const ownerNavItem = { href: "/admin/manage-admins", label: "Manage Admins", icon: UserCog };
+// Extra nav items shown only to the owner.
+const ownerNavItems = [
+  { href: "/admin/manage-admins", label: "Manage Admins", icon: UserCog },
+  { href: "/admin/support/analytics", label: "Support Analytics", icon: BarChart3 },
+];
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -57,7 +65,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  const navItems = isOwner ? [...baseNavItems, ownerNavItem] : baseNavItems;
+  const navItems = isOwner ? [...baseNavItems, ...ownerNavItems] : baseNavItems;
 
   return (
     <div className="min-h-screen flex bg-background">
