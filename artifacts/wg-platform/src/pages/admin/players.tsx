@@ -236,7 +236,7 @@ export default function AdminPlayersPage() {
                           title="Remove verification"
                           className="inline-flex items-center gap-1 text-[10px] font-black text-sky-400 bg-sky-400/10 border border-sky-400/20 px-1.5 py-0.5 rounded-full hover:bg-sky-400/20 disabled:opacity-50"
                         >
-                          <BadgeCheck className="w-3 h-3" /> Verified
+                          <img src={`${import.meta.env.BASE_URL}verified.png`} alt="" className="w-3 h-3 object-contain" /> Verified
                         </button>
                       ) : (
                         <button

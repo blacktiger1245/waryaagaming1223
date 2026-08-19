@@ -368,7 +368,12 @@ export default function HomePage() {
                               )}
                             </div>
                             <div className="flex-1 min-w-0 pr-8">
-                              <h3 className="font-black text-base truncate leading-tight">{player.username}</h3>
+                              <h3 className="flex items-center gap-1 font-black text-base truncate leading-tight">
+                                <span className="truncate">{player.username}</span>
+                                {(player as any).verified && (
+                                  <img src={`${import.meta.env.BASE_URL}verified.png`} alt="" className="h-4 w-4 shrink-0 object-contain" draggable={false} />
+                                )}
+                              </h3>
                               {player.teamName && (
                                 <p className="text-xs text-muted-foreground mt-0.5 truncate">{player.teamName}</p>
                               )}

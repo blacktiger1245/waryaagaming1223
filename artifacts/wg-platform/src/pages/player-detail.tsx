@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import {
   ArrowLeft, Star, ScrollText, Fingerprint, Activity, Building2, Swords, BookOpen,
   CalendarDays, MapPin, Droplets, Gamepad2, Shield, Trophy, Share2,
-  TrendingUp, Zap, Target, ShieldCheck, Award, Coins, Handshake, XCircle, Square, User, BarChart2, BadgeCheck,
+  TrendingUp, Zap, Target, ShieldCheck, Award, Coins, Handshake, XCircle, Square, User, BarChart2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -739,7 +739,12 @@ export default function PlayerDetailPage() {
                 <h1 className="text-2xl md:text-3xl font-black leading-none flex items-center gap-2">
                         {displayName}
                         {(player as any).verified && (
-                          <BadgeCheck className="h-5 w-5 shrink-0 text-sky-400" />
+                          <img
+                          src={`${import.meta.env.BASE_URL}verified.png`}
+                          alt=""
+                          draggable={false}
+                          className="h-5 w-5 shrink-0 object-contain"
+                        />
                         )}
                       </h1>
                 {player.country && (

@@ -748,6 +748,9 @@ export default function RankingsPage() {
                                   <div>
                                     <div className="flex items-center gap-1.5">
                                       <span className="font-bold text-sm hover:text-primary transition-colors cursor-pointer">{p.displayName ?? p.username}</span>
+                                      {(p as any).verified && (
+                                        <img src={`${import.meta.env.BASE_URL}verified.png`} alt="" className="h-3.5 w-3.5 object-contain" draggable={false} />
+                                      )}
                                       {isTop3 && <Star className="w-3 h-3 text-primary fill-primary" />}
                                     </div>
                                     {p.teamName && (
