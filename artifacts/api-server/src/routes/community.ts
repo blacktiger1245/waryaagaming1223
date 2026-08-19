@@ -87,6 +87,7 @@ router.get("/community/posts", async (req: Request, res: Response) => {
       createdAt: communityPostsTable.createdAt,
       authorUsername: playersTable.username,
       authorDisplayName: playersTable.displayName,
+      authorVerified: playersTable.verified,
       authorAvatarUrl: playersTable.avatarUrl,
     })
     .from(communityPostsTable)
@@ -107,7 +108,7 @@ router.post("/community/posts", async (req: Request, res: Response) => {
     return;
   }
 
-  const { content, imageUrl } = req.body ?? {};
+  const { content, imageUrl, videoUrl } = req.body ?? {};
   if (!content || typeof content !== "string" || content.trim().length === 0) {
     res.status(400).json({ error: "Content is required" });
     return;
@@ -116,10 +117,19 @@ router.post("/community/posts", async (req: Request, res: Response) => {
     res.status(400).json({ error: "Content too long (max 2000 chars)" });
     return;
   }
+  if (videoUrl != null && (typeof videoUrl !== "string" || !/^https?:\/\//i.test(videoUrl))) {
+    res.status(400).json({ error: "Invalid video URL" });
+    return;
+  }
 
   const [post] = await db
     .insert(communityPostsTable)
-    .values({ authorId: req.session.userId, content: content.trim(), imageUrl: imageUrl ?? null })
+    .values({
+      authorId: req.session.userId,
+      content: content.trim(),
+      imageUrl: imageUrl ?? null,
+      videoUrl: videoUrl ?? null,
+    })
     .returning();
 
   const [withAuthor] = await db
@@ -128,10 +138,12 @@ router.post("/community/posts", async (req: Request, res: Response) => {
       authorId: communityPostsTable.authorId,
       content: communityPostsTable.content,
       imageUrl: communityPostsTable.imageUrl,
+      videoUrl: communityPostsTable.videoUrl,
       createdAt: communityPostsTable.createdAt,
       authorUsername: playersTable.username,
       authorDisplayName: playersTable.displayName,
       authorAvatarUrl: playersTable.avatarUrl,
+      authorVerified: playersTable.verified,
     })
     .from(communityPostsTable)
     .leftJoin(playersTable, eq(communityPostsTable.authorId, playersTable.id))

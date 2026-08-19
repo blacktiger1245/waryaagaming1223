@@ -5,6 +5,7 @@ export const communityPostsTable = pgTable("community_posts", {
   authorId: integer("author_id").notNull(),
   content: text("content").notNull(),
   imageUrl: text("image_url"),
+  videoUrl: text("video_url"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
