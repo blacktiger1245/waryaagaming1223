@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&display=swap');
 @plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
@@ -246,6 +247,20 @@
   body {
     @apply font-sans antialiased bg-background text-foreground;
   }
+}
+
+/* Premium Hall of Fame player card (portrait 3:4, fully CSS/SVG —
+   no hallofframe.png, which was removed). */
+.hall-of-fame-card {
+  width: min(720px, 92vw);
+  aspect-ratio: 3 / 4;
+}
+
+.gold-metallic-text {
+  background: linear-gradient(170deg, #f7e48b 0%, #d4af37 42%, #8a6d1f 78%, #c8a13a 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 /* Glow effects for neon elements */
