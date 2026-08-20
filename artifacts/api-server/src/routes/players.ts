@@ -347,4 +347,78 @@ router.get("/players/:id/player-games", async (req, res) => {
   return res.json(games);
 });
 
+// ── Coach profile stats ──────────────────────────────────────────────────────
+// Returns whether this player is a coach (teams.coach_id) and, if so, computes
+// the coach's card stats from the coached team's completed team-tournament
+// matches (they are calculated live whenever the team's matches change).
+router.get("/players/:id/coach-stats", async (req, res) => {
+  const coachId = Number(req.params.id);
+  if (!Number.isInteger(coachId)) return res.status(400).json({ error: "Invalid id" });
+  try {
+    const [team] = await db
+      .select()
+      .from(teamsTable)
+      .where(eq(teamsTable.coachId, coachId))
+      .limit(1);
+    if (!team) return res.json({ isCoach: false, team: null });
+
+    const matches = await db
+      .select({
+        id: matchesTable.id,
+        tournamentId: matchesTable.tournamentId,
+        participant1Id: matchesTable.participant1Id,
+        participant2Id: matchesTable.participant2Id,
+        participant1Score: matchesTable.participant1Score,
+        participant2Score: matchesTable.participant2Score,
+        winnerId: matchesTable.winnerId,
+      })
+      .from(matchesTable)
+      .innerJoin(tournamentsTable, eq(tournamentsTable.id, matchesTable.tournamentId))
+      .where(
+        sql`(${matchesTable.participant1Id} = ${team.id} OR ${matchesTable.participant2Id} = ${team.id})
+            AND ${matchesTable.status} = 'completed'
+            AND ${tournamentsTable.tournamentType} = 'team'`,
+      );
+
+    let games = 0;
+    let wins = 0;
+    let draws = 0;
+    let losses = 0;
+    const latest = new Map<number, { maxId: number; teamWon: boolean }>();
+
+    for (const m of matches) {
+      games++;
+      const my = m.participant1Id === team.id ? (m.participant1Score ?? 0) : (m.participant2Score ?? 0);
+      const opp = m.participant1Id === team.id ? (m.participant2Score ?? 0) : (m.participant1Score ?? 0);
+      let won = false;
+      if (my > opp) { wins++; won = true; }
+      else if (my === opp) draws++;
+      else losses++;
+
+      const cur = latest.get(m.tournamentId);
+      if (!cur || m.id > cur.maxId) latest.set(m.tournamentId, { maxId: m.id, teamWon: won });
+    }
+
+    const tournamentWins = [...latest.values()].filter((v) => v.teamWon).length;
+    const points = team.points ?? 0;
+    const unbeaten = wins + draws;
+
+    return res.json({
+      isCoach: true,
+      team: { id: team.id, name: team.name, tag: team.tag, logoUrl: team.logoUrl },
+      games,
+      wins,
+      draws,
+      losses,
+      unbeaten,
+      points,
+      tournamentWins,
+      winRate: games > 0 ? Math.round((wins / games) * 100) : 0,
+    });
+  } catch (error: unknown) {
+    req.log.error({ err: error }, "Error computing coach stats");
+    return res.json({ isCoach: false, team: null });
+  }
+});
+
 export default router;

@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import {
   ArrowLeft, Star, ScrollText, Fingerprint, Activity, Building2, Swords, BookOpen,
   CalendarDays, MapPin, Droplets, Gamepad2, Shield, Trophy, Share2,
-  TrendingUp, Zap, Target, ShieldCheck, Award, Coins, Handshake, XCircle, Square, User, BarChart2,
+  TrendingUp, Zap, Target, ShieldCheck, Award, Coins, Handshake, XCircle, Square, User, BarChart2, Presentation,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -76,7 +76,20 @@ const TABS = [
   { id: "history",  label: "History",  icon: BookOpen },
 ] as const;
 
-type TabId = (typeof TABS)[number]["id"];
+type TabId = (typeof TABS)[number]["id"] | "coach";
+
+interface CoachStats {
+  isCoach: boolean;
+  team: { id: number; name: string; tag: string | null; logoUrl: string | null } | null;
+  games: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  unbeaten: number;
+  points: number;
+  tournamentWins: number;
+  winRate: number;
+}
 
 const matchStatusColors: Record<string, string> = {
   scheduled: "text-muted-foreground",
@@ -94,6 +107,18 @@ export default function PlayerDetailPage() {
   const { data: player, isLoading } = useGetPlayer(id);
   const { data: history } = useGetPlayerMatchHistory(id);      // solo-tournament matches
   const { data: playerGames } = usePlayerGames(id);            // team-tournament individual games
+
+  // ── Coach profile: detect a coached team and compute live coach stats ──────
+  const { data: coachStats } = useQuery<CoachStats>({
+    queryKey: ["coach-stats", id],
+    queryFn: async () => {
+      const r = await fetch(`/api/players/${id}/coach-stats`);
+      if (!r.ok) return { isCoach: false, team: null } as CoachStats;
+      return r.json() as Promise<CoachStats>;
+    },
+    enabled: id > 0,
+  });
+  const isCoach = !!coachStats?.isCoach;
 
   // ── Live computed stats (solo matches only) ───────────────────────────────
   const liveStats = useMemo(() => {
@@ -653,6 +678,65 @@ export default function PlayerDetailPage() {
     );
   }
 
+  function CoachTab() {
+    if (!player || !coachStats?.isCoach || !coachStats.team) return null;
+    const team = coachStats.team;
+    const mv = marketValueLabel(pointsToMarketValue(coachStats.points ?? 0));
+    const stats = [
+      { icon: <Coins       className="w-6 h-6 text-amber-400"  />, value: (coachStats.points ?? 0).toFixed(0), label: "Points" },
+      { icon: <User        className="w-6 h-6 text-violet-400"  />, value: coachStats.games,                   label: "Games" },
+      { icon: <Trophy      className="w-6 h-6 text-amber-400"  />, value: coachStats.wins,                     label: "Win" },
+      { icon: <Handshake   className="w-6 h-6 text-amber-300"  />, value: coachStats.draws,                    label: "Draw" },
+      { icon: <XCircle     className="w-6 h-6 text-rose-400"   />, value: coachStats.losses,                   label: "Loss" },
+      { icon: <ShieldCheck className="w-6 h-6 text-emerald-400"/>, value: coachStats.unbeaten,                 label: "Unbeaten" },
+      { icon: <Award       className="w-6 h-6 text-amber-400"  />, value: coachStats.tournamentWins,           label: "Tournament Wins" },
+      { icon: <Coins       className="w-6 h-6 text-amber-400"  />, value: mv,                                  label: "Market Value" },
+    ];
+    return (
+      <div className="space-y-4">
+        <div className="rounded-2xl border border-border bg-card p-4 flex items-center gap-4">
+          {team.logoUrl ? (
+            <img src={team.logoUrl} alt={team.name} className="w-12 h-12 rounded-full object-cover border border-border flex-shrink-0" />
+          ) : (
+            <div className="w-12 h-12 rounded-full bg-primary/10 border border-border flex items-center justify-center flex-shrink-0">
+              <Presentation className="w-5 h-5 text-primary" />
+            </div>
+          )}
+          <div>
+            <div className="font-bold text-base leading-tight">
+              Coach
+              {team.name && <span className="ml-2 text-primary">{team.name}</span>}
+              {team.tag && <span className="ml-2 text-xs text-muted-foreground font-normal">({team.tag})</span>}
+            </div>
+            <div className="text-xs text-primary font-semibold mt-0.5">Team coach</div>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <h3 className="font-bold text-lg px-1">Coach Statistics</h3>
+          {coachStats.games === 0 && (
+            <p className="text-muted-foreground text-sm px-1 pb-2">
+              No completed team matches recorded yet.
+            </p>
+          )}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {stats.map(({ icon, value, label }) => (
+              <div key={label} className="rounded-2xl border border-border bg-card p-4 flex flex-col items-start gap-2">
+                <div className="leading-none">{icon}</div>
+                <div className="font-black text-xl leading-none">{value}</div>
+                <div className="text-xs text-muted-foreground leading-tight">{label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <p className="text-xs text-muted-foreground px-1">
+          Calculated live from {team.name}&apos;s completed team-tournament matches.
+        </p>
+      </div>
+    );
+  }
+
   function SoloTab() {
     if (!player) return null;
     const { played, wins: won, losses: lost, draws: drawn, goals, cleanSheets, motm, deciderWins } = liveStats;
@@ -812,6 +896,19 @@ export default function PlayerDetailPage() {
                   {label}
                 </button>
               ))}
+              {isCoach && (
+                <button
+                  onClick={() => setActiveTab("coach")}
+                  className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-semibold whitespace-nowrap border-b-2 transition-colors focus:outline-none ${
+                    activeTab === "coach"
+                      ? "border-primary text-foreground"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <Presentation className="w-4 h-4" />
+                  Coach
+                </button>
+              )}
             </div>
           </div>
 
@@ -822,6 +919,7 @@ export default function PlayerDetailPage() {
             {activeTab === "overall"  && <OverallTab />}
             {activeTab === "club"     && <ClubTab />}
             {activeTab === "solo"     && <SoloTab />}
+            {activeTab === "coach"     && <CoachTab />}
             {activeTab === "history"  && <HistoryTab />}
           </div>
         </div>
