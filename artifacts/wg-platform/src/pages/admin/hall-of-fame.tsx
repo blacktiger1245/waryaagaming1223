@@ -29,7 +29,7 @@ export default function AdminHallOfFamePage() {
   const qc = useQueryClient();
   const { data: players = [], isLoading } = useQuery<HofPlayer[]>({
     queryKey: ["admin-hof-players"],
-    queryFn: () => apiFetch<HofPlayer[]>("/api/admin/hall-of-fame/players"),
+    queryFn: () => apiFetch<HofPlayer[]>("/api/admin/hall-of-fame-players"),
   });
   const { data: seasons = [] } = useQuery<Season[]>({
     queryKey: ["seasons"],
@@ -47,7 +47,7 @@ export default function AdminHallOfFamePage() {
     if (seasonId === "") { setErr("Please select a season"); return; }
     setBusy(true); setErr("");
     try {
-      await apiFetch("/api/admin/hall-of-fame/toggle", {
+      await apiFetch("/api/admin/hall-of-fame-toggle", {
         method: "POST",
         body: JSON.stringify({ playerId: p.id, on: true, seasonId: Number(seasonId) }),
       });
@@ -63,7 +63,7 @@ export default function AdminHallOfFamePage() {
     if (!window.confirm(`Remove ${p.displayName ?? p.username} from the Hall of Fame?`)) return;
     setErr("");
     try {
-      await apiFetch("/api/admin/hall-of-fame/toggle", {
+      await apiFetch("/api/admin/hall-of-fame-toggle", {
         method: "POST", body: JSON.stringify({ playerId: p.id, on: false }),
       });
       await qc.invalidateQueries({ queryKey: ["admin-hof-players"] });

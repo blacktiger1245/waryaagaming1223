@@ -59,7 +59,10 @@ function seasonYear(season: { name: string }): number {
 }
 
 // ── Admin: all players with their active Hall of Fame record ─────────────────
-router.get("/admin/hall-of-fame/players", requireAdmin, async (req, res) => {
+// NOTE: intentionally NOT under "/admin/hall-of-fame/:..." — the generic admin
+// entity routes (registerEntityRoutes("hall-of-fame")) own `/admin/hall-of-fame/:id`
+// and would swallow `/admin/hall-of-fame/players`. Single-segment prefix avoids it.
+router.get("/admin/hall-of-fame-players", requireAdmin, async (req, res) => {
   try {
     const players = await db.select().from(playersTable).orderBy(desc(playersTable.points));
     const active = await db
@@ -101,7 +104,7 @@ router.get("/admin/hall-of-fame/players", requireAdmin, async (req, res) => {
 });
 
 // ── Admin: activate / deactivate a player in the Hall of Fame ────────────────
-router.post("/admin/hall-of-fame/toggle", requireAdmin, async (req, res) => {
+router.post("/admin/hall-of-fame-toggle", requireAdmin, async (req, res) => {
   const body = req.body as { playerId?: unknown; on?: unknown; seasonId?: unknown };
   const playerId = Number(body.playerId);
   if (!Number.isInteger(playerId)) return res.status(400).json({ error: "A valid playerId is required" });
