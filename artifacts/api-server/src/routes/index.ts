@@ -18,6 +18,7 @@ import memberDeviceRouter from "./member-device";
 import supportRouter from "./support";
 import supportAdminRouter from "./support-admin";
 import adsRouter from "./ads";
+import hallOfFameRouter from "./hall-of-fame";
 
 const router: IRouter = Router();
 
@@ -40,6 +41,7 @@ router.use(memberDeviceRouter);
 router.use(supportRouter);
 router.use(supportAdminRouter);
 router.use(adsRouter);
+router.use(hallOfFameRouter);
 // Note: auth routes are mounted directly in app.ts
 
 export default router;
