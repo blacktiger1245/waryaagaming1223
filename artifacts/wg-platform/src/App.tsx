@@ -34,6 +34,7 @@ import RegisterTeamPage from "@/pages/register-team";
 import ComparePage from "@/pages/compare";
 import DashboardPage from "@/pages/dashboard";
 import FixturesPage from "@/pages/fixtures";
+import HallOfFamePage from "@/pages/hall-of-fame";
 import CommunityPage from "@/pages/community";
 import SupportPage from "@/pages/support";
 import SupportTicketPage from "@/pages/support-ticket";
@@ -83,6 +84,7 @@ function SiteRouter() {
         <Route path="/teams/:id" component={TeamDetailPage} />
         <Route path="/fixtures" component={FixturesPage} />
         <Route path="/rankings" component={RankingsPage} />
+        <Route path="/hall-of-fame" component={HallOfFamePage} />
         <Route path="/news" component={NewsPage} />
         <Route path="/news/:id" component={NewsDetailPage} />
         <Route path="/media" component={MediaPage} />

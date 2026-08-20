@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useAuth } from "@/hooks/use-auth";
-import { Crown, ShieldCheck, LifeBuoy } from "lucide-react";
+import { Crown, ShieldCheck, LifeBuoy, Star } from "lucide-react";
 import { fetchUnreadCount } from "@/lib/agent-chat";
 import { useQuery } from "@tanstack/react-query";
 import { user as supportUser } from "@/lib/support";
@@ -41,6 +41,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/teams", label: "Teams", icon: Shield },
     { href: "/fixtures", label: "Fixtures", icon: CalendarDays },
     { href: "/rankings", label: "Rankings", icon: Trophy },
+    { href: "/hall-of-fame", label: "Hall of Fame", icon: Star },
     { href: "/news", label: "News", icon: Newspaper },
     { href: "/media-hub", label: "Media Hub", icon: Clapperboard },
     { href: "/community", label: "Community", icon: MessageSquare },
