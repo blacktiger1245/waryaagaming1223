@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { X, MousePointerClick } from "lucide-react";
+import { X, MousePointerClick, Volume2, VolumeX } from "lucide-react";
 import { apiUrl, storageUrl } from "@/lib/api";
 
 interface ActiveAd {
@@ -24,6 +24,7 @@ export function AdOverlay() {
   const [loading, setLoading] = useState(true);
   const [remaining, setRemaining] = useState(0);
   const [canClose, setCanClose] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
   const fetchGuard = useRef(false);
 
@@ -85,6 +86,31 @@ export function AdOverlay() {
     };
   }, [ad]);
 
+  // Keep the mute icon in sync if the video's muted state changes for any reason
+  // (e.g. browser policy). The listener is removed when the ad closes/unmounts.
+  useEffect(() => {
+    if (!ad || !videoRef.current) return;
+    const video = videoRef.current;
+    const sync = () => setIsMuted(video.muted);
+    video.addEventListener("volumechange", sync);
+    return () => video.removeEventListener("volumechange", sync);
+  }, [ad]);
+
+  // Unmute is only ever triggered from a direct button tap (a user gesture),
+  // so the browser permits audio playback. We never attempt to bypass
+  // autoplay restrictions.
+  const toggleMute = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const next = !video.muted;
+    video.muted = next;
+    if (!next) {
+      const p = video.play();
+      if (p && typeof p.catch === "function") p.catch(() => {});
+    }
+    setIsMuted(video.muted);
+  }, []);
+
   const openTarget = useCallback(() => {
     if (!ad) return;
     try {
@@ -138,31 +164,47 @@ export function AdOverlay() {
           )}
         </div>
 
-        {/* Clickable video */}
-        <button
-          type="button"
-          onClick={openTarget}
-          className="block w-full cursor-pointer bg-black text-left"
-          data-testid="ad-video-click"
-        >
+        {/* Clickable video + audio toggle */}
+        <div className="relative bg-black" data-testid="ad-video-wrap">
           {videoSrc ? (
-            <video
-              ref={videoRef}
-              src={videoSrc}
-              autoPlay
-              muted
-              playsInline
-              loop
-              preload="auto"
-              className="block h-auto max-h-[58dvh] w-full object-contain"
-              data-testid="ad-video"
-            />
+            <>
+              <video
+                ref={videoRef}
+                src={videoSrc}
+                autoPlay
+                muted
+                playsInline
+                loop
+                preload="auto"
+                className="block h-auto max-h-[58dvh] w-full object-contain"
+                data-testid="ad-video"
+              />
+              {/* Tap the video (not the audio control) to open the target */}
+              <button
+                type="button"
+                onClick={openTarget}
+                aria-label="Visit advertiser"
+                className="absolute inset-0 z-[1] block w-full cursor-pointer bg-transparent"
+                data-testid="ad-video-click"
+              />
+              {/* Unmute / mute control — large, clearly visible against the video */}
+              <button
+                type="button"
+                onClick={toggleMute}
+                aria-label={isMuted ? "Tap to unmute" : "Mute"}
+                title={isMuted ? "Tap to unmute" : "Mute"}
+                className="absolute bottom-3 right-3 z-[2] flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-black/70 text-white backdrop-blur transition-transform hover:scale-105 active:scale-95"
+                data-testid="ad-audio-toggle"
+              >
+                {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+              </button>
+            </>
           ) : (
             <div className="flex h-56 w-full items-center justify-center text-muted-foreground">
               Advertisement
             </div>
           )}
-        </button>
+        </div>
 
         {/* Footer */}
         <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-border bg-sidebar/40">
