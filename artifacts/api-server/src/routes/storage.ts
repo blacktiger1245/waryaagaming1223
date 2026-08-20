@@ -22,6 +22,17 @@ function isAdmin(req: Request): boolean {
 }
 
 /**
+ * Require an authenticated session whose player role is exactly "owner".
+ * Any other user (including "admin" role / legacy isAdmin sessions) is
+ * rejected with 403 — this matches the Owner-only ads management rule.
+ */
+function requireOwner(req: Request, res: Response, next: import('express').NextFunction) {
+  if (req.session?.role === 'owner') return next();
+  res.status(403).json({ error: 'Owner privileges required' });
+  return;
+}
+
+/**
  * POST /storage/uploads/team-logo
  *
  * Request a presigned URL for team logo upload.
@@ -119,6 +130,38 @@ router.post(
     } catch (error) {
       req.log.error({ err: error }, 'Error uploading community media through API');
       return res.status(500).json({ error: 'Failed to upload media' });
+    }
+  },
+);
+/**
+ * POST /storage/uploads/ads-video/direct
+ *
+ * Upload an advertisement video through the API (server→R2) so the browser
+ * never talks to the bucket directly. Owner-only — non-owners receive 403.
+ * Only video/* content types are accepted; the raw body limit for video is
+ * handled by the shared express.raw middleware (10mb default).
+ */
+router.post(
+  '/storage/uploads/ads-video/direct',
+  requireOwner,
+  async (req: Request, res: Response) => {
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      res.status(400).json({ error: 'A video file is required' });
+      return;
+    }
+
+    const contentType = req.get('content-type') || 'application/octet-stream';
+    if (!contentType.startsWith('video/')) {
+      res.status(400).json({ error: 'Only video uploads are supported' });
+      return;
+    }
+
+    try {
+      const objectPath = await objectStorageService.uploadObject(req.body, contentType);
+      return res.status(201).json({ objectPath });
+    } catch (error) {
+      req.log.error({ err: error }, 'Error uploading advertisement video through API');
+      return res.status(500).json({ error: 'Failed to upload advertisement video' });
     }
   },
 );

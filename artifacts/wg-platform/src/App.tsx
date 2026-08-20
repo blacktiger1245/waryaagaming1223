@@ -56,6 +56,7 @@ import AdminSupportPage from "@/pages/admin/support";
 import AdminSupportTicketPage from "@/pages/admin/support-ticket";
 import AdminSupportAnalyticsPage from "@/pages/admin/support-analytics";
 import AdminSupportHistoryPage from "@/pages/admin/support-history";
+import AdminAdsPage from "@/pages/admin/ads";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -122,6 +123,7 @@ function AdminRouter() {
         <Route path="/admin/hall-of-fame" component={AdminHallOfFamePage} />
         <Route path="/admin/manage-admins" component={ManageAdminsPage} />
         <Route path="/admin/announcements" component={AdminAnnouncementsPage} />
+        <Route path="/admin/ads" component={AdminAdsPage} />
         <Route path="/admin/registration-logs" component={AdminRegistrationLogsPage} />
         <Route path="/admin/support" component={AdminSupportPage} />
         <Route path="/admin/support/history" component={AdminSupportHistoryPage} />

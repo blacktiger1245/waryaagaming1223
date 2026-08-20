@@ -5,6 +5,7 @@ import {
   GetObjectCommand,
   HeadObjectCommand,
   PutObjectCommand,
+  DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
@@ -282,5 +283,36 @@ export class ObjectStorageService {
       objectFile,
       requestedPermission: requestedPermission ?? ObjectPermission.READ,
     });
+  }
+
+  /**
+   * Delete an object from storage by its canonical `/objects/<key>` path.
+   * No-op (returns false) when the key is invalid or does not exist, so cleanup
+   * during record deletion never fails the parent operation.
+   */
+  async deleteObjectByEntityPath(objectPath: string): Promise<boolean> {
+    if (!objectPath.startsWith('/objects/')) {
+      return false;
+    }
+    const key = objectPath.slice('/objects/'.length);
+    if (!key) return false;
+
+    const client = getR2Client();
+    const bucket = getR2BucketName();
+
+    try {
+      await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+      return true;
+    } catch (err: unknown) {
+      const awsErr = err as { name?: string; $metadata?: { httpStatusCode?: number } };
+      if (
+        awsErr.name === 'NotFound' ||
+        awsErr.name === 'NoSuchKey' ||
+        awsErr.$metadata?.httpStatusCode === 404
+      ) {
+        return false;
+      }
+      throw err;
+    }
   }
 }

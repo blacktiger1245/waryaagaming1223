@@ -17,6 +17,7 @@ import agentChatRouter from "./agent-chat";
 import memberDeviceRouter from "./member-device";
 import supportRouter from "./support";
 import supportAdminRouter from "./support-admin";
+import adsRouter from "./ads";
 
 const router: IRouter = Router();
 
@@ -38,6 +39,7 @@ router.use(agentChatRouter);
 router.use(memberDeviceRouter);
 router.use(supportRouter);
 router.use(supportAdminRouter);
+router.use(adsRouter);
 // Note: auth routes are mounted directly in app.ts
 
 export default router;

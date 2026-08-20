@@ -27,6 +27,7 @@ import { Crown, ShieldCheck, LifeBuoy } from "lucide-react";
 import { fetchUnreadCount } from "@/lib/agent-chat";
 import { useQuery } from "@tanstack/react-query";
 import { user as supportUser } from "@/lib/support";
+import { AdOverlay } from "./ad-overlay";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -53,6 +54,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen flex bg-background">
+      {/* Interstitial advertisement overlay (above normal content) */}
+      <AdOverlay />
       {/* Top bar (all screen sizes) */}
       <div className="fixed top-0 left-0 right-0 z-50 h-16 flex items-center gap-3 px-4 border-b border-border bg-background/95 backdrop-blur">
         <button

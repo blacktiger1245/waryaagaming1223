@@ -42,6 +42,7 @@ const baseNavItems = [
 // Extra nav items shown only to the owner.
 const ownerNavItems = [
   { href: "/admin/manage-admins", label: "Manage Admins", icon: UserCog },
+  { href: "/admin/ads", label: "Ads Management", icon: PlaySquare },
   { href: "/admin/support/analytics", label: "Support Analytics", icon: BarChart3 },
 ];
 
