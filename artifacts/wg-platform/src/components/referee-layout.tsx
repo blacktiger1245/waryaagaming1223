@@ -1,10 +1,11 @@
 import { Link, useLocation } from "wouter";
-import { Home, ExternalLink, LogOut, ShieldCheck, Users2 } from "lucide-react";
+import { Home, ExternalLink, LogOut, ShieldCheck, Users2, Swords } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 
 const navItems = [
   { href: "/referee", label: "Referee Home", icon: Home },
+  { href: "/referee/matches", label: "Matches", icon: Swords },
   { href: "/referees", label: "Referees", icon: Users2 },
 ];
 

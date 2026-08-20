@@ -13,7 +13,7 @@ interface Season {
 }
 
 // ── TeamRankingsPanel ──────────────────────────────────────────────────────────
-type TeamPeriod = "overall" | "seasonal" | "monthly" | "comparison";
+type TeamPeriod = "overall" | "seasonal" | "weekly" | "monthly" | "comparison";
 
 function FormBadge({ result }: { result: string }) {
   const cfg =
@@ -282,8 +282,10 @@ function TeamComparison({ teams }: { teams: TeamRankRow[] }) {
 
 type TeamSortKey = "rank" | "wins" | "losses" | "draws" | "matchesPlayed" | "points";
 
-function TeamRankingsPanel({ teams, loading }: { teams: TeamRankRow[]; loading: boolean }) {
+function TeamRankingsPanel({ teams, loading, seasons = [] }: { teams: TeamRankRow[]; loading: boolean; seasons?: Season[] }) {
   const [period, setPeriod] = useState<TeamPeriod>("overall");
+  const [selectedSeasonId, setSelectedSeasonId] = useState<number | null>(null);
+  const [seasonOpen, setSeasonOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<TeamSortKey>("rank");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -291,9 +293,34 @@ function TeamRankingsPanel({ teams, loading }: { teams: TeamRankRow[]; loading: 
   const periods: { id: TeamPeriod; label: string }[] = [
     { id: "overall", label: "Overall" },
     { id: "seasonal", label: "Seasonal" },
+    { id: "weekly", label: "Weekly" },
     { id: "monthly", label: "Monthly" },
     { id: "comparison", label: "Comparison" },
   ];
+
+  const currentTeamSeason = seasons.find(s => s.isCurrent) ?? seasons[0] ?? null;
+  const activeTeamSeason = selectedSeasonId != null
+    ? seasons.find(s => s.id === selectedSeasonId) ?? currentTeamSeason
+    : currentTeamSeason;
+
+  // Seasonal / Weekly / Monthly need per-period data from the backend.
+  const needsFetch = period === "seasonal" || period === "weekly" || period === "monthly";
+  const { data: periodTeams, isLoading: periodLoading } = useQuery<TeamRankRow[]>({
+    queryKey: ["team-rankings", period, activeTeamSeason?.id],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (period === "seasonal") params.set("seasonId", String(activeTeamSeason?.id ?? ""));
+      else if (period === "weekly" || period === "monthly") params.set("period", period);
+      const qs = params.toString();
+      const res = await fetch(`${import.meta.env.BASE_URL}api/rankings/teams${qs ? `?${qs}` : ""}`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json() as Promise<TeamRankRow[]>;
+    },
+    enabled: needsFetch,
+  });
+
+  const displayTeams: TeamRankRow[] = needsFetch ? (periodTeams ?? []) : (teams as TeamRankRow[]);
+  const tableLoading = needsFetch ? periodLoading : loading;
 
   function handleSort(k: TeamSortKey) {
     if (sortKey === k) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -301,7 +328,7 @@ function TeamRankingsPanel({ teams, loading }: { teams: TeamRankRow[]; loading: 
   }
 
   const filtered = useMemo(() => {
-    let rows = [...(teams as TeamRankRow[])];
+    let rows = [...displayTeams];
     if (search.trim()) rows = rows.filter(t => t.name.toLowerCase().includes(search.toLowerCase()));
     rows.sort((a, b) => {
       const av = (a as any)[sortKey] ?? 0;
@@ -309,7 +336,7 @@ function TeamRankingsPanel({ teams, loading }: { teams: TeamRankRow[]; loading: 
       return sortDir === "asc" ? av - bv : bv - av;
     });
     return rows;
-  }, [teams, search, sortKey, sortDir]);
+  }, [displayTeams, search, sortKey, sortDir]);
 
   function SortTh({ label, k, className = "", right = false }: { label: string; k: TeamSortKey; className?: string; right?: boolean }) {
     const active = sortKey === k;
@@ -364,6 +391,44 @@ function TeamRankingsPanel({ teams, loading }: { teams: TeamRankRow[]; loading: 
         ))}
       </div>
 
+      {/* Season selector — Seasonal tab */}
+      {period === "seasonal" && (
+        <div className="flex items-center gap-3 mb-6">
+          <span className="text-sm font-bold text-zinc-400 flex items-center gap-1.5">
+            <CalendarRange className="w-4 h-4" /> Season
+          </span>
+          {seasons.length === 0 ? (
+            <span className="text-sm text-amber-400 font-semibold">No seasons created yet</span>
+          ) : (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setSeasonOpen(v => !v)}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-teal-500/50 bg-zinc-900 text-sm font-bold text-white hover:border-teal-400 transition-colors min-w-[160px]"
+              >
+                <span className="flex-1 text-left">{activeTeamSeason ? `${activeTeamSeason.name}${activeTeamSeason.isCurrent ? " (Current)" : ""}` : "Select season"}</span>
+                <ChevronDown className="w-4 h-4 text-teal-400 shrink-0" />
+              </button>
+              {seasonOpen && (
+                <div className="absolute top-full mt-1 left-0 z-50 min-w-[200px] rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl overflow-hidden">
+                  {seasons.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => { setSelectedSeasonId(s.id); setSeasonOpen(false); }}
+                      className={`w-full px-3 py-2 text-sm text-left flex items-center justify-between hover:bg-zinc-800 transition-colors ${activeTeamSeason?.id === s.id ? "text-teal-400 font-bold" : "text-zinc-200"}`}
+                    >
+                      <span>{s.name}</span>
+                      {s.isCurrent && <span className="text-[10px] font-bold text-teal-400 bg-teal-400/10 px-1.5 py-0.5 rounded">Current</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Comparison view */}
       {period === "comparison" && <TeamComparison teams={teams} />}
 
@@ -401,7 +466,7 @@ function TeamRankingsPanel({ teams, loading }: { teams: TeamRankRow[]; loading: 
             </tr>
           </thead>
           <tbody>
-            {loading
+            {tableLoading
               ? Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i} className="border-b border-zinc-800">
                     <td colSpan={9} className="px-4 py-4"><Skeleton className="h-5 w-full bg-zinc-800" /></td>
@@ -807,7 +872,7 @@ export default function RankingsPage() {
 
         {/* Team Rankings */}
         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-        {tab === "teams" && <TeamRankingsPanel teams={(teamRankings ?? []) as any} loading={loadingTeams} />}
+        {tab === "teams" && <TeamRankingsPanel teams={(teamRankings ?? []) as any} loading={loadingTeams} seasons={seasons} />}
 
         {/* Hall of Fame */}
         {tab === "hof" && (

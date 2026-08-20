@@ -39,6 +39,7 @@ import SupportPage from "@/pages/support";
 import SupportTicketPage from "@/pages/support-ticket";
 import RefereesPage from "@/pages/referees";
 import RefereeHome from "@/pages/referee";
+import RefereeMatchesPage from "@/pages/referee-matches";
 import AdminLoginPage from "@/pages/admin/login";
 import AdminDashboardPage from "@/pages/admin/dashboard";
 import AdminPlayersPage from "@/pages/admin/players";
@@ -148,6 +149,7 @@ function Router() {
           falling through to the site 404. Render it both ways to stay safe. */}
       <Route path="/admin/*" component={AdminRouter} />
       <Route path="/referee" component={RefereeHome} />
+      <Route path="/referee/matches" component={RefereeMatchesPage} />
       <Route path="/academy">
         <ComingSoonPage section="WG Academy" />
       </Route>

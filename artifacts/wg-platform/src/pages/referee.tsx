@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Redirect, Link } from "wouter";
-import { Loader2, Users2, Star, ShieldCheck } from "lucide-react";
+import { Loader2, Users2, Star, ShieldCheck, Swords } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { fetchReferees } from "@/lib/api";
 import { RefereeLayout } from "@/components/referee-layout";
@@ -71,6 +71,15 @@ export default function RefereeHome() {
               <Star key={i} className={`h-4 w-4 ${i < Math.max(0, Math.min(5, Math.round((me?.rating ?? 0) / 200))) ? "fill-yellow-400 text-yellow-400" : "text-zinc-600"}`} />
             ))}
           </div>
+        </div>
+
+        <div className="mt-6 rounded-2xl border border-border bg-card p-6">
+          <Link
+            href="/referee/matches"
+            className="flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-black uppercase tracking-wide text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            <Swords className="h-5 w-5" /> Referee Matches — Edit Results
+          </Link>
         </div>
 
         <div className="mt-6 rounded-2xl border border-border bg-card p-6 text-center">

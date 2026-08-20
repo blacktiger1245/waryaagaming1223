@@ -229,7 +229,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     </div>
                     <div>
                       <span className="font-black text-lg tracking-widest text-foreground uppercase leading-none block">Waryaa Gaming</span>
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-primary/70 leading-none">Est. 2023</span>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-primary/70 leading-none">Est. 2020</span>
                     </div>
                   </div>
                   <p className="text-sm text-muted-foreground leading-relaxed max-w-xs">
