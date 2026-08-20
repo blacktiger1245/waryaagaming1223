@@ -24,7 +24,7 @@ const statusColors: Record<string, string> = {
 export default function TournamentsPage() {
   const [filter, setFilter] = useState<Status>(undefined);
   const { data: tournaments, isLoading } = useListTournaments(filter ? { status: filter } : {});
-  const { user, loginWithDiscord } = useAuth();
+  const { isAdmin } = useAuth();
   const { toast } = useToast();
   const [createOpen, setCreateOpen] = useState(false);
   const [name, setName] = useState("");
@@ -80,12 +80,11 @@ export default function TournamentsPage() {
             <p className="text-primary text-xs font-bold uppercase tracking-widest mb-2">Compete</p>
             <h1 className="text-5xl font-black uppercase tracking-tight">Tournaments</h1>
           </div>
-          <Button
-            className="gap-2 font-bold"
-            onClick={() => user ? setCreateOpen(true) : loginWithDiscord()}
-          >
-            <Plus className="w-4 h-4" /> {user ? "Create Tournament" : "Login to Host"}
-          </Button>
+          {isAdmin && (
+            <Button className="gap-2 font-bold" onClick={() => setCreateOpen(true)}>
+              <Plus className="w-4 h-4" /> Create Tournament
+            </Button>
+          )}
         </div>
 
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>

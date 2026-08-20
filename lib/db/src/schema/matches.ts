@@ -35,6 +35,12 @@ export const matchesTable = pgTable("matches", {
   streamUrl: text("stream_url"),
   manOfTheMatchId: integer("man_of_the_match_id"),
   manOfTheMatchName: text("man_of_the_match_name"),
+  // Referee assigned to referee this match (only they — plus owners, global
+  // admins and tournament admins — may edit the result).
+  assignedRefereeId: integer("assigned_referee_id"),
+  // Audit trail: who last set the result and when.
+  resultSetBy: integer("result_set_by"),
+  resultSetAt: timestamp("result_set_at"),
   participant1YellowCards: integer("participant1_yellow_cards").notNull().default(0),
   participant1RedCards: integer("participant1_red_cards").notNull().default(0),
   participant2YellowCards: integer("participant2_yellow_cards").notNull().default(0),

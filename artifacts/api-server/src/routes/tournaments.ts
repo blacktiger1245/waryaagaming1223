@@ -37,6 +37,11 @@ router.get("/tournaments", async (req, res) => {
 
 router.post("/tournaments", async (req, res) => {
   if (!req.session?.userId) return res.status(401).json({ error: "Login with Discord first" });
+  const role = req.session?.role;
+  const isStaff = role === "admin" || role === "owner" || !!req.session?.isAdmin;
+  if (!isStaff) {
+    return res.status(403).json({ error: "Only admins and owners can create tournaments" });
+  }
   const body = CreateTournamentBody.safeParse(req.body);
   if (!body.success) return res.status(400).json({ error: "Invalid body" });
 
