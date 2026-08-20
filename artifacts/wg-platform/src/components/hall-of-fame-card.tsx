@@ -56,16 +56,22 @@ function StatItem({ icon: Icon, label, value, color }: { icon: LucideIcon; label
   );
 }
 
-function GoldEmblem({ size = "lg" }: { size: "sm" | "lg" }) {
+function GoldEmblem({ size = "lg", logoSrc }: { size: "sm" | "lg"; logoSrc?: string }) {
   const d = size === "lg" ? "h-14 w-14" : "h-10 w-10";
+  const ring = size === "lg" ? "h-12 w-12" : "h-9 w-9";
   return (
-    <div className={`${d} flex items-center justify-center rounded-full border border-black/30 shadow-[0_0_22px_rgba(212,175,55,0.55)]`} style={{ background: GOLD }}>
-      <span className="font-black text-black" style={{ fontSize: size === "lg" ? "1rem" : "0.7rem" }}>WG</span>
+    <div className={`${d} flex items-center justify-center rounded-full border border-amber-300/60 shadow-[0_0_22px_rgba(212,175,55,0.5)]`} style={{ background: "rgba(6,6,6,0.35)" }}>
+      {logoSrc ? (
+        <img src={logoSrc} alt="Waryaa Gaming" draggable={false} className={`${ring} rounded-full object-contain object-center`} />
+      ) : (
+        <span className="font-black text-amber-300" style={{ fontSize: size === "lg" ? "1rem" : "0.7rem" }}>WG</span>
+      )}
     </div>
   );
 }
 
 export default function HallOfFameCard({ player }: { player: HofPlayer }) {
+  const logoSrc = `${import.meta.env.BASE_URL}waryaalogo-removebg-preview.png`;
   return (
     <div className="hall-of-fame-card select-none" style={{ fontFamily: "'Orbitron','Rajdhani',sans-serif" }}>
       <div className="relative h-full w-full rounded-[28px] p-[2px]" style={{ background: GOLD, boxShadow: "0 20px 60px rgba(0,0,0,0.6), 0 0 45px rgba(212,175,55,0.28)" }}>
@@ -88,7 +94,7 @@ export default function HallOfFameCard({ player }: { player: HofPlayer }) {
 
             {/* Header */}
             <div className="relative z-10 flex flex-col items-center">
-              <GoldEmblem size="lg" />
+              <GoldEmblem size="lg" logoSrc={logoSrc} />
               <h1 className="gold-metallic-text mt-2 text-xl font-black uppercase tracking-[0.28em] md:text-2xl">Waryaa Gaming</h1>
               <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.5em] text-amber-200/70 md:text-xs">Hall of Fame</div>
               <div className="mt-1 text-sm font-black uppercase tracking-[0.3em] text-amber-300 md:text-base" style={{ textShadow: "0 0 14px rgba(212,175,55,0.6)" }}>Class of {player.classOf}</div>
@@ -133,7 +139,7 @@ export default function HallOfFameCard({ player }: { player: HofPlayer }) {
 
             {/* Footer emblem */}
             <div className="relative z-10 mt-1 flex flex-col items-center gap-1">
-              <GoldEmblem size="sm" />
+              <GoldEmblem size="sm" logoSrc={logoSrc} />
               <span className="text-[9px] font-bold uppercase tracking-[0.35em] text-amber-200/50">Est. 2020</span>
             </div>
           </div>
