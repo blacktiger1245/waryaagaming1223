@@ -319,6 +319,52 @@
 .wg-glow-card { transition: box-shadow 0.25s ease, transform 0.25s ease; }
 .wg-glow-card:hover { box-shadow: 0 0 22px rgba(34, 211, 238, 0.35); }
 
+/* ── Enhanced public-site decorations & animations (not the admin panel) ──── */
+
+/* Animated aurora blobs that float behind page content */
+.wg-aurora { position: absolute; inset: 0; z-index: -10; overflow: hidden; pointer-events: none; }
+.wg-aurora > i { position: absolute; border-radius: 50%; filter: blur(70px); will-change: transform; }
+.wg-aurora > i:nth-child(1) { width: 560px; height: 560px; left: -140px; top: -140px; opacity: .38; background: radial-gradient(circle, #22d3ee 0%, transparent 70%); animation: wgFloat1 17s ease-in-out infinite; }
+.wg-aurora > i:nth-child(2) { width: 480px; height: 480px; right: -100px; top: 6%; opacity: .30; background: radial-gradient(circle, #3b82f6 0%, transparent 70%); animation: wgFloat2 21s ease-in-out infinite; }
+.wg-aurora > i:nth-child(3) { width: 540px; height: 540px; left: 18%; bottom: -160px; opacity: .32; background: radial-gradient(circle, #22d3ee 0%, transparent 70%); animation: wgFloat3 25s ease-in-out infinite; }
+.wg-aurora > i:nth-child(4) { width: 320px; height: 320px; right: 22%; bottom: 8%; opacity: .22; background: radial-gradient(circle, #8b5cf6 0%, transparent 70%); animation: wgFloat2 19s ease-in-out infinite reverse; }
+
+@keyframes wgFloat1 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(34px,-24px) scale(1.18); } }
+@keyframes wgFloat2 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-30px,26px) scale(1.22); } }
+@keyframes wgFloat3 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(18px,30px) scale(1.12); } }
+
+/* Gradient heading text (cyan → blue → violet) */
+.wg-text-gradient {
+  background: linear-gradient(100deg, #7dd3fc 0%, #22d3ee 35%, #60a5fa 70%, #a78bfa 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+
+/* Shimmer / light sweep */
+@keyframes wgShimmer { 0% { background-position: -220% 0; } 100% { background-position: 220% 0; } }
+.wg-shimmer {
+  background-image: linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.18) 50%, transparent 70%);
+  background-size: 220% 100%; background-repeat: no-repeat;
+  animation: wgShimmer 3.4s linear infinite;
+}
+
+/* Pulsing neon glow for primary buttons / key CTAs */
+@keyframes wgPulseGlow {
+  0%,100% { box-shadow: 0 0 12px rgba(34,211,238,.45), 0 0 0 0 rgba(34,211,238,.4); }
+  50%     { box-shadow: 0 0 24px rgba(34,211,238,.75), 0 0 0 8px rgba(34,211,238,0); }
+}
+.wg-btn-glow { animation: wgPulseGlow 3s ease-in-out infinite; }
+
+/* Hover lift (used on cards) */
+.wg-lift { transition: transform .25s ease, box-shadow .25s ease; }
+.wg-lift:hover { transform: translateY(-4px); box-shadow: 0 14px 34px -10px rgba(34,211,238,.5); }
+
+/* Public-site niceties: focus ring, selection, scrollbar tint */
+.wg-site :focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+.wg-site ::selection { background: rgba(34, 211, 238, .35); }
+.wg-site ::-webkit-scrollbar { height: 10px; width: 10px; }
+.wg-site ::-webkit-scrollbar-thumb { background: rgba(34, 211, 238, .45); border-radius: 999px; }
+.wg-site ::-webkit-scrollbar-track { background: rgba(255,255,255,.04); }
+
 /* Glow effects for neon elements */
 .glow-primary {
   box-shadow: 0 0 20px hsl(var(--primary) / 0.4), 0 0 60px hsl(var(--primary) / 0.15);

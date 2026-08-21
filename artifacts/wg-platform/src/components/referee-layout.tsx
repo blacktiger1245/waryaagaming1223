@@ -14,7 +14,8 @@ export function RefereeLayout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
 
   return (
-    <div className="min-h-screen flex bg-background wg-site wg-site-bg wg-grid-bg">
+    <div className="min-h-screen flex bg-background relative isolate wg-site wg-site-bg wg-grid-bg">
+      <div className="wg-aurora" aria-hidden><i /><i /><i /><i /></div>
       <aside className="w-60 flex-shrink-0 border-r border-sidebar-border bg-sidebar flex flex-col">
         <div className="h-16 flex items-center gap-2.5 px-5 border-b border-sidebar-border">
           <img src={`${import.meta.env.BASE_URL}logo.jpg`} alt="Waryaa Gaming" className="size-8 rounded-sm glow-primary object-cover" />

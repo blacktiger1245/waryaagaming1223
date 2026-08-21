@@ -54,7 +54,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
   ];
 
   return (
-    <div className="min-h-screen flex bg-background wg-site wg-site-bg wg-grid-bg">
+    <div className="min-h-screen flex bg-background relative isolate wg-site wg-site-bg wg-grid-bg">
+      {/* Animated glowing background (public site only) */}
+      <div className="wg-aurora" aria-hidden><i /><i /><i /><i /></div>
       {/* Interstitial advertisement overlay (above normal content) */}
       <AdOverlay />
       {/* Top bar (all screen sizes) */}
