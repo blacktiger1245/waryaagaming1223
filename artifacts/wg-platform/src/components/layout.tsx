@@ -54,7 +54,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   ];
 
   return (
-    <div className="min-h-screen flex bg-background">
+    <div className="min-h-screen flex bg-background wg-site wg-site-bg wg-grid-bg">
       {/* Interstitial advertisement overlay (above normal content) */}
       <AdOverlay />
       {/* Top bar (all screen sizes) */}
@@ -68,7 +68,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </button>
         <Link href="/" className="flex items-center gap-2.5">
           <img src={`${import.meta.env.BASE_URL}logo.jpg`} alt="Waryaa Gaming" className="size-8 rounded-sm glow-primary object-cover" />
-          <span className="font-black text-lg tracking-widest text-primary uppercase">Waryaa Gaming</span>
+          <span className="font-black text-lg tracking-widest text-primary uppercase wg-brand-glow">Waryaa Gaming</span>
         </Link>
         <SupportBell />
         <AgentChatBell />
