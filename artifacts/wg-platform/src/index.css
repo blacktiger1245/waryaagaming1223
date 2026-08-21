@@ -408,6 +408,52 @@ html { scroll-behavior: smooth; }
   .wg-site *, .wg-aurora > i { animation: none !important; transition: none !important; }
 }
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   PUBLIC-SITE DESIGN SYSTEM (admin untouched) — cohesive premium esports look
+   Applied inside .wg-site (public Layout + referee). Shared UI wrappers the
+   admin uses are NOT re-styled; only public-marked surfaces change.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+/* Glassmorphism navbar / sidebar for the public site */
+.wg-site .bg-sidebar { background: rgba(15, 23, 42, 0.82); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+.wg-site .bg-background\/95 { background: rgba(11, 18, 34, 0.78); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+
+/* Typography: tighter, more professional headings on public pages */
+.wg-site h1, .wg-site h2, .wg-site h3 { letter-spacing: -0.015em; }
+.wg-site h1 { background-image: linear-gradient(96deg, #7dd3fc, #22d3ee 45%, #60a5fa); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+/* Tables: refined headers + row transitions (public) */
+.wg-site table thead th { font-size: 0.68rem; letter-spacing: 0.09em; text-transform: uppercase; opacity: .9; }
+.wg-site table tbody tr { transition: background-color .18s ease; }
+
+/* Forms / inputs: softer backgrounds and a glowing focus ring (public only) */
+.wg-site input, .wg-site select, .wg-site textarea {
+  border-radius: 0.7rem; transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
+}
+.wg-site input:focus, .wg-site select:focus, .wg-site textarea:focus {
+  outline: none;
+  border-color: hsl(var(--ring));
+  box-shadow: 0 0 0 3px rgba(34,211,238,.25), 0 0 18px rgba(34,211,238,.18);
+}
+
+/* Badges/pills: a touch more refined tracking (public) */
+.wg-site span[class*="rounded-full"] { letter-spacing: .04em; }
+
+/* Active tab underline glow (public) */
+.wg-site button.border-primary { box-shadow: 0 1px 0 0 rgba(34,211,238,.7), 0 4px 12px -4px rgba(34,211,238,.5); }
+
+/* Elevation helpers for consistent depth on public cards */
+.wg-elevated { box-shadow: 0 10px 30px -14px rgba(0,0,0,.55), 0 0 0 1px rgba(148,208,255,.06), 0 0 26px -6px rgba(34,211,238,.28); }
+
+/* ── Fixtures: tint the page's hard‑coded dark panels to the theme ─────────── */
+/* These hex utility classes only occur on public fixture views, so scoping to
+   .wg-site keeps the admin untouched. */
+.wg-site [class*="border-[#1e2a45]"] { border-color: rgba(84, 150, 220, 0.28); }
+.wg-site [class*="border-[#243050]"] { border-color: rgba(96, 150, 210, 0.32); }
+.wg-site [class*="bg-[#0f1628]"]    { background-color: rgba(13, 22, 44, 0.92); }
+.wg-site [class*="bg-[#162038]"]    { background-color: rgba(19, 32, 60, 0.92); }
+.wg-site [class*="hover:bg-[#162038]"]:hover { background-color: rgba(34,211,238,0.10); }
+
 /* Glow effects for neon elements */
 .glow-primary {
   box-shadow: 0 0 20px hsl(var(--primary) / 0.4), 0 0 60px hsl(var(--primary) / 0.15);
