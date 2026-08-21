@@ -365,6 +365,49 @@
 .wg-site ::-webkit-scrollbar-thumb { background: rgba(34, 211, 238, .45); border-radius: 999px; }
 .wg-site ::-webkit-scrollbar-track { background: rgba(255,255,255,.04); }
 
+/* ── Modern public-site polish: buttons, cards, interactions (admin untouched) ── */
+html { scroll-behavior: smooth; }
+
+.wg-site button { transition: transform .18s ease, box-shadow .2s ease, background-color .2s ease, border-color .2s ease, color .2s ease; }
+.wg-site button:hover:not(:disabled) { transform: translateY(-1px); }
+.wg-site button:active:not(:disabled) { transform: translateY(0) scale(.98); }
+.wg-site a { transition: color .2s ease, border-color .2s ease; }
+
+/* Primary fills get a modern cyan → blue gradient + soft glow (public only) */
+.wg-site .bg-primary {
+  background-image: linear-gradient(96deg, #22d3ee 0%, #3b82f6 100%);
+  box-shadow: 0 6px 18px -6px rgba(34, 211, 238, .55);
+}
+.wg-site .bg-primary:hover { box-shadow: 0 10px 24px -6px rgba(34, 211, 238, .75); }
+
+/* Glassy, polished card with a glowing top accent line */
+.wg-card {
+  position: relative;
+  border-radius: 1rem;
+  border: 1px solid hsl(var(--border));
+  background: linear-gradient(180deg, rgba(255,255,255,.05), transparent), hsl(var(--card));
+  overflow: hidden;
+  transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease;
+}
+.wg-card::before {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, #22d3ee, #60a5fa, transparent);
+  opacity: .75;
+}
+.wg-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(34,211,238,.5);
+  box-shadow: 0 18px 44px -18px rgba(34,211,238,.55);
+}
+
+/* Glowing avatar/image ring */
+.wg-avatar-ring { border: 1px solid rgba(34,211,238,.35); box-shadow: 0 0 14px rgba(34,211,238,.3); }
+
+/* Respect reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .wg-site *, .wg-aurora > i { animation: none !important; transition: none !important; }
+}
+
 /* Glow effects for neon elements */
 .glow-primary {
   box-shadow: 0 0 20px hsl(var(--primary) / 0.4), 0 0 60px hsl(var(--primary) / 0.15);

@@ -75,16 +75,16 @@ export default function PlayersPage() {
             : players?.map((player, i) => (
                 <motion.div key={player.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
                   <Link href={`/players/${player.id}`}>
-                    <div className="rounded-xl border border-border bg-card p-5 hover:border-primary/40 transition-all duration-300 cursor-pointer group h-full flex flex-col gap-3">
+                    <div className="wg-card wg-lift p-5 cursor-pointer group h-full flex flex-col gap-3">
                       {/* Discord avatar (falls back to initial when player has no avatarUrl) */}
                       {player.avatarUrl ? (
                         <img
                           src={player.avatarUrl}
                           alt={player.displayName ?? player.username}
-                          className="w-14 h-14 rounded-xl object-cover border border-primary/20"
+                          className="w-14 h-14 rounded-xl object-cover wg-avatar-ring"
                         />
                       ) : (
-                        <div className="w-14 h-14 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                        <div className="w-14 h-14 rounded-xl bg-primary/10 wg-avatar-ring flex items-center justify-center">
                           <span className="text-xl font-black text-primary">
                             {(player.displayName ?? player.username).charAt(0).toUpperCase()}
                           </span>
