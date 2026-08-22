@@ -281,8 +281,8 @@ export default function HomePage() {
               <Skeleton className="h-48 w-full rounded-xl" />
             ) : upcomingTournament ? (
               <Link href={`/tournaments/${upcomingTournament.id}`}>
-                <div className="relative rounded-xl border border-primary/30 bg-card p-8 hover:border-primary/60 transition-all duration-300 group cursor-pointer glow-primary overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                <div className="relative rounded-xl border border-[var(--card-border)] bg-card p-8 hover:border-[var(--acc)] transition-all duration-300 group cursor-pointer wg-card wg-sheen overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-r from-[var(--acc)]/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
                     <div>
                       <Badge className="mb-3 bg-primary/20 text-primary border-primary/30 uppercase tracking-wider text-xs">
@@ -342,11 +342,11 @@ export default function HomePage() {
                       viewport={{ once: true }}
                     >
                       <Link href={`/players/${player.playerId}`}>
-                        <div className={`relative rounded-xl border p-5 hover:border-primary/60 transition-all duration-300 cursor-pointer group overflow-hidden
-                          ${i === 0 ? "border-primary/40 bg-primary/5" : "border-border bg-card"}`}>
+                        <div className={`relative rounded-xl border p-5 hover:border-primary/60 transition-all duration-300 cursor-pointer group overflow-hidden wg-card wg-sheen
+                          ${i === 0 ? "border-primary/40" : "border-border bg-card"}`}>
 
                           {/* Rank badge */}
-                          <div className={`absolute top-4 right-4 text-xs font-black tabular-nums ${i === 0 ? "text-primary" : "text-muted-foreground/50"}`}>
+                          <div className={`absolute top-4 right-4 text-xs font-black tabular-nums ${i === 0 ? "wg-chip-solid" : "text-muted-foreground/50"}`}>
                             #{i + 1}
                           </div>
 
@@ -357,16 +357,16 @@ export default function HomePage() {
                                 <img
                                   src={(player as any).avatarUrl}
                                   alt={player.username}
-                                  className={`w-14 h-14 rounded-full object-cover border-2 ${i === 0 ? "border-primary" : "border-border"}`}
+                                  className={`w-14 h-14 rounded-full object-cover border-2 ${i === 0 ? "border-amber-400" : "border-border wg-avatar-ring"}`}
                                 />
                               ) : (
                                 <div className={`w-14 h-14 rounded-full flex items-center justify-center font-black text-xl border-2
-                                  ${i === 0 ? "bg-primary/20 border-primary text-primary" : "bg-muted border-border text-muted-foreground"}`}>
+                                  ${i === 0 ? "bg-amber-400/20 border-amber-400 text-amber-300" : "bg-muted border-border text-muted-foreground"}`}>
                                   {(player.username ?? "?").charAt(0).toUpperCase()}
                                 </div>
                               )}
                               {i === 0 && (
-                                <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-amber-400 flex items-center justify-center">
+                                <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-amber-400 flex items-center justify-center shadow-[0_0_12px_rgba(251,191,36,0.8)]">
                                   <Star className="w-3 h-3 text-amber-900 fill-amber-900" />
                                 </div>
                               )}

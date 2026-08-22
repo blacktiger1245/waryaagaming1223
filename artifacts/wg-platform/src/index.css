@@ -391,7 +391,7 @@ html { scroll-behavior: smooth; }
 }
 .wg-card::before {
   content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
-  background: linear-gradient(90deg, transparent, #22d3ee, #60a5fa, transparent);
+  background: linear-gradient(90deg, transparent, var(--a, #22d3ee), var(--c, #60a5fa), transparent);
   opacity: .75;
 }
 .wg-card:hover {
@@ -453,6 +453,25 @@ html { scroll-behavior: smooth; }
 .wg-site [class*="bg-[#0f1628]"]    { background-color: rgba(13, 22, 44, 0.92); }
 .wg-site [class*="bg-[#162038]"]    { background-color: rgba(19, 32, 60, 0.92); }
 .wg-site [class*="hover:bg-[#162038]"]:hover { background-color: rgba(34,211,238,0.10); }
+
+/* ── Per‑page accent palettes (every sidebar section gets its own identity) ─── */
+.wg-site { --a: #22d3ee; --b: #3b82f6; --c: #60a5fa; }
+.wg-site[data-wg-page="tournaments"] { --a: #a78bfa; --b: #e879f9; --c: #22d3ee; }
+.wg-site[data-wg-page="players"]     { --a: #818cf8; --b: #38bdf8; --c: #22d3ee; }
+.wg-site[data-wg-page="teams"]       { --a: #34d399; --b: #14b8a6; --c: #38bdf8; }
+.wg-site[data-wg-page="fixtures"]    { --a: #38bdf8; --b: #22d3ee; --c: #818cf8; }
+.wg-site[data-wg-page="rankings"]    { --a: #fbbf24; --b: #f97316; --c: #ef4444; }
+.wg-site[data-wg-page="hall-of-fame"]{ --a: #facc15; --b: #f59e0b; --c: #fde047; }
+.wg-site[data-wg-page="news"]        { --a: #fb7185; --b: #f472b6; --c: #c084fc; }
+.wg-site[data-wg-page="media-hub"]   { --a: #e879f9; --b: #a855f7; --c: #f472b6; }
+.wg-site[data-wg-page="community"]   { --a: #4ade80; --b: #34d399; --c: #2dd4bf; }
+.wg-site[data-wg-page="live"]        { --a: #f87171; --b: #fb7185; --c: #f97316; }
+.wg-site[data-wg-page="academy"]     { --a: #38bdf8; --b: #22d3ee; --c: #a78bfa; }
+.wg-site[data-wg-page="partners"]    { --a: #2dd4bf; --b: #34d399; --c: #4ade80; }
+.wg-site[data-wg-page="partnership"] { --a: #2dd4bf; --b: #34d399; --c: #4ade80; }
+.wg-site[data-wg-page="marketplace"] { --a: #a3e635; --b: #34d399; --c: #2dd4bf; }
+.wg-site[data-wg-page="support"]     { --a: #94a3b8; --b: #38bdf8; --c: #22d3ee; }
+.wg-site[data-wg-page="referees"]    { --a: #a78bfa; --b: #818cf8; --c: #38bdf8; }
 
 /* Glow effects for neon elements */
 .glow-primary {
@@ -545,4 +564,458 @@ html { scroll-behavior: smooth; }
   .border.active-elevate-2:not(.no-active-interaction-elevate)::after {
     inset: -1px;
   }
+}
+/* ═════════════════════════════════════════════════════════════════════════════
+   WARYAA GAMING 2.0 — PUBLIC DESIGN SYSTEM  (admin untouched)
+   Every sidebar section gets its own visual identity via [data-wg-page].
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ---- Base tokens (defaults, overridden per page below) ---- */
+.wg-site {
+  --ab1: #22d3ee;
+  --ab2: #60a5fa;
+  --ab3: #a78bfa;
+  --blob-1: #22d3ee;
+  --blob-2: #3b82f6;
+  --blob-3: #8b5cf6;
+  --blob-4: #06b6d4;
+  --pg-a: rgba(34, 211, 238, .22);
+  --pg-b: rgba(59, 130, 246, .16);
+  --pg-c: rgba(34, 211, 238, .12);
+  --grid-a: rgba(148, 208, 255, .08);
+  --grid-b: rgba(148, 208, 255, .05);
+  --grid-size: 44px;
+  --h1-a: #7dd3fc;
+  --h1-b: #22d3ee;
+  --h1-c: #60a5fa;
+  --h1-d: #a78bfa;
+  --btn-a: #22d3ee;
+  --btn-b: #3b82f6;
+  --btn-glow: rgba(34, 211, 238, .55);
+  --card-border: rgba(34, 211, 238, .5);
+  --card-glow: rgba(34, 211, 238, .55);
+  --acc: #22d3ee;
+}
+
+/* ── Tournaments: violet arena ── */
+.wg-site[data-wg-page="tournaments"] {
+  --ab1: #a78bfa; --ab2: #e879f9; --ab3: #22d3ee;
+  --blob-1: #8b5cf6; --blob-2: #d946ef; --blob-3: #22d3ee; --blob-4: #ec4899;
+  --pg-a: rgba(139, 92, 246, .24); --pg-b: rgba(232, 121, 249, .16); --pg-c: rgba(34, 211, 238, .1);
+  --grid-a: rgba(196, 181, 253, .08); --grid-b: rgba(34, 211, 238, .05); --grid-size: 38px;
+  --h1-a: #c4b5fd; --h1-b: #8b5cf6; --h1-c: #e879f9; --h1-d: #f0abfc;
+  --btn-a: #a78bfa; --btn-b: #7c3aed; --btn-glow: rgba(139, 92, 246, .6);
+  --card-border: rgba(167, 139, 250, .5); --card-glow: rgba(139, 92, 246, .55); --acc: #a78bfa;
+}
+/* ── Players: indigo × cyan premium ── */
+.wg-site[data-wg-page="players"] {
+  --ab1: #60a5fa; --ab2: #818cf8; --ab3: #22d3ee;
+  --blob-1: #6366f1; --blob-2: #22d3ee; --blob-3: #818cf8; --blob-4: #38bdf8;
+  --pg-a: rgba(99, 102, 241, .2); --pg-b: rgba(34, 211, 238, .16); --pg-c: rgba(129, 140, 248, .12);
+  --grid-a: rgba(129, 140, 248, .07); --grid-b: rgba(148, 208, 255, .05); --grid-size: 40px;
+  --h1-a: #a5b4fc; --h1-b: #6366f1; --h1-c: #38bdf8; --h1-d: #22d3ee;
+  --btn-a: #818cf8; --btn-b: #4f46e5; --btn-glow: rgba(99, 102, 241, .5);
+  --card-border: rgba(129, 140, 248, .5); --card-glow: rgba(99, 102, 241, .5); --acc: #818cf8;
+}
+/* ── Teams: emerald crest ── */
+.wg-site[data-wg-page="teams"] {
+  --ab1: #34d399; --ab2: #14b8a6; --ab3: #38bdf8;
+  --blob-1: #10b981; --blob-2: #14b8a6; --blob-3: #2dd4bf; --blob-4: #38bdf8;
+  --pg-a: rgba(16, 185, 129, .2); --pg-b: rgba(20, 184, 166, .16); --pg-c: rgba(45, 212, 191, .1);
+  --grid-a: rgba(110, 231, 183, .08); --grid-b: rgba(34, 211, 238, .04); --grid-size: 40px;
+  --h1-a: #6ee7b7; --h1-b: #10b981; --h1-c: #2dd4bf; --h1-d: #38bdf8;
+  --btn-a: #34d399; --btn-b: #0d9488; --btn-glow: rgba(16, 185, 129, .55);
+  --card-border: rgba(52, 211, 153, .5); --card-glow: rgba(16, 185, 129, .5); --acc: #34d399;
+}
+/* ── Fixtures: stadium sky ── */
+.wg-site[data-wg-page="fixtures"] {
+  --ab1: #38bdf8; --ab2: #22d3ee; --ab3: #818cf8;
+  --blob-1: #0ea5e9; --blob-2: #22d3ee; --blob-3: #6366f1; --blob-4: #38bdf8;
+  --pg-a: rgba(14, 165, 233, .22); --pg-b: rgba(34, 211, 238, .18); --pg-c: rgba(56, 189, 248, .12);
+  --grid-a: rgba(125, 211, 252, .08); --grid-b: rgba(255, 255, 255, .03); --grid-size: 34px;
+  --h1-a: #7dd3fc; --h1-b: #0ea5e9; --h1-c: #22d3ee; --h1-d: #60a5fa;
+  --btn-a: #38bdf8; --btn-b: #0284c7; --btn-glow: rgba(14, 165, 233, .55);
+  --card-border: rgba(56, 189, 248, .5); --card-glow: rgba(14, 165, 233, .5); --acc: #38bdf8;
+}
+/* ── Rankings: champion gold-ember ── */
+.wg-site[data-wg-page="rankings"] {
+  --ab1: #fbbf24; --ab2: #f97316; --ab3: #ef4444;
+  --blob-1: #f59e0b; --blob-2: #fbbf24; --blob-3: #ef4444; --blob-4: #fb923c;
+  --pg-a: rgba(251, 191, 36, .2); --pg-b: rgba(249, 115, 22, .16); --pg-c: rgba(239, 68, 68, .08);
+  --grid-a: rgba(252, 211, 77, .09); --grid-b: rgba(251, 146, 60, .05); --grid-size: 40px;
+  --h1-a: #fde047; --h1-b: #f59e0b; --h1-c: #f97316; --h1-d: #fb923c;
+  --btn-a: #fbbf24; --btn-b: #f97316; --btn-glow: rgba(251, 146, 60, .6);
+  --card-border: rgba(251, 191, 36, .5); --card-glow: rgba(251, 146, 60, .55); --acc: #fbbf24;
+}
+/* ── Hall of Fame: legendary gold ── */
+.wg-site[data-wg-page="hall-of-fame"] {
+  --h1-a: #f7e48b; --h1-b: #d4af37; --h1-c: #a16207; --h1-d: #e0b84a;
+  --btn-glow: rgba(251, 191, 36, .55); --acc: #f5c518;
+}
+/* ── News: editorial rose ── */
+.wg-site[data-wg-page="news"] {
+  --ab1: #fb7185; --ab2: #f472b6; --ab3: #c084fc;
+  --blob-1: #f43f5e; --blob-2: #fb7185; --blob-3: #d946ef; --blob-4: #c084fc;
+  --pg-a: rgba(244, 63, 94, .18); --pg-b: rgba(217, 70, 239, .14); --pg-c: rgba(249, 115, 22, .08);
+  --grid-a: rgba(253, 164, 175, .07); --grid-b: rgba(216, 124, 239, .04); --grid-size: 42px;
+  --h1-a: #fda4af; --h1-b: #fb7185; --h1-c: #f472b6; --h1-d: #c084fc;
+  --btn-a: #fb7185; --btn-b: #e11d48; --btn-glow: rgba(225, 29, 72, .55);
+  --card-border: rgba(251, 113, 133, .5); --card-glow: rgba(231, 70, 106, .5); --acc: #fb7185;
+}
+/* ── Media Hub: fuchsia showcase ── */
+.wg-site[data-wg-page="media-hub"], .wg-site[data-wg-page="media"] {
+  --ab1: #e879f9; --ab2: #a855f7; --ab3: #f472b6;
+  --blob-1: #d946ef; --blob-2: #a855f7; --blob-3: #ec4899; --blob-4: #8b5cf6;
+  --pg-a: rgba(217, 70, 239, .2); --pg-b: rgba(168, 85, 247, .16); --pg-c: rgba(236, 72, 153, .1);
+  --grid-a: rgba(212, 153, 238, .07); --grid-b: rgba(216, 150, 198, .04); --grid-size: 38px;
+  --h1-a: #f0abfc; --h1-b: #d946ef; --h1-c: #a855f7; --h1-d: #e879f9;
+  --btn-a: #e879f9; --btn-b: #a855f7; --btn-glow: rgba(217, 70, 239, .55);
+  --card-border: rgba(232, 121, 249, .5); --card-glow: rgba(217, 70, 239, .55); --acc: #e879f9;
+}
+/* ── Partnerships: teal-gold premium ── */
+.wg-site[data-wg-page="partners"], .wg-site[data-wg-page="partnership"] {
+  --ab1: #2dd4bf; --ab2: #34d399; --ab3: #eab308;
+  --blob-1: #14b8a6; --blob-2: #2dd4bf; --blob-3: #eab308; --blob-4: #f5c17b;
+  --pg-a: rgba(20, 184, 166, .18); --pg-b: rgba(234, 179, 8, .12); --pg-c: rgba(45, 212, 191, .1);
+  --grid-a: rgba(125, 232, 219, .06); --grid-b: rgba(250, 204, 21, .05); --grid-size: 40px;
+  --h1-a: #2dd4bf; --h1-b: #f5d57a; --h1-c: #d4af37; --h1-d: #14b8a6;
+  --btn-a: #14b8a6; --btn-b: #0d9488; --btn-glow: rgba(20, 184, 166, .5);
+  --card-border: rgba(45, 212, 191, .45); --card-glow: rgba(20, 184, 166, .5); --acc: #2dd4bf;
+}
+/* ── Marketplace / Transfer Market ── */
+.wg-site[data-wg-page="marketplace"] {
+  --ab1: #a3e635; --ab2: #34d399; --ab3: #2dd4bf;
+  --blob-1: #84cc16; --blob-2: #a3e635; --blob-3: #2dd4bf; --blob-4: #34d399;
+  --pg-a: rgba(132, 204, 22, .18); --pg-b: rgba(45, 212, 191, .14); --pg-c: rgba(163, 230, 53, .1);
+  --grid-a: rgba(197, 231, 91, .06); --grid-b: rgba(45, 212, 191, .04); --grid-size: 42px;
+  --h1-a: #bef264; --h1-b: #a3e635; --h1-c: #2dd4bf; --h1-d: #34d399;
+  --btn-a: #a3e635; --btn-b: #84cc16; --btn-glow: rgba(132, 204, 22, .5);
+  --card-border: rgba(163, 230, 53, .45); --card-glow: rgba(132, 204, 22, .5); --acc: #a3e635;
+}
+/* ── Community ── */
+.wg-site[data-wg-page="community"] {
+  --ab1: #4ade80; --ab2: #34d399; --ab3: #2dd4bf;
+  --blob-1: #22c55e; --blob-2: #4ade80; --blob-3: #2dd4bf; --blob-4: #34d399;
+  --pg-a: rgba(34, 197, 94, .18); --pg-b: rgba(52, 211, 153, .14); --pg-c: rgba(45, 212, 191, .1);
+  --grid-a: rgba(134, 239, 172, .06); --grid-b: rgba(45, 212, 191, .04); --grid-size: 42px;
+  --h1-a: #86efac; --h1-b: #4ade80; --h1-c: #2dd4bf; --h1-d: #2dd4bf;
+  --btn-a: #4ade80; --btn-b: #22c55e; --btn-glow: rgba(34, 197, 94, .5);
+  --card-border: rgba(74, 222, 128, .45); --card-glow: rgba(34, 197, 94, .5); --acc: #4ade80;
+}
+
+/* ── Live: match-center red ── */
+.wg-site[data-wg-page="live"] {
+  --ab1: #f87171; --ab2: #fb7185; --ab3: #f97316;
+  --blob-1: #ef4444; --blob-2: #fb7185; --blob-3: #f97316; --blob-4: #f43f5e;
+  --pg-a: rgba(239, 68, 68, .2); --pg-b: rgba(251, 113, 133, .16); --pg-c: rgba(249, 115, 22, .1);
+  --grid-a: rgba(255, 122, 122, .06); --grid-b: rgba(253, 164, 175, .04); --grid-size: 34px;
+  --h1-a: #fecaca; --h1-b: #f87171; --h1-c: #fb7185; --h1-d: #f97316;
+  --btn-a: #fb7185; --btn-b: #e11d48; --btn-glow: rgba(239, 68, 68, .6);
+  --card-border: rgba(248, 113, 113, .5); --card-glow: rgba(239, 68, 68, .55); --acc: #fb7185;
+}
+/* ── WG Academy ── */
+.wg-site[data-wg-page="academy"] {
+  --ab1: #38bdf8; --ab2: #22d3ee; --ab3: #a78bfa;
+  --blob-1: #0ea5e9; --blob-2: #38bdf8; --blob-3: #8b5cf6; --blob-4: #22d3ee;
+  --pg-a: rgba(14, 165, 233, .2); --pg-b: rgba(139, 92, 246, .14); --pg-c: rgba(34, 211, 238, .1);
+  --grid-a: rgba(125, 211, 252, .07); --grid-b: rgba(196, 181, 253, .04); --grid-size: 40px;
+  --h1-a: #7dd3fc; --h1-b: #38bdf8; --h1-c: #a78bfa; --h1-d: #60a5fa;
+  --btn-a: #38bdf8; --btn-b: #0ea5e9; --btn-glow: rgba(14, 165, 233, .55);
+  --card-border: rgba(56, 189, 248, .5); --card-glow: rgba(14, 165, 233, .5); --acc: #38bdf8;
+}
+/* ── Support ── */
+.wg-site[data-wg-page="support"] {
+  --ab1: #94a3b8; --ab2: #38bdf8; --ab3: #22d3ee;
+  --blob-1: #64748b; --blob-2: #38bdf8; --blob-3: #22d3ee; --blob-4: #94a3b8;
+  --pg-a: rgba(148, 163, 184, .2); --pg-b: rgba(56, 189, 248, .15); --pg-c: rgba(34, 211, 238, .1);
+  --grid-a: rgba(203, 213, 225, .06); --grid-b: rgba(125, 211, 252, .04); --grid-size: 40px;
+  --h1-a: #cbd5e1; --h1-b: #94a3b8; --h1-c: #38bdf8; --h1-d: #22d3ee;
+  --btn-a: #38bdf8; --btn-b: #0284c7; --btn-glow: rgba(14, 165, 233, .5);
+  --card-border: rgba(148, 163, 184, .5); --card-glow: rgba(56, 189, 248, .45); --acc: #38bdf8;
+}
+/* ── Referees ── */
+.wg-site[data-wg-page="referees"] {
+  --ab1: #a78bfa; --ab2: #818cf8; --ab3: #38bdf8;
+  --blob-1: #8b5cf6; --blob-2: #a78bfa; --blob-3: #38bdf8; --blob-4: #6366f1;
+  --pg-a: rgba(139, 92, 246, .2); --pg-b: rgba(129, 140, 248, .16); --pg-c: rgba(56, 189, 248, .1);
+  --grid-a: rgba(196, 181, 253, .07); --grid-b: rgba(129, 140, 248, .04); --grid-size: 38px;
+  --h1-a: #c4b5fd; --h1-b: #a78bfa; --h1-c: #818cf8; --h1-d: #38bdf8;
+  --btn-a: #a78bfa; --btn-b: #818cf8; --btn-glow: rgba(139, 92, 246, .5);
+  --card-border: rgba(167, 139, 250, .5); --card-glow: rgba(139, 92, 246, .5); --acc: #a78bfa;
+}
+/* ── Home ── */
+.wg-site[data-wg-page="home"] {
+  --ab1: #7dd3fc; --ab2: #22d3ee; --ab3: #60a5fa;
+  --blob-1: #38bdf8; --blob-2: #22d3ee; --blob-3: #6366f1; --blob-4: #06b6d4;
+  --pg-a: rgba(56, 189, 248, .24); --pg-b: rgba(34, 211, 238, .18); --pg-c: rgba(99, 102, 241, .1);
+  --grid-a: rgba(125, 211, 252, .08); --grid-b: rgba(34, 211, 238, .04); --grid-size: 42px;
+  --h1-a: #7dd3fc; --h1-b: #22d3ee; --h1-c: #60a5fa; --h1-d: #a78bfa;
+  --btn-a: #22d3ee; --btn-b: #3b82f6; --btn-glow: rgba(34, 211, 238, .55);
+  --card-border: rgba(34, 211, 238, .5); --card-glow: rgba(34, 211, 238, .55); --acc: #22d3ee;
+}
+/* ═════════════════════════════════════════════════════════════════════════════
+   2.0 VISUAL TRANSFORMATIONS  (public only — scoped to .wg-site)
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* -- Page background: layered accent radials + angular vignette -- */
+.wg-site .wg-site-bg {
+  background-image:
+    radial-gradient(60% 52% at 10% 2%, var(--pg-a), transparent 60%),
+    radial-gradient(52% 46% at 90% 14%, var(--pg-b), transparent 62%),
+    radial-gradient(70% 58% at 52% 108%, var(--pg-c), transparent 58%);
+}
+
+/* -- Decorative grid: tinted + sized per page -- */
+.wg-site .wg-grid-bg {
+  background-image:
+    linear-gradient(var(--grid-a) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-b) 1px, transparent 1px);
+  background-size: var(--grid-size, 44px) var(--grid-size, 44px);
+}
+
+/* -- Animated aurora blobs follow each page's identity -- */
+.wg-site .wg-aurora > i { will-change: transform; }
+.wg-site .wg-aurora > i:nth-child(1) { background: radial-gradient(circle, var(--blob-1, #22d3ee) 0%, transparent 70%); opacity: .34; }
+.wg-site .wg-aurora > i:nth-child(2) { background: radial-gradient(circle, var(--blob-2, #3b82f6) 0%, transparent 70%); opacity: .28; }
+.wg-site .wg-aurora > i:nth-child(3) { background: radial-gradient(circle, var(--blob-3, #8b5cf6) 0%, transparent 70%); opacity: .3; }
+.wg-site .wg-aurora > i:nth-child(4) { background: radial-gradient(circle, var(--blob-4, #06b6d4) 0%, transparent 70%); opacity: .22; }
+
+/* -- Headings: per-page gradient identity -- */
+.wg-site h1 {
+  background: linear-gradient(96deg, var(--h1-a, #7dd3fc), var(--h1-b, #22d3ee) 45%, var(--h1-c, #60a5fa), var(--h1-d, #a78bfa));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.wg-site h1 { text-shadow: none; }
+
+/* -- Page hero band (new, added to page markup) -- */
+.wg-hero {
+  position: relative;
+  border-radius: 1.75rem;
+  border: 1px solid color-mix(in srgb, var(--acc, #22d3ee) 45%, transparent);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--acc, #22d3ee) 12%, transparent), transparent 55%),
+    linear-gradient(180deg, var(--wg-glass, rgba(255,255,255,.04)), transparent);
+  box-shadow: 0 20px 50px -30px var(--btn-glow, rgba(34,211,238,.55));
+  overflow: hidden;
+}
+.wg-hero::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .5;
+  background-image:
+    linear-gradient(115deg, transparent 0%, rgba(255,255,255,.05) 18%, transparent 34%);
+  background-size: 260% 100%; background-repeat: no-repeat;
+  animation: wgShimmer 5s linear infinite;
+}
+.wg-eyebrow {
+  display: inline-flex; align-items: center; gap: .5rem;
+  padding: .38rem .9rem; border-radius: .55rem; letter-spacing: .22em; text-transform: uppercase;
+  border: 1px solid color-mix(in srgb, var(--acc, #22d3ee) 45%, transparent);
+  color: var(--acc, #22d3ee);
+  background: color-mix(in srgb, var(--acc, #22d3ee) 12%, transparent);
+  font-size: .7rem; font-weight: 800;
+  box-shadow: 0 0 16px color-mix(in srgb, var(--acc, #22d3ee) 30%, transparent);
+}
+.wg-hero-title {
+  line-height: 1; letter-spacing: -.02em; text-transform: uppercase; font-weight: 900;
+}
+
+/* -- Cards: modern glass panels with themed top accent + hover depth -- */
+.wg-site .wg-card, .wg-site .rounded-xl, .wg-site .rounded-2xl, .wg-site .rounded-3xl, .wg-site .card {
+  border-radius: 1.1rem;
+  border-color: color-mix(in srgb, var(--acc, #22d3ee) 26%, var(--color-border, #2b4a75));
+}
+.wg-card {
+  position: relative; overflow: hidden;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--acc, #22d3ee) 7%, transparent), transparent), var(--color-card, #101c36);
+  transition: transform .28s ease, box-shadow .28s ease, border-color .28s ease;
+}
+.wg-card::before {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--ab1, #22d3ee), var(--ab3, #60a5fa), transparent);
+  opacity: .85;
+}
+.wg-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--card-border, rgba(34,211,238,.5));
+  box-shadow: 0 18px 44px -18px var(--card-glow, rgba(34,211,238,.55)),
+    0 0 0 1px color-mix(in srgb, var(--acc, #22d3ee) 18%, transparent);
+}
+.wg-lift { transition: transform .25s ease, box-shadow .25s ease; }
+.wg-lift:hover { transform: translateY(-5px); box-shadow: 0 16px 40px -16px var(--card-glow, rgba(34,211,238,.5)); }
+.wg-avatar-ring { border: 1px solid color-mix(in srgb, var(--acc, #22d3ee) 45%, transparent); box-shadow: 0 0 18px color-mix(in srgb, var(--acc, #22d3ee) 35%, transparent); }
+
+/* -- Accent chip (used for status / category pills on redesigned pages) -- */
+.wg-chip {
+  display: inline-flex; align-items: center; gap: .3rem;
+  border-radius: 999px; padding: .28rem .7rem; font-size: .66rem; font-weight: 800;
+  text-transform: uppercase; letter-spacing: .14em;
+  color: var(--acc, #22d3ee);
+  border: 1px solid color-mix(in srgb, var(--acc, #22d3ee) 40%, transparent);
+  background: color-mix(in srgb, var(--acc, #22d3ee) 12%, transparent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--acc, #22d3ee) 24%, transparent);
+}
+.wg-chip-solid { background: linear-gradient(96deg, var(--btn-a, #22d3ee), var(--btn-b, #3b82f6)); color: white; border-color: transparent; box-shadow: 0 4px 14px -4px var(--btn-glow, rgba(34,211,238,.55)); }
+
+/* -- Stat tile (for player/team/hall-of-fame stat grids) -- */
+.wg-stat {
+  padding: .7rem .9rem; border-radius: .9rem;
+  border: 1px solid color-mix(in srgb, var(--acc, #22d3ee) 30%, transparent);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--acc, #22d3ee) 10%, transparent), transparent);
+  box-shadow: inset 0 0 14px color-mix(in srgb, var(--acc, #22d3ee) 12%, transparent);
+}
+.wg-stat .wg-val { font-weight: 900; line-height: 1; }
+
+/* -- Tables: themed headers and row hovers on public pages -- */
+.wg-site table thead th { border-bottom: 1px solid color-mix(in srgb, var(--acc, #22d3ee) 24%, transparent); }
+.wg-site table tbody tr:hover { box-shadow: inset 0 0 14px color-mix(in srgb, var(--acc, #22d3ee) 14%, transparent); }
+
+/* -- Forms drop into the themed glow ring -- */
+.wg-site input:focus, .wg-site select:focus, .wg-site textarea:focus {
+  border-color: var(--acc, #22d3ee);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--acc, #22d3ee) 26%, transparent),
+    0 0 22px color-mix(in srgb, var(--acc, #22d3ee) 18%, transparent);
+}
+
+/* -- Tabs: active tab gets a soft themed underline glow -- */
+.wg-site button.border-primary {
+  box-shadow: 0 1px 0 0 color-mix(in srgb, var(--acc, #22d3ee) 70%, transparent),
+    0 4px 14px -4px color-mix(in srgb, var(--acc, #22d3ee) 50%, transparent);
+}
+.wg-site button:not(:disabled):hover { transform: translateY(-1px); }
+
+/* -- Page-section spacer + decorative divider used on redesigned pages -- */
+.wg-divider {
+  height: 1px; border: 0; margin: 3rem 0;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--acc, #22d3ee) 40%, transparent), transparent);
+}
+.wg-section-title { font-weight: 900; letter-spacing: -.012em; text-transform: uppercase; }
+
+/* -- Selected structured classes used in redesigned page markup -- */
+.wg-tournament-card .t-card-topbar { border-bottom: 1px solid color-mix(in srgb, var(--acc, #22d3ee) 26%, transparent); }
+.wg-material thead th { font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; opacity: .9; }
+
+/* -- Hover sheen sweep (user-facing interactive cards) -- */
+.wg-sheen { position: relative; overflow: hidden; }
+.wg-sheen::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0;
+  background: linear-gradient(110deg, transparent 0%, rgba(255,255,255,.16) 50%, transparent 100%);
+  background-size: 220% 100%; background-repeat: no-repeat;
+  transform: translateX(-60%);
+  transition: opacity .3s ease;
+}
+.wg-sheen:hover::after { opacity: 1; animation: wgSheenSweep .8s ease; }
+@keyframes wgSheenSweep { 0% { transform: translateX(-60%); } 100% { transform: translateX(60%); } }
+
+/* ---- Responsive card radius / spacing reductions on small screens ---- */
+@media (max-width: 640px) {
+  .wg-hero { border-radius: 1.1rem; }
+  .wg-hero-title { letter-spacing: -.014em; }
+}
+
+/* Keep reduced-motion preferences respected on the new rules too */
+@media (prefers-reduced-motion: reduce) {
+  .wg-site .wg-hero::after, .wg-site .wg-sheen::after { animation: none !important; transition: none !important; }
+}
+/* -- Buttons: per-page primary gradient + glow -- */
+.wg-site .bg-primary {
+  background-image: linear-gradient(96deg, var(--btn-a, #22d3ee), var(--btn-b, #3b82f6));
+  box-shadow: 0 6px 18px -6px var(--btn-glow, rgba(34,211,238,.55));
+}
+.wg-site .bg-primary:hover {
+  box-shadow: 0 10px 26px -6px var(--btn-glow, rgba(34,211,238,.75));
+}
+.wg-site .border-primary {
+  box-shadow: 0 1px 0 0 color-mix(in srgb, var(--acc, #22d3ee) 65%, transparent),
+    0 4px 12px -4px color-mix(in srgb, var(--acc, #22d3ee) 50%, transparent);
+}
+.wg-btn-pill {
+  position: relative;
+  background-image: linear-gradient(96deg, var(--btn-a, #22d3ee), var(--btn-b, #3b82f6));
+  color: white; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+  border: 1px solid color-mix(in srgb, var(--acc, #22d3ee) 50%, transparent);
+  border-radius: 999px;
+  box-shadow: 0 6px 20px -6px var(--btn-glow, rgba(34,211,238,.55));
+  transition: transform .2s ease, box-shadow .25s ease, background-image .25s ease;
+}
+.wg-btn-pill:hover { transform: translateY(-2px); box-shadow: 0 12px 30px -8px var(--btn-glow, rgba(34,211,238,.7)); }
+
+
+/* ═════════════════════════════════════════════════════════════════════════════
+   FIXTURES MATCH-DAY ADDITIONS  (scoped to public fixture views)
+   ───────────────────────────────────────────────────────────────────────────── */
+.wg-fixtures .wg-live-row { position: relative; }
+.wg-fixtures .wg-live-row::before {
+  content: ""; position: absolute; left: 0; top: 6px; bottom: 6px; width: 3px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #f87171, #fb7185);
+  box-shadow: 0 0 12px rgba(248,113,113,.6);
+  animation: wgLivePulse 1.6s ease-in-out infinite;
+}
+@keyframes wgLivePulse { 0%,100% { opacity: .9; } 50% { opacity: .35; } }
+/* ═════════════════════════════════════════════════════════════════════════════
+   BRIDGE PALETTES — hardcoded utility accents are mapped to each page's
+   identity so giant detail/interior pages stay coherent (public only).
+   ───────────────────────────────────────────────────────────────────────────── */
+.wg-site[data-wg-page="rankings"] .text-teal-400 { color: #fbbf24; }
+.wg-site[data-wg-page="rankings"] .bg-teal-400 { background-color: #fbbf24; }
+.wg-site[data-wg-page="rankings"] .border-teal-500\/50, .wg-site[data-wg-page="rankings"] .border-teal-400 { border-color: rgba(251, 191, 36, .55); }
+.wg-site[data-wg-page="rankings"] .bg-teal-400\/10 { background-color: rgba(251, 191, 36, .1); }
+.wg-site[data-wg-page="rankings"] .text-teal-400 { color: #fb923c; }
+
+.wg-site[data-wg-page="teams"] .text-teal-400 { color: #34d399; }
+.wg-site[data-wg-page="teams"] .bg-teal-400 { background-color: #34d399; }
+.wg-site[data-wg-page="teams"] .border-teal-500 { border-color: #34d399; }
+.wg-site[data-wg-page="teams"] .bg-teal-400\/10 { background-color: rgba(52, 211, 153, .1); }
+.wg-site[data-wg-page="teams"] .text-teal-300 { color: #6ee7b7; }
+.wg-site[data-wg-page="teams"] .focus\:border-teal-500:focus, .wg-site[data-wg-page="teams"] .focus\:border-teal-400:focus { border-color: #34d399; }
+
+.wg-site[data-wg-page="hall-of-fame"] .text-teal-400 { color: #d4af37; }
+.wg-site[data-wg-page="hall-of-fame"] .bg-teal-400 { background-color: #d4af37; }
+
+/* Player detail: cyan → indigo/cyan premium */
+.wg-site[data-wg-page="players"] .text-cyan-400 { color: #38bdf8; }
+.wg-site[data-wg-page="players"] .ring-cyan-400 { --tw-ring-color: rgba(56, 189, 248, .6); }
+
+/* Fixtures: any residual blue-600 active states already handled in markup, keep blue as the fixture identity */
+.wg-site[data-wg-page="fixtures"] .text-blue-400 { color: #38bdf8; }
+
+/* News detail (news pages): keep rose editorial identity grounded */
+.wg-site[data-wg-page="news"] .text-blue-400 { color: #fb7185; }
+.wg-site[data-wg-page="news"] .text-sky-400 { color: #f472b6; }
+
+/* ── Compare / Dashboard / Auth / Agent pages: identity tokens ── */
+.wg-site[data-wg-page="compare"] {
+  --ab1: #818cf8; --ab2: #22d3ee; --ab3: #a78bfa;
+  --blob-1: #6366f1; --blob-2: #22d3ee; --blob-3: #a78bfa; --blob-4: #818cf8;
+  --pg-a: rgba(99, 102, 241, .2); --pg-b: rgba(34, 211, 238, .14); --pg-c: rgba(167, 139, 250, .1);
+  --grid-a: rgba(165, 180, 252, .07); --grid-b: rgba(34, 211, 238, .04); --grid-size: 40px;
+  --h1-a: #c4b5fd; --h1-b: #818cf8; --h1-c: #22d3ee; --h1-d: #a78bfa;
+  --btn-a: #818cf8; --btn-b: #6366f1; --btn-glow: rgba(99, 102, 241, .55);
+  --card-border: rgba(129, 140, 248, .5); --card-glow: rgba(99, 102, 241, .5); --acc: #818cf8;
+}
+.wg-site[data-wg-page="dashboard"] {
+  --ab1: #34d399; --ab2: #22d3ee; --ab3: #a78bfa;
+  --blob-1: #10b981; --blob-2: #22d3ee; --blob-3: #a78bfa; --blob-4: #34d399;
+  --pg-a: rgba(16, 185, 129, .2); --pg-b: rgba(34, 211, 238, .14); --pg-c: rgba(167, 139, 250, .08);
+  --grid-a: rgba(110, 231, 183, .07); --grid-b: rgba(34, 211, 238, .04); --grid-size: 42px;
+  --h1-a: #6ee7b7; --h1-b: #34d399; --h1-c: #22d3ee; --h1-d: #a78bfa;
+  --btn-a: #34d399; --btn-b: #0d9488; --btn-glow: rgba(16, 185, 129, .5);
+  --card-border: rgba(52, 211, 153, .45); --card-glow: rgba(16, 185, 129, .5); --acc: #34d399;
+}
+.wg-site[data-wg-page="login"], .wg-site[data-wg-page="register"], .wg-site[data-wg-page="register-team"] {
+  --ab1: #38bdf8; --ab2: #818cf8; --ab3: #e879f9;
+  --blob-1: #0ea5e9; --blob-2: #818cf8; --blob-3: #d946ef; --blob-4: #38bdf8;
+  --pg-a: rgba(14, 165, 233, .2); --pg-b: rgba(129, 140, 248, .14); --pg-c: rgba(217, 70, 239, .08);
+  --grid-a: rgba(125, 211, 252, .07); --grid-b: rgba(129, 140, 248, .04); --grid-size: 40px;
+  --h1-a: #7dd3fc; --h1-b: #818cf8; --h1-c: #38bdf8; --h1-d: #e879f9;
+  --btn-a: #38bdf8; --btn-b: #6366f1; --btn-glow: rgba(56, 189, 248, .55);
+  --card-border: rgba(56, 189, 248, .45); --card-glow: rgba(56, 189, 248, .5); --acc: #38bdf8;
+}
+.wg-site[data-wg-page="agent-messages"] {
+  --ab1: #f472b6; --ab2: #a78bfa; --ab3: #38bdf8;
+  --blob-1: #ec4899; --blob-2: #a78bfa; --blob-3: #38bdf8; --blob-4: #f472b6;
+  --pg-a: rgba(236, 72, 153, .2); --pg-b: rgba(167, 139, 250, .14); --pg-c: rgba(56, 189, 248, .1);
+  --grid-a: rgba(249, 168, 212, .07); --grid-b: rgba(167, 139, 250, .04); --grid-size: 40px;
+  --h1-a: #f9a8d4; --h1-b: #f472b6; --h1-c: #a78bfa; --h1-d: #38bdf8;
+  --btn-a: #f472b6; --btn-b: #d946ef; --btn-glow: rgba(236, 72, 153, .55);
+  --card-border: rgba(244, 114, 182, .45); --card-glow: rgba(236, 72, 153, .5); --acc: #f472b6;
 }

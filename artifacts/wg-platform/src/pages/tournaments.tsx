@@ -73,18 +73,23 @@ export default function TournamentsPage() {
   ];
 
   return (
-    <div className="container mx-auto px-4 py-16">
+    <div className="container mx-auto px-4 py-8">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <div className="mb-10 flex flex-col sm:flex-row sm:items-end justify-between gap-5">
-          <div>
-            <p className="text-primary text-xs font-bold uppercase tracking-widest mb-2">Compete</p>
-            <h1 className="text-5xl font-black uppercase tracking-tight">Tournaments</h1>
+        <div className="wg-hero px-6 py-10 mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+            <div>
+              <span className="wg-eyebrow inline-flex items-center gap-2"><Trophy className="h-4 w-4" /> Compete Snapshot</span>
+              <h1 className="wg-hero-title text-5xl mt-4">Tournaments</h1>
+              <p className="text-muted-foreground text-sm sm:text-base leading-relaxed mt-3 max-w-xl">
+                Step into the Waryaa arena — every clash is a bracket story. Track live events, prize pools and the squads chasing the trophy.
+              </p>
+            </div>
+            {isAdmin && (
+              <Button className="wg-btn-pill gap-2" onClick={() => setCreateOpen(true)}>
+                <Plus className="w-4 h-4" /> Create Tournament
+              </Button>
+            )}
           </div>
-          {isAdmin && (
-            <Button className="gap-2 font-bold" onClick={() => setCreateOpen(true)}>
-              <Plus className="w-4 h-4" /> Create Tournament
-            </Button>
-          )}
         </div>
 
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
@@ -117,15 +122,13 @@ export default function TournamentsPage() {
         </Dialog>
 
         {/* Filter tabs */}
-        <div className="flex gap-2 mb-8 border-b border-border pb-4">
+        <div className="flex flex-wrap items-center gap-2 mb-8">
+          <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Arena · Filter</span>
           {tabs.map((tab) => (
             <button
               key={tab.label}
               onClick={() => setFilter(tab.value)}
-              className={`px-4 py-2 text-sm font-bold uppercase tracking-wider rounded-md transition-all duration-200
-                ${filter === tab.value
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
+              className={`wg-chip transition-all duration-200 ${filter === tab.value ? "wg-chip-solid" : ""}`}
             >
               {tab.label}
             </button>
@@ -153,9 +156,9 @@ export default function TournamentsPage() {
                   transition={{ delay: i * 0.05 }}
                 >
                   <Link href={`/tournaments/${t.id}`}>
-                    <div className="aspect-square rounded-2xl border border-border bg-card overflow-hidden hover:border-primary/50 transition-all duration-300 cursor-pointer group relative flex flex-col">
-                      {/* Logo / Banner area — top 60% */}
-                      <div className="flex-1 relative bg-black/40 flex items-center justify-center overflow-hidden">
+                    <div className="wg-card wg-lift wg-sheen aspect-square rounded-xl border border-border bg-card overflow-hidden cursor-pointer group relative flex flex-col">
+                      {/* Banner — top 60% */}
+                      <div className="flex-1 relative bg-gradient-to-br from-black/40 via-black/25 to-black/50 flex items-center justify-center overflow-hidden">
                         {(t as any).logoUrl ? (
                           <img
                             src={storageUrl((t as any).logoUrl)}
@@ -163,33 +166,40 @@ export default function TournamentsPage() {
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                           />
                         ) : (
-                          <Trophy className="w-12 h-12 text-primary/30" />
+                          <Trophy className="w-14 h-14 text-muted-foreground/40" strokeWidth={1.5} />
                         )}
-                        {/* Status badge overlay */}
+                        {/* Status chip */}
                         <div className="absolute top-2.5 left-2.5">
                           <Badge className={`text-[9px] uppercase tracking-widest font-bold ${statusColors[t.status] ?? ""}`}>
                             {t.status}
                           </Badge>
                         </div>
+                        {/* Live beam for active events */}
+                        {t.status === "active" && (
+                          <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-red-500 live-pulse" />
+                            <span className="text-[9px] font-black uppercase tracking-widest text-red-400">Live</span>
+                          </div>
+                        )}
                         {/* Dark bottom fade */}
                         <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-card to-transparent" />
                       </div>
 
-                      {/* Info area — bottom */}
+                      {/* Info — bottom */}
                       <div className="px-3.5 pb-3.5 pt-2 shrink-0">
-                        <h3 className="font-black text-sm leading-tight group-hover:text-primary transition-colors line-clamp-1">
+                        <h3 className="font-black text-sm leading-tight group-hover:text-white transition-colors line-clamp-1">
                           {t.name}
                         </h3>
                         {(t as any).hostedBy && (
-                          <p className="text-[10px] text-muted-foreground mt-0.5 truncate">by {(t as any).hostedBy}</p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5 truncate">hosted by {(t as any).hostedBy}</p>
                         )}
                         <div className="flex items-center justify-between mt-2.5 pt-2.5 border-t border-border">
                           <div>
-                            <div className="text-xs font-black text-primary">{t.prizePool}</div>
+                            <div className="text-xs font-black text-white">{t.prizePool}</div>
                             <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Prize</div>
                           </div>
                           <div className="text-right">
-                            <div className="flex items-center gap-0.5 text-xs font-black justify-end">
+                            <div className="flex items-center gap-0.5 text-sm font-black justify-end">
                               <Users className="w-3 h-3 text-muted-foreground" />
                               {t.maxParticipants >= 9999 ? t.currentParticipants : `${t.currentParticipants}/${t.maxParticipants}`}
                             </div>

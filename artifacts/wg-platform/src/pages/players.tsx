@@ -42,11 +42,14 @@ export default function PlayersPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-16">
+    <div className="container mx-auto px-4 py-8">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <div className="mb-10">
-          <p className="text-primary text-xs font-bold uppercase tracking-widest mb-2">Community</p>
-          <h1 className="text-5xl font-black uppercase tracking-tight">Players</h1>
+        <div className="wg-hero px-6 py-9 mb-8">
+          <span className="wg-eyebrow inline-flex items-center gap-2"><Users className="h-4 w-4" /> Community Roster</span>
+          <h1 className="wg-hero-title text-4xl mt-4">Players</h1>
+          <p className="text-muted-foreground text-sm sm:text-base leading-relaxed mt-3 max-w-xl">
+            Meet the stars who make Waryaa Gaming — every profile is a story of wins, grind and glory.
+          </p>
         </div>
 
         {/* Search */}
@@ -75,56 +78,50 @@ export default function PlayersPage() {
             : players?.map((player, i) => (
                 <motion.div key={player.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
                   <Link href={`/players/${player.id}`}>
-                    <div className="wg-card wg-lift p-5 cursor-pointer group h-full flex flex-col gap-3">
-                      {/* Discord avatar (falls back to initial when player has no avatarUrl) */}
-                      {player.avatarUrl ? (
-                        <img
-                          src={player.avatarUrl}
-                          alt={player.displayName ?? player.username}
-                          className="w-14 h-14 rounded-xl object-cover wg-avatar-ring"
-                        />
-                      ) : (
-                        <div className="w-14 h-14 rounded-xl bg-primary/10 wg-avatar-ring flex items-center justify-center">
-                          <span className="text-xl font-black text-primary">
-                            {(player.displayName ?? player.username).charAt(0).toUpperCase()}
-                          </span>
+                    <div className="wg-card wg-lift wg-sheen rounded-xl border border-border bg-card p-6 cursor-pointer group h-full flex flex-col gap-4">
+                      {/* Avatar block */}
+                      <div className="flex items-center justify-center">
+                        <div className="w-20 h-20 rounded-2xl ring-2 ring-indigo-400/40 shadow-[0_0_26px_rgba(99,102,241,0.35)] overflow-hidden">
+                          {player.avatarUrl ? (
+                            <img src={player.avatarUrl} alt={player.displayName ?? player.username} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full bg-gradient-to-br from-indigo-500/40 to-cyan-400/20 flex items-center justify-center text-3xl font-black text-indigo-200">
+                              {(player.displayName ?? player.username).charAt(0).toUpperCase()}
+                            </div>
+                          )}
                         </div>
-                      )}
+                      </div>
 
-                      <div>
-                        <div className="font-black text-lg group-hover:text-primary transition-colors">
+                      <div className="text-center">
+                        <div className="font-black text-lg leading-tight group-hover:text-white transition-colors">
                           <span className="truncate">{player.displayName ?? player.username}</span>
-                          { (player as any).verified && (
-                            <img
-                              src={`${import.meta.env.BASE_URL}verified.png`}
-                              alt=""
-                              draggable={false}
-                              className="h-4 w-4 shrink-0 object-contain"
-                            />
-                          ) }
+                          {(player as any).verified && (
+                            <img src={`${import.meta.env.BASE_URL}verified.png`} alt="" draggable={false} className="h-4 w-4 shrink-0 object-contain inline-block align-baseline" />
+                          )}
                         </div>
                         {player.teamName && (
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
                             {player.teamLogoUrl
                               ? <img src={player.teamLogoUrl} alt="" className="w-3.5 h-3.5 rounded-full object-cover" />
                               : <Shield className="w-3 h-3" />}
-                            {player.teamName}
+                            <span className="truncate">{player.teamName}</span>
                           </div>
                         )}
                       </div>
 
-                      <div className="grid grid-cols-3 gap-2 text-center mt-auto">
-                        <div>
-                          <div className="text-sm font-black text-primary">#{player.rank}</div>
-                          <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Rank</div>
+                      {/* performance stat strip */}
+                      <div className="flex flex-wrap items-center justify-center gap-2">
+                        <div className="wg-stat flex-1 text-center">
+                          <div className="wg-val">#{player.rank}</div>
+                          <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Rank</div>
                         </div>
-                        <div>
-                          <div className="text-sm font-black">{(player as any).wins ?? player.matchesWon ?? player.tournamentWins ?? 0}</div>
-                          <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Wins</div>
+                        <div className="wg-stat flex-1 text-center">
+                          <div className="wg-val">{(player as any).wins ?? player.matchesWon ?? player.tournamentWins ?? 0}</div>
+                          <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Wins</div>
                         </div>
-                        <div>
-                          <div className="text-sm font-black">{(player.winRate * 100).toFixed(0)}%</div>
-                          <div className="text-[10px] text-muted-foreground uppercase tracking-wider">W/R</div>
+                        <div className="wg-stat flex-1 text-center">
+                          <div className="wg-val">{(player.winRate * 100).toFixed(0)}%</div>
+                          <div className="text-[9px] text-muted-foreground uppercase tracking-wider">W/R</div>
                         </div>
                       </div>
                     </div>

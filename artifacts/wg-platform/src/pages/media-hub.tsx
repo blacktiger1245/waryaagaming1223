@@ -153,7 +153,7 @@ function MediaCard({ item, delay }: { item: MediaHubItem; delay: number }) {
         : "aspect-square";
 
   const content = (
-    <div className="group h-full rounded-2xl border border-white/10 bg-white/[0.03] p-3 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:border-white/20 hover:bg-white/[0.05] hover:shadow-[0_10px_44px_rgba(56,189,248,0.14)]">
+    <div className="wg-sheen group wg-card h-full rounded-2xl border border-fuchsia-400/15 bg-gradient-to-b from-fuchsia-500/[0.06] to-transparent p-3 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:border-fuchsia-400/40 hover:shadow-[0_12px_44px_-14px_rgba(217,70,239,0.5)]">
       {/* Media preview */}
       <div className={`relative w-full ${aspect} overflow-hidden rounded-xl ${meta.thumbBg}`}>
         {item.thumbnailUrl ? (
@@ -161,7 +161,7 @@ function MediaCard({ item, delay }: { item: MediaHubItem; delay: number }) {
             src={item.thumbnailUrl}
             alt={item.title}
             loading="lazy"
-            className="absolute inset-0 h-full w-full object-cover"
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
@@ -172,7 +172,7 @@ function MediaCard({ item, delay }: { item: MediaHubItem; delay: number }) {
         {item.platform === "youtube" && (
           <>
             <span className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
-              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur">
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur ring-2 ring-fuchsia-400/40">
                 <Play className="h-5 w-5 fill-current" />
               </span>
             </span>
@@ -192,7 +192,7 @@ function MediaCard({ item, delay }: { item: MediaHubItem; delay: number }) {
           {meta.label}
         </span>
 
-        <h3 className="mt-2 line-clamp-2 text-sm font-bold text-white group-hover:text-sky-300">
+        <h3 className="mt-2 line-clamp-2 text-sm font-bold text-white transition-colors group-hover:text-fuchsia-200">
           {item.title}
         </h3>
 
@@ -204,7 +204,7 @@ function MediaCard({ item, delay }: { item: MediaHubItem; delay: number }) {
           <p className="mt-1.5 flex items-center gap-1 text-[11px] text-zinc-500">
             <span className="truncate">{item.author || item.channelName}</span>
             {item.verified && (
-              <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-sky-500/20 text-sky-400">
+            <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-fuchsia-500/30 text-fuchsia-300">
                 <Check className="h-2.5 w-2.5" />
               </span>
             )}
@@ -241,7 +241,7 @@ function MediaCard({ item, delay }: { item: MediaHubItem; delay: number }) {
 
         <div className="mt-3 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider">
           {url ? (
-            <span className="flex items-center gap-1 text-sky-400">
+            <span className="flex items-center gap-1 text-fuchsia-300">
               Open {meta.label} <ExternalLink className="h-3 w-3" />
             </span>
           ) : (
@@ -398,36 +398,28 @@ export default function MediaHubPage() {
 
   return (
     <div className="flex-1 bg-[#04060f] text-white">
-      <div className="mx-auto max-w-7xl px-6 py-12">
-        <FadeUp>
-          <p className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.35em] text-sky-400">
-            <span className="h-px w-8 bg-sky-400/60" /> Watch
-          </p>
-          <h1 className="text-4xl font-black uppercase tracking-tight sm:text-5xl">
-            Media{" "}
-            <span className="bg-gradient-to-r from-sky-300 to-blue-400 bg-clip-text text-transparent">
-              Hub
-            </span>
+      <div className="mx-auto max-w-7xl px-6 py-8">
+        <div className="wg-hero px-6 py-9 mb-8">
+          <span className="wg-eyebrow inline-flex items-center gap-2"><Clapperboard className="h-4 w-4" /> Watch · Follow · Share</span>
+          <h1 className="wg-hero-title text-4xl mt-4 sm:text-5xl">
+            Media <span className="bg-gradient-to-r from-fuchsia-300 to-pink-400 bg-clip-text text-transparent">Hub</span>
           </h1>
-          <p className="mt-3 max-w-xl text-sm text-zinc-400">
+          <p className="mt-3 max-w-xl text-sm text-zinc-400 leading-relaxed">
             Watch, follow and experience WG everywhere. All content is pulled live from
             Waryaa Gaming's official channels — one tap opens the original post.
           </p>
-        </FadeUp>
+        </div>
 
-        <FadeUp delay={0.05} className="mt-8">
-          <div className="flex flex-wrap gap-2">
+        <FadeUp delay={0.05} className="mb-6">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">Showcase ·</span>
             {FILTERS.map((f) => {
               const active = platform === f.value;
               return (
                 <button
                   key={f.value}
                   onClick={() => setPlatform(f.value)}
-                  className={`rounded-full border px-4 py-2 text-[11px] font-black uppercase tracking-wider transition-all duration-200 ${
-                    active
-                      ? "border-sky-400 bg-sky-400 text-black shadow-[0_0_20px_rgba(56,189,248,0.5)]"
-                      : "border-white/10 bg-white/[0.03] text-zinc-400 hover:border-white/25 hover:text-white"
-                  }`}
+                  className={`wg-chip transition-all duration-200 ${active ? "wg-chip-solid" : "border-white/15 text-zinc-400 hover:text-white hover:border-white/30"}`}
                 >
                   {f.label}
                 </button>
@@ -443,7 +435,7 @@ export default function MediaHubPage() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search media…"
-                className="w-full rounded-xl border border-white/10 bg-white/[0.03] py-2.5 pl-9 pr-3 text-sm text-white placeholder-zinc-600 outline-none transition-colors focus:border-sky-400/60"
+                className="w-full rounded-xl border border-white/10 bg-white/[0.03] py-2.5 pl-9 pr-3 text-sm text-white placeholder-zinc-600 outline-none transition-colors focus:border-fuchsia-400/60"
               />
             </div>
             <div className="flex items-center gap-2">
@@ -456,7 +448,7 @@ export default function MediaHubPage() {
               <button
                 onClick={() => refetch()}
                 disabled={isFetching}
-                className="inline-flex items-center gap-2 rounded-xl border border-sky-400/40 bg-sky-400/10 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-sky-300 transition-colors hover:bg-sky-400/20 disabled:opacity-50"
+                className="wg-btn-pill inline-flex items-center gap-2 px-3 py-2 text-[11px] font-bold uppercase tracking-wider disabled:opacity-50"
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
                 Refresh
@@ -529,7 +521,7 @@ function Section({
           {onViewAll && items.length > 0 && (
             <button
               onClick={onViewAll}
-              className="group inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-sky-300 transition-colors hover:text-sky-200"
+              className="group inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-fuchsia-300 transition-colors hover:text-fuchsia-200"
             >
               View all
               <span className="transition-transform group-hover:translate-x-0.5">→</span>
@@ -618,10 +610,10 @@ const CHANNEL_BUTTONS: { platform: Platform; label: string }[] = [
 function ChannelButtons({ channels }: { channels: Record<Platform, string> }) {
   return (
     <FadeUp className="mt-16">
-      <div className="rounded-3xl border border-sky-400/20 bg-gradient-to-br from-sky-500/[0.08] to-blue-700/[0.08] p-8 text-center sm:p-10">
+      <div className="wg-card rounded-3xl border border-fuchsia-400/25 bg-gradient-to-br from-fuchsia-500/[0.08] to-purple-700/[0.08] p-8 text-center sm:p-10">
         <h2 className="text-2xl font-black uppercase tracking-tight sm:text-3xl">
           WG Everywhere.{" "}
-          <span className="bg-gradient-to-r from-sky-300 to-blue-300 bg-clip-text text-transparent">
+          <span className="bg-gradient-to-r from-fuchsia-300 to-pink-300 bg-clip-text text-transparent">
             One Community.
           </span>
         </h2>
@@ -641,7 +633,7 @@ function ChannelButtons({ channels }: { channels: Record<Platform, string> }) {
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group inline-flex items-center justify-center gap-2.5 rounded-xl border border-white/15 bg-white/[0.04] px-4 py-3.5 text-xs font-black uppercase tracking-wider transition-all duration-300 hover:-translate-y-0.5 hover:border-white/30 hover:bg-white/[0.07]"
+                className="wg-sheen group inline-flex items-center justify-center gap-2.5 rounded-xl border border-white/15 bg-white/[0.04] px-4 py-3.5 text-xs font-black uppercase tracking-wider transition-all duration-300 hover:-translate-y-0.5 hover:border-fuchsia-400/40 hover:bg-white/[0.07]"
               >
                 <Icon className={`h-4 w-4 ${meta.text}`} />
                 {btn.label}

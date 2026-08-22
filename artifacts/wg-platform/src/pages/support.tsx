@@ -82,11 +82,13 @@ export default function SupportPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-8 px-4 py-10">
-      <div>
+      <div className="wg-hero px-6 py-7 mb-6">
         <h1 className="flex items-center gap-3 text-3xl font-black uppercase tracking-tight">
-          <LifeBuoy className="h-7 w-7 text-primary" /> Support
+          <span className="w-10 h-10 rounded-xl bg-sky-400/15 border border-sky-400/30 flex items-center justify-center shrink-0">
+            <LifeBuoy className="h-5 w-5 text-sky-300" />
+          </span> Support
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">Get help from the Waryaa Gaming support team.</p>
+        <p className="mt-2 text-sm text-muted-foreground">Get help from the Waryaa Gaming support team.</p>
       </div>
 
       {status && (

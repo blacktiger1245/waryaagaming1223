@@ -20,7 +20,7 @@ export default function NewsDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto px-4 py-16 max-w-3xl">
+      <div className="container mx-auto px-4 py-8 max-w-3xl">
         <Skeleton className="h-8 w-32 mb-8" />
         <Skeleton className="h-12 w-full mb-4" />
         <Skeleton className="h-4 w-48 mb-8" />
@@ -33,41 +33,56 @@ export default function NewsDetailPage() {
 
   if (!article) {
     return (
-      <div className="container mx-auto px-4 py-16 text-center">
+      <div className="container mx-auto px-4 py-8 text-center">
         <p className="text-muted-foreground">Article not found</p>
         <Button variant="ghost" className="mt-4" asChild><Link href="/news">Back</Link></Button>
       </div>
     );
   }
 
+  const hasCover = (article as any).imageUrl;
+
   return (
-    <div className="container mx-auto px-4 py-16 max-w-3xl">
+    <div className="container mx-auto px-4 py-8 max-w-3xl">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <Button variant="ghost" size="sm" className="mb-6 gap-2 text-muted-foreground" asChild>
+        <Button variant="ghost" size="sm" className="mb-4 gap-2 text-muted-foreground" asChild>
           <Link href="/news"><ArrowLeft className="w-4 h-4" /> News</Link>
         </Button>
 
-        <Badge className={`mb-4 text-[10px] uppercase tracking-widest ${catColors[article.category] ?? ""}`}>
-          {article.category}
-        </Badge>
-
-        <h1 className="text-4xl font-black leading-tight mb-4">{article.title}</h1>
-
-        <div className="flex items-center gap-3 text-sm text-muted-foreground mb-8 pb-8 border-b border-border">
-          {article.authorName && <span>By <strong className="text-foreground">{article.authorName}</strong></span>}
-          <span>•</span>
-          <span>{new Date(article.publishedAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</span>
+        <div className="wg-hero px-6 py-8 mb-8">
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <Badge className={`text-[10px] uppercase tracking-widest ${catColors[article.category] ?? ""}`}>
+              {article.category}
+            </Badge>
+            <span className="wg-chip">Story</span>
+          </div>
+          <h1 className="text-3xl md:text-4xl font-black leading-tight mb-3">{article.title}</h1>
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            {article.authorName && <span>By <strong className="text-foreground">{article.authorName}</strong></span>}
+            <span>•</span>
+            <span>{new Date(article.publishedAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</span>
+          </div>
         </div>
 
-        {article.excerpt && (
-          <p className="text-xl text-muted-foreground mb-8 font-medium leading-relaxed">{article.excerpt}</p>
+        {hasCover && (
+          <div className="mb-6 overflow-hidden rounded-2xl border border-border">
+            <img src={(article as any).imageUrl} alt={article.title} className="w-full max-h-80 object-cover" />
+          </div>
         )}
 
-        <div className="prose prose-invert prose-lg max-w-none">
-          {article.content.split("\n").map((para, i) => (
-            para.trim() ? <p key={i} className="text-foreground/80 leading-relaxed mb-4">{para}</p> : null
-          ))}
-        </div>
+        <article className="rounded-2xl border border-border bg-card/50 p-6 md:p-8">
+          {article.excerpt && (
+            <p className="text-xl text-muted-foreground mb-6 font-medium leading-relaxed border-l-2 border-[var(--acc)] pl-4">
+              {article.excerpt}
+            </p>
+          )}
+
+          <div className="prose prose-invert prose-lg max-w-none">
+            {article.content.split("\n").map((para, i) => (
+              para.trim() ? <p key={i} className="text-foreground/80 leading-relaxed mb-4">{para}</p> : null
+            ))}
+          </div>
+        </article>
       </motion.div>
     </div>
   );

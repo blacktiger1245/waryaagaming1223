@@ -737,25 +737,25 @@ export default function TeamDetailPage() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden mb-1"
+          className="wg-card rounded-2xl border border-emerald-400/25 bg-gradient-to-b from-emerald-500/[0.07] to-transparent overflow-hidden mb-4 shadow-[0_16px_50px_-30px_rgba(16,185,129,0.6)]"
         >
           {/* Top section: logo + identity */}
-          <div className="px-6 pt-6 pb-5 flex flex-col sm:flex-row gap-5 items-start sm:items-center">
+          <div className="px-6 pt-7 pb-6 flex flex-col sm:flex-row gap-5 items-start sm:items-center">
             {/* Circular logo */}
             <div className="flex-shrink-0">
-              <div className="w-24 h-24 rounded-full bg-zinc-800 border-4 border-zinc-600 overflow-hidden flex items-center justify-center shadow-xl ring-2 ring-white/10">
+              <div className="w-24 h-24 rounded-full bg-zinc-900 border-2 border-emerald-400/50 overflow-hidden flex items-center justify-center shadow-[0_0_30px_rgba(16,185,129,0.45)] ring-4 ring-emerald-400/10">
                 {storageUrl(team.logoUrl)
                   ? <img src={storageUrl(team.logoUrl)} alt={team.name} className="w-full h-full object-cover" />
-                  : <Shield className="w-11 h-11 text-zinc-500" />}
+                  : <Shield className="w-11 h-11 text-emerald-400" />}
               </div>
             </div>
 
             {/* Name + tag + description + manager */}
             <div className="flex-1 min-w-0">
               <div className="flex flex-wrap items-baseline gap-2 mb-1">
-                <h1 className="text-3xl font-black tracking-tight leading-none">{team.name}</h1>
+                <h1 className="text-3xl md:text-4xl font-black tracking-tight leading-none">{team.name}</h1>
                 {team.tag && (
-                  <span className="text-xl font-semibold text-zinc-400">({team.tag})</span>
+                  <span className="text-xl font-semibold text-emerald-300">({team.tag})</span>
                 )}
               </div>
               {team.description && (
@@ -775,13 +775,13 @@ export default function TeamDetailPage() {
           </div>
 
           {/* Inline stats strip */}
-          <div className="border-t border-zinc-800 px-6 py-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-zinc-400">
-            <span>Total Players:&nbsp;<strong className="text-white">{team.memberCount ?? 0}</strong></span>
-            <span>Founded:&nbsp;<strong className="text-white">
+          <div className="border-t border-emerald-400/15 px-6 py-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-zinc-400">
+            <span className="flex items-center gap-1.5">Total Players:&nbsp;<strong className="text-white">{team.memberCount ?? 0}</strong></span>
+            <span className="flex items-center gap-1.5">Founded:&nbsp;<strong className="text-white">
               {team.createdAt ? new Date(team.createdAt).toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "numeric" }) : "—"}
             </strong></span>
-            <span>Location:&nbsp;<strong className="text-white">—</strong></span>
-            <span>Market Value:&nbsp;<strong className="text-teal-400">Coming Soon</strong></span>
+            <span className="flex items-center gap-1.5">Location:&nbsp;<strong className="text-white">—</strong></span>
+            <span className="flex items-center gap-1.5">Market Value:&nbsp;<strong className="text-emerald-300">Coming Soon</strong></span>
             <span className="flex items-center gap-1.5">Rating:&nbsp;
               <span className="flex items-center gap-0.5">
                 {Array.from({ length: 5 }).map((_, i) => (
@@ -793,14 +793,14 @@ export default function TeamDetailPage() {
         </motion.div>
 
         {/* ── Tab bar ── */}
-        <div className="bg-zinc-900 border border-zinc-800 border-t-0 rounded-b-2xl px-4 py-2.5 flex gap-1 overflow-x-auto mb-6">
+        <div className="bg-zinc-900/80 border border-zinc-800 border-t-0 rounded-b-2xl px-4 py-2.5 flex gap-1 overflow-x-auto mb-6">
           {tabs.map(t => (
             <button
               key={t.id}
               onClick={() => setActiveTab(t.id)}
               className={`px-4 py-1.5 rounded-lg text-sm font-bold whitespace-nowrap transition-all duration-150 ${
                 activeTab === t.id
-                  ? "bg-teal-400 text-black"
+                  ? "bg-emerald-400 text-black shadow-[0_4px_16px_-6px_rgba(16,185,129,0.7)]"
                   : "text-zinc-400 hover:text-white"
               }`}
             >

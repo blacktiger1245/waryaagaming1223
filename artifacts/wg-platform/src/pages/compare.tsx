@@ -185,11 +185,12 @@ export default function ComparePage() {
   const bothSelected = !!playerA && !!playerB;
 
   return (
-    <div className="container mx-auto px-4 py-16 max-w-4xl">
+    <div className="container mx-auto px-4 py-8 max-w-4xl">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <div className="mb-10">
-          <p className="text-primary text-xs font-bold uppercase tracking-widest mb-2">Head to Head</p>
-          <h1 className="text-5xl font-black uppercase tracking-tight">Compare Players</h1>
+        <div className="wg-hero px-6 py-8 mb-8">
+          <span className="wg-eyebrow inline-flex items-center gap-2"><Users className="h-4 w-4" /> Head to Head</span>
+          <h1 className="wg-hero-title text-4xl mt-3">Compare Players</h1>
+          <p className="text-muted-foreground text-sm mt-2">Pit two stars against each other across every meaningful stat.</p>
         </div>
 
         {/* Selectors */}

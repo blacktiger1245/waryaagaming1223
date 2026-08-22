@@ -34,21 +34,22 @@ export default function MediaPage() {
   ];
 
   return (
-    <div className="container mx-auto px-4 py-16">
+    <div className="container mx-auto px-4 py-8">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <div className="mb-10">
-          <p className="text-primary text-xs font-bold uppercase tracking-widest mb-2">Watch</p>
-          <h1 className="text-5xl font-black uppercase tracking-tight">Media Hub</h1>
+        <div className="wg-hero px-6 py-8 mb-8">
+          <span className="wg-eyebrow inline-flex items-center gap-2"><PlaySquare className="h-4 w-4" /> Watch</span>
+          <h1 className="wg-hero-title text-4xl mt-3">Media Hub</h1>
+          <p className="text-muted-foreground text-sm mt-2">Highlights, recaps and moments from across Waryaa Gaming.</p>
         </div>
 
         {/* Platform filter */}
-        <div className="flex flex-wrap gap-2 mb-8 border-b border-border pb-4">
+        <div className="flex flex-wrap items-center gap-2 mb-8">
+          <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Platform ·</span>
           {platforms.map((p) => (
             <button
               key={p.label}
               onClick={() => setPlatform(p.value)}
-              className={`px-4 py-2 text-sm font-bold uppercase tracking-wider rounded-md transition-all duration-200
-                ${platform === p.value ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
+              className={`wg-chip transition-all duration-200 ${platform === p.value ? "wg-chip-solid" : ""}`}
             >
               {p.label}
             </button>

@@ -56,50 +56,49 @@ export default function TeamsPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-16">
+    <div className="container mx-auto px-4 py-8">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <div className="mb-10 flex items-end justify-between gap-4 flex-wrap">
-          <div>
-            <p className="text-primary text-xs font-bold uppercase tracking-widest mb-2">Squads</p>
-            <h1 className="text-5xl font-black uppercase tracking-tight">Teams</h1>
-          </div>
-          {isLoggedIn && !myTeamLoading && (
-            <div className="flex flex-col items-end gap-2">
-              {hasTeam ? (
-                <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
-                  <Button
-                    onClick={() => setDeviceModalOpen(true)}
-                    className="flex items-center gap-2 font-bold uppercase tracking-wide"
-                  >
-                    Add Your Details
-                  </Button>
-                  <Button
-                    onClick={leaveTeam}
-                    className="flex items-center justify-center gap-2 bg-transparent border border-destructive/50 text-destructive font-bold uppercase tracking-wide hover:bg-destructive/10"
-                  >
-                    Leave Your Team
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  onClick={() => navigate("/register-team")}
-                  className="flex items-center gap-2 font-bold uppercase tracking-wide"
-                >
-                  Register Your Team
-                </Button>
-              )}
-              {hasTeam && (
-                <button
-                  onClick={() => navigate(myRole === "player" ? `/teams/${myTeam.id}` : `/teams/${myTeam.id}/manage`)}
-                  className="text-xs text-muted-foreground hover:text-primary transition-colors"
-                >
-                  Manage / View team →
-                </button>
-              )}
+        <div className="wg-hero px-6 py-9 mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+            <div>
+              <span className="wg-eyebrow inline-flex items-center gap-2"><Shield className="h-4 w-4" /> Squads</span>
+              <h1 className="wg-hero-title text-4xl mt-4">Teams</h1>
+              <p className="text-muted-foreground text-sm sm:text-base leading-relaxed mt-3 max-w-xl">
+                Every Waryaa crew is a brotherhood with its own crest and story — from the first captain to the latest signing.
+              </p>
             </div>
-          )}
+            {isLoggedIn && !myTeamLoading && (
+              <div className="flex flex-col items-stretch gap-2 sm:items-center">
+                {hasTeam ? (
+                  <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+                    <Button onClick={() => setDeviceModalOpen(true)} className="wg-btn-pill gap-2 font-bold uppercase tracking-wide">
+                      Add Your Details
+                    </Button>
+                    <Button
+                      onClick={leaveTeam}
+                      className="flex items-center justify-center gap-2 bg-transparent border border-destructive/50 text-destructive font-bold uppercase tracking-wide hover:bg-destructive/10"
+                    >
+                      Leave Your Team
+                    </Button>
+                  </div>
+                ) : (
+                  <Button onClick={() => navigate("/register-team")} className="wg-btn-pill gap-2 font-bold uppercase tracking-wide">
+                    Register Your Team
+                  </Button>
+                )}
+                {hasTeam && (
+                  <button
+                    onClick={() => navigate(myRole === "player" ? `/teams/${myTeam.id}` : `/teams/${myTeam.id}/manage`)}
+                    className="text-xs text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    Manage / View team →
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
           {leaveError && (
-            <div className="basis-full text-right text-sm text-red-400">⚠ {leaveError}</div>
+            <div className="text-sm text-red-400 mt-3">⚠ {leaveError}</div>
           )}
         </div>
 
@@ -127,36 +126,39 @@ export default function TeamsPage() {
             : teams?.map((team, i) => (
                 <motion.div key={team.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
                   <Link href={`/teams/${team.id}`}>
-                    <div className="rounded-xl border border-border bg-card p-5 hover:border-primary/40 transition-all duration-300 cursor-pointer group h-full flex flex-col gap-3">
-                      <div className="w-14 h-14 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center overflow-hidden">
-                        {storageUrl(team.logoUrl)
-                          ? <img src={storageUrl(team.logoUrl)} alt={team.name} className="w-full h-full object-cover" />
-                          : <Shield className="w-7 h-7 text-primary" />}
+                    <div className="wg-card wg-lift wg-sheen rounded-xl border border-border bg-card cursor-pointer group h-full flex flex-col overflow-hidden">
+                      {/* Crest emblem */}
+                      <div className="flex items-center justify-center pt-6 pb-2">
+                        <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/15 ring-2 ring-emerald-400/40 flex items-center justify-center overflow-hidden shadow-[0_0_26px_rgba(16,185,129,0.35)]">
+                          {storageUrl(team.logoUrl)
+                            ? <img src={storageUrl(team.logoUrl)} alt={team.name} className="w-full h-full object-cover" />
+                            : <Shield className="w-10 h-10 text-emerald-400" />}
+                        </div>
                       </div>
 
-                      <div>
-                        <div className="font-black text-lg group-hover:text-primary transition-colors">{team.name}</div>
+                      <div className="px-4 py-3 text-center">
+                        <div className="font-black text-lg leading-tight group-hover:text-white transition-colors">{team.name}</div>
                         {team.tag && (
-                          <div className="text-xs font-mono text-primary mt-0.5">[{team.tag}]</div>
+                          <div className="wg-chip mt-1.5">[{team.tag}]</div>
                         )}
                         <div className="text-xs text-muted-foreground mt-1">Captain: {team.captainName}</div>
                       </div>
 
-                      <div className="grid grid-cols-3 gap-2 text-center mt-auto">
-                        <div>
-                          <div className="text-sm font-black text-primary">{team.wins}</div>
-                          <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Wins</div>
+                      <div className="flex items-center justify-between gap-1 border-t border-border px-4 py-3">
+                        <div className="flex-1 text-center">
+                          <div className="text-base font-black text-white">{team.wins}</div>
+                          <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Wins</div>
                         </div>
-                        <div>
-                          <div className="text-sm font-black">{team.losses}</div>
-                          <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Losses</div>
+                        <div className="flex-1 text-center">
+                          <div className="text-base font-black text-white">{team.losses}</div>
+                          <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Losses</div>
                         </div>
-                        <div>
-                          <div className="flex items-center justify-center gap-0.5 text-sm font-black">
+                        <div className="flex-1 text-center">
+                          <div className="flex items-center justify-center gap-0.5 text-base font-black text-white">
                             <Users className="w-3 h-3" />
                             {team.memberCount}
                           </div>
-                          <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Members</div>
+                          <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Squad</div>
                         </div>
                       </div>
                     </div>

@@ -33,6 +33,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user, isLoading, isLoggedIn, loginWithDiscord, logout } = useAuth();
+  const pageKey = location.split("/").filter(Boolean)[0] || "home";
 
   const navLinks = [
     { href: "/", label: "Home", icon: Home },
@@ -54,7 +55,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   ];
 
   return (
-    <div className="min-h-screen flex bg-background relative isolate wg-site wg-site-bg wg-grid-bg">
+    <div className="min-h-screen flex bg-background relative isolate wg-site wg-site-bg wg-grid-bg" data-wg-page={pageKey}>
       {/* Animated glowing background (public site only) */}
       <div className="wg-aurora" aria-hidden><i /><i /><i /><i /></div>
       {/* Interstitial advertisement overlay (above normal content) */}

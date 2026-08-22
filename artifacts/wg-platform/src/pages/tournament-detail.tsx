@@ -600,8 +600,8 @@ export default function TournamentDetailPage() {
         </Button>
 
         {/* Header */}
-        <div className="mb-10">
-          <div className="flex items-center gap-3 mb-3">
+        <div className="wg-hero px-6 py-8 mb-8">
+          <div className="flex items-center gap-2 flex-wrap mb-3">
             <Badge className={`text-[10px] uppercase tracking-widest ${statusColors[tournament.status] ?? ""}`}>
               {tournament.status}
             </Badge>
@@ -609,9 +609,7 @@ export default function TournamentDetailPage() {
             {isTeamTournament && (
               <>
                 <span className="text-xs text-muted-foreground">•</span>
-                <span className="flex items-center gap-1 text-xs text-teal-400 font-bold">
-                  <Shield className="w-3 h-3" /> Team League
-                </span>
+                <span className="wg-chip">Team League</span>
               </>
             )}
             {!isTeamTournament && (
@@ -623,7 +621,7 @@ export default function TournamentDetailPage() {
           </div>
           <div className="flex flex-col md:flex-row md:items-end gap-6">
             <div className="flex-1">
-              <h1 className="text-5xl font-black uppercase tracking-tight mb-4">{tournament.name}</h1>
+              <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tight mb-4">{tournament.name}</h1>
               {tournament.description && (
                 <p className="text-muted-foreground text-lg max-w-2xl">{tournament.description}</p>
               )}
@@ -662,10 +660,10 @@ export default function TournamentDetailPage() {
             },
             { label: "Winner", value: tournament.winnerName ?? "TBD", icon: Trophy },
           ].map(({ label, value, icon: Icon }) => (
-            <div key={label} className="rounded-xl border border-border bg-card p-5">
-              <Icon className="w-5 h-5 text-primary mb-3" />
-              <div className="text-xl font-black">{value}</div>
-              <div className="text-xs text-muted-foreground uppercase tracking-wider mt-1">{label}</div>
+            <div key={label} className="wg-stat flex flex-col gap-2">
+              <Icon className="w-5 h-5 text-[var(--acc)]" />
+              <div className="wg-val text-xl">{value}</div>
+              <div className="text-xs text-muted-foreground uppercase tracking-wider">{label}</div>
             </div>
           ))}
         </div>
@@ -789,23 +787,21 @@ export default function TournamentDetailPage() {
         {/* ── SOLO TOURNAMENT: Bracket + Schedule ── */}
         {!isTeamTournament && bracket && bracket.rounds.length > 0 && (
           <div className="mb-12">
-            <h2 className="text-2xl font-black uppercase tracking-tight mb-6">Tournament Bracket</h2>
+            <h2 className="wg-section-title text-2xl font-black uppercase tracking-tight mb-6">Tournament Bracket</h2>
             <div className="overflow-x-auto">
               <div className="flex gap-6 min-w-max pb-4">
                 {bracket.rounds.map((round) => (
                   <div key={round.roundNumber} className="flex flex-col gap-4">
-                    <div className="text-xs font-bold uppercase tracking-widest text-primary text-center mb-2">
-                      {round.name}
-                    </div>
+                    <div className="wg-chip mx-auto mb-2">{round.name}</div>
                     <div className="flex flex-col justify-around gap-4" style={{ minHeight: `${round.matches.length * 80}px` }}>
                       {round.matches.map((match) => (
-                        <div key={match.id} className="w-48 rounded-lg border border-border bg-card p-3">
-                          <div className={`flex justify-between items-center py-1 ${match.winnerId === match.participant1Id ? "text-primary font-black" : "text-foreground"}`}>
+                        <div key={match.id} className="w-48 rounded-lg border border-[var(--card-border)] bg-card p-3 shadow-[0_8px_24px_-16px_var(--card-glow)]">
+                          <div className={`flex justify-between items-center py-1 ${match.winnerId === match.participant1Id ? "font-black text-[var(--acc)]" : "text-foreground"}`}>
                             <span className="text-sm truncate">{match.participant1Name ?? "TBD"}</span>
                             <span className="text-sm font-mono ml-2">{match.participant1Score ?? "-"}</span>
                           </div>
                           <div className="border-t border-border my-1" />
-                          <div className={`flex justify-between items-center py-1 ${match.winnerId === match.participant2Id ? "text-primary font-black" : "text-foreground"}`}>
+                          <div className={`flex justify-between items-center py-1 ${match.winnerId === match.participant2Id ? "font-black text-[var(--acc)]" : "text-foreground"}`}>
                             <span className="text-sm truncate">{match.participant2Name ?? "TBD"}</span>
                             <span className="text-sm font-mono ml-2">{match.participant2Score ?? "-"}</span>
                           </div>
@@ -825,8 +821,8 @@ export default function TournamentDetailPage() {
 
         {!isTeamTournament && matches && matches.length > 0 && (
           <div>
-            <h2 className="text-2xl font-black uppercase tracking-tight mb-6">Match Schedule</h2>
-            <div className="rounded-xl border border-border overflow-hidden">
+            <h2 className="wg-section-title text-2xl font-black uppercase tracking-tight mb-6">Match Schedule</h2>
+            <div className="rounded-xl border border-border overflow-hidden shadow-[0_10px_30px_-22px_var(--card-glow)]">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-border bg-muted/30">

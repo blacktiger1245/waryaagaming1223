@@ -784,32 +784,33 @@ export default function PlayerDetailPage() {
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
 
         {/* ── Hero banner ── */}
-        <div className="relative h-48 md:h-56 overflow-hidden">
+        <div className="relative h-44 md:h-52 overflow-hidden">
           <img
             src="/profile-banner.png"
             alt="Waryaa Gaming Stadium"
             className="absolute inset-0 w-full h-full object-cover object-center"
           />
           {/* dark gradient at the bottom so the avatar/name stays readable */}
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-background/90" />
+          <div className="absolute inset-0 bg-gradient-to-b from-background/30 via-background/45 to-background" />
         </div>
 
         <div className="container mx-auto px-4">
           {/* back button */}
-          <Button variant="ghost" size="sm" className="-mt-2 mb-0 gap-2 text-muted-foreground relative z-10" asChild>
+          <Button variant="ghost" size="sm" className="-mt-2 mb-3 gap-2 text-muted-foreground relative z-10" asChild>
             <Link href="/players"><ArrowLeft className="w-4 h-4" /> Players</Link>
           </Button>
 
           {/* ── Profile header ── */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4 -mt-16 mb-6 relative z-10">
+          <div className="rounded-2xl border border-indigo-400/25 bg-gradient-to-b from-indigo-500/[0.08] to-transparent p-5 pb-4 mb-6 relative z-10 shadow-[0_12px_40px_-24px_rgba(99,102,241,0.6)]">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5">
             {/* Avatar */}
             <div className="relative flex-shrink-0">
-              <div className="w-24 h-24 rounded-full ring-4 ring-cyan-400 ring-offset-4 ring-offset-background overflow-hidden shadow-[0_0_20px_rgba(34,211,238,0.4)]">
+              <div className="w-24 h-24 rounded-full ring-4 ring-indigo-400/60 ring-offset-4 ring-offset-background overflow-hidden shadow-[0_0_28px_rgba(99,102,241,0.55)]">
                 {player.avatarUrl ? (
                   <img src={player.avatarUrl} alt={displayName} className="w-full h-full object-cover" />
                 ) : (
-                  <div className="w-full h-full bg-primary/10 flex items-center justify-center">
-                    <span className="text-4xl font-black text-primary">
+                  <div className="w-full h-full bg-gradient-to-br from-indigo-500/40 to-cyan-400/20 flex items-center justify-center">
+                    <span className="text-4xl font-black text-indigo-200">
                       {displayName.charAt(0).toUpperCase()}
                     </span>
                   </div>
@@ -818,9 +819,9 @@ export default function PlayerDetailPage() {
             </div>
 
             {/* Name / club / stars */}
-            <div className="flex-1 pb-1">
+            <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-2xl md:text-3xl font-black leading-none flex items-center gap-2">
+                <h1 className="text-2xl md:text-4xl font-black leading-tight flex items-center gap-2">
                         {displayName}
                         {(player as any).verified && (
                           <img
@@ -852,9 +853,9 @@ export default function PlayerDetailPage() {
                         className="w-5 h-5 rounded-full object-cover border border-border"
                       />
                     ) : (
-                      <Shield className="w-4 h-4 text-cyan-400" />
+                      <Shield className="w-4 h-4 text-indigo-300" />
                     )}
-                    <span className="text-cyan-400 font-semibold text-sm group-hover:underline">
+                    <span className="text-indigo-300 font-semibold text-sm group-hover:underline">
                       {player.teamName}
                     </span>
                   </Link>
@@ -871,11 +872,12 @@ export default function PlayerDetailPage() {
 
               <div className="flex items-center gap-3 mt-2 flex-wrap">
                 <Stars n={stars} />
-                <Badge className="bg-emerald-600/80 text-white border-0 font-bold text-xs px-2 py-0.5">
+                <Badge className="bg-indigo-500/20 text-indigo-200 border border-indigo-400/40 font-bold text-xs px-2 py-0.5">
                   {(player.points ?? 0).toFixed(1)} pts
                 </Badge>
                 <span className="text-xs text-muted-foreground">Rank #{player.rank}</span>
               </div>
+            </div>
             </div>
           </div>
 

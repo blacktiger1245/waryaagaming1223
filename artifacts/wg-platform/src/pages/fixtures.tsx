@@ -195,8 +195,8 @@ function MatchCard({ m, logoMap }: { m: FlatMatch; logoMap: Map<number, string |
         </div>
       </div>
 
-      {/* ── Desktop layout (compact, unchanged) ──────────────────────────── */}
-      <div className={`hidden lg:flex items-center gap-2 px-5 py-3.5 border-b border-[#1e2a45]/60 last:border-0 hover:bg-[#162038]/20 transition-colors ${live ? "bg-red-950/10" : ""}`}>
+      {/* ── Desktop layout ─────────────────────────────────────────────────── */}
+      <div className={`hidden lg:flex items-center gap-2 px-5 py-3.5 border-b border-[#1e2a45]/60 last:border-0 transition-colors ${live ? "bg-[#1a1020] wg-live-row" : "hover:bg-[#162038]/20"}`}>
         {/* Time */}
         <div className="w-14 shrink-0">
           {time ? (
@@ -210,7 +210,8 @@ function MatchCard({ m, logoMap }: { m: FlatMatch; logoMap: Map<number, string |
         </div>
 
         {/* Home team */}
-        <div className="flex-1 flex items-center justify-end gap-2.5 min-w-0">
+        <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
+          {p1wins && <Trophy className="w-3.5 h-3.5 text-amber-400 shrink-0" strokeWidth={2} />}
           <span className={`text-sm font-black truncate text-right leading-tight ${p1wins ? "text-white" : done ? "text-zinc-500" : "text-zinc-100"}`}>
             {m.participant1Name ?? "TBD"}
           </span>
@@ -218,25 +219,26 @@ function MatchCard({ m, logoMap }: { m: FlatMatch; logoMap: Map<number, string |
         </div>
 
         {/* Score */}
-        <div className="w-[90px] shrink-0 flex flex-col items-center gap-0.5">
+        <div className="w-[96px] shrink-0 flex flex-col items-center gap-1">
           {hasScore ? (
-            <span className="font-mono font-black text-lg text-white tabular-nums leading-none">
-              {m.participant1Score} <span className="text-zinc-500 font-normal text-base">-</span> {m.participant2Score}
+            <span className={`font-mono font-black text-lg text-white tabular-nums leading-none px-3 py-1 rounded-lg ${live ? "bg-sky-500/15 border border-sky-400/30" : ""}`}>
+              {m.participant1Score} <span className="text-zinc-500 font-normal text-base">·</span> {m.participant2Score}
             </span>
           ) : (
             <span className="font-black text-sm text-zinc-400">VS</span>
           )}
-          <span className="text-[9px] font-bold text-zinc-600 truncate max-w-[110px] text-center uppercase tracking-wide">
+          <span className="text-[9px] font-bold text-sky-300/70 truncate max-w-[110px] text-center uppercase tracking-wide">
             {stageLabel(m)}
           </span>
         </div>
 
         {/* Away team */}
-        <div className="flex-1 flex items-center gap-2.5 min-w-0">
+        <div className="flex-1 flex items-center gap-2 min-w-0">
           <Av name={m.participant2Name ?? "?"} size="sm" url={logo2} />
           <span className={`text-sm font-black truncate leading-tight ${p2wins ? "text-white" : done ? "text-zinc-500" : "text-zinc-100"}`}>
             {m.participant2Name ?? "TBD"}
           </span>
+          {p2wins && <Trophy className="w-3.5 h-3.5 text-amber-400 shrink-0" strokeWidth={2} />}
         </div>
 
         {/* Status + action */}
@@ -247,7 +249,7 @@ function MatchCard({ m, logoMap }: { m: FlatMatch; logoMap: Map<number, string |
             </span>
           )}
           {!live && !done && (
-            <span className="text-[10px] font-bold bg-orange-500/10 text-orange-400 border border-orange-500/20 px-2 py-0.5 rounded-full">
+            <span className="text-[10px] font-bold bg-sky-500/10 text-sky-300 border border-sky-400/20 px-2 py-0.5 rounded-full">
               UPCOMING
             </span>
           )}
@@ -257,7 +259,7 @@ function MatchCard({ m, logoMap }: { m: FlatMatch; logoMap: Map<number, string |
             </span>
           )}
           <Link href={`/tournaments`}>
-            <span className="text-[10px] font-bold text-zinc-600 hover:text-blue-400 transition-colors cursor-pointer whitespace-nowrap">
+            <span className="text-[10px] font-bold text-zinc-600 hover:text-sky-300 transition-colors cursor-pointer whitespace-nowrap">
               View Details →
             </span>
           </Link>
@@ -303,7 +305,7 @@ function LiveSpotlight({ m, logoMap }: { m: FlatMatch; logoMap: Map<number, stri
             </span>
           </div>
         </div>
-        <button className="mt-5 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 transition-colors text-sm font-black text-white">
+        <button className="mt-5 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-blue-500 hover:from-sky-400 hover:to-blue-400 shadow-[0_6px_20px_-6px_rgba(56,189,248,0.7)] transition-all text-sm font-black text-white">
           <Radio className="w-4 h-4" /> Watch Live Now
         </button>
       </div>
@@ -470,8 +472,8 @@ function NavItem({
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-colors text-left
-        ${active ? "bg-blue-600 text-white" : "text-zinc-400 hover:text-zinc-200 hover:bg-[#162038]/50"}`}
+      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all text-left
+        ${active ? "bg-sky-500 text-white shadow-[0_4px_16px_-6px_rgba(56,189,248,0.7)]" : "text-zinc-400 hover:text-zinc-200 hover:bg-[#162038]/50"}`}
     >
       <Icon className={`w-4 h-4 shrink-0 ${active ? "text-white" : "text-zinc-500"}`} />
       <span className="flex-1 truncate">{label}</span>
@@ -682,8 +684,37 @@ export default function FixturesPage() {
   const visibleGroups = grouped.slice(0, visibleDates);
 
   return (
-    <div className="min-h-screen bg-[#080c18] pb-20 lg:pb-6">
-      <div className="max-w-[1400px] mx-auto px-3 py-4 lg:px-4 lg:py-6 lg:flex lg:gap-0">
+    <div className="min-h-screen bg-[#080c18] pb-20 lg:pb-6 wg-fixtures">
+      <div className="max-w-[1440px] mx-auto px-3 py-4 lg:px-4 lg:py-6">
+
+        {/* ── Page hero ─────────────────────────────────────────────────── */}
+        <div className="wg-hero px-6 py-6 mb-7">
+          <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5">
+            <div>
+              <span className="wg-eyebrow inline-flex items-center gap-2"><CalendarDays className="h-4 w-4" /> Match Day</span>
+              <h1 className="wg-hero-title text-4xl mt-3">Fixtures</h1>
+              <p className="text-sm text-zinc-400 leading-relaxed mt-2 max-w-xl">
+                Every scheduled Waryaa clash, live score and final result — one command center for match day.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 sm:gap-4 shrink-0">
+              <div className="wg-stat text-center">
+                <div className="wg-val">{liveCount}</div>
+                <div className="text-[9px] uppercase tracking-wider text-zinc-400">Live</div>
+              </div>
+              <div className="wg-stat text-center">
+                <div className="wg-val">{upcomingCount}</div>
+                <div className="text-[9px] uppercase tracking-wider text-zinc-400">Upcoming</div>
+              </div>
+              <div className="wg-stat text-center">
+                <div className="wg-val">{filtered.length}</div>
+                <div className="text-[9px] uppercase tracking-wider text-zinc-400">Fixtures</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="lg:flex lg:gap-0">
 
         {/* ── Left sidebar — desktop only ───────────────────────────────────── */}
         <aside className="hidden lg:block w-52 shrink-0 mr-4 space-y-5">
@@ -840,25 +871,25 @@ export default function FixturesPage() {
           {/* Panel header — desktop only (mobile uses the filter bar above) */}
           <div className="hidden lg:flex items-center justify-between mb-4 gap-3">
             {/* Matches / Table toggle */}
-            <div className="flex items-center gap-1 bg-[#0f1628] border border-[#1e2a45] rounded-xl p-1 shrink-0">
+            <div className="flex items-center gap-1 p-1 rounded-xl bg-[#0f1628] border border-sky-400/20 shadow-[0_6px_20px_-12px_rgba(56,189,248,0.4)] shrink-0">
               <button
                 onClick={() => setMainView("matches")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors
-                  ${mainView === "matches" ? "bg-blue-600 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all
+                  ${mainView === "matches" ? "bg-sky-500 text-white shadow-[0_4px_14px_-4px_rgba(56,189,248,0.7)]" : "text-zinc-400 hover:text-zinc-200 hover:bg-[#162038]/60"}`}
               >
                 <LayoutList className="w-3.5 h-3.5" /> Fixtures
               </button>
               <button
                 onClick={() => setMainView("table")}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors
-                  ${mainView === "table" ? "bg-blue-600 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all
+                  ${mainView === "table" ? "bg-sky-500 text-white shadow-[0_4px_14px_-4px_rgba(56,189,248,0.7)]" : "text-zinc-400 hover:text-zinc-200 hover:bg-[#162038]/60"}`}
               >
                 <BarChart2 className="w-3.5 h-3.5" /> Table
               </button>
               <button
                 onClick={() => setMainView("groups" as any)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors
-                  ${mainView === ("groups" as any) ? "bg-blue-600 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all
+                  ${mainView === ("groups" as any) ? "bg-sky-500 text-white shadow-[0_4px_14px_-4px_rgba(56,189,248,0.7)]" : "text-zinc-400 hover:text-zinc-200 hover:bg-[#162038]/60"}`}
               >
                 <Layers className="w-3.5 h-3.5" /> Groups
               </button>
@@ -1316,6 +1347,7 @@ export default function FixturesPage() {
             </div>
           )}
         </aside>
+        </div>
       </div>
     </div>
   );

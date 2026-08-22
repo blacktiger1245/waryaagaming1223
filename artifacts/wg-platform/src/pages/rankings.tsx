@@ -652,21 +652,24 @@ export default function RankingsPage() {
   ];
 
   return (
-    <div className="container mx-auto px-4 py-16">
+    <div className="container mx-auto px-4 py-8">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-        <div className="mb-10">
-          <p className="text-primary text-xs font-bold uppercase tracking-widest mb-2">Leaderboard</p>
-          <h1 className="text-5xl font-black uppercase tracking-tight">Rankings</h1>
+        <div className="wg-hero px-6 py-9 mb-8">
+          <span className="wg-eyebrow inline-flex items-center gap-2"><Trophy className="h-4 w-4" /> Champion Board</span>
+          <h1 className="wg-hero-title text-4xl mt-4">Rankings</h1>
+          <p className="text-muted-foreground text-sm sm:text-base leading-relaxed mt-3 max-w-xl">
+            The official Waryaa pecking order — players, squads and legends ranked by form, points and glory.
+          </p>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-8 border-b border-border pb-4">
+        <div className="flex flex-wrap items-center gap-2 mb-8">
+          <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Board · View</span>
           {tabs.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`px-4 py-2 text-sm font-bold uppercase tracking-wider rounded-md transition-all duration-200
-                ${tab === t.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
+              className={`wg-chip transition-all duration-200 ${tab === t.id ? "wg-chip-solid" : ""}`}
             >
               {t.label}
             </button>
@@ -677,12 +680,12 @@ export default function RankingsPage() {
         {tab === "players" && (
           <div>
             <div className="flex flex-wrap items-center gap-2 mb-6">
+              <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Period ·</span>
               {(["all-time", "seasonal", "monthly", "weekly"] as Period[]).map((p) => (
                 <button
                   key={p}
                   onClick={() => setPeriod(p)}
-                  className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md transition-all duration-200
-                    ${period === p ? "bg-teal-400 text-black" : "text-muted-foreground hover:text-foreground hover:bg-muted"}`}
+                  className={`wg-chip transition-all duration-200 ${period === p ? "wg-chip-solid" : ""}`}
                 >
                   {p === "all-time" ? "Overall" : p === "seasonal" ? "Seasonal" : p === "monthly" ? "Monthly" : "Weekly"}
                 </button>
@@ -693,7 +696,7 @@ export default function RankingsPage() {
 
               {/* Comparison page link */}
               <Link href="/compare">
-                <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-md border border-border text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/10 hover:text-primary transition-all duration-200">
+                <button className="wg-chip gap-1.5 border-border text-muted-foreground hover:text-foreground hover:border-primary/40 transition-all duration-200">
                   <ArrowUpDown className="w-3 h-3" />
                   Comparison
                 </button>
@@ -714,23 +717,23 @@ export default function RankingsPage() {
                   <div className="relative">
                     <button
                       onClick={() => setSeasonDropdownOpen((v) => !v)}
-                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-teal-500/50 bg-zinc-900 text-sm font-bold text-white hover:border-teal-400 transition-colors min-w-[160px]"
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-amber-500/40 bg-card text-sm font-bold text-white hover:border-amber-400 transition-colors min-w-[160px]"
                     >
-                      <span className="flex-1 text-left">
+                      <span className="flex-1 text-left truncate">
                         {activeSeason ? `${activeSeason.name}${activeSeason.isCurrent ? " (Current)" : ""}` : "Select season"}
                       </span>
-                      <ChevronDown className="w-4 h-4 text-teal-400 shrink-0" />
+                      <ChevronDown className="w-4 h-4 text-amber-400 shrink-0" />
                     </button>
                     {seasonDropdownOpen && (
-                      <div className="absolute top-full mt-1 left-0 z-50 min-w-[200px] rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl overflow-hidden">
+                      <div className="absolute top-full mt-1 left-0 z-50 min-w-[200px] rounded-lg border border-amber-700/40 bg-card shadow-xl backdrop-blur overflow-hidden">
                         {seasons.map((s) => (
                           <button
                             key={s.id}
                             onClick={() => { setSelectedSeasonId(s.id); setSeasonDropdownOpen(false); }}
-                            className={`w-full px-3 py-2 text-sm text-left flex items-center justify-between hover:bg-zinc-800 transition-colors ${activeSeason?.id === s.id ? "text-teal-400 font-bold" : "text-zinc-200"}`}
+                            className={`w-full px-3 py-2 text-sm text-left flex items-center justify-between hover:bg-muted transition-colors ${activeSeason?.id === s.id ? "text-amber-400 font-bold" : "text-muted-foreground"}`}
                           >
                             <span>{s.name}</span>
-                            {s.isCurrent && <span className="text-[10px] font-bold text-teal-400 bg-teal-400/10 px-1.5 py-0.5 rounded">Current</span>}
+                            {s.isCurrent && <span className="text-[10px] font-bold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded">Current</span>}
                           </button>
                         ))}
                       </div>
@@ -740,7 +743,7 @@ export default function RankingsPage() {
               </div>
             )}
 
-            <div className="rounded-xl border border-border overflow-x-auto">
+            <div className="rounded-xl border border-border overflow-x-auto shadow-[0_10px_30px_-20px_rgba(251,146,60,0.35)]">
               <table className="w-full min-w-[700px]">
                 <thead>
                   <tr className="border-b border-border bg-muted/20">
@@ -783,7 +786,7 @@ export default function RankingsPage() {
                             {/* # with change indicator */}
                             <td className="px-4 py-3 text-center">
                               <div className="flex flex-col items-center gap-0.5">
-                                <span className={`text-sm font-black ${isTop3 ? "text-primary" : "text-muted-foreground"}`}>
+                                <span className={`text-sm font-black ${isTop3 ? "wg-chip-solid" : "text-muted-foreground"}`}>
                                   {displayRank}
                                 </span>
                                 {p.change == null || p.change === 0 ? (
@@ -882,27 +885,28 @@ export default function RankingsPage() {
                 {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-xl" />)}
               </div>
             ) : hof?.length === 0 ? (
-              <div className="text-center py-20 text-muted-foreground border border-border rounded-xl">
-                <Trophy className="w-12 h-12 mx-auto mb-4 opacity-20" />
-                <p className="font-bold">Hall of Fame is empty</p>
+              <div className="wg-card wg-lift rounded-xl border border-amber-400/30 bg-card px-6 py-14 text-center">
+                <Trophy className="w-12 h-12 mx-auto mb-4 text-amber-400/60" />
+                <h3 className="text-xl font-black uppercase tracking-wide text-amber-300">Hall of Fame</h3>
+                <p className="text-muted-foreground mt-1">No legends enshrined yet.</p>
               </div>
             ) : (
               <div className="grid md:grid-cols-2 gap-4">
                 {hof?.map((entry, i) => (
                   <motion.div key={entry.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
-                    <div className="rounded-xl border border-primary/20 bg-primary/5 p-6">
+                    <div className="wg-card wg-lift wg-sheen rounded-xl border border-amber-400/30 bg-card p-6">
                       <div className="flex items-start gap-4">
-                        <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
-                          <Trophy className="w-6 h-6 text-primary" />
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400/30 to-transparent ring-2 ring-amber-400/40 flex items-center justify-center flex-shrink-0 shadow-[0_0_18px_rgba(212,175,55,0.35)]">
+                          <Trophy className="w-6 h-6 text-amber-300" />
                         </div>
                         <div>
                           <div className="flex items-center gap-2 mb-1">
                             <Link href={`/players/${entry.playerId}`}>
-                              <span className="font-black text-lg hover:text-primary transition-colors cursor-pointer">{entry.username}</span>
+                              <span className="font-black text-lg text-white hover:text-amber-300 transition-colors cursor-pointer">{entry.username}</span>
                             </Link>
-                            <span className="text-xs text-muted-foreground">{entry.year}</span>
+                            <span className="wg-chip">{entry.year}</span>
                           </div>
-                          <p className="text-primary font-bold text-sm mb-1">{entry.achievement}</p>
+                          <p className="text-amber-300 font-bold text-sm mb-1">{entry.achievement}</p>
                           {entry.description && <p className="text-muted-foreground text-sm">{entry.description}</p>}
                         </div>
                       </div>

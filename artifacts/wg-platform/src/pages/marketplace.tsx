@@ -75,7 +75,7 @@ function PlayerCard({
     <Link href={`/players/${player.id}`}>
       <motion.article
         whileHover={{ y: -2 }}
-        className="group cursor-pointer rounded-lg border border-[#272930] bg-[#18191e] p-4 transition-colors hover:border-[#3d414a]"
+        className="group cursor-pointer wg-card rounded-lg border border-lime-400/15 bg-[#18191e] p-4 transition-all hover:border-lime-400/40 hover:shadow-[0_10px_30px_-14px_rgba(132,204,22,0.5)]"
       >
         <div className="flex items-center gap-3">
           <PlayerAvatar player={player} />
@@ -88,7 +88,7 @@ function PlayerCard({
             </div>
             <p className="truncate text-xs text-[#858b96]">@{player.username}</p>
             <div className="mt-1 flex items-center gap-1 text-[11px] text-[#aeb4bd]">
-              <Star className="h-3 w-3 fill-[#b7c0ca] text-[#b7c0ca]" />
+              <Star className="h-3 w-3 fill-[#facc15] text-[#facc15]" />
               <span>{rating || "—"} / 5</span>
             </div>
           </div>
@@ -108,7 +108,7 @@ function PlayerCard({
           <span className="font-semibold text-[#858b96]">
             {Math.round(player.points ?? 0)} pts
           </span>
-          <span className="font-black text-[#00e86b]">
+          <span className="font-black text-lime-300">
             {marketValueLabel(player.marketValue ?? pointsToMarketValue(player.points ?? 0))}
           </span>
         </div>
@@ -185,23 +185,26 @@ export default function MarketplacePage() {
   return (
     <main className="min-h-[calc(100vh-4rem)] bg-[#0f1014] px-4 py-8 text-[#e5e7eb] sm:px-6 lg:px-10">
       <div className="mx-auto max-w-[1120px]">
-        <header className="mb-7 flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="text-4xl font-extrabold tracking-[-0.04em] text-[#e7ebef] sm:text-5xl">
-              Transfer <span className="text-[#00e86b]">Market</span>
-            </h1>
-            <p className="mt-3 text-sm text-[#8b929c] sm:text-base">
-              Browse available players and contracted players
-            </p>
+        <div className="wg-hero px-6 py-7 mb-7">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <span className="wg-eyebrow inline-flex items-center gap-2"><ArrowDownToLine className="h-4 w-4" /> Trade Desk</span>
+              <h1 className="wg-hero-title text-4xl mt-3 sm:text-5xl">
+                Transfer <span className="bg-gradient-to-r from-lime-300 to-cyan-300 bg-clip-text text-transparent">Market</span>
+              </h1>
+              <p className="mt-3 text-sm text-[#8b929c] sm:text-base">
+                Browse available players and contracted players
+              </p>
+            </div>
+            <Link
+              href="/agent-messages"
+              className="wg-sheen inline-flex items-center gap-2 rounded-lg border border-lime-400/40 bg-lime-400/10 px-3 py-2 text-xs font-bold text-lime-300 transition-all hover:border-lime-400/70 hover:bg-lime-400/20 hover:text-lime-200"
+            >
+              <MessageCircle className="h-4 w-4" />
+              Agent Messages
+            </Link>
           </div>
-          <Link
-            href="/agent-messages"
-            className="inline-flex items-center gap-2 rounded-lg border border-[#2b4a8f] bg-[#16203a] px-3 py-2 text-xs font-bold text-[#93b4ff] transition-colors hover:border-[#3b6fe0] hover:bg-[#1a2a4d] hover:text-white"
-          >
-            <MessageCircle className="h-4 w-4" />
-            Agent Messages
-          </Link>
-        </header>
+        </div>
 
         <div className="grid gap-7 xl:grid-cols-[minmax(0,1fr)_274px]">
           <section className="min-w-0">
