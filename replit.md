@@ -1,6 +1,6 @@
 # Waryaa Gaming
 
-Waryaa Gaming is the Somali eSports Federation's official platform — tournaments, players, teams, rankings, news, and Discord-based login/admin, run as an imported pnpm monorepo.
+Waryaa Gaming is the Esomali Sport Federation's official platform — tournaments, players, teams, rankings, news, and Discord-based login/admin, run as an imported pnpm monorepo.
 
 ## Run & Operate
 

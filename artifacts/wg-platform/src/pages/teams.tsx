@@ -10,6 +10,7 @@ import { useListTeams } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { storageUrl } from "@/lib/api";
+import { accentForId, accentCardBackground } from "@/lib/accent-colors";
 
 export default function TeamsPage() {
   const [search, setSearch] = useState("");
@@ -123,38 +124,49 @@ export default function TeamsPage() {
                 <p className="font-bold">No teams found</p>
               </div>
             )
-            : teams?.map((team, i) => (
+            : teams?.map((team, i) => {
+                const acc = accentForId(team.id);
+                return (
                 <motion.div key={team.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
                   <Link href={`/teams/${team.id}`}>
-                    <div className="wg-card wg-lift wg-sheen rounded-xl border border-border bg-card cursor-pointer group h-full flex flex-col overflow-hidden">
+                    <div
+                      className="wg-card wg-lift wg-sheen rounded-xl border border-border bg-card cursor-pointer group h-full flex flex-col overflow-hidden"
+                      style={{ background: accentCardBackground(acc), borderColor: acc.tint }}
+                    >
                       {/* Crest emblem */}
                       <div className="flex items-center justify-center pt-6 pb-2">
-                        <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/15 ring-2 ring-emerald-400/40 flex items-center justify-center overflow-hidden shadow-[0_0_26px_rgba(16,185,129,0.35)]">
+                        <div
+                          className="w-20 h-20 rounded-2xl flex items-center justify-center overflow-hidden ring-2"
+                          style={{ borderColor: acc.tint, boxShadow: `0 0 26px ${acc.glow}` }}
+                        >
                           {storageUrl(team.logoUrl)
                             ? <img src={storageUrl(team.logoUrl)} alt={team.name} className="w-full h-full object-cover" />
-                            : <Shield className="w-10 h-10 text-emerald-400" />}
+                            : <Shield className="w-10 h-10" style={{ color: acc.hex }} />}
                         </div>
                       </div>
 
                       <div className="px-4 py-3 text-center">
                         <div className="font-black text-lg leading-tight group-hover:text-white transition-colors">{team.name}</div>
                         {team.tag && (
-                          <div className="wg-chip mt-1.5">[{team.tag}]</div>
+                          <div className="mt-1.5 inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-bold tracking-wide"
+                            style={{ color: acc.hex, borderColor: acc.tint, background: acc.soft }}>
+                            [{team.tag}]
+                          </div>
                         )}
                         <div className="text-xs text-muted-foreground mt-1">Captain: {team.captainName}</div>
                       </div>
 
                       <div className="flex items-center justify-between gap-1 border-t border-border px-4 py-3">
                         <div className="flex-1 text-center">
-                          <div className="text-base font-black text-white">{team.wins}</div>
+                          <div className="text-base font-black" style={{ color: acc.hex }}>{team.wins}</div>
                           <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Wins</div>
                         </div>
                         <div className="flex-1 text-center">
-                          <div className="text-base font-black text-white">{team.losses}</div>
+                          <div className="text-base font-black" style={{ color: acc.hex }}>{team.losses}</div>
                           <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Losses</div>
                         </div>
                         <div className="flex-1 text-center">
-                          <div className="flex items-center justify-center gap-0.5 text-base font-black text-white">
+                          <div className="flex items-center justify-center gap-0.5 text-base font-black" style={{ color: acc.hex }}>
                             <Users className="w-3 h-3" />
                             {team.memberCount}
                           </div>
@@ -164,7 +176,8 @@ export default function TeamsPage() {
                     </div>
                   </Link>
                 </motion.div>
-              ))}
+              );
+              })}
         </div>
       </motion.div>
 

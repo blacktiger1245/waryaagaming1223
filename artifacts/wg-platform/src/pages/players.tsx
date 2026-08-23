@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useListPlayers } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
+import { accentForId, accentCardBackground } from "@/lib/accent-colors";
 
 export default function PlayersPage() {
   const [search, setSearch] = useState("");
@@ -75,18 +76,26 @@ export default function PlayersPage() {
                 <p className="font-bold">No players found</p>
               </div>
             )
-            : players?.map((player, i) => (
+            : players?.map((player, i) => {
+                const acc = accentForId(player.id);
+                return (
                 <motion.div key={player.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
                   <Link href={`/players/${player.id}`}>
-                    <div className="wg-card wg-lift wg-sheen rounded-xl border border-border bg-card p-6 cursor-pointer group h-full flex flex-col gap-4">
+                    <div
+                      className="wg-card wg-lift wg-sheen rounded-xl border border-border bg-card p-6 cursor-pointer group h-full flex flex-col gap-4"
+                      style={{ background: accentCardBackground(acc), borderColor: acc.tint }}
+                    >
                       {/* Avatar block */}
                       <div className="flex items-center justify-center">
-                        <div className="w-20 h-20 rounded-2xl ring-2 ring-indigo-400/40 shadow-[0_0_26px_rgba(99,102,241,0.35)] overflow-hidden">
+                        <div
+                          className="w-20 h-20 rounded-2xl overflow-hidden ring-2"
+                          style={{ borderColor: acc.tint, boxShadow: `0 0 26px ${acc.glow}` }}
+                        >
                           {player.avatarUrl ? (
                             <img src={player.avatarUrl} alt={player.displayName ?? player.username} className="w-full h-full object-cover" />
                           ) : (
-                            <div className="w-full h-full bg-gradient-to-br from-indigo-500/40 to-cyan-400/20 flex items-center justify-center text-3xl font-black text-indigo-200">
-                              {(player.displayName ?? player.username).charAt(0).toUpperCase()}
+                            <div className="w-full h-full bg-gradient-to-br from-indigo-500/40 to-cyan-400/20 flex items-center justify-center" style={{ color: acc.hex }}>
+                              <span className="text-3xl font-black">{(player.displayName ?? player.username).charAt(0).toUpperCase()}</span>
                             </div>
                           )}
                         </div>
@@ -112,22 +121,23 @@ export default function PlayersPage() {
                       {/* performance stat strip */}
                       <div className="flex flex-wrap items-center justify-center gap-2">
                         <div className="wg-stat flex-1 text-center">
-                          <div className="wg-val">#{player.rank}</div>
+                          <div className="wg-val" style={{ color: acc.hex }}>#{player.rank}</div>
                           <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Rank</div>
                         </div>
                         <div className="wg-stat flex-1 text-center">
-                          <div className="wg-val">{(player as any).wins ?? player.matchesWon ?? player.tournamentWins ?? 0}</div>
+                          <div className="wg-val" style={{ color: acc.hex }}>{(player as any).wins ?? player.matchesWon ?? player.tournamentWins ?? 0}</div>
                           <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Wins</div>
                         </div>
                         <div className="wg-stat flex-1 text-center">
-                          <div className="wg-val">{(player.winRate * 100).toFixed(0)}%</div>
+                          <div className="wg-val" style={{ color: acc.hex }}>{(player.winRate * 100).toFixed(0)}%</div>
                           <div className="text-[9px] text-muted-foreground uppercase tracking-wider">W/R</div>
                         </div>
                       </div>
                     </div>
                   </Link>
                 </motion.div>
-              ))}
+              );
+              })}
         </div>
       </motion.div>
     </div>

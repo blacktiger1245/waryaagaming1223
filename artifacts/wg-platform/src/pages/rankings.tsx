@@ -564,9 +564,9 @@ function StarRating({ wins, max = 5 }: { wins: number; max?: number }) {
   );
 }
 import { Skeleton } from "@/components/ui/skeleton";
-import { useGetPlayerRankings, useGetTeamRankings, useGetHallOfFame } from "@workspace/api-client-react";
+import { useGetPlayerRankings, useGetTeamRankings } from "@workspace/api-client-react";
 
-type Tab = "players" | "teams" | "hof";
+type Tab = "players" | "teams";
 type Period = "all-time" | "monthly" | "weekly" | "seasonal";
 
 export default function RankingsPage() {
@@ -610,7 +610,6 @@ export default function RankingsPage() {
 
   const { data: playerRankings, isLoading: loadingPlayers } = useGetPlayerRankings({ period: period === "seasonal" ? "all-time" : period });
   const { data: teamRankings, isLoading: loadingTeams } = useGetTeamRankings();
-  const { data: hof, isLoading: loadingHof } = useGetHallOfFame();
 
   // Use the right data source depending on period
   const activePlayerData = period === "seasonal" ? (seasonalRankings ?? []) : (playerRankings ?? []);
@@ -648,7 +647,6 @@ export default function RankingsPage() {
   const tabs = [
     { id: "players" as Tab, label: "Top Players" },
     { id: "teams" as Tab, label: "Top Teams" },
-    { id: "hof" as Tab, label: "Hall of Fame" },
   ];
 
   return (
@@ -876,47 +874,6 @@ export default function RankingsPage() {
         {/* Team Rankings */}
         {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         {tab === "teams" && <TeamRankingsPanel teams={(teamRankings ?? []) as any} loading={loadingTeams} seasons={seasons} />}
-
-        {/* Hall of Fame */}
-        {tab === "hof" && (
-          <div>
-            {loadingHof ? (
-              <div className="grid md:grid-cols-2 gap-4">
-                {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-xl" />)}
-              </div>
-            ) : hof?.length === 0 ? (
-              <div className="wg-card wg-lift rounded-xl border border-amber-400/30 bg-card px-6 py-14 text-center">
-                <Trophy className="w-12 h-12 mx-auto mb-4 text-amber-400/60" />
-                <h3 className="text-xl font-black uppercase tracking-wide text-amber-300">Hall of Fame</h3>
-                <p className="text-muted-foreground mt-1">No legends enshrined yet.</p>
-              </div>
-            ) : (
-              <div className="grid md:grid-cols-2 gap-4">
-                {hof?.map((entry, i) => (
-                  <motion.div key={entry.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
-                    <div className="wg-card wg-lift wg-sheen rounded-xl border border-amber-400/30 bg-card p-6">
-                      <div className="flex items-start gap-4">
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-400/30 to-transparent ring-2 ring-amber-400/40 flex items-center justify-center flex-shrink-0 shadow-[0_0_18px_rgba(212,175,55,0.35)]">
-                          <Trophy className="w-6 h-6 text-amber-300" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <Link href={`/players/${entry.playerId}`}>
-                              <span className="font-black text-lg text-white hover:text-amber-300 transition-colors cursor-pointer">{entry.username}</span>
-                            </Link>
-                            <span className="wg-chip">{entry.year}</span>
-                          </div>
-                          <p className="text-amber-300 font-bold text-sm mb-1">{entry.achievement}</p>
-                          {entry.description && <p className="text-muted-foreground text-sm">{entry.description}</p>}
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
       </motion.div>
     </div>
   );

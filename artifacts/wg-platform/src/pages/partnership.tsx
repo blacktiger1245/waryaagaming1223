@@ -142,11 +142,11 @@ const WG_POINTS = [
 ];
 
 const SFF_POINTS = [
-  "Official Somali football representation",
-  "Football development",
+  "Official Somali sport representation",
+  "Sport development",
   "National teams and competitions",
   "Player opportunities",
-  "National and international football activities",
+  "National and international sport activities",
 ];
 export default function PartnershipPage() {
   return (
@@ -184,7 +184,7 @@ export default function PartnershipPage() {
 
           <FadeUp delay={0.16}>
             <p className="mx-auto mt-6 max-w-2xl text-sm leading-relaxed text-zinc-400 sm:text-base">
-              Waryaa Gaming is proud to partner with the Somali Football Federation to support
+              Waryaa Gaming is proud to partner with the Esomali Sport Federation to support
               the growth, development, and representation of Somali football and esports.
             </p>
           </FadeUp>
@@ -211,8 +211,8 @@ export default function PartnershipPage() {
 
               <LogoMedallion
                 src={SFF_LOGO}
-                alt="Somali Football Federation"
-                label="Somali Football Federation"
+                alt="Esomali Sport Federation"
+                label="Esomali Sport Federation"
                 ring="ring-amber-400/40"
                 glow="shadow-[0_0_60px_rgba(212,175,55,0.35)]"
                 onErrorHide
@@ -281,7 +281,7 @@ export default function PartnershipPage() {
             </h2>
             <p className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-zinc-400 sm:text-base">
               Two proud organizations, side by side. Waryaa Gaming brings the esports
-              energy; the Somali Football Federation brings the national sport. Together
+              energy; the Esomali Sport Federation brings the national sport. Together
               they connect Somali football and esports like never before.
             </p>
           </FadeUp>
@@ -323,13 +323,13 @@ export default function PartnershipPage() {
                 <div className="flex items-center gap-3">
                   <img
                     src={SFF_LOGO}
-                    alt="Somali Football Federation"
+                    alt="Esomali Sport Federation"
                     className="h-11 w-11 rounded-xl bg-white object-contain p-1 ring-2 ring-amber-400/40"
                     onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                   />
                   <div>
                     <h3 className="text-base font-black uppercase tracking-tight text-amber-300">
-                      Somali Football Federation
+                      Esomali Sport Federation
                     </h3>
                     <p className="text-[11px] uppercase tracking-widest text-zinc-500">National Sport</p>
                   </div>
@@ -352,12 +352,12 @@ export default function PartnershipPage() {
         <FadeUp className="text-center">
           <SectionKicker tone="orange">Official Federation</SectionKicker>
           <h2 className="text-3xl font-black uppercase tracking-tight sm:text-5xl">
-            Meet the Somali Football Federation
+            Meet the Esomali Sport Federation
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-sm leading-relaxed text-zinc-400 sm:text-base">
-            The Somali Football Federation is the official football federation for Somalia,
+            The Esomali Sport Federation is the official sport federation for Somalia,
             represented by the SFF emblem shown here. This partnership connects WG's esports
-            community directly to the national home of Somali football.
+            community directly to the national home of Somali sport.
           </p>
         </FadeUp>
 
@@ -373,7 +373,7 @@ export default function PartnershipPage() {
               <div className="flex h-36 w-36 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/20 bg-white p-3 shadow-2xl sm:h-44 sm:w-44">
                 <img
                   src={SFF_LOGO}
-                  alt="Somali Football Federation"
+                  alt="Esomali Sport Federation"
                   className="h-full w-full object-contain"
                   onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                 />
@@ -381,15 +381,15 @@ export default function PartnershipPage() {
 
               <div className="text-center sm:text-left">
                 <h3 className="text-2xl font-black uppercase tracking-tight text-white sm:text-3xl">
-                  Somali Football Federation
+                  Esomali Sport Federation
                 </h3>
                 <p className="mt-1 inline-flex items-center gap-2 rounded-full border border-amber-300/40 bg-amber-300/20 px-3 py-1 text-[11px] font-bold uppercase tracking-widest text-amber-100">
                   <Medal className="h-3.5 w-3.5" /> Official Federation
                 </p>
                 <p className="mt-4 max-w-xl text-sm leading-relaxed text-teal-50/90">
-                  As the governing body of football in Somalia, the Somali Football
-                  Federation leads national teams and competitions, develops the sport at
-                  every level, and represents Somali football nationally and internationally.
+                  As the governing body of sport in Somalia, the Esomali Sport
+                  Federation leads national teams and competitions, develops sport at
+                  every level, and represents Somali sport nationally and internationally.
                 </p>
               </div>
             </div>
@@ -405,7 +405,7 @@ export default function PartnershipPage() {
             className="group inline-flex items-center gap-3 rounded-2xl bg-gradient-to-r from-teal-400 to-emerald-500 px-8 py-4 text-sm font-black uppercase tracking-wider text-slate-900 shadow-[0_0_50px_-10px_rgba(45,212,191,0.7)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_0_60px_-8px_rgba(45,212,191,0.85)]"
           >
             <ExternalLink className="h-5 w-5 transition-transform group-hover:scale-110" />
-            Visit Somali Football Federation
+            Visit Esomali Sport Federation
             <ArrowUpRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
           </a>
           <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-zinc-500">

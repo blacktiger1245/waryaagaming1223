@@ -334,10 +334,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
               {/* Bottom bar */}
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground/60">
                 <span>© {new Date().getFullYear()} Waryaa Gaming. All rights reserved.</span>
-                <div className="flex items-center gap-2 font-mono">
-                  <Shield className="w-3.5 h-3.5 text-primary/50" />
-                  <span>Powered by <span className="text-muted-foreground">Somali Esports Federation</span></span>
-                </div>
               </div>
             </div>
           </div>

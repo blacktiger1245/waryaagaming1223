@@ -1,6 +1,8 @@
-import { Gamepad2, Trophy, Target, Award, Star } from "lucide-react";
+import { useRef, useState } from "react";
+import { Download, Loader2, Gamepad2, Trophy, Target, Award, Star } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { storageUrl } from "@/lib/api";
+import { downloadElementAsPng } from "@/components/capture-element";
 
 export interface HofPlayer {
   name: string;
@@ -72,8 +74,36 @@ function GoldEmblem({ size = "lg", logoSrc }: { size: "sm" | "lg"; logoSrc?: str
 
 export default function HallOfFameCard({ player }: { player: HofPlayer }) {
   const logoSrc = `${import.meta.env.BASE_URL}waryaalogo-removebg-preview.png`;
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [saving, setSaving] = useState(false);
+
+  async function handleDownload() {
+    if (!cardRef.current) return;
+    setSaving(true);
+    try {
+      const slug =
+        player.name.toLowerCase().replace(/[^a-z0-9]+/gi, "-").replace(/(^-|-$)/g, "") || "legend";
+      await downloadElementAsPng(cardRef.current, `waryaa-hall-of-fame-${slug}`);
+    } catch (error) {
+      console.error("Could not export Hall of Fame card", error);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
-    <div className="hall-of-fame-card select-none" style={{ fontFamily: "'Orbitron','Rajdhani',sans-serif" }}>
+    <div className="relative">
+      <button
+        type="button"
+        onClick={handleDownload}
+        disabled={saving}
+        aria-label={saving ? "Saving Hall of Fame card…" : "Download Hall of Fame card"}
+        className="absolute right-3 top-3 z-30 inline-flex items-center gap-1.5 rounded-full border border-amber-300/50 bg-black/70 px-3.5 py-1.5 text-[11px] font-black uppercase tracking-widest text-amber-200 shadow-[0_0_18px_rgba(212,175,55,0.35)] backdrop-blur transition-all hover:border-amber-200 hover:bg-black/90 disabled:cursor-wait disabled:opacity-60"
+      >
+        {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+        {saving ? "Saving…" : "Download"}
+      </button>
+      <div ref={cardRef} className="hall-of-fame-card select-none" style={{ fontFamily: "'Orbitron','Rajdhani',sans-serif" }}>
       <div className="relative h-full w-full rounded-[28px] p-[2px]" style={{ background: GOLD, boxShadow: "0 20px 60px rgba(0,0,0,0.6), 0 0 45px rgba(212,175,55,0.28)" }}>
         <div className="h-full w-full rounded-[26px] bg-[#060606] p-[8px]">
           <div
@@ -145,6 +175,7 @@ export default function HallOfFameCard({ player }: { player: HofPlayer }) {
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 }

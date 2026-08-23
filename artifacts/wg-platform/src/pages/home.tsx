@@ -12,7 +12,6 @@ import {
   useGetPlayerRankings,
   useListNews,
 } from "@workspace/api-client-react";
-import HomeHallOfFame from "@/components/home-hall-of-fame";
 
 interface Announcement {
   id: number;
@@ -234,9 +233,6 @@ export default function HomePage() {
           </div>
         </motion.div>
       </section>
-
-      {/* Hall of Fame */}
-      <HomeHallOfFame />
 
       {/* Stats bar */}
       <section className="border-y border-border bg-card/50 py-6">
