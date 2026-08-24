@@ -88,7 +88,7 @@ export async function downloadElementAsPng(el: HTMLElement, filename: string) {
   inlineComputedStyles(el, clone);
   await inlineImages(clone);
 
-  const inner = clone.outerHTML || "";
+  const inner = new XMLSerializer().serializeToString(clone);
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">` +
     `<foreignObject width="100%" height="100%">` +
