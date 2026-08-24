@@ -10,6 +10,7 @@ import {
 import { playerPoints, pointsToMarketValue } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { GetMatchParams, UpdateMatchParams, UpdateMatchBody } from "@workspace/api-zod";
+import { advanceKnockoutWinner, computeWinnerFromResult } from "../lib/knockout";
 
 const router = Router();
 
@@ -218,7 +219,8 @@ router.patch("/matches/:id", async (req, res) => {
   const data = body.data as {
     participant1Score?: number;
     participant2Score?: number;
-    winnerId?: number;
+    winnerId?: number | null;
+    winnerName?: string | null;
     status?: string;
   };
 
@@ -239,6 +241,12 @@ router.patch("/matches/:id", async (req, res) => {
 
   const hasResult =
     data.participant1Score !== undefined || data.participant2Score !== undefined || data.winnerId !== undefined;
+
+  // Auto-compute winner from scores if not explicitly provided.
+  const computed = computeWinnerFromResult(existing, data);
+  if (computed.winnerId !== undefined) data.winnerId = computed.winnerId;
+  if (computed.winnerName !== undefined) data.winnerName = computed.winnerName;
+
   const updateData: Record<string, unknown> = {
     ...data,
     ...(hasResult ? { resultSetBy: req.session?.userId ?? null, resultSetAt: new Date() } : {}),
@@ -251,6 +259,9 @@ router.patch("/matches/:id", async (req, res) => {
     .returning();
 
   if (!match) return res.status(404).json({ error: "Match not found" });
+
+  // Propagate knockout winner to the next round.
+  await advanceKnockoutWinner(match);
 
   // Update rankings/statistics with the existing ranking system.
   if (match.status === "completed") {

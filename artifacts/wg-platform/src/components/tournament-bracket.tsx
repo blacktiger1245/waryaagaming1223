@@ -84,7 +84,7 @@ function KnockoutMatchCard({
     >
       {isFinal && (
         <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-500 to-amber-400 px-3 py-0.5 text-[10px] font-black uppercase tracking-wider text-black shadow-lg">
-          <Trophy className="w-3 h-3" /> Final
+          <Trophy className="w-3 h-3" /> Grand Final
         </div>
       )}
       {isLive && !isFinal && (
@@ -97,37 +97,61 @@ function KnockoutMatchCard({
         {/* Participant 1 */}
         <div className={`flex items-center gap-2.5 py-1 ${p1Winner ? "text-amber-300" : p1Loser ? "text-muted-foreground/60" : "text-foreground"}`}>
           <TeamAvatar name={p1Name} isWinner={!!p1Winner} />
-          <span className={`text-sm font-semibold truncate flex-1 ${p1Loser ? "line-through decoration-2 decoration-destructive/50" : ""} ${p1Winner ? "font-black" : ""}`}>
+          <span className={`text-sm font-semibold truncate flex-1 ${p1Loser ? "line-through decoration-destructive/50" : ""}`}>
             {p1Name}
           </span>
-          <span className={`text-sm font-mono font-bold tabular-nums ml-2 min-w-[1.5rem] text-right ${p1Winner ? "text-amber-300" : ""}`}>
-            {p1Score !== null && p1Score !== undefined ? p1Score : "—"}
+          <span className={`text-sm font-black tabular-nums ${p1Winner ? "text-amber-400" : ""}`}>
+            {p1Score ?? "-"}
           </span>
         </div>
 
-        <div className="border-t border-border/40 my-1.5" />
+        {/* Divider */}
+        <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent my-1.5" />
 
         {/* Participant 2 */}
         <div className={`flex items-center gap-2.5 py-1 ${p2Winner ? "text-amber-300" : p2Loser ? "text-muted-foreground/60" : "text-foreground"}`}>
           <TeamAvatar name={p2Name} isWinner={!!p2Winner} />
-          <span className={`text-sm font-semibold truncate flex-1 ${p2Loser ? "line-through decoration-2 decoration-destructive/50" : ""} ${p2Winner ? "font-black" : ""}`}>
+          <span className={`text-sm font-semibold truncate flex-1 ${p2Loser ? "line-through decoration-destructive/50" : ""}`}>
             {p2Name}
           </span>
-          <span className={`text-sm font-mono font-bold tabular-nums ml-2 min-w-[1.5rem] text-right ${p2Winner ? "text-amber-300" : ""}`}>
-            {p2Score !== null && p2Score !== undefined ? p2Score : "—"}
+          <span className={`text-sm font-black tabular-nums ${p2Winner ? "text-amber-400" : ""}`}>
+            {p2Score ?? "-"}
           </span>
         </div>
       </div>
 
-      {/* Status footer */}
-      <div className={`
-        px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-center border-t
-        ${isCompleted ? "bg-primary/5 text-primary border-primary/10" : isLive ? "bg-red-500/10 text-red-400 border-red-500/10" : "bg-muted/30 text-muted-foreground border-border/30"}
-      `}>
-        {isLive && <span className="inline-block mr-1 w-1.5 h-1.5 rounded-full bg-red-500 live-pulse" />}
-        {match.roundName ?? `Round ${match.round}`}
-        {isCompleted && match.winnerName && (
-          <span className="ml-1.5 text-amber-400/80">• {match.winnerName} advances</span>
+      {/* Match meta */}
+      <div className="px-3 pb-2.5 pt-0 flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          {match.status === "completed" && (
+            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded">
+              FT
+            </span>
+          )}
+          {match.status === "live" && (
+            <span className="text-[10px] font-bold text-red-400 bg-red-500/10 border border-red-500/20 px-1.5 py-0.5 rounded animate-pulse">
+              LIVE
+            </span>
+          )}
+          {match.status === "scheduled" && (
+            <span className="text-[10px] font-bold text-muted-foreground bg-white/5 border border-white/10 px-1.5 py-0.5 rounded">
+              {match.scheduledAt
+                ? new Date(match.scheduledAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })
+                : "TBD"}
+            </span>
+          )}
+        </div>
+        {match.streamUrl && (
+          <a
+            href={match.streamUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[10px] font-bold text-red-400 hover:text-red-300 transition-colors flex items-center gap-1"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 live-pulse" />
+            Stream
+          </a>
         )}
       </div>
     </div>
@@ -135,28 +159,18 @@ function KnockoutMatchCard({
 }
 
 /* ── Champion Banner ────────────────────────────────────────────────────── */
-function ChampionBanner({ championName }: { championName: string | null }) {
-  if (!championName) return null;
+function ChampionBanner({ championName }: { championName: string }) {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-amber-500/10 p-8 text-center shadow-[0_0_50px_-12px_rgba(245,158,11,0.35)] animate-in fade-in zoom-in duration-500">
-      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMiIgY3k9IjIiIHI9IjEiIGZpbGw9InJnYmEoMjQ1LDE1OCwxMSwwLjE1KSIvPjwvc3ZnPg==')] opacity-40" />
-      <div className="relative">
-        <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-amber-600 shadow-[0_0_30px_rgba(245,158,11,0.4)]">
-          <Trophy className="h-8 w-8 text-black" />
-        </div>
-        <p className="text-xs font-black uppercase tracking-[0.25em] text-amber-400 mb-1">Tournament Champion</p>
-        <h3 className="text-3xl font-black text-amber-300 tracking-tight">{championName}</h3>
-        <div className="mt-3 flex items-center justify-center gap-2">
-          <Shield className="w-4 h-4 text-amber-400/60" />
-          <Swords className="w-4 h-4 text-amber-400/60" />
-          <Shield className="w-4 h-4 text-amber-400/60" />
-        </div>
-      </div>
+    <div className="relative overflow-hidden rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-amber-600/10 p-6 text-center shadow-[0_0_40px_-12px_rgba(245,158,11,0.35)]">
+      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMSIgZmlsbD0icmdiYSgyNTUsMjE1LDAsMC4wNSkiLz48L3N2Zz4=')] opacity-30" />
+      <Trophy className="w-8 h-8 mx-auto mb-2 text-amber-400" />
+      <p className="text-xs font-black uppercase tracking-wider text-amber-400/80 mb-1">Tournament Champion</p>
+      <h3 className="text-2xl font-black text-amber-300">{championName}</h3>
     </div>
   );
 }
 
-/* ── SVG Connector Lines ────────────────────────────────────────────────── */
+/* ── Bracket Connectors (tree-style lines) ──────────────────────────────── */
 function BracketConnectors({ lines }: { lines: LineCoords[] }) {
   if (lines.length === 0) return null;
   return (
@@ -172,13 +186,19 @@ function BracketConnectors({ lines }: { lines: LineCoords[] }) {
         </linearGradient>
       </defs>
       {lines.map((line) => {
-        const midX = (line.x1 + line.x2) / 2;
-        const path = `M ${line.x1} ${line.y1} C ${midX} ${line.y1}, ${midX} ${line.y2}, ${line.x2} ${line.y2}`;
         const isFinalConnector = line.color.includes("amber");
         return (
           <g key={line.key}>
-            <path d={path} fill="none" stroke={isFinalConnector ? "rgba(245,158,11,0.12)" : "rgba(139,92,246,0.12)"} strokeWidth={5} strokeLinecap="round" />
-            <path d={path} fill="none" stroke={isFinalConnector ? "url(#bracketLineFinal)" : "url(#bracketLine)"} strokeWidth={1.5} strokeLinecap="round" />
+            <line
+              x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2}
+              stroke={isFinalConnector ? "rgba(245,158,11,0.12)" : "rgba(139,92,246,0.12)"}
+              strokeWidth={5} strokeLinecap="round"
+            />
+            <line
+              x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2}
+              stroke={isFinalConnector ? "url(#bracketLineFinal)" : "url(#bracketLine)"}
+              strokeWidth={1.5} strokeLinecap="round"
+            />
             <circle cx={line.x2} cy={line.y2} r={3} fill={isFinalConnector ? "rgba(245,158,11,0.6)" : "rgba(139,92,246,0.6)"} />
           </g>
         );
@@ -194,54 +214,102 @@ export function TournamentBracket({ rounds }: TournamentBracketProps) {
   const [lines, setLines] = useState<LineCoords[]>([]);
 
   const allMatches = useMemo(() => rounds.flatMap((r) => r.matches), [rounds]);
-  const matchMap = useMemo(() => {
-    const map = new Map<number, BracketMatch>();
-    for (const m of allMatches) map.set(m.id, m);
-    return map;
-  }, [allMatches]);
+  const matchMap = useMemo(() => new Map(allMatches.map((m) => [m.id, m])), [allMatches]);
+  const finalRound = useMemo(() => {
+    const completed = allMatches.filter((m) => m.status === "completed" && m.winnerId != null);
+    if (completed.length === 0) return null;
+    return [...rounds].sort((a, b) => b.roundNumber - a.roundNumber)[0] ?? null;
+  }, [allMatches, rounds]);
 
-  const { finalRound, champion } = useMemo(() => {
-    const sorted = [...rounds].sort((a, b) => a.roundNumber - b.roundNumber);
-    const finalR = sorted[sorted.length - 1];
-    const finalMatch = finalR?.matches[0];
-    let champ: { name: string | null; id: number | null } | null = null;
-    if (finalMatch?.status === "completed" && finalMatch.winnerId) {
-      champ = { id: finalMatch.winnerId, name: finalMatch.winnerName ?? null };
-    }
-    return { finalRound: finalR, champion: champ };
-  }, [rounds]);
+  const champion = useMemo(() => {
+    const final = finalRound?.matches[0];
+    if (!final || final.status !== "completed" || !final.winnerId) return null;
+    if (final.winnerId === final.participant1Id) return { name: final.participant1Name ?? "Winner" };
+    if (final.winnerId === final.participant2Id) return { name: final.participant2Name ?? "Winner" };
+    return null;
+  }, [finalRound]);
 
-  /* Calculate SVG connector lines from nextMatchId relationships */
+  /* Build tree-style bracket connectors from actual parent/child relationships */
   const calculateLines = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
     const containerRect = container.getBoundingClientRect();
     const newLines: LineCoords[] = [];
 
+    // Build child -> parents map from both nextMatchId and parentMatchXId
+    const parentsByChild = new Map<number, number[]>();
     for (const match of allMatches) {
-      if (!match.nextMatchId) continue;
-      const parentEl = matchRefs.current.get(match.id);
-      const childEl = matchRefs.current.get(match.nextMatchId);
-      if (!parentEl || !childEl) continue;
+      if (match.nextMatchId) {
+        const list = parentsByChild.get(match.nextMatchId) ?? [];
+        if (!list.includes(match.id)) list.push(match.id);
+        parentsByChild.set(match.nextMatchId, list);
+      }
+    }
+    for (const match of allMatches) {
+      if (match.parentMatch1Id) {
+        const list = parentsByChild.get(match.id) ?? [];
+        if (!list.includes(match.parentMatch1Id)) list.push(match.parentMatch1Id);
+        parentsByChild.set(match.id, list);
+      }
+      if (match.parentMatch2Id) {
+        const list = parentsByChild.get(match.id) ?? [];
+        if (!list.includes(match.parentMatch2Id)) list.push(match.parentMatch2Id);
+        parentsByChild.set(match.id, list);
+      }
+    }
 
-      const pRect = parentEl.getBoundingClientRect();
+    for (const [childId, parentIds] of parentsByChild.entries()) {
+      const childEl = matchRefs.current.get(childId);
+      if (!childEl) continue;
       const cRect = childEl.getBoundingClientRect();
+      const childX = cRect.left - containerRect.left;
+      const childY = cRect.top + cRect.height / 2 - containerRect.top;
 
-      const x1 = pRect.right - containerRect.left;
-      const y1 = pRect.top + pRect.height / 2 - containerRect.top;
-      const x2 = cRect.left - containerRect.left;
-      const y2 = cRect.top + cRect.height / 2 - containerRect.top;
-
-      const childMatch = matchMap.get(match.nextMatchId);
+      const childMatch = matchMap.get(childId);
       const isFinalConnector = childMatch
         ? childMatch.roundName?.toLowerCase().includes("final") || childMatch.round === finalRound?.roundNumber
         : false;
+      const color = isFinalConnector ? "amber" : "violet";
 
-      newLines.push({
-        key: `${match.id}-${match.nextMatchId}`,
-        x1, y1, x2, y2,
-        color: isFinalConnector ? "amber" : "violet",
-      });
+      if (parentIds.length === 1) {
+        const parentEl = matchRefs.current.get(parentIds[0]);
+        if (!parentEl) continue;
+        const pRect = parentEl.getBoundingClientRect();
+        const parentX = pRect.right - containerRect.left;
+        const parentY = pRect.top + pRect.height / 2 - containerRect.top;
+        newLines.push({ key: `${parentIds[0]}-${childId}`, x1: parentX, y1: parentY, x2: childX, y2: childY, color });
+        continue;
+      }
+
+      const parentPositions = parentIds
+        .map((id) => {
+          const el = matchRefs.current.get(id);
+          if (!el) return null;
+          const rect = el.getBoundingClientRect();
+          return {
+            id,
+            x: rect.right - containerRect.left,
+            y: rect.top + rect.height / 2 - containerRect.top,
+          };
+        })
+        .filter((p): p is NonNullable<typeof p> => p !== null)
+        .sort((a, b) => a.y - b.y);
+
+      if (parentPositions.length < 2) continue;
+
+      const top = parentPositions[0];
+      const bottom = parentPositions[parentPositions.length - 1];
+      const midX = (top.x + childX) / 2;
+      const midY = (top.y + bottom.y) / 2;
+
+      // Horizontal from top parent to midX
+      newLines.push({ key: `${top.id}-h`, x1: top.x, y1: top.y, x2: midX, y2: top.y, color });
+      // Horizontal from bottom parent to midX
+      newLines.push({ key: `${bottom.id}-h`, x1: bottom.x, y1: bottom.y, x2: midX, y2: bottom.y, color });
+      // Vertical connecting the two horizontals
+      newLines.push({ key: `${childId}-v`, x1: midX, y1: top.y, x2: midX, y2: bottom.y, color });
+      // Horizontal from mid to child
+      newLines.push({ key: `${childId}-in`, x1: midX, y1: midY, x2: childX, y2: midY, color });
     }
 
     setLines(newLines);

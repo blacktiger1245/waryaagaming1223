@@ -304,18 +304,11 @@ router.get("/tournaments/:id/bracket", async (req, res) => {
     roundMap.get(m.round)!.push(m);
   }
 
-  const roundNames: Record<number, string> = {
-    1: "Round of 16",
-    2: "Quarterfinals",
-    3: "Semifinals",
-    4: "Final",
-  };
-
   const rounds = Array.from(roundMap.entries())
     .sort(([a], [b]) => a - b)
     .map(([roundNumber, ms]) => ({
       roundNumber,
-      name: roundNames[roundNumber] ?? `Round ${roundNumber}`,
+      name: ms[0]?.roundName ?? `Round ${roundNumber}`,
       matches: ms.map((m) => ({
         ...m,
         tournamentName: null,
