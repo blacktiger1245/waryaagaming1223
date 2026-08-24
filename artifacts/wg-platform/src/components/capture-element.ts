@@ -53,7 +53,49 @@ async function inlineImages(root: HTMLElement) {
           reader.onerror = () => reject(new Error("read failed"));
           reader.readAsDataURL(blob);
         });
-        img.setAttribute("src", dataUrl);
+
+        // Replace <img> with a <div background-image> because <img> inside SVG
+        // <foreignObject> is not reliably rasterised by browsers during SVG→canvas.
+        const div = document.createElement("div");
+        const s = img.style;
+
+        // Box model + shape (copied from the already-inlined styles)
+        div.style.width = s.width || `${img.offsetWidth}px` || "100%";
+        div.style.height = s.height || `${img.offsetHeight}px` || "100%";
+        div.style.display = s.display || "block";
+        div.style.margin = s.margin;
+        div.style.padding = s.padding;
+        div.style.border = s.border;
+        div.style.borderRadius = s.borderRadius;
+        div.style.boxSizing = s.boxSizing || "border-box";
+        div.style.overflow = s.overflow || "hidden";
+        div.style.position = s.position || "static";
+        div.style.top = s.top;
+        div.style.left = s.left;
+        div.style.right = s.right;
+        div.style.bottom = s.bottom;
+        div.style.zIndex = s.zIndex;
+        div.style.opacity = s.opacity;
+        div.style.filter = s.filter;
+        div.style.boxShadow = s.boxShadow;
+
+        // Background image replaces the <img> src
+        div.style.backgroundImage = `url("${dataUrl}")`;
+        div.style.backgroundSize = s.objectFit || "cover";
+        div.style.backgroundPosition = "center";
+        div.style.backgroundRepeat = "no-repeat";
+
+        // Preserve classes and any non-src attributes (e.g. aria-hidden)
+        if (img.className) div.className = img.className;
+        const skip = new Set(["src", "alt", "draggable", "loading", "decoding", "style", "class"]);
+        for (let i = 0; i < img.attributes.length; i++) {
+          const attr = img.attributes[i];
+          if (attr && !skip.has(attr.name)) {
+            div.setAttribute(attr.name, attr.value);
+          }
+        }
+
+        img.replaceWith(div);
       } catch {
         /* keep the original src (remote image) */
       }
