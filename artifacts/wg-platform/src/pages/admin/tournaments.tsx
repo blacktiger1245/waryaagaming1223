@@ -81,8 +81,10 @@ async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
     ...options,
   });
   if (!res.ok) {
-    const data = (await res.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(data?.error ?? "Request failed");
+    const data = (await res.json().catch(() => null)) as { error?: string; details?: string } | null;
+    const msg = data?.error ?? "Request failed";
+    if (data?.details) throw new Error(`${msg}: ${data.details}`);
+    throw new Error(msg);
   }
   return res.json() as Promise<T>;
 }

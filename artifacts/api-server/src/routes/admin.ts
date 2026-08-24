@@ -660,9 +660,10 @@ router.post("/admin/tournaments", requireAdmin, async (req, res) => {
     }
 
     return res.status(201).json({ ...tournament, createdAt: tournament.createdAt.toISOString() });
-  } catch (err) {
+  } catch (err: any) {
     req.log.error({ err }, "Failed to create tournament");
-    return res.status(400).json({ error: "Failed to create tournament" });
+    const message = err?.message ?? String(err);
+    return res.status(400).json({ error: "Failed to create tournament", details: message });
   }
 });
 
