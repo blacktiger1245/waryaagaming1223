@@ -1806,4 +1806,87 @@ router.delete("/admin/registration-logs/:id", requireAdmin, async (req, res) => 
   return res.json({ ok: true });
 });
 
+// ─── Seed fake participants (admin only) ─────────────────────────────────────
+// Creates fake player accounts and auto-registers them to a tournament.
+// Useful for testing bracket generation and match flows.
+const FAKE_PLAYER_NAMES = [
+  "Warrior X7","Falcon Eye","Black Mamba","Lightning Bolt",
+  "Night Stalker","Ghost Rider","Silver Fox","Iron Fist",
+  "Shadow Hunter","Fire Dragon","Ice Wolf","Thunder Strike",
+  "Rapid Storm","Silent Killer","Golden Eagle","Dark Phantom",
+];
+
+router.post("/admin/tournaments/:id/seed-participants", requireAdmin, async (req, res) => {
+  const tournamentId = Number(req.params.id);
+  if (Number.isNaN(tournamentId)) return res.status(400).json({ error: "Invalid tournament id" });
+
+  const [tournament] = await db.select().from(tournamentsTable).where(eq(tournamentsTable.id, tournamentId));
+  if (!tournament) return res.status(404).json({ error: "Tournament not found" });
+
+  const count = Math.min(
+    Number(req.body.count ?? 16),
+    tournament.maxParticipants ?? 64
+  );
+
+  const createdPlayers: Array<{ id: number; username: string; displayName: string }> = [];
+  const registered: Array<{ participantId: number; playerId: number }> = [];
+
+  const suffix = Date.now().toString(36).slice(-4);
+
+  for (let i = 0; i < count; i++) {
+    const displayName = `${FAKE_PLAYER_NAMES[i % FAKE_PLAYER_NAMES.length]} ${i + 1}`;
+    const username = `fake_${suffix}_${i + 1}`;
+
+    // Create player (ignore conflict if already exists)
+    let playerId: number;
+    const [existing] = await db.select({ id: playersTable.id }).from(playersTable).where(eq(playersTable.username, username));
+    if (existing) {
+      playerId = existing.id;
+    } else {
+      const [player] = await db.insert(playersTable).values({
+        username,
+        displayName,
+        rank: 9999,
+        tournamentWins: 0,
+        winRate: 0,
+        matchesPlayed: 0,
+        matchesWon: 0,
+        points: 0,
+        country: "SO",
+        isActive: true,
+        role: "player",
+      }).returning();
+      playerId = player.id;
+      createdPlayers.push({ id: player.id, username, displayName });
+    }
+
+    // Register to tournament if not already registered
+    const [already] = await db
+      .select({ id: tournamentParticipantsTable.id })
+      .from(tournamentParticipantsTable)
+      .where(and(eq(tournamentParticipantsTable.tournamentId, tournamentId), eq(tournamentParticipantsTable.playerId, playerId)));
+
+    if (!already) {
+      const [participant] = await db.insert(tournamentParticipantsTable).values({
+        tournamentId,
+        type: "player",
+        playerId,
+        seed: i + 1,
+      }).returning();
+      registered.push({ participantId: participant.id, playerId });
+    }
+  }
+
+  // Update participant count
+  const [{ c }] = await db.select({ c: db.$count(tournamentParticipantsTable) }).from(tournamentParticipantsTable).where(eq(tournamentParticipantsTable.tournamentId, tournamentId));
+  await db.update(tournamentsTable).set({ currentParticipants: c }).where(eq(tournamentsTable.id, tournamentId));
+
+  return res.json({
+    created: createdPlayers.length,
+    registered: registered.length,
+    totalParticipants: c,
+    players: createdPlayers,
+  });
+});
+
 export default router;

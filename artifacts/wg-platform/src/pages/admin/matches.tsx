@@ -1195,6 +1195,21 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
     onError: (err: Error) => toast({ title: "Knockout generation failed", description: err.message, variant: "destructive" }),
   });
 
+  const { mutate: seedParticipants, isPending: seedingPending } = useMutation({
+    mutationFn: () =>
+      apiFetch(`/api/admin/tournaments/${tournament.id}/seed-participants`, {
+        method: "POST",
+        body: JSON.stringify({ count: 16 }),
+      }),
+    onSuccess: (data: { created: number; registered: number; totalParticipants: number }) => {
+      toast({ title: `Seeded ${data.created} fake players!`, description: `${data.registered} registered. Total: ${data.totalParticipants} participants.` });
+      qc.invalidateQueries({ queryKey: ["admin-tournament-participants", tournament.id] });
+      qc.invalidateQueries({ queryKey: ["admin-tournament-matches", tournament.id] });
+      qc.invalidateQueries({ queryKey: ["admin", "tournaments"] });
+    },
+    onError: (err: Error) => toast({ title: "Seeding failed", description: err.message, variant: "destructive" }),
+  });
+
   async function deleteSelected() {
     if (!confirm(`Delete ${selected.size} match${selected.size > 1 ? "es" : ""}?`)) return;
     setBulkDeleting(true);
@@ -1316,6 +1331,16 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-2 font-bold border-cyan-500/40 text-cyan-400 hover:border-cyan-500 hover:text-cyan-400"
+            onClick={() => { if (confirm("Create 16 fake players and register them to this tournament?")) seedParticipants(); }}
+            disabled={seedingPending}
+          >
+            {seedingPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Users className="w-4 h-4" />}
+            Seed Players
+          </Button>
           <Button size="sm" variant="outline" className="gap-2 font-bold" onClick={() => setGenerateOpen(true)}>
             <Sparkles className="w-4 h-4" /> Generate
           </Button>
