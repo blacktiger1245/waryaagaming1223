@@ -381,4 +381,74 @@ router.get("/tournaments/:id/participants", async (req, res) => {
   return res.json(rows);
 });
 
+// Public tournament stats — calculated from match results scoped to this tournament
+router.get("/tournaments/:id/stats", async (req, res) => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+
+  const matches = await db
+    .select()
+    .from(matchesTable)
+    .where(eq(matchesTable.tournamentId, id));
+
+  interface PlayerStat {
+    playerId: number;
+    name: string;
+    matches: number;
+    wins: number;
+    losses: number;
+    draws: number;
+    goalsFor: number;
+    goalsAgainst: number;
+    points: number;
+  }
+
+  const stats = new Map<number, PlayerStat>();
+
+  function ensure(pid: number, name: string) {
+    if (!stats.has(pid)) {
+      stats.set(pid, { playerId: pid, name, matches: 0, wins: 0, losses: 0, draws: 0, goalsFor: 0, goalsAgainst: 0, points: 0 });
+    }
+    return stats.get(pid)!;
+  }
+
+  for (const m of matches) {
+    const p1id = m.participant1Id ?? 0;
+    const p2id = m.participant2Id ?? 0;
+    if (!p1id || !p2id) continue;
+
+    const p1name = m.participant1Name ?? `Player ${p1id}`;
+    const p2name = m.participant2Name ?? `Player ${p2id}`;
+
+    ensure(p1id, p1name);
+    ensure(p2id, p2name);
+
+    if (m.status !== "completed") continue;
+
+    const p1 = ensure(p1id, p1name);
+    const p2 = ensure(p2id, p2name);
+    const s1 = m.participant1Score ?? 0;
+    const s2 = m.participant2Score ?? 0;
+
+    p1.matches++; p2.matches++;
+    p1.goalsFor += s1; p1.goalsAgainst += s2;
+    p2.goalsFor += s2; p2.goalsAgainst += s1;
+
+    if (m.winnerId === p1id) {
+      p1.wins++; p1.points += 3; p2.losses++;
+    } else if (m.winnerId === p2id) {
+      p2.wins++; p2.points += 3; p1.losses++;
+    } else {
+      p1.draws++; p1.points += 1;
+      p2.draws++; p2.points += 1;
+    }
+  }
+
+  const result = Array.from(stats.values()).sort(
+    (a, b) => b.points - a.points || b.wins - a.wins || b.goalsFor - a.goalsFor || a.name.localeCompare(b.name)
+  );
+
+  return res.json(result);
+});
+
 export default router;

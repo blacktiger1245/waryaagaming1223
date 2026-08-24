@@ -1,7 +1,10 @@
-import { useMemo, useState } from "react";
+﻿import { useMemo, useState } from "react";
 import { useParams, Link } from "wouter";
-import { motion } from "framer-motion";
-import { Trophy, Users, Calendar, ExternalLink, ArrowLeft, CheckCircle2, Loader2, LogIn, ShieldOff, Shield, ChevronRight, UserPlus, UserMinus, Search, X } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Trophy, Users, Calendar, ExternalLink, ArrowLeft, CheckCircle2, Loader2, LogIn, ShieldOff, Shield,
+  ChevronRight, UserPlus, UserMinus, Search, X, BarChart3, LayoutGrid, Swords, Table2, Info,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,6 +20,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { TournamentBracket } from "@/components/tournament-bracket";
+import { apiUrl } from "@/lib/api";
 
 const statusColors: Record<string, string> = {
   upcoming: "bg-primary/10 text-primary border-primary/30",
@@ -31,7 +35,7 @@ const matchStatusColors: Record<string, string> = {
   cancelled: "text-destructive",
 };
 
-// ─── League Table ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ League Table â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface Standing {
   id: number;
@@ -113,9 +117,9 @@ function LeagueTable({ matches, totalTeams, logoMap = {} }: { matches: Match[]; 
     );
   }
 
-  const promotionCutoff = Math.ceil(totalTeams * 0.25); // top 25% → Champions League green
-  const europaEnd = Math.ceil(totalTeams * 0.40);       // next 15% → Europa orange
-  const relegationStart = totalTeams - Math.floor(totalTeams * 0.15); // bottom 15% → relegation red
+  const promotionCutoff = Math.ceil(totalTeams * 0.25); // top 25% â†’ Champions League green
+  const europaEnd = Math.ceil(totalTeams * 0.40);       // next 15% â†’ Europa orange
+  const relegationStart = totalTeams - Math.floor(totalTeams * 0.15); // bottom 15% â†’ relegation red
 
   return (
     <div className="rounded-xl border border-border overflow-hidden">
@@ -203,7 +207,7 @@ function LeagueTable({ matches, totalTeams, logoMap = {} }: { matches: Match[]; 
   );
 }
 
-// ─── Match Detail Dialog (public, read-only player matchups) ──────────────────
+// â”€â”€â”€ Match Detail Dialog (public, read-only player matchups) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface PublicPlayerGame {
   id: number;
@@ -260,14 +264,14 @@ function MatchDetailDialog({
             <div className="text-center shrink-0 min-w-[72px]">
               {done ? (
                 <div className="text-3xl font-black tabular-nums">
-                  {match.participant1Score} – {match.participant2Score}
+                  {match.participant1Score} â€“ {match.participant2Score}
                 </div>
               ) : live ? (
                 <div className="flex flex-col items-center gap-1">
                   <span className="flex items-center gap-1 text-red-400 font-bold text-xs">
                     <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /> LIVE
                   </span>
-                  {played > 0 && <span className="text-xl font-black tabular-nums">{homeWins} – {awayWins}</span>}
+                  {played > 0 && <span className="text-xl font-black tabular-nums">{homeWins} â€“ {awayWins}</span>}
                 </div>
               ) : (
                 <span className="text-muted-foreground font-bold">vs</span>
@@ -330,13 +334,13 @@ function MatchDetailDialog({
                   >
                     <div className="text-right">
                       <span className={`text-sm font-bold ${hWin ? "text-emerald-400" : ""}`}>
-                        {game.homePlayerName || "—"}
+                        {game.homePlayerName || "â€”"}
                       </span>
                     </div>
                     <div className="text-center min-w-[64px]">
                       {gDone ? (
                         <span className={`font-mono font-black text-base tabular-nums ${hWin || aWin ? "" : "text-muted-foreground"}`}>
-                          {game.homeScore} – {game.awayScore}
+                          {game.homeScore} â€“ {game.awayScore}
                         </span>
                       ) : (
                         <span className="text-muted-foreground text-xs font-bold">vs</span>
@@ -344,7 +348,7 @@ function MatchDetailDialog({
                     </div>
                     <div>
                       <span className={`text-sm font-bold ${aWin ? "text-emerald-400" : ""}`}>
-                        {game.awayPlayerName || "—"}
+                        {game.awayPlayerName || "â€”"}
                       </span>
                     </div>
                   </motion.div>
@@ -358,11 +362,11 @@ function MatchDetailDialog({
         {played > 0 && (
           <div className="px-6 py-3 border-t border-border shrink-0 bg-muted/10 text-center text-sm">
             {homeWins > awayWins ? (
-              <span className="font-black text-emerald-400">{match.participant1Name} leads {homeWins}–{awayWins}</span>
+              <span className="font-black text-emerald-400">{match.participant1Name} leads {homeWins}â€“{awayWins}</span>
             ) : awayWins > homeWins ? (
-              <span className="font-black text-emerald-400">{match.participant2Name} leads {awayWins}–{homeWins}</span>
+              <span className="font-black text-emerald-400">{match.participant2Name} leads {awayWins}â€“{homeWins}</span>
             ) : (
-              <span className="font-bold text-muted-foreground">Tied {homeWins}–{awayWins}</span>
+              <span className="font-bold text-muted-foreground">Tied {homeWins}â€“{awayWins}</span>
             )}
           </div>
         )}
@@ -371,7 +375,7 @@ function MatchDetailDialog({
   );
 }
 
-// ─── Register Button ──────────────────────────────────────────────────────────
+// â”€â”€â”€ Register Button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function RegisterButton({ tournamentId, status, isFull }: { tournamentId: number; status: string; isFull: boolean }) {
   const { user, isLoading: authLoading, loginWithDiscord } = useAuth();
@@ -400,7 +404,7 @@ function RegisterButton({ tournamentId, status, isFull }: { tournamentId: number
       return res.json();
     },
     onSuccess: (data) => {
-      toast({ title: "You're registered! 🎮", description: `Welcome, ${data.displayName ?? data.playerName}` });
+      toast({ title: "You're registered! ðŸŽ®", description: `Welcome, ${data.displayName ?? data.playerName}` });
       qc.invalidateQueries({ queryKey: ["tournament-registration", tournamentId] });
       qc.invalidateQueries({ queryKey: ["tournament", tournamentId] });
     },
@@ -412,7 +416,7 @@ function RegisterButton({ tournamentId, status, isFull }: { tournamentId: number
   const canRegister = status === "upcoming" || status === "active";
 
   if (authLoading || regLoading) {
-    return <Button disabled className="gap-2 h-12 px-6 text-base"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</Button>;
+    return <Button disabled className="gap-2 h-12 px-6 text-base"><Loader2 className="w-4 h-4 animate-spin" /> Loadingâ€¦</Button>;
   }
 
   if (!user) {
@@ -453,7 +457,7 @@ function RegisterButton({ tournamentId, status, isFull }: { tournamentId: number
       disabled={isPending}
       className="gap-2 h-12 px-8 text-base font-bold bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-500 hover:to-pink-500 border-0"
     >
-      {isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Registering…</> : <><Trophy className="w-4 h-4" /> Register Now</>}
+      {isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Registeringâ€¦</> : <><Trophy className="w-4 h-4" /> Register Now</>}
     </Button>
   );
 }
@@ -520,7 +524,7 @@ function TournamentAdminPanel({ tournamentId, createdBy }: { tournamentId: numbe
           {error && <p className="text-sm text-destructive">{error}</p>}
           <div className="flex flex-col sm:flex-row gap-2">
             <select value={playerId} onChange={(event) => setPlayerId(event.target.value)} className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm">
-              <option value="">Select a Discord member…</option>
+              <option value="">Select a Discord memberâ€¦</option>
               {availablePlayers.map((player) => <option key={player.id} value={player.id}>{player.displayName ?? player.username}</option>)}
             </select>
             <Button size="sm" disabled={!playerId} onClick={() => updateAdmin("POST", Number(playerId))}>Add admin</Button>
@@ -540,7 +544,260 @@ function TournamentAdminPanel({ tournamentId, createdBy }: { tournamentId: numbe
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+// Format Config
+
+type TournamentFormat = "single-elimination" | "double-elimination" | "round-robin" | "group-stage" | "group-stage-knockout" | "round-robin-knockout";
+
+interface FormatConfig {
+  label: string;
+  hasTable: boolean;
+  hasGroups: boolean;
+  hasKnockout: boolean;
+  competitionTabLabel: string;
+  competitionTabIcon: typeof Table2;
+}
+
+const FORMAT_CONFIG: Record<TournamentFormat, FormatConfig> = {
+  "round-robin": { label: "Table", hasTable: true, hasGroups: false, hasKnockout: false, competitionTabLabel: "Table", competitionTabIcon: Table2 },
+  "group-stage": { label: "Groups", hasTable: false, hasGroups: true, hasKnockout: false, competitionTabLabel: "Groups", competitionTabIcon: LayoutGrid },
+  "group-stage-knockout": { label: "Groups + Knockout", hasTable: false, hasGroups: true, hasKnockout: true, competitionTabLabel: "Groups", competitionTabIcon: LayoutGrid },
+  "single-elimination": { label: "Knockout", hasTable: false, hasGroups: false, hasKnockout: true, competitionTabLabel: "Knockout", competitionTabIcon: Swords },
+  "double-elimination": { label: "Knockout", hasTable: false, hasGroups: false, hasKnockout: true, competitionTabLabel: "Knockout", competitionTabIcon: Swords },
+  "round-robin-knockout": { label: "Table + Knockout", hasTable: true, hasGroups: false, hasKnockout: true, competitionTabLabel: "Table", competitionTabIcon: Table2 },
+};
+
+function getFormatConfig(format: string | undefined): FormatConfig {
+  return FORMAT_CONFIG[format as TournamentFormat] ?? FORMAT_CONFIG["single-elimination"];
+}
+
+// â”€â”€â”€ Tab Bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+interface TabDef {
+  key: string;
+  label: string;
+  icon: React.ElementType;
+}
+
+function TournamentTabs({
+  tabs,
+  active,
+  onChange,
+}: {
+  tabs: TabDef[];
+  active: string;
+  onChange: (key: string) => void;
+}) {
+  return (
+    <div className="flex gap-1 overflow-x-auto pb-2 mb-8 border-b border-border">
+      {tabs.map((t) => {
+        const isActive = active === t.key;
+        const Icon = t.icon;
+        return (
+          <button
+            key={t.key}
+            onClick={() => onChange(t.key)}
+            className={`relative flex items-center gap-2 px-5 py-2.5 rounded-t-lg text-sm font-bold uppercase tracking-wider whitespace-nowrap transition-all
+              ${isActive
+                ? "text-[var(--acc)] bg-[var(--acc)]/5 border-b-2 border-[var(--acc)]"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/30 border-b-2 border-transparent"
+              }`}
+          >
+            <Icon className="w-4 h-4" />
+            {t.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// â”€â”€â”€ Main Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Group Standings
+
+function buildGroupStandings(matches: Match[]) {
+  const groups = new Map<string, Map<number, Standing>>();
+
+  function ensure(group: string, id: number, name: string) {
+    if (!groups.has(group)) groups.set(group, new Map());
+    const map = groups.get(group)!;
+    if (!map.has(id)) map.set(id, { id, name, mp: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, gd: 0, pts: 0 });
+    return map.get(id)!;
+  }
+
+  for (const m of matches) {
+    const group = m.roundName ?? "Group";
+    const p1id = m.participant1Id ?? 0;
+    const p2id = m.participant2Id ?? 0;
+    if (!p1id || !p2id) continue;
+
+    ensure(group, p1id, m.participant1Name ?? `Team ${p1id}`);
+    ensure(group, p2id, m.participant2Name ?? `Team ${p2id}`);
+
+    if (m.status !== "completed") continue;
+
+    const p1 = ensure(group, p1id, m.participant1Name ?? `Team ${p1id}`);
+    const p2 = ensure(group, p2id, m.participant2Name ?? `Team ${p2id}`);
+    const g1 = m.participant1Score ?? 0;
+    const g2 = m.participant2Score ?? 0;
+
+    p1.mp++; p2.mp++;
+    p1.gf += g1; p1.ga += g2;
+    p2.gf += g2; p2.ga += g1;
+
+    if (m.winnerId === p1id) { p1.w++; p1.pts += 3; p2.l++; }
+    else if (m.winnerId === p2id) { p2.w++; p2.pts += 3; p1.l++; }
+    else { p1.d++; p1.pts += 1; p2.d++; p2.pts += 1; }
+  }
+
+  const result: Array<{ group: string; standings: Standing[] }> = [];
+  for (const [group, map] of groups) {
+    const standings = Array.from(map.values())
+      .map((s) => ({ ...s, gd: s.gf - s.ga }))
+      .sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf || a.name.localeCompare(b.name));
+    result.push({ group, standings });
+  }
+  return result.sort((a, b) => a.group.localeCompare(b.group));
+}
+
+function GroupStandings({ matches, logoMap = {} }: { matches: Match[]; logoMap?: Record<string, string | null> }) {
+  const groups = useMemo(() => buildGroupStandings(matches), [matches]);
+
+  if (groups.length === 0) {
+    return (
+      <div className="rounded-xl border border-border bg-card p-8 text-center text-muted-foreground">
+        <LayoutGrid className="w-10 h-10 mx-auto mb-3 opacity-30" />
+        <p className="text-sm">No group matches generated yet.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {groups.map(({ group, standings }) => (
+        <div key={group} className="rounded-xl border border-border overflow-hidden">
+          <div className="bg-muted/40 px-4 py-3 border-b border-border">
+            <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">{group}</span>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-card">
+                <th className="text-left px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground w-8">#</th>
+                <th className="text-left px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Team</th>
+                <th className="px-3 py-2 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground">MP</th>
+                <th className="px-3 py-2 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground">W</th>
+                <th className="px-3 py-2 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground">D</th>
+                <th className="px-3 py-2 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground">L</th>
+                <th className="px-3 py-2 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground">GD</th>
+                <th className="px-3 py-2 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground font-black">Pts</th>
+              </tr>
+            </thead>
+            <tbody>
+              {standings.map((s, i) => (
+                <tr key={s.id} className={`border-b border-border last:border-0 ${i % 2 === 0 ? "bg-card" : "bg-muted/20"}`}>
+                  <td className="px-4 py-2 text-muted-foreground font-mono text-xs">{i + 1}</td>
+                  <td className="px-4 py-2">
+                    <div className="flex items-center gap-2">
+                      {logoMap[s.name] ? (
+                        <img src={logoMap[s.name]!} alt="" className="w-6 h-6 rounded-full object-cover shrink-0 ring-1 ring-border" />
+                      ) : (
+                        <div className="w-6 h-6 rounded-full bg-muted border border-border shrink-0 flex items-center justify-center text-[9px] font-black text-muted-foreground">
+                          {s.name.charAt(0)}
+                        </div>
+                      )}
+                      <span className="font-bold text-foreground">{s.name}</span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 text-center text-muted-foreground">{s.mp}</td>
+                  <td className="px-3 py-2 text-center text-emerald-400 font-bold">{s.w}</td>
+                  <td className="px-3 py-2 text-center text-muted-foreground">{s.d}</td>
+                  <td className="px-3 py-2 text-center text-red-400 font-bold">{s.l}</td>
+                  <td className="px-3 py-2 text-center font-mono">{s.gd > 0 ? `+${s.gd}` : s.gd}</td>
+                  <td className="px-3 py-2 text-center font-black text-foreground">{s.pts}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Ã¢â€â‚¬Ã¢â€â‚¬ Tournament Stats Component Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+
+function TournamentStatsView({
+  stats,
+  logoMap = {},
+}: {
+  stats: Array<{ playerId: number; name: string; matches: number; wins: number; losses: number; draws: number; goalsFor: number; goalsAgainst: number; points: number }>;
+  logoMap?: Record<string, string | null>;
+}) {
+  if (stats.length === 0) {
+    return (
+      <div className="rounded-xl border border-border bg-card p-8 text-center text-muted-foreground">
+        <BarChart3 className="w-10 h-10 mx-auto mb-3 opacity-30" />
+        <p className="text-sm">No stats available yet. Complete some matches to see tournament player rankings.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-border overflow-hidden">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-border bg-muted/30">
+            <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground w-12">#</th>
+            <th className="text-left px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Player</th>
+            <th className="px-3 py-3 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground">MP</th>
+            <th className="px-3 py-3 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground">W</th>
+            <th className="px-3 py-3 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground">D</th>
+            <th className="px-3 py-3 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground">L</th>
+            <th className="px-3 py-3 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground">GF</th>
+            <th className="px-3 py-3 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground">GA</th>
+            <th className="px-3 py-3 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground font-black">Pts</th>
+          </tr>
+        </thead>
+        <tbody>
+          {stats.map((s, i) => (
+            <tr key={s.playerId} className={`border-b border-border last:border-0 ${i % 2 === 0 ? "bg-card" : "bg-muted/20"}`}>
+              <td className="px-4 py-3">
+                {i === 0 ? (
+                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-500/20 text-amber-400 text-xs font-black">1</span>
+                ) : i === 1 ? (
+                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-400/20 text-slate-300 text-xs font-black">2</span>
+                ) : i === 2 ? (
+                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-orange-700/20 text-orange-400 text-xs font-black">3</span>
+                ) : (
+                  <span className="text-muted-foreground font-mono text-xs">{i + 1}</span>
+                )}
+              </td>
+              <td className="px-4 py-3">
+                <div className="flex items-center gap-2">
+                  {logoMap[s.name] ? (
+                    <img src={logoMap[s.name]!} alt="" className="w-7 h-7 rounded-full object-cover shrink-0 ring-1 ring-border" />
+                  ) : (
+                    <div className="w-7 h-7 rounded-full bg-muted border border-border shrink-0 flex items-center justify-center text-[10px] font-black text-muted-foreground">
+                      {s.name.charAt(0)}
+                    </div>
+                  )}
+                  <span className="font-bold text-foreground">{s.name}</span>
+                </div>
+              </td>
+              <td className="px-3 py-3 text-center text-muted-foreground">{s.matches}</td>
+              <td className="px-3 py-3 text-center text-emerald-400 font-bold">{s.wins}</td>
+              <td className="px-3 py-3 text-center text-muted-foreground">{s.draws}</td>
+              <td className="px-3 py-3 text-center text-red-400 font-bold">{s.losses}</td>
+              <td className="px-3 py-3 text-center font-mono">{s.goalsFor}</td>
+              <td className="px-3 py-3 text-center font-mono">{s.goalsAgainst}</td>
+              <td className="px-3 py-3 text-center font-black text-foreground">{s.points}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 
 export default function TournamentDetailPage() {
   const params = useParams<{ id: string }>();
@@ -554,6 +811,20 @@ export default function TournamentDetailPage() {
     queryKey: ["tournament-participants", id],
     queryFn: async () => {
       const res = await fetch(`/api/tournaments/${id}/participants`);
+      return res.json();
+    },
+    enabled: !!id,
+  });
+
+  const [activeTab, setActiveTab] = useState("overview");
+
+  const { data: tournamentStats = [] } = useQuery<
+    Array<{ playerId: number; name: string; matches: number; wins: number; losses: number; draws: number; goalsFor: number; goalsAgainst: number; points: number }>
+  >({
+    queryKey: ["tournament-stats", id],
+    queryFn: async () => {
+      const res = await fetch(`/api/tournaments/${id}/stats`);
+      if (!res.ok) throw new Error("Failed to load tournament stats");
       return res.json();
     },
     enabled: !!id,
@@ -589,9 +860,18 @@ export default function TournamentDetailPage() {
     );
   }
 
-  // The API returns tournamentType but the generated type is stale — cast through unknown
+  // The API returns tournamentType but the generated type is stale â€” cast through unknown
   const isTeamTournament = (tournament as unknown as { tournamentType?: string }).tournamentType === "team";
   const createdBy = (tournament as unknown as { createdBy?: number | null }).createdBy;
+
+  const fmt = getFormatConfig(tournament.format);
+
+  const tabs: TabDef[] = [{ key: "overview", label: "Overview", icon: Info }];
+  if (fmt.hasTable) tabs.push({ key: "table", label: "Table", icon: Table2 });
+  if (fmt.hasGroups) tabs.push({ key: "groups", label: "Groups", icon: LayoutGrid });
+  if (fmt.hasKnockout) tabs.push({ key: "knockout", label: "Knockout", icon: Swords });
+  tabs.push({ key: "fixtures", label: "Fixtures", icon: Calendar });
+  tabs.push({ key: "stats", label: "Stats", icon: BarChart3 });
 
   return (
     <div className="container mx-auto px-4 py-16">
@@ -609,13 +889,13 @@ export default function TournamentDetailPage() {
             <span className="text-xs text-muted-foreground">{tournament.game}</span>
             {isTeamTournament && (
               <>
-                <span className="text-xs text-muted-foreground">•</span>
+                <span className="text-xs text-muted-foreground">â€¢</span>
                 <span className="wg-chip">Team League</span>
               </>
             )}
             {!isTeamTournament && (
               <>
-                <span className="text-xs text-muted-foreground">•</span>
+                <span className="text-xs text-muted-foreground">â€¢</span>
                 <span className="text-xs text-muted-foreground capitalize">{tournament.format.replace(/-/g, " ")}</span>
               </>
             )}
@@ -680,25 +960,85 @@ export default function TournamentDetailPage() {
           </div>
         )}
 
-        {/* ── TEAM TOURNAMENT: League Table + Fixtures ── */}
-        {isTeamTournament && (
-          <>
-            <div className="mb-12">
-              <h2 className="text-2xl font-black uppercase tracking-tight mb-2">League Table</h2>
-              <p className="text-sm text-muted-foreground mb-6">
-                {matches && matches.filter((m) => m.status === "completed").length} of{" "}
-                {matches?.length ?? 0} matches played
-              </p>
-              <LeagueTable
-                matches={matches ?? []}
-                totalTeams={tournament.currentParticipants}
-                logoMap={teamLogoMap}
-              />
-            </div>
+        <TournamentTabs tabs={tabs} active={activeTab} onChange={setActiveTab} />
 
-            {matches && matches.length > 0 && (
-              <div>
-                <h2 className="text-2xl font-black uppercase tracking-tight mb-6">Fixtures & Results</h2>
+        <AnimatePresence mode="wait">
+          {activeTab === "overview" && (
+            <motion.div key="overview" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+              {/* Overview: registered participants */}
+              <div className="mb-8">
+                <h2 className="wg-section-title text-xl font-black uppercase tracking-tight mb-4">Registered Participants</h2>
+                {participants.length === 0 ? (
+                  <div className="rounded-xl border border-border bg-card p-8 text-center text-muted-foreground">
+                    <Users className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                    <p className="text-sm">No participants registered yet.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                    {participants.map((p) => (
+                      <div key={p.id} className="flex items-center gap-2.5 rounded-lg border border-border bg-card p-3">
+                        {p.teamLogoUrl || p.avatarUrl ? (
+                          <img src={p.teamLogoUrl || p.avatarUrl || ""} alt="" className="w-8 h-8 rounded-full object-cover shrink-0 ring-1 ring-border" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-muted border border-border shrink-0 flex items-center justify-center text-[10px] font-black text-muted-foreground">
+                            {(p.teamName || p.displayName || "?").charAt(0)}
+                          </div>
+                        )}
+                        <span className="text-sm font-bold truncate">{p.teamName || p.displayName || "Unknown"}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {tournament.rules && (
+                <div className="mb-8">
+                  <h2 className="wg-section-title text-xl font-black uppercase tracking-tight mb-4">Rules</h2>
+                  <div className="rounded-xl border border-border bg-card p-5 whitespace-pre-wrap text-sm text-muted-foreground leading-relaxed">
+                    {tournament.rules}
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {activeTab === "table" && (
+            <motion.div key="table" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="wg-section-title text-xl font-black uppercase tracking-tight">League Table</h2>
+                <span className="text-xs text-muted-foreground">
+                  {matches && matches.filter((m) => m.status === "completed").length} of {matches?.length ?? 0} matches played
+                </span>
+              </div>
+              <LeagueTable matches={matches ?? []} totalTeams={tournament.currentParticipants} logoMap={teamLogoMap} />
+            </motion.div>
+          )}
+
+          {activeTab === "groups" && (
+            <motion.div key="groups" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+              <div className="mb-4">
+                <h2 className="wg-section-title text-xl font-black uppercase tracking-tight">Group Standings</h2>
+              </div>
+              <GroupStandings matches={matches ?? []} logoMap={teamLogoMap} />
+            </motion.div>
+          )}
+
+          {activeTab === "knockout" && (
+            <motion.div key="knockout" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+              {bracket && bracket.rounds.length > 0 ? (
+                <TournamentBracket rounds={bracket.rounds} />
+              ) : (
+                <div className="rounded-xl border border-border bg-card p-8 text-center text-muted-foreground">
+                  <Swords className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">Knockout bracket not generated yet.</p>
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {activeTab === "fixtures" && (
+            <motion.div key="fixtures" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+              {matches && matches.length > 0 ? (
                 <div className="space-y-2">
                   {Array.from(new Set(matches.map((m) => m.round))).sort((a, b) => (a ?? 0) - (b ?? 0)).map((round) => {
                     const roundMatches = matches.filter((m) => m.round === round);
@@ -722,7 +1062,6 @@ export default function TournamentDetailPage() {
                               className="flex items-center gap-3 px-4 py-3 border-b border-border last:border-0 hover:bg-muted/10 transition-colors cursor-pointer group"
                               onClick={() => setSelectedMatch(match)}
                             >
-                              {/* Home team */}
                               <div className="flex-1 flex items-center justify-end gap-2.5">
                                 <span className={`font-bold text-sm truncate text-right ${p1Win ? "text-emerald-400" : ""}`}>
                                   {match.participant1Name ?? "TBD"}
@@ -735,7 +1074,6 @@ export default function TournamentDetailPage() {
                                   </div>
                                 )}
                               </div>
-                              {/* Score / status */}
                               <div className="text-center min-w-[72px] shrink-0">
                                 {done ? (
                                   <span className="font-mono font-black text-base tabular-nums">
@@ -749,7 +1087,6 @@ export default function TournamentDetailPage() {
                                   <span className="text-muted-foreground text-xs font-bold">vs</span>
                                 )}
                               </div>
-                              {/* Away team */}
                               <div className="flex-1 flex items-center gap-2.5">
                                 {logo2 ? (
                                   <img src={logo2} alt="" className={`w-9 h-9 rounded-full object-cover shrink-0 ring-2 ${p2Win ? "ring-emerald-500" : "ring-border"}`} />
@@ -762,7 +1099,6 @@ export default function TournamentDetailPage() {
                                   {match.participant2Name ?? "TBD"}
                                 </span>
                               </div>
-                              {/* Detail cue */}
                               <ChevronRight className="w-4 h-4 text-muted-foreground/40 shrink-0 group-hover:text-muted-foreground transition-colors" />
                             </div>
                           );
@@ -771,67 +1107,29 @@ export default function TournamentDetailPage() {
                     );
                   })}
                 </div>
+              ) : (
+                <div className="rounded-xl border border-border bg-card p-8 text-center text-muted-foreground">
+                  <Calendar className="w-10 h-10 mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">No fixtures scheduled yet.</p>
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {activeTab === "stats" && (
+            <motion.div key="stats" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+              <div className="mb-4">
+                <h2 className="wg-section-title text-xl font-black uppercase tracking-tight">Tournament Player Rankings</h2>
+                <p className="text-sm text-muted-foreground mt-1">Statistics calculated from completed matches in this tournament only.</p>
               </div>
-            )}
-          </>
-        )}
+              <TournamentStatsView stats={tournamentStats} logoMap={teamLogoMap} />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Match detail dialog */}
         {selectedMatch && (
-          <MatchDetailDialog
-            match={selectedMatch}
-            onClose={() => setSelectedMatch(null)}
-            logoMap={teamLogoMap}
-          />
-        )}
-
-        {/* ── SOLO TOURNAMENT: Bracket + Schedule ── */}
-        {!isTeamTournament && bracket && bracket.rounds.length > 0 && (
-          <div className="mb-12">
-            <h2 className="wg-section-title text-2xl font-black uppercase tracking-tight mb-6">Tournament Bracket</h2>
-            <TournamentBracket rounds={bracket.rounds} />
-          </div>
-        )}
-
-        {!isTeamTournament && matches && matches.length > 0 && (
-          <div>
-            <h2 className="wg-section-title text-2xl font-black uppercase tracking-tight mb-6">Match Schedule</h2>
-            <div className="rounded-xl border border-border overflow-hidden shadow-[0_10px_30px_-22px_var(--card-glow)]">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border bg-muted/30">
-                    <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wider text-muted-foreground">Round</th>
-                    <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wider text-muted-foreground">Match</th>
-                    <th className="text-center px-4 py-3 text-xs font-bold uppercase tracking-wider text-muted-foreground">Score</th>
-                    <th className="text-left px-4 py-3 text-xs font-bold uppercase tracking-wider text-muted-foreground">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {matches.map((match, i) => (
-                    <tr key={match.id} className={`border-b border-border last:border-0 ${i % 2 === 0 ? "bg-card" : ""}`}>
-                      <td className="px-4 py-3 text-sm text-muted-foreground">{match.roundName ?? `R${match.round}`}</td>
-                      <td className="px-4 py-3">
-                        <span className="font-bold">{match.participant1Name ?? "TBD"}</span>
-                        <span className="text-muted-foreground mx-2">vs</span>
-                        <span className="font-bold">{match.participant2Name ?? "TBD"}</span>
-                      </td>
-                      <td className="px-4 py-3 text-center font-mono font-bold">
-                        {match.participant1Score !== null && match.participant2Score !== null
-                          ? `${match.participant1Score} - ${match.participant2Score}`
-                          : "— vs —"}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs font-bold uppercase tracking-wider ${matchStatusColors[match.status]}`}>
-                          {match.status === "live" && <span className="inline-block mr-1 w-1.5 h-1.5 rounded-full bg-red-500 live-pulse" />}
-                          {match.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <MatchDetailDialog match={selectedMatch} onClose={() => setSelectedMatch(null)} logoMap={teamLogoMap} />
         )}
       </motion.div>
     </div>
