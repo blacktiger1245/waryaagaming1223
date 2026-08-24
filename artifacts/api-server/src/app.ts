@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import session from "express-session";
@@ -133,5 +133,18 @@ app.use(API_PREFIX, router);
 if (API_PREFIX !== "") {
   app.use(authRouter);
 }
+
+// 404 for unmatched API routes — respond JSON so clients can parse it.
+app.use((req: Request, res: Response) => {
+  res.status(404).json({ error: `Not found: ${req.method} ${req.path}` });
+});
+
+// Global error handler — always respond with JSON so the frontend's apiFetch()
+// can surface the real failure instead of a generic "Request failed".
+app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  const message = err instanceof Error ? err.message : "Internal Server Error";
+  logger.error({ err }, "Unhandled request error");
+  res.status(500).json({ error: message });
+});
 
 export default app;
