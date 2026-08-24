@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import {
   Youtube,
@@ -18,6 +18,9 @@ import {
   Check,
   Clapperboard,
   Sparkles,
+  Bell,
+  BellDot,
+  X,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiUrl } from "@/lib/api";
@@ -138,7 +141,26 @@ function formatDuration(seconds: number | undefined): string {
 // Always tries to open the EXACT original post. If the platform didn't return a
 // real permalink, the card is rendered but the external action is disabled
 // (no file:// homepage fallbacks, no fake navigation).
-function MediaCard({ item, delay }: { item: MediaHubItem; delay: number }) {
+const LS_KEY = "wg-media-hub-last-seen";
+function getLastSeen(): string { try { return localStorage.getItem(LS_KEY) ?? ""; } catch { return ""; } }
+function setLastSeen(iso: string) { try { localStorage.setItem(LS_KEY, iso); } catch { /* ignore */ } }
+function checkIsNew(item: MediaHubItem, lastSeen: string): boolean {
+  if (!item.publishedAt) return false;
+  if (!lastSeen) return true;
+  return item.publishedAt > lastSeen;
+}
+
+function useClickOutside(ref: React.RefObject<HTMLElement | null>, handler: () => void) {
+  useEffect(() => {
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) handler();
+    }
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [ref, handler]);
+}
+
+function MediaCard({ item, delay, isNew = false }: { item: MediaHubItem; delay: number; isNew?: boolean }) {
   const meta = META[item.platform];
   const Icon = meta.icon;
   const url = item.originalMediaUrl && /^https:\/\//.test(item.originalMediaUrl)
@@ -156,6 +178,11 @@ function MediaCard({ item, delay }: { item: MediaHubItem; delay: number }) {
     <div className="wg-sheen group wg-card h-full rounded-2xl border border-fuchsia-400/15 bg-gradient-to-b from-fuchsia-500/[0.06] to-transparent p-3 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:border-fuchsia-400/40 hover:shadow-[0_12px_44px_-14px_rgba(217,70,239,0.5)]">
       {/* Media preview */}
       <div className={`relative w-full ${aspect} overflow-hidden rounded-xl ${meta.thumbBg}`}>
+        {isNew && (
+          <span className="absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-fuchsia-500 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white shadow-[0_0_12px_rgba(217,70,239,0.7)]">
+            <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" /> New
+          </span>
+        )}
         {item.thumbnailUrl ? (
           <img
             src={item.thumbnailUrl}
@@ -347,6 +374,112 @@ function FadeUp({
     </motion.div>
   );
 }
+
+function MediaNotificationBell({
+  items,
+  onOpenItem,
+}: {
+  items: MediaHubItem[];
+  onOpenItem: (platform: Platform) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [lastSeen, setLastSeenState] = useState<string>(getLastSeen);
+  const panelRef = useRef<HTMLDivElement>(null);
+  useClickOutside(panelRef, () => setOpen(false));
+
+  const newItems = useMemo(
+    () => items.filter((i) => checkIsNew(i, lastSeen)).slice(0, 12),
+    [items, lastSeen]
+  );
+  const count = newItems.length;
+
+  const markAllRead = useCallback(() => {
+    const newest = items
+      .map((i) => i.publishedAt)
+      .filter(Boolean)
+      .sort((a, b) => String(b).localeCompare(String(a)))[0];
+    if (newest) { setLastSeen(newest); setLastSeenState(newest); }
+    setOpen(false);
+  }, [items]);
+
+  return (
+    <div ref={panelRef} className="relative">
+      <button
+        onClick={() => setOpen((p) => !p)}
+        className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-white/[0.04] text-zinc-300 transition-colors hover:border-fuchsia-400/40 hover:text-white"
+        aria-label="Notifications"
+      >
+        {count > 0 ? <BellDot className="h-5 w-5 text-fuchsia-300" /> : <Bell className="h-5 w-5" />}
+        {count > 0 && (
+          <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-fuchsia-500 px-1 text-[10px] font-black text-white shadow-[0_0_10px_rgba(217,70,239,0.6)]">
+            {count > 99 ? "99+" : count}
+          </span>
+        )}
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: 8, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.96 }}
+            transition={{ duration: 0.2 }}
+            className="absolute right-0 z-50 mt-3 w-[min(90vw,380px)] overflow-hidden rounded-2xl border border-white/15 bg-[#0b0d17] shadow-[0_24px_60px_-12px_rgba(0,0,0,0.8)]"
+          >
+            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+              <span className="text-sm font-black uppercase tracking-wider text-white">New Media</span>
+              <div className="flex items-center gap-2">
+                {count > 0 && (
+                  <button onClick={markAllRead} className="rounded-lg px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-fuchsia-300 transition-colors hover:bg-fuchsia-500/10">Mark all read</button>
+                )}
+                <button onClick={() => setOpen(false)} className="rounded-lg p-1 text-zinc-500 transition-colors hover:text-white"><X className="h-4 w-4" /></button>
+              </div>
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto p-2">
+              {count === 0 ? (
+                <div className="px-4 py-8 text-center">
+                  <Bell className="mx-auto mb-3 h-8 w-8 text-zinc-600" />
+                  <p className="text-sm font-bold text-zinc-400">No new media</p>
+                  <p className="mt-1 text-xs text-zinc-600">New posts from WG channels will appear here.</p>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {newItems.map((item) => {
+                    const meta = META[item.platform];
+                    const Icon = meta.icon;
+                    return (
+                      <a key={item.id} href={item.originalMediaUrl ?? undefined} target="_blank" rel="noopener noreferrer" onClick={() => onOpenItem(item.platform)}
+                        className="flex items-start gap-3 rounded-xl p-2.5 transition-colors hover:bg-white/[0.04]">
+                        <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-zinc-900">
+                          {item.thumbnailUrl ? (
+                            <img src={item.thumbnailUrl} alt="" className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center"><Icon className="h-5 w-5 text-zinc-700" /></div>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="line-clamp-2 text-xs font-bold text-white">{item.title}</p>
+                          <div className="mt-1 flex items-center gap-2">
+                            <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider ${meta.chip}`}>
+                              <Icon className="h-2.5 w-2.5" /> {meta.label}
+                            </span>
+                            <span className="text-[10px] text-zinc-500">{timeAgo(item.publishedAt)}</span>
+                          </div>
+                        </div>
+                        <span className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-fuchsia-400 shadow-[0_0_8px_rgba(217,70,239,0.8)]" />
+                      </a>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export default function MediaHubPage() {
   const [platform, setPlatform] = useState<PlatformFilter>("all");
   const [query, setQuery] = useState("");
@@ -365,6 +498,7 @@ export default function MediaHubPage() {
   const channels = data?.channels ?? EMPTY_CHANNELS;
   const configured = data?.configured ?? ({} as Record<Platform, boolean>);
   const items = data?.items ?? [];
+  const [lastSeen, setLastSeenState] = useState<string>(getLastSeen);
 
   const perPlatform = useMemo(() => {
     const lower = query.trim().toLowerCase();
@@ -399,15 +533,31 @@ export default function MediaHubPage() {
   return (
     <div className="flex-1 bg-[#04060f] text-white">
       <div className="mx-auto max-w-7xl px-6 py-8">
-        <div className="wg-hero px-6 py-9 mb-8">
-          <span className="wg-eyebrow inline-flex items-center gap-2"><Clapperboard className="h-4 w-4" /> Watch · Follow · Share</span>
-          <h1 className="wg-hero-title text-4xl mt-4 sm:text-5xl">
-            Media <span className="bg-gradient-to-r from-fuchsia-300 to-pink-400 bg-clip-text text-transparent">Hub</span>
-          </h1>
-          <p className="mt-3 max-w-xl text-sm text-zinc-400 leading-relaxed">
-            Watch, follow and experience WG everywhere. All content is pulled live from
-            Waryaa Gaming's official channels — one tap opens the original post.
-          </p>
+        <div className="wg-hero px-6 py-9 mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <span className="wg-eyebrow inline-flex items-center gap-2"><Clapperboard className="h-4 w-4" /> Watch · Follow · Share</span>
+            <h1 className="wg-hero-title text-4xl mt-4 sm:text-5xl">
+              Media <span className="bg-gradient-to-r from-fuchsia-300 to-pink-400 bg-clip-text text-transparent">Hub</span>
+            </h1>
+            <p className="mt-3 max-w-xl text-sm text-zinc-400 leading-relaxed">
+              Watch, follow and experience WG everywhere. All content is pulled live from
+              Waryaa Gaming's official channels — one tap opens the original post.
+            </p>
+          </div>
+          <div className="shrink-0 pt-1">
+            <MediaNotificationBell
+              items={items}
+              onOpenItem={(p) => {
+                setPlatform(p);
+                const newest = items
+                  .filter((i) => i.platform === p)
+                  .map((i) => i.publishedAt)
+                  .filter(Boolean)
+                  .sort((a, b) => String(b).localeCompare(String(a)))[0];
+                if (newest) { setLastSeen(newest); setLastSeenState(newest); }
+              }}
+            />
+          </div>
         </div>
 
         <FadeUp delay={0.05} className="mb-6">
@@ -474,6 +624,7 @@ export default function MediaHubPage() {
                   configured={!!configured[p]}
                   channelUrl={channels[p]}
                   onViewAll={() => setPlatform(p)}
+                  lastSeen={lastSeen}
                 />
               ))
             ) : (
@@ -482,6 +633,7 @@ export default function MediaHubPage() {
                 items={byPlatform[platform]}
                 configured={!!configured[platform]}
                 channelUrl={channels[platform]}
+                lastSeen={lastSeen}
               />
             )}
           </div>
@@ -499,12 +651,14 @@ function Section({
   configured,
   channelUrl,
   onViewAll,
+  lastSeen,
 }: {
   platform: Platform;
   items: MediaHubItem[];
   configured: boolean;
   channelUrl?: string;
   onViewAll?: () => void;
+  lastSeen: string;
 }) {
   const meta = META[platform];
   const Icon = meta.icon;
@@ -535,7 +689,7 @@ function Section({
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {items.map((item, i) => (
-            <MediaCard key={item.id} item={item} delay={Math.min(i, 4) * 0.06} />
+            <MediaCard key={item.id} item={item} delay={Math.min(i, 4) * 0.06} isNew={checkIsNew(item, lastSeen)} />
           ))}
         </div>
       )}
