@@ -21,6 +21,8 @@ import {
   Bell,
   BellDot,
   X,
+  ArrowRight,
+  Flame,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiUrl } from "@/lib/api";
@@ -158,6 +160,126 @@ function useClickOutside(ref: React.RefObject<HTMLElement | null>, handler: () =
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
   }, [ref, handler]);
+}
+
+function LatestSpotlight({
+  items,
+  channels,
+  lastSeen,
+}: {
+  items: MediaHubItem[];
+  channels: Record<Platform, string>;
+  lastSeen: string;
+}) {
+  const latestByPlatform = useMemo(() => {
+    const map = new Map<Platform, MediaHubItem>();
+    // Sort all items by publishedAt descending
+    const sorted = [...items].sort(
+      (a, b) => String(b.publishedAt ?? "").localeCompare(String(a.publishedAt ?? ""))
+    );
+    for (const item of sorted) {
+      if (!map.has(item.platform)) {
+        map.set(item.platform, item);
+      }
+    }
+    return PLATFORMS.map((p) => ({ platform: p, item: map.get(p) })).filter(
+      (x): x is { platform: Platform; item: MediaHubItem } => !!x.item
+    );
+  }, [items]);
+
+  if (latestByPlatform.length === 0) return null;
+
+  return (
+    <FadeUp delay={0.06} className="mb-10">
+      <div className="mb-5 flex items-center gap-2">
+        <Flame className="h-4 w-4 text-amber-400" />
+        <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-400">
+          Fresh Uploads
+        </span>
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {latestByPlatform.map(({ platform: p, item }) => {
+          const meta = META[p];
+          const Icon = meta.icon;
+          const isNew = checkIsNew(item, lastSeen);
+          return (
+            <a
+              key={item.id}
+              href={item.originalMediaUrl ?? undefined}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-transparent transition-all duration-300 hover:-translate-y-1 hover:border-fuchsia-400/40 hover:shadow-[0_16px_48px_-12px_rgba(217,70,239,0.4)]"
+            >
+              {/* Thumbnail */}
+              <div className={`relative aspect-video w-full overflow-hidden ${meta.thumbBg}`}>
+                {item.thumbnailUrl ? (
+                  <img
+                    src={item.thumbnailUrl}
+                    alt={item.title}
+                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center">
+                    <Icon className="h-12 w-12 text-white/20" />
+                  </div>
+                )}
+                {/* Platform badge */}
+                <span
+                  className={`absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider backdrop-blur ${meta.chip}`}
+                >
+                  <Icon className="h-3 w-3" />
+                  {meta.label}
+                </span>
+                {/* NEW badge */}
+                {isNew && (
+                  <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-fuchsia-500 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-white shadow-[0_0_12px_rgba(217,70,239,0.7)]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" /> New
+                  </span>
+                )}
+                {/* Play overlay */}
+                <span className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+                  <span className="flex h-14 w-14 items-center justify-center rounded-full bg-black/70 text-white backdrop-blur ring-2 ring-fuchsia-400/50">
+                    <Play className="h-6 w-6 fill-current" />
+                  </span>
+                </span>
+                {/* Duration */}
+                {item.durationSeconds != null && (
+                  <span className="absolute bottom-3 right-3 rounded bg-black/80 px-2 py-0.5 text-[10px] font-bold text-white">
+                    {formatDuration(item.durationSeconds)}
+                  </span>
+                )}
+              </div>
+
+              {/* Info */}
+              <div className="p-4">
+                <h3 className="line-clamp-2 text-sm font-bold text-white transition-colors group-hover:text-fuchsia-200">
+                  {item.title}
+                </h3>
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-zinc-500">
+                  {item.views != null && (
+                    <span className="flex items-center gap-1">
+                      <Eye className="h-3 w-3" /> {formatNumber(item.views)}
+                    </span>
+                  )}
+                  {item.likes != null && (
+                    <span className="flex items-center gap-1">
+                      <ThumbsUp className="h-3 w-3" /> {formatNumber(item.likes)}
+                    </span>
+                  )}
+                  <span className="flex items-center gap-1">
+                    <Clock className="h-3 w-3" /> {timeAgo(item.publishedAt)}
+                  </span>
+                </div>
+                <div className="mt-3 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-fuchsia-300 transition-colors group-hover:text-fuchsia-200">
+                  Watch Now <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
+                </div>
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    </FadeUp>
+  );
 }
 
 function MediaCard({ item, delay, isNew = false }: { item: MediaHubItem; delay: number; isNew?: boolean }) {
@@ -606,6 +728,10 @@ export default function MediaHubPage() {
             </div>
           </div>
         </FadeUp>
+
+        {!isLoading && !error && platform === "all" && (
+          <LatestSpotlight items={items} channels={channels} lastSeen={lastSeen} />
+        )}
 
         {isLoading ? (
           <LoadingSections />
