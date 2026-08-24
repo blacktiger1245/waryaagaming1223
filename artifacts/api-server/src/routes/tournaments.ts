@@ -47,6 +47,8 @@ router.post("/tournaments", async (req, res) => {
 
   const [tournament] = await db.insert(tournamentsTable).values({
     ...body.data,
+    teamCount: body.data.teamCount ?? undefined,
+    isClanTournament: body.data.isClanTournament ?? false,
     createdBy: req.session.userId,
   }).returning();
   await db.insert(tournamentAdminsTable).values({
@@ -314,7 +316,16 @@ router.get("/tournaments/:id/bracket", async (req, res) => {
     .map(([roundNumber, ms]) => ({
       roundNumber,
       name: roundNames[roundNumber] ?? `Round ${roundNumber}`,
-      matches: ms.map((m) => ({ ...m, tournamentName: null, createdAt: m.createdAt.toISOString() })),
+      matches: ms.map((m) => ({
+        ...m,
+        tournamentName: null,
+        createdAt: m.createdAt.toISOString(),
+        parentMatch1Id: m.parentMatch1Id,
+        parentMatch2Id: m.parentMatch2Id,
+        nextMatchId: m.nextMatchId,
+        nextSlot: m.nextSlot,
+        stage: m.stage,
+      })),
     }));
 
   return res.json({ tournamentId: params.data.id, rounds });

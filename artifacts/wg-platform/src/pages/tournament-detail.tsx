@@ -16,6 +16,7 @@ import type { Match } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { TournamentBracket } from "@/components/tournament-bracket";
 
 const statusColors: Record<string, string> = {
   upcoming: "bg-primary/10 text-primary border-primary/30",
@@ -788,34 +789,7 @@ export default function TournamentDetailPage() {
         {!isTeamTournament && bracket && bracket.rounds.length > 0 && (
           <div className="mb-12">
             <h2 className="wg-section-title text-2xl font-black uppercase tracking-tight mb-6">Tournament Bracket</h2>
-            <div className="overflow-x-auto">
-              <div className="flex gap-6 min-w-max pb-4">
-                {bracket.rounds.map((round) => (
-                  <div key={round.roundNumber} className="flex flex-col gap-4">
-                    <div className="wg-chip mx-auto mb-2">{round.name}</div>
-                    <div className="flex flex-col justify-around gap-4" style={{ minHeight: `${round.matches.length * 80}px` }}>
-                      {round.matches.map((match) => (
-                        <div key={match.id} className="w-48 rounded-lg border border-[var(--card-border)] bg-card p-3 shadow-[0_8px_24px_-16px_var(--card-glow)]">
-                          <div className={`flex justify-between items-center py-1 ${match.winnerId === match.participant1Id ? "font-black text-[var(--acc)]" : "text-foreground"}`}>
-                            <span className="text-sm truncate">{match.participant1Name ?? "TBD"}</span>
-                            <span className="text-sm font-mono ml-2">{match.participant1Score ?? "-"}</span>
-                          </div>
-                          <div className="border-t border-border my-1" />
-                          <div className={`flex justify-between items-center py-1 ${match.winnerId === match.participant2Id ? "font-black text-[var(--acc)]" : "text-foreground"}`}>
-                            <span className="text-sm truncate">{match.participant2Name ?? "TBD"}</span>
-                            <span className="text-sm font-mono ml-2">{match.participant2Score ?? "-"}</span>
-                          </div>
-                          <div className={`text-[10px] uppercase tracking-wider mt-1 ${matchStatusColors[match.status]}`}>
-                            {match.status === "live" && <span className="live-pulse inline-block mr-1 w-1.5 h-1.5 rounded-full bg-red-500" />}
-                            {match.status}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <TournamentBracket rounds={bracket.rounds} />
           </div>
         )}
 

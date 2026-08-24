@@ -599,6 +599,7 @@ router.post("/admin/tournaments", requireAdmin, async (req, res) => {
       prizePool, startDate, endDate, rules, streamUrl, logoUrl,
       hostedBy, tournamentType = "solo", seasonId,
       categoryId, groupCount, qualifyCount, thirdPlaceMatch,
+      teamCount, isClanTournament,
     } = req.body as Record<string, string | number | boolean | undefined>;
 
     if (!name) return res.status(400).json({ error: "Name is required" });
@@ -626,6 +627,8 @@ router.post("/admin/tournaments", requireAdmin, async (req, res) => {
       groupCount: groupCount ? Number(groupCount) : undefined,
       qualifyCount: qualifyCount ? Number(qualifyCount) : undefined,
       thirdPlaceMatch: thirdPlaceMatch !== undefined ? Boolean(thirdPlaceMatch) : undefined,
+      teamCount: teamCount !== undefined ? Number(teamCount) : undefined,
+      isClanTournament: isClanTournament !== undefined ? Boolean(isClanTournament) : false,
       createdBy: req.session.userId ?? undefined,
     }).returning();
 

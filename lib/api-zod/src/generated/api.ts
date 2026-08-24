@@ -377,6 +377,8 @@ export const ListTournamentsResponseItem = zod.object({
   "winnerName": zod.string().nullish(),
   "logoUrl": zod.string().nullish(),
   "hostedBy": zod.string().nullish(),
+  "teamCount": zod.number().nullish(),
+  "isClanTournament": zod.boolean().nullish(),
   "createdAt": zod.string().optional()
 })
 export const ListTournamentsResponse = zod.array(ListTournamentsResponseItem)
@@ -394,7 +396,9 @@ export const CreateTournamentBody = zod.object({
   "prizePool": zod.string(),
   "startDate": zod.string(),
   "rules": zod.string().optional(),
-  "streamUrl": zod.string().optional()
+  "streamUrl": zod.string().optional(),
+  "teamCount": zod.number().optional(),
+  "isClanTournament": zod.boolean().optional()
 })
 
 export const CreateTournamentResponse = zod.object({
@@ -415,6 +419,8 @@ export const CreateTournamentResponse = zod.object({
   "winnerName": zod.string().nullish(),
   "logoUrl": zod.string().nullish(),
   "hostedBy": zod.string().nullish(),
+  "teamCount": zod.number().nullish(),
+  "isClanTournament": zod.boolean().nullish(),
   "createdAt": zod.string().optional()
 })
 
@@ -444,6 +450,8 @@ export const GetTournamentResponse = zod.object({
   "winnerName": zod.string().nullish(),
   "logoUrl": zod.string().nullish(),
   "hostedBy": zod.string().nullish(),
+  "teamCount": zod.number().nullish(),
+  "isClanTournament": zod.boolean().nullish(),
   "createdAt": zod.string().optional()
 })
 

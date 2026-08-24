@@ -26,6 +26,8 @@ export const tournamentsTable = pgTable("tournaments", {
   groupCount: integer("group_count").notNull().default(4),
   qualifyCount: integer("qualify_count"),
   thirdPlaceMatch: boolean("third_place_match").notNull().default(false),
+  teamCount: integer("team_count"),
+  isClanTournament: boolean("is_clan_tournament").notNull().default(false),
   createdBy: integer("created_by"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
