@@ -22,6 +22,8 @@ export async function ensureMatchBracketSchema(): Promise<void> {
     `ALTER TABLE "matches" ADD COLUMN IF NOT EXISTS "parent_match2_id" integer;`,
     `ALTER TABLE "matches" ADD COLUMN IF NOT EXISTS "next_match_id" integer;`,
     `ALTER TABLE "matches" ADD COLUMN IF NOT EXISTS "next_slot" integer;`,
+    // Make tournament start_date nullable so active tournaments can be created without a date.
+    `ALTER TABLE "tournaments" ALTER COLUMN "start_date" DROP NOT NULL;`,
   ];
 
   try {
@@ -33,7 +35,7 @@ export async function ensureMatchBracketSchema(): Promise<void> {
     // Confirms the database actually connected to by the API has the bracket
     // columns and how many rows carry stable parent/next links.
     try {
-      const colsRes = await pool.query(
+      const matchColsRes = await pool.query(
         `SELECT column_name FROM information_schema.columns
          WHERE table_name = 'matches'
            AND column_name IN ('stage','parent_match1_id','parent_match2_id','next_match_id','next_slot')
@@ -45,13 +47,18 @@ export async function ensureMatchBracketSchema(): Promise<void> {
            count(*) FILTER (WHERE stage = 2 AND (parent_match1_id IS NOT NULL OR parent_match2_id IS NOT NULL OR next_match_id IS NOT NULL)) AS linked
          FROM matches`,
       );
-      const present = colsRes.rows.map((r: { column_name: string }) => r.column_name);
+      const tourneyColRes = await pool.query(
+        `SELECT is_nullable FROM information_schema.columns
+         WHERE table_name = 'tournaments' AND column_name = 'start_date'`,
+      );
+      const matchColumns = matchColsRes.rows.map((r: { column_name: string }) => r.column_name);
       const counts = countsRes.rows[0] ?? { stage2: 0, linked: 0 };
       logger.info(
         {
-          matchesColumns: present,
+          matchesColumns: matchColumns,
           stage2Rows: Number(counts.stage2 ?? 0),
           bracketLinkedRows: Number(counts.linked ?? 0),
+          tournamentStartDateNullable: tourneyColRes.rows[0]?.is_nullable === "YES",
         },
         "Matches bracket schema verified",
       );
