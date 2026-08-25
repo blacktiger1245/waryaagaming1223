@@ -249,7 +249,7 @@ function registerEntityRoutes(path: string, table: PgTable & { id: AnyColumn }) 
         // Propagate knockout winners on any match update (enter OR edit a stage-2
         // result), so QF -> SF -> Final slot changes are recomputed and persisted.
         await advanceKnockoutWinner(match);
-        if (match.status === "completed") {
+        if (match.status === "completed") { (async () => {
           // Skip player-stats sync for team-tournament matches:
           // participant1Id/participant2Id are *team* IDs there, not player IDs,
           // so running the sync would corrupt player rows whose IDs happen to
@@ -397,6 +397,7 @@ function registerEntityRoutes(path: string, table: PgTable & { id: AnyColumn }) 
               )
             );
           }
+        })().catch((err) => req.log.error({ err }, "Background player stats sync failed"));
         }
       }
 
@@ -1110,13 +1111,26 @@ function generateGroupKnockout(
     links.push({ index: i, parent1: nodes[i].parent1, parent2: nodes[i].parent2, next, nextSlot });
   }
 
-  const rows: Array<typeof matchesTable.$inferInsert> = nodes.map((n) => ({
-    tournamentId, round: n.round, roundName: n.name, stage: 2, status: "scheduled",
-    participant1Id: n.p1 ? n.p1.playerId || null : null,
-    participant1Name: n.p1 ? n.p1.name : null,
-    participant2Id: n.p2 ? n.p2.playerId || null : null,
-    participant2Name: n.p2 ? n.p2.name : null,
-  }));
+  const rows: Array<typeof matchesTable.$inferInsert> = nodes.map((n) => {
+    const isBye1 = !n.p1 || n.p1.playerId === 0 || n.p1.name === "BYE";
+    const isBye2 = !n.p2 || n.p2.playerId === 0 || n.p2.name === "BYE";
+    const row: typeof matchesTable.$inferInsert = {
+      tournamentId, round: n.round, roundName: n.name, stage: 2, status: "scheduled",
+      participant1Id: n.p1 ? n.p1.playerId || null : null,
+      participant1Name: n.p1 ? n.p1.name : null,
+      participant2Id: n.p2 ? n.p2.playerId || null : null,
+      participant2Name: n.p2 ? n.p2.name : null,
+    };
+    if (isBye1 !== isBye2) {
+      const winner = isBye1 ? n.p2 : n.p1;
+      row.status = "completed";
+      row.winnerId = winner ? winner.playerId || null : null;
+      row.winnerName = winner ? winner.name : null;
+      row.participant1Score = isBye1 ? 0 : 1;
+      row.participant2Score = isBye2 ? 0 : 1;
+    }
+    return row;
+  });
 
   if (thirdPlaceMatch) {
     links.push({ index: rows.length, parent1: null, parent2: null, next: null, nextSlot: null });
@@ -1318,22 +1332,27 @@ router.post("/admin/tournaments/:id/generate-matches", requireAdmin, async (req,
     toInsert = generateGroupStage(participants, tournamentId, safeGroupCount);
   }
 
-  const inserted = await db.insert(matchesTable).values(toInsert).returning();
-
-  // Persist stable bracket relationships so the SVG connectors and winner
-  // progression are database-driven rather than order-based.
-  if (links && links.length > 0) {
-    for (const l of links) {
-      const set: Partial<typeof matchesTable.$inferInsert> = {};
-      if (l.parent1 != null) set.parentMatch1Id = inserted[l.parent1].id;
-      if (l.parent2 != null) set.parentMatch2Id = inserted[l.parent2].id;
-      if (l.next != null) { set.nextMatchId = inserted[l.next].id; set.nextSlot = l.nextSlot ?? 1; }
-      if (Object.keys(set).length > 0) {
-        await db.update(matchesTable).set(set).where(eq(matchesTable.id, inserted[l.index].id));
+  let inserted: Array<typeof matchesTable.$inferSelect> = [];
+  await db.transaction(async (tx) => {
+    inserted = await tx.insert(matchesTable).values(toInsert).returning();
+    // Persist stable bracket relationships so the SVG connectors and winner
+    // progression are database-driven rather than order-based.
+    if (links && links.length > 0) {
+      for (const l of links) {
+        const set: Partial<typeof matchesTable.$inferInsert> = {};
+        if (l.parent1 != null) set.parentMatch1Id = inserted[l.parent1].id;
+        if (l.parent2 != null) set.parentMatch2Id = inserted[l.parent2].id;
+        if (l.next != null) { set.nextMatchId = inserted[l.next].id; set.nextSlot = l.nextSlot ?? 1; }
+        if (Object.keys(set).length > 0) {
+          await tx.update(matchesTable).set(set).where(eq(matchesTable.id, inserted[l.index].id));
+        }
       }
     }
-    // BYE matches are auto-completed during generation; immediately propagate
-    // their winners into the next-round slots so the bracket renders correctly.
+  });
+
+  // BYE matches are auto-completed during generation; immediately propagate
+  // their winners into the next-round slots so the bracket renders correctly.
+  if (links && links.length > 0) {
     await syncKnockoutProgression(tournamentId, 2);
   }
 

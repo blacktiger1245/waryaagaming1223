@@ -265,7 +265,7 @@ router.patch("/matches/:id", async (req, res) => {
 
   // Update rankings/statistics with the existing ranking system.
   if (match.status === "completed") {
-    await recomputePlayerStatsForCompletedMatch(match).catch((err: unknown) => {
+    recomputePlayerStatsForCompletedMatch(match).catch((err: unknown) => {
       req.log.error({ err }, "Player stats recompute failed after result save");
     });
   }

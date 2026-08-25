@@ -135,6 +135,18 @@ function MatchFormDialog({
     setForm((f) => ({ ...f, [k]: v }));
   }
 
+  function setScore(which: "participant1Score" | "participant2Score", value: number | null) {
+    setForm((f) => {
+      const next = { ...f, [which]: value } as Partial<Match>;
+      const s1 = which === "participant1Score" ? value : next.participant1Score;
+      const s2 = which === "participant2Score" ? value : next.participant2Score;
+      if (s1 != null && s2 != null && s1 !== s2) {
+        next.status = "completed";
+      }
+      return next;
+    });
+  }
+
   const { mutate, isPending } = useMutation({
     mutationFn: () =>
       isEdit
@@ -226,7 +238,7 @@ function MatchFormDialog({
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Score</label>
-                <Input type="number" value={form.participant1Score ?? ""} onChange={(e) => set("participant1Score", e.target.value === "" ? null : Number(e.target.value))} />
+                <Input type="number" value={form.participant1Score ?? ""} onChange={(e) => setScore("participant1Score", e.target.value === "" ? null : Number(e.target.value))} />
               </div>
             </div>
           </div>
@@ -240,7 +252,7 @@ function MatchFormDialog({
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Score</label>
-                <Input type="number" value={form.participant2Score ?? ""} onChange={(e) => set("participant2Score", e.target.value === "" ? null : Number(e.target.value))} />
+                <Input type="number" value={form.participant2Score ?? ""} onChange={(e) => setScore("participant2Score", e.target.value === "" ? null : Number(e.target.value))} />
               </div>
             </div>
           </div>
