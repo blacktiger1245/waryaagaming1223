@@ -769,12 +769,27 @@ export default function RankingsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {loadingPlayers
+                  {activePlayerLoading
                     ? Array.from({ length: 10 }).map((_, i) => (
                         <tr key={i} className="border-b border-border">
                           <td colSpan={9} className="px-4 py-3"><Skeleton className="h-5 w-full" /></td>
                         </tr>
                       ))
+                    : sortedPlayers.length === 0 ? (
+                        <tr className="border-b border-border last:border-0">
+                          <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
+                            {period === "seasonal"
+                              ? activeSeason
+                                ? `No completed matches found for ${activeSeason.name}.`
+                                : "Select a season to view seasonal rankings."
+                              : period === "weekly"
+                              ? "No completed matches this week."
+                              : period === "monthly"
+                              ? "No completed matches this month."
+                              : "No players ranked yet."}
+                          </td>
+                        </tr>
+                      )
                     : sortedPlayers.map((p, i) => {
                         const pp = p as any;
                         const displayRank = p.rank;

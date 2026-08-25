@@ -89,13 +89,15 @@ router.get("/rankings/players", async (req, res) => {
   // ── Seasonal: aggregate match stats for tournaments in this season ────────
   if (seasonId) {
     const seasonTournaments = await db
-      .select({ id: tournamentsTable.id })
+      .select({ id: tournamentsTable.id, tournamentType: tournamentsTable.tournamentType })
       .from(tournamentsTable)
       .where(eq(tournamentsTable.seasonId, seasonId));
 
-    const tournamentIds = seasonTournaments.map((t) => t.id);
+    const soloTournamentIds = seasonTournaments
+      .filter((t) => t.tournamentType !== "team")
+      .map((t) => t.id);
 
-    if (tournamentIds.length === 0) {
+    if (soloTournamentIds.length === 0) {
       return res.json([]);
     }
 
@@ -103,7 +105,7 @@ router.get("/rankings/players", async (req, res) => {
       .select()
       .from(matchesTable)
       .where(
-        sql`${matchesTable.tournamentId} = ANY(ARRAY[${sql.join(tournamentIds.map((id) => sql`${id}`), sql`, `)}]) AND ${matchesTable.status} = 'completed'`
+        sql`${matchesTable.tournamentId} = ANY(ARRAY[${sql.join(soloTournamentIds.map((id) => sql`${id}`), sql`, `)}]) AND ${matchesTable.status} = 'completed'`
       );
 
     // Aggregate per player
@@ -185,10 +187,25 @@ router.get("/rankings/players", async (req, res) => {
       .select()
       .from(matchesTable)
       .where(
-        sql`${matchesTable.status} = 'completed' AND ${matchesTable.createdAt} >= ${since}`,
+        sql`${matchesTable.status} = 'completed' AND ${matchesTable.resultSetAt} >= ${since}`,
       );
 
-    const statsMap = aggregateMatches(matches);
+    // Exclude team-format matches; their participant IDs are team IDs, not player IDs.
+    const soloMatches = matches.filter((m) => m.tournamentId != null);
+    const tournamentIds = [...new Set(soloMatches.map((m) => m.tournamentId))];
+    let soloTournamentIds = new Set<number>();
+    if (tournamentIds.length > 0) {
+      const tournRows = await db
+        .select({ id: tournamentsTable.id, tournamentType: tournamentsTable.tournamentType })
+        .from(tournamentsTable)
+        .where(inArray(tournamentsTable.id, tournamentIds));
+      soloTournamentIds = new Set(
+        tournRows.filter((r) => r.tournamentType !== "team").map((r) => r.id),
+      );
+    }
+    const filteredMatches = soloMatches.filter((m) => soloTournamentIds.has(m.tournamentId));
+
+    const statsMap = aggregateMatches(filteredMatches);
     if (statsMap.size === 0) return res.json([]);
 
     const playerIds = [...statsMap.keys()];
@@ -274,7 +291,7 @@ router.get("/rankings/teams", async (req, res) => {
       matches = await db
         .select()
         .from(matchesTable)
-        .where(sql`${matchesTable.status} = 'completed' AND ${matchesTable.createdAt} >= ${since}`);
+        .where(sql`${matchesTable.status} = 'completed' AND ${matchesTable.resultSetAt} >= ${since}`);
     }
 
     // Keep only team-format matches (their participant ids are team ids).
