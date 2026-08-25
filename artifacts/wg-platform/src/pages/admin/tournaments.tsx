@@ -521,6 +521,7 @@ function CreateTournamentDialog({
   const [thirdPlaceMatch, setThirdPlaceMatch] = useState(false);
   const [teamCount, setTeamCount] = useState<number | "">("");
   const [isClanTournament, setIsClanTournament] = useState(false);
+  const [status, setStatus] = useState<"upcoming" | "active">("upcoming");
   const [saving, setSaving] = useState(false);
 
   const { data: seasons = [] } = useQuery<Season[]>({
@@ -543,6 +544,7 @@ function CreateTournamentDialog({
     setQualifyCount(2);
     setTeamCount("");
     setIsClanTournament(false);
+    setStatus("upcoming");
     setSaving(false);
   }
 
@@ -607,7 +609,7 @@ function CreateTournamentDialog({
         method: "POST",
         body: JSON.stringify({
           name: name.trim(),
-          status: "upcoming",
+          status,
           startDate: startDate || new Date().toISOString().split("T")[0],
           prizePool: prizePool.trim() || "$0",
           hostedBy: hostedBy.trim() || undefined,
@@ -695,6 +697,29 @@ function CreateTournamentDialog({
                     ))}
                   </select>
                 )}
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <CalendarRange className="w-3.5 h-3.5" /> Tournament Status
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(["upcoming", "active"] as const).map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setStatus(v)}
+                      className={`py-2.5 rounded-lg text-sm font-bold capitalize transition-all border ${status === v ? "bg-primary/20 border-primary text-primary" : "border-border text-muted-foreground hover:border-border/80 hover:text-foreground"}`}
+                    >
+                      {v === "active" ? <Trophy className="w-4 h-4 inline-block mr-1.5 -mt-0.5" /> : <Calendar className="w-4 h-4 inline-block mr-1.5 -mt-0.5" />}
+                      {v} Tournament
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {status === "active"
+                    ? "The tournament is live now — matches can be played immediately."
+                    : "The tournament is scheduled — it will appear as upcoming until it is activated."}
+                </p>
               </div>
               <div className="space-y-3 pt-2">
                 <p className="text-sm font-bold text-foreground">Tournament Stages</p>
@@ -787,6 +812,7 @@ function CreateTournamentDialog({
                   <span className="text-muted-foreground">Name:</span> <span className="font-bold text-foreground">{name}</span>
                   <span className="text-muted-foreground">Teams:</span> <span className="font-bold text-foreground">{teamCount}</span>
                   <span className="text-muted-foreground">Stage:</span> <span className="font-bold text-foreground">{STAGE_OPTIONS.find(s => s.value === stage)?.title}</span>
+                  <span className="text-muted-foreground">Status:</span> <span className="font-bold text-foreground capitalize">{status}</span>
                   <span className="text-muted-foreground">Clan:</span> <span className="font-bold text-foreground">{isClanTournament ? "Yes" : "No"}</span>
                 </div>
               </div>
