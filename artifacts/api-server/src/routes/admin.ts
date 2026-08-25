@@ -226,6 +226,7 @@ function registerEntityRoutes(path: string, table: PgTable & { id: AnyColumn }) 
       if (typeof body.scheduledAt === "string") body.scheduledAt = body.scheduledAt ? new Date(body.scheduledAt) : null;
       if (typeof body.createdAt === "string") body.createdAt = new Date(body.createdAt);
       if (typeof body.updatedAt === "string") body.updatedAt = new Date(body.updatedAt);
+      if (body.startDate === "" || body.startDate === null) body.startDate = null;
 
       // ── Auto-compute winner from scores / winnerName for match updates ────
       if (path === "matches") {
@@ -234,10 +235,26 @@ function registerEntityRoutes(path: string, table: PgTable & { id: AnyColumn }) 
           const computed = computeWinnerFromResult(existing, body);
           if (computed.winnerId !== undefined) body.winnerId = computed.winnerId;
           if (computed.winnerName !== undefined) body.winnerName = computed.winnerName;
+          if (computed.winnerId != null && body.status == null) body.status = "completed";
         }
       }
 
-      const rows = await db.update(table).set(body).where(eq(table.id, id)).returning();
+      if (Object.keys(body).length === 0) {
+        res.status(400).json({ error: "No fields to update" });
+        return;
+      }
+
+      // Filter undefined values to avoid Drizzle's "No values to set" error.
+      const definedBody: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(body)) {
+        if (v !== undefined) definedBody[k] = v;
+      }
+      if (Object.keys(definedBody).length === 0) {
+        res.status(400).json({ error: "No fields to update" });
+        return;
+      }
+
+      const rows = await db.update(table).set(definedBody).where(eq(table.id, id)).returning();
       if (!rows[0]) {
         res.status(404).json({ error: "Not found" });
         return;
@@ -459,6 +476,113 @@ function registerEntityRoutes(path: string, table: PgTable & { id: AnyColumn }) 
   });
 }
 
+// â”€â”€ Background player stats sync after a completed match (solo tournaments only)
+async function syncPlayerStatsAfterCompletedMatch(match: typeof matchesTable.$inferSelect, log: { error: (obj: unknown, msg: string) => void }) {
+  const [tournament] = match.tournamentId
+    ? await db.select({ tournamentType: tournamentsTable.tournamentType }).from(tournamentsTable).where(eq(tournamentsTable.id, match.tournamentId))
+    : [null];
+  if (tournament?.tournamentType === "team") return;
+
+  const playerIds = [match.participant1Id, match.participant2Id].filter((x): x is number => x != null);
+  if (playerIds.length === 0) return;
+
+  const completedMatches = await db
+    .select({
+      participant1Id: matchesTable.participant1Id,
+      participant2Id: matchesTable.participant2Id,
+      participant1Score: matchesTable.participant1Score,
+      participant2Score: matchesTable.participant2Score,
+      winnerId: matchesTable.winnerId,
+      manOfTheMatchId: matchesTable.manOfTheMatchId,
+      participant1YellowCards: matchesTable.participant1YellowCards,
+      participant1RedCards: matchesTable.participant1RedCards,
+      participant2YellowCards: matchesTable.participant2YellowCards,
+      participant2RedCards: matchesTable.participant2RedCards,
+    })
+    .from(matchesTable)
+    .where(eq(matchesTable.status, "completed"));
+
+  for (const playerId of playerIds) {
+    let matchesPlayed = 0;
+    let matchesWon = 0;
+    let cleanSheets = 0;
+    let goalsScored = 0;
+    let goalsConceded = 0;
+    let draws = 0;
+    let manOfTheMatch = 0;
+    let yellowCards = 0;
+    let redCards = 0;
+
+    for (const m of completedMatches) {
+      const asP1 = m.participant1Id === playerId;
+      const asP2 = m.participant2Id === playerId;
+      if (!asP1 && !asP2) continue;
+
+      matchesPlayed++;
+      const myScore  = asP1 ? (m.participant1Score ?? 0) : (m.participant2Score ?? 0);
+      const oppScore = asP1 ? (m.participant2Score ?? 0) : (m.participant1Score ?? 0);
+
+      goalsScored   += myScore;
+      goalsConceded += oppScore;
+      if (oppScore === 0) cleanSheets++;
+
+      if (m.manOfTheMatchId != null) {
+        if ((asP1 && m.manOfTheMatchId === m.participant1Id) ||
+            (asP2 && m.manOfTheMatchId === m.participant2Id)) {
+          manOfTheMatch++;
+        }
+      }
+
+      if (asP1) {
+        yellowCards += m.participant1YellowCards ?? 0;
+        redCards    += m.participant1RedCards    ?? 0;
+      } else {
+        yellowCards += m.participant2YellowCards ?? 0;
+        redCards    += m.participant2RedCards    ?? 0;
+      }
+
+      if (myScore === oppScore) { draws++; continue; }
+
+      const s1 = m.participant1Score ?? 0;
+      const s2 = m.participant2Score ?? 0;
+      const winnerPlayerId = m.winnerId != null
+        ? m.winnerId
+        : s1 > s2 ? m.participant1Id
+        : s2 > s1 ? m.participant2Id
+        : null;
+      if (winnerPlayerId === playerId) matchesWon++;
+    }
+
+    const [player] = await db.select({ tournamentWins: playersTable.tournamentWins }).from(playersTable).where(eq(playersTable.id, playerId));
+    const tournamentWins = player?.tournamentWins ?? 0;
+
+    const matchesLost = matchesPlayed - matchesWon;
+    const winRate = matchesWon * 0.4;
+    const lossRate = matchesLost * 0.4;
+    const points = playerPoints({ appearances: matchesPlayed, wins: matchesWon, cleanSheets, goals: goalsScored, motm: manOfTheMatch, draws });
+    const marketValue = pointsToMarketValue(points);
+
+    await db.update(playersTable).set({
+      points, marketValue, matchesPlayed, matchesWon, matchesLost, winRate, lossRate,
+      cleanSheets, goalsScored, goalsConceded, draws, manOfTheMatch, yellowCards, redCards, tournamentWins,
+    }).where(eq(playersTable.id, playerId));
+  }
+
+  const allPlayers = await db
+    .select({ id: playersTable.id, points: playersTable.points, rank: playersTable.rank })
+    .from(playersTable)
+    .orderBy(desc(playersTable.points));
+
+  await Promise.all(
+    allPlayers.map((p, i) =>
+      db.update(playersTable).set({
+        previousRank: p.rank > 0 && p.rank < 9999 ? p.rank : i + 1,
+        rank: i + 1,
+      }).where(eq(playersTable.id, p.id))
+    )
+  );
+}
+
 registerEntityRoutes("players", playersTable);
 
 // ── Override generic team DELETE — also clears all members ───────────────────
@@ -630,7 +754,7 @@ router.post("/admin/tournaments", requireAdmin, async (req, res) => {
       game: String(game ?? "eFootball"),
       maxParticipants: String(tournamentType) === "team" ? 9999 : Number(maxParticipants ?? 16),
       prizePool: String(prizePool ?? "$0"),
-      startDate: String(startDate ?? new Date().toISOString().split("T")[0]),
+      startDate: startDate ? String(startDate) : undefined,
       endDate: endDate ? String(endDate) : undefined,
       rules: rules ? String(rules) : undefined,
       streamUrl: streamUrl ? String(streamUrl) : undefined,
@@ -754,6 +878,109 @@ router.delete("/admin/categories/:id", requireAdmin, async (req, res) => {
 });
 
 registerEntityRoutes("tournaments", tournamentsTable);
+
+// â”€â”€ Dedicated admin match update â€” bypasses the generic CRUD route so we can
+// safely sanitize the payload, auto-compute the winner, and propagate knockout
+// advancement without risking an empty `.set()` call from unrelated fields.
+router.patch("/admin/matches/:id", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (Number.isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+
+  const raw = req.body as Record<string, unknown>;
+  const allowed = new Set([
+    "participant1Score",
+    "participant2Score",
+    "participant1Id",
+    "participant2Id",
+    "participant1Name",
+    "participant2Name",
+    "winnerId",
+    "winnerName",
+    "status",
+    "scheduledAt",
+    "streamUrl",
+    "manOfTheMatchId",
+    "manOfTheMatchName",
+    "round",
+    "roundName",
+    "assignedRefereeId",
+    "participant1YellowCards",
+    "participant1RedCards",
+    "participant2YellowCards",
+    "participant2RedCards",
+  ]);
+
+  const body: Record<string, unknown> = {};
+  for (const key of allowed) {
+    if (key in raw && raw[key] !== undefined) body[key] = raw[key];
+  }
+
+  // Score validation
+  if (body.participant1Score !== undefined) {
+    const v = Number(body.participant1Score);
+    if (!Number.isInteger(v) || v < 0) {
+      return res.status(400).json({ error: "Player 1 score must be a whole, non-negative number" });
+    }
+    body.participant1Score = v;
+  }
+  if (body.participant2Score !== undefined) {
+    const v = Number(body.participant2Score);
+    if (!Number.isInteger(v) || v < 0) {
+      return res.status(400).json({ error: "Player 2 score must be a whole, non-negative number" });
+    }
+    body.participant2Score = v;
+  }
+
+  if (typeof body.scheduledAt === "string") {
+    body.scheduledAt = body.scheduledAt ? new Date(body.scheduledAt) : null;
+  }
+
+  const [existing] = await db.select().from(matchesTable).where(eq(matchesTable.id, id));
+  if (!existing) return res.status(404).json({ error: "Match not found" });
+
+  // Auto-compute winner from scores if not explicitly provided.
+  const computed = computeWinnerFromResult(existing, body);
+  if (computed.winnerId !== undefined) body.winnerId = computed.winnerId;
+  if (computed.winnerName !== undefined) body.winnerName = computed.winnerName;
+
+  // If a winner was just determined and the match isn't explicitly marked as
+  // another status, mark it completed so knockout advancement can run.
+  if (computed.winnerId != null && body.status == null) {
+    body.status = "completed";
+  }
+
+  if (Object.keys(body).length === 0) {
+    return res.status(400).json({ error: "No fields to update" });
+  }
+
+  body.resultSetBy = req.session.userId ?? null;
+  body.resultSetAt = new Date();
+
+  const [match] = await db
+    .update(matchesTable)
+    .set(body as Parameters<ReturnType<typeof db.update>["set"]>[0])
+    .where(eq(matchesTable.id, id))
+    .returning();
+
+  if (!match) return res.status(404).json({ error: "Match not found" });
+
+  await advanceKnockoutWinner(match);
+
+  // Player stats sync in background (do not block the response).
+  if (match.status === "completed") {
+    syncPlayerStatsAfterCompletedMatch(match, req.log).catch((err) =>
+      req.log.error({ err }, "Background player stats sync failed")
+    );
+  }
+
+  return res.json({
+    ...match,
+    tournamentName: null,
+    createdAt: match.createdAt.toISOString(),
+    resultSetAt: match.resultSetAt ? match.resultSetAt.toISOString() : null,
+  });
+});
+
 registerEntityRoutes("matches", matchesTable);
 registerEntityRoutes("news", newsTable);
 registerEntityRoutes("media", mediaTable);
@@ -953,54 +1180,113 @@ function bracketSeedOrder(n: number): number[] {
 }
 
 // Generate a knockout bracket seeded by ranking (ranked[0] = seed 1, …).
+// Returns rows plus parent/next links so winner progression is database-driven.
 function generateSeededKnockout(
   ranked: Participant[],
   tournamentId: number,
   startRound: number,
   thirdPlaceMatch: boolean,
-) {
+): {
+  rows: Array<typeof matchesTable.$inferInsert>;
+  links: Array<{ index: number; parent1: number | null; parent2: number | null; next: number | null; nextSlot: number | null }>;
+} {
   const n = ranked.length;
   const bracket = nextPow2(n);
   const order = bracketSeedOrder(bracket);
-  const matches: Array<typeof matchesTable.$inferInsert> = [];
-  let round = startRound;
-  let slots = bracket;
 
-  // First round — consecutive pairing of the bracket seed order (1v8, 4v5, 2v7, 3v6).
-  for (let i = 0; i < slots; i += 2) {
+  interface Node {
+    round: number;
+    name: string;
+    p1: Participant | null;
+    p2: Participant | null;
+    parent1: number | null;
+    parent2: number | null;
+  }
+  type Entrant = { kind: "match"; idx: number } | { kind: "team"; p: Participant | null };
+
+  const nodes: Node[] = [];
+  const entrants: Entrant[] = [];
+  let round = startRound;
+
+  // First round — consecutive pairing of the bracket seed order.
+  for (let i = 0; i < bracket; i += 2) {
     const seedA = order[i];
     const seedB = order[i + 1];
     const p1 = seedA <= n ? ranked[seedA - 1] : { id: 0, playerId: 0, name: "BYE" };
     const p2 = seedB <= n ? ranked[seedB - 1] : { id: 0, playerId: 0, name: "BYE" };
-    matches.push({
-      tournamentId,
-      round,
-      roundName: eliminationRoundName(slots),
-      status: "scheduled",
-      participant1Id: p1.playerId || null,
-      participant1Name: p1.name,
-      participant2Id: p2.playerId || null,
-      participant2Name: p2.name,
-    });
+    const isBye1 = !p1 || p1.playerId === 0 || p1.name === "BYE";
+    const isBye2 = !p2 || p2.playerId === 0 || p2.name === "BYE";
+
+    if (!isBye1 && !isBye2) {
+      nodes.push({ round, name: eliminationRoundName(bracket), p1, p2, parent1: null, parent2: null });
+      entrants.push({ kind: "match", idx: nodes.length - 1 });
+    } else if (isBye1 && isBye2) {
+      entrants.push({ kind: "team", p: null }); // double BYE -> empty slot
+    } else {
+      entrants.push({ kind: "team", p: isBye1 ? p2 : p1 });
+    }
   }
 
-  // Subsequent rounds — TBD placeholders.
-  slots /= 2;
-  round++;
-  while (slots >= 1) {
-    for (let i = 0; i < Math.max(1, slots / 2); i++) {
-      matches.push({ tournamentId, round, roundName: eliminationRoundName(slots), status: "scheduled" });
-    }
-    if (slots === 1) break;
-    slots /= 2;
+  // Subsequent rounds.
+  let cur = entrants;
+  while (cur.length > 1) {
     round++;
+    const rName = eliminationRoundName(cur.length);
+    const nextEntrants: Entrant[] = [];
+    for (let i = 0; i < cur.length; i += 2) {
+      const left = cur[i];
+      const right = cur[i + 1];
+      const p1 = left.kind === "team" ? left.p : null;
+      const p2 = right.kind === "team" ? right.p : null;
+      const parent1 = left.kind === "match" ? left.idx : null;
+      const parent2 = right.kind === "match" ? right.idx : null;
+      nodes.push({ round, name: rName, p1, p2, parent1, parent2 });
+      nextEntrants.push({ kind: "match", idx: nodes.length - 1 });
+    }
+    cur = nextEntrants;
   }
+
+  const links = nodes.map((n, i) => {
+    let next: number | null = null;
+    let nextSlot: number | null = null;
+    for (let j = 0; j < nodes.length; j++) {
+      if (nodes[j].parent1 === i) { next = j; nextSlot = 1; break; }
+      if (nodes[j].parent2 === i) { next = j; nextSlot = 2; break; }
+    }
+    return { index: i, parent1: n.parent1, parent2: n.parent2, next, nextSlot };
+  });
+
+  const rows: Array<typeof matchesTable.$inferInsert> = nodes.map((n) => {
+    const isBye1 = !n.p1 || n.p1.playerId === 0 || n.p1.name === "BYE";
+    const isBye2 = !n.p2 || n.p2.playerId === 0 || n.p2.name === "BYE";
+    const row: typeof matchesTable.$inferInsert = {
+      tournamentId,
+      round: n.round,
+      roundName: n.name,
+      stage: 2,
+      status: "scheduled",
+      participant1Id: n.p1 ? n.p1.playerId || null : null,
+      participant1Name: n.p1 ? n.p1.name : null,
+      participant2Id: n.p2 ? n.p2.playerId || null : null,
+      participant2Name: n.p2 ? n.p2.name : null,
+    };
+    if (isBye1 !== isBye2) {
+      const winner = isBye1 ? n.p2 : n.p1;
+      row.status = "completed";
+      row.winnerId = winner ? winner.playerId || null : null;
+      row.winnerName = winner ? winner.name : null;
+      row.participant1Score = isBye1 ? 0 : 1;
+      row.participant2Score = isBye2 ? 0 : 1;
+    }
+    return row;
+  });
 
   if (thirdPlaceMatch) {
-    matches.push({ tournamentId, round: round + 1, roundName: "Third Place", status: "scheduled" });
+    links.push({ index: rows.length, parent1: null, parent2: null, next: null, nextSlot: null });
+    rows.push({ tournamentId, round: round + 1, roundName: "Third Place", stage: 2, status: "scheduled" });
   }
 
-  return matches;
+  return { rows, links };
 }
 
 // Generate a safe, deterministic knockout bracket from group-stage
@@ -1514,9 +1800,27 @@ router.post("/admin/tournaments/:id/generate-knockout", requireAdmin, async (req
       .limit(1);
     const startRound = (maxRrRoundRow?.r ?? 0) + 1;
 
-    const toInsert = generateSeededKnockout(qualified, tournamentId, startRound, Boolean(tournament.thirdPlaceMatch))
-      .map((m) => ({ ...m, stage: 2 }));
-    const inserted = await db.insert(matchesTable).values(toInsert).returning();
+    const { rows: koRows, links: koLinks } = generateSeededKnockout(
+      qualified,
+      tournamentId,
+      startRound,
+      Boolean(tournament.thirdPlaceMatch),
+    );
+    const toInsert = koRows.map((m) => ({ ...m, stage: 2 }));
+
+    let inserted: Array<typeof matchesTable.$inferSelect> = [];
+    await db.transaction(async (tx) => {
+      inserted = await tx.insert(matchesTable).values(toInsert).returning();
+      for (const l of koLinks) {
+        const set: Partial<typeof matchesTable.$inferInsert> = {};
+        if (l.parent1 != null) set.parentMatch1Id = inserted[l.parent1].id;
+        if (l.parent2 != null) set.parentMatch2Id = inserted[l.parent2].id;
+        if (l.next != null) { set.nextMatchId = inserted[l.next].id; set.nextSlot = l.nextSlot ?? 1; }
+        if (Object.keys(set).length > 0) {
+          await tx.update(matchesTable).set(set).where(eq(matchesTable.id, inserted[l.index].id));
+        }
+      }
+    });
 
     return res.json({
       generated: inserted.length,

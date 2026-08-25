@@ -12,7 +12,7 @@ export const tournamentsTable = pgTable("tournaments", {
   maxParticipants: integer("max_participants").notNull().default(16),
   currentParticipants: integer("current_participants").notNull().default(0),
   prizePool: text("prize_pool").notNull().default("$0"),
-  startDate: text("start_date").notNull(),
+  startDate: text("start_date"),
   endDate: text("end_date"),
   rules: text("rules"),
   streamUrl: text("stream_url"),

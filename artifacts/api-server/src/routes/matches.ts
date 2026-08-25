@@ -247,14 +247,33 @@ router.patch("/matches/:id", async (req, res) => {
   if (computed.winnerId !== undefined) data.winnerId = computed.winnerId;
   if (computed.winnerName !== undefined) data.winnerName = computed.winnerName;
 
+  // If a winner was determined, mark the match completed unless another status
+  // was explicitly supplied.
+  if (computed.winnerId != null && data.status == null) {
+    data.status = "completed";
+  }
+
   const updateData: Record<string, unknown> = {
     ...data,
     ...(hasResult ? { resultSetBy: req.session?.userId ?? null, resultSetAt: new Date() } : {}),
   };
 
+  if (Object.keys(updateData).length === 0) {
+    return res.status(400).json({ error: "No fields to update" });
+  }
+
+  // Filter undefined values so Drizzle never receives an empty set object.
+  const definedUpdate: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(updateData)) {
+    if (v !== undefined) definedUpdate[k] = v;
+  }
+  if (Object.keys(definedUpdate).length === 0) {
+    return res.status(400).json({ error: "No fields to update" });
+  }
+
   const [match] = await db
     .update(matchesTable)
-    .set(updateData as Parameters<ReturnType<typeof db.update>["set"]>[0])
+    .set(definedUpdate as Parameters<ReturnType<typeof db.update>["set"]>[0])
     .where(eq(matchesTable.id, params.data.id))
     .returning();
 

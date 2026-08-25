@@ -614,7 +614,7 @@ function CreateTournamentDialog({
         body: JSON.stringify({
           name: name.trim(),
           status,
-          startDate: status === "upcoming" ? startDate : new Date().toISOString().split("T")[0],
+          ...(status === "upcoming" ? { startDate } : {}),
           prizePool: prizePool.trim() || "$0",
           hostedBy: hostedBy.trim() || undefined,
           logoUrl,
@@ -1086,7 +1086,7 @@ export default function AdminTournamentsPage() {
           { name: "name", label: "Name", required: true },
           { name: "description", label: "Description", type: "textarea" },
           { name: "status", label: "Status (upcoming/active/completed)" },
-          { name: "startDate", label: "Start Date", required: true },
+          { name: "startDate", label: "Start Date" },
           { name: "endDate", label: "End Date" },
           { name: "prizePool", label: "Prize Pool" },
           { name: "hostedBy", label: "Hosted By" },

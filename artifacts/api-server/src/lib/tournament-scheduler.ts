@@ -1,6 +1,6 @@
 import { db } from "@workspace/db";
 import { tournamentsTable } from "@workspace/db";
-import { eq, and, lte } from "drizzle-orm";
+import { eq, and, lte, isNotNull } from "drizzle-orm";
 import { logger } from "./logger";
 
 /**
@@ -19,6 +19,7 @@ export async function activateUpcomingTournaments(): Promise<number> {
     .where(
       and(
         eq(tournamentsTable.status, "upcoming"),
+        isNotNull(tournamentsTable.startDate),
         lte(tournamentsTable.startDate, todayText),
       ),
     )

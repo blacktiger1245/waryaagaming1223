@@ -394,7 +394,7 @@ export const CreateTournamentBody = zod.object({
   "game": zod.string().optional(),
   "maxParticipants": zod.number(),
   "prizePool": zod.string(),
-  "startDate": zod.string(),
+  "startDate": zod.string().optional(),
   "rules": zod.string().optional(),
   "streamUrl": zod.string().optional(),
   "teamCount": zod.number().optional(),

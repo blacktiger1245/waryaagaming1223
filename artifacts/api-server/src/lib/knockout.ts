@@ -1,6 +1,7 @@
 import { db } from "@workspace/db";
 import { matchesTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
+import { logger } from "./logger";
 
 export function isKnockoutRoundName(name: string | null | undefined): boolean {
   if (!name) return false;
@@ -50,62 +51,81 @@ export function computeWinnerFromResult(
   return {};
 }
 
+function safeUpdate(id: number, set: Record<string, unknown>) {
+  const entries = Object.entries(set).filter(([, v]) => v !== undefined);
+  if (entries.length === 0) return Promise.resolve();
+  return db.update(matchesTable).set(Object.fromEntries(entries) as Parameters<ReturnType<typeof db.update>["set"]>[0]).where(eq(matchesTable.id, id));
+}
+
 export async function syncKnockoutProgression(tournamentId: number, stage = 2) {
-  const allRows = await db
-    .select()
-    .from(matchesTable)
-    .where(eq(matchesTable.tournamentId, tournamentId));
-  if (allRows.length === 0) return;
+  try {
+    const allRows = await db
+      .select()
+      .from(matchesTable)
+      .where(eq(matchesTable.tournamentId, tournamentId));
+    if (allRows.length === 0) return;
 
-  const koRows = allRows.filter(
-    (m) => m.stage === stage || isKnockoutRoundName(m.roundName),
-  );
-  const byId = new Map(allRows.map((m) => [m.id, m]));
+    const koRows = allRows.filter(
+      (m) => m.stage === stage || isKnockoutRoundName(m.roundName),
+    );
+    const byId = new Map(allRows.map((m) => [m.id, m]));
 
-  for (const m of koRows) {
-    const a = m.parentMatch1Id != null ? resolveMatchWinner(byId.get(m.parentMatch1Id) ?? null) : null;
-    const b = m.parentMatch2Id != null ? resolveMatchWinner(byId.get(m.parentMatch2Id) ?? null) : null;
+    logger.info({ tournamentId, koMatchCount: koRows.length }, "syncKnockoutProgression started");
 
-    const set: Partial<typeof matchesTable.$inferInsert> = {};
-    if (m.parentMatch1Id != null) {
-      set.participant1Id = a ? a.id : null;
-      set.participant1Name = a ? a.name : null;
-    }
-    if (m.parentMatch2Id != null) {
-      set.participant2Id = b ? b.id : null;
-      set.participant2Name = b ? b.name : null;
-    }
-    const changed =
-      (set.participant1Id ?? null) !== (m.participant1Id ?? null) ||
-      (set.participant2Id ?? null) !== (m.participant2Id ?? null);
-    if (changed) {
-      await db.update(matchesTable).set(set).where(eq(matchesTable.id, m.id));
+    for (const m of koRows) {
+      const a = m.parentMatch1Id != null ? resolveMatchWinner(byId.get(m.parentMatch1Id) ?? null) : null;
+      const b = m.parentMatch2Id != null ? resolveMatchWinner(byId.get(m.parentMatch2Id) ?? null) : null;
+
+      const set: Partial<typeof matchesTable.$inferInsert> = {};
+      if (m.parentMatch1Id != null) {
+        set.participant1Id = a ? a.id : null;
+        set.participant1Name = a ? a.name : null;
+      }
+      if (m.parentMatch2Id != null) {
+        set.participant2Id = b ? b.id : null;
+        set.participant2Name = b ? b.name : null;
+      }
+      if (Object.keys(set).length === 0) continue;
+
+      const changed =
+        (set.participant1Id ?? null) !== (m.participant1Id ?? null) ||
+        (set.participant1Name ?? null) !== (m.participant1Name ?? null) ||
+        (set.participant2Id ?? null) !== (m.participant2Id ?? null) ||
+        (set.participant2Name ?? null) !== (m.participant2Name ?? null);
+      if (!changed) continue;
+
+      logger.info({ matchId: m.id, set }, "syncKnockoutProgression updating match slot");
+      await safeUpdate(m.id, set as Record<string, unknown>);
       m.participant1Id = set.participant1Id ?? null;
       m.participant1Name = set.participant1Name ?? null;
       m.participant2Id = set.participant2Id ?? null;
       m.participant2Name = set.participant2Name ?? null;
     }
-  }
 
-  for (const m of koRows) {
-    for (const child of koRows) {
-      if (child.parentMatch1Id === m.id) {
-        if (child.nextMatchId !== m.id || child.nextSlot !== 1) {
-          await db
-            .update(matchesTable)
-            .set({ nextMatchId: m.id, nextSlot: 1 })
-            .where(eq(matchesTable.id, child.id));
+    // 2. Rebuild next_match_id / next_slot from parent relationships.
+    for (const parent of koRows) {
+      for (const child of koRows) {
+        if (child.parentMatch1Id === parent.id) {
+          if (parent.nextMatchId !== child.id || parent.nextSlot !== 1) {
+            logger.info({ parentId: parent.id, childId: child.id, slot: 1 }, "syncKnockoutProgression linking parent to child");
+            await safeUpdate(parent.id, { nextMatchId: child.id, nextSlot: 1 });
+            parent.nextMatchId = child.id;
+            parent.nextSlot = 1;
+          }
         }
-      }
-      if (child.parentMatch2Id === m.id) {
-        if (child.nextMatchId !== m.id || child.nextSlot !== 2) {
-          await db
-            .update(matchesTable)
-            .set({ nextMatchId: m.id, nextSlot: 2 })
-            .where(eq(matchesTable.id, child.id));
+        if (child.parentMatch2Id === parent.id) {
+          if (parent.nextMatchId !== child.id || parent.nextSlot !== 2) {
+            logger.info({ parentId: parent.id, childId: child.id, slot: 2 }, "syncKnockoutProgression linking parent to child");
+            await safeUpdate(parent.id, { nextMatchId: child.id, nextSlot: 2 });
+            parent.nextMatchId = child.id;
+            parent.nextSlot = 2;
+          }
         }
       }
     }
+  } catch (err) {
+    logger.error({ err, tournamentId }, "syncKnockoutProgression failed");
+    throw err;
   }
 }
 
@@ -114,7 +134,12 @@ export async function advanceKnockoutWinner(match: typeof matchesTable.$inferSel
     (match.stage ?? 1) === 2 ||
     match.nextMatchId != null ||
     isKnockoutRoundName(match.roundName);
-  if (!isKnockout) return;
+  if (!isKnockout) {
+    logger.debug({ matchId: match.id }, "advanceKnockoutWinner skipped: not a knockout match");
+    return;
+  }
+
+  logger.info({ matchId: match.id, roundName: match.roundName, status: match.status }, "advanceKnockoutWinner started");
 
   // 1. Recompute the whole bracket from parent links. This also rebuilds any
   //    missing next_match_id / next_slot links and fixes stale slots when a
@@ -128,16 +153,52 @@ export async function advanceKnockoutWinner(match: typeof matchesTable.$inferSel
     .select()
     .from(matchesTable)
     .where(eq(matchesTable.id, match.id));
-  if (!fresh) return;
+  if (!fresh) {
+    logger.warn({ matchId: match.id }, "advanceKnockoutWinner: match disappeared after sync");
+    return;
+  }
 
-  if (fresh.status === "completed" && fresh.nextMatchId && fresh.nextSlot) {
-    const winner = resolveMatchWinner(fresh);
-    if (winner && winner.id > 0) {
-      const set: Partial<typeof matchesTable.$inferInsert> =
-        fresh.nextSlot === 2
-          ? { participant2Id: winner.id, participant2Name: winner.name }
-          : { participant1Id: winner.id, participant1Name: winner.name };
-      await db.update(matchesTable).set(set).where(eq(matchesTable.id, fresh.nextMatchId));
-    }
+  const winner = resolveMatchWinner(fresh);
+  if (!winner || winner.id <= 0) {
+    logger.info(
+      { matchId: match.id, status: fresh.status, scores: [fresh.participant1Score, fresh.participant2Score] },
+      "advanceKnockoutWinner: no winner to advance",
+    );
+    return;
+  }
+
+  if (fresh.nextMatchId == null || fresh.nextSlot == null) {
+    logger.info(
+      { matchId: match.id, nextMatchId: fresh.nextMatchId, nextSlot: fresh.nextSlot },
+      "advanceKnockoutWinner: no next match (final or orphaned)",
+    );
+    return;
+  }
+
+  // If the downstream slot currently holds a different winner, clear it first
+  // so a previous edit doesn't leave a stale player in the bracket.
+  const [nextMatch] = await db
+    .select()
+    .from(matchesTable)
+    .where(eq(matchesTable.id, fresh.nextMatchId));
+  if (!nextMatch) {
+    logger.warn({ matchId: match.id, nextMatchId: fresh.nextMatchId }, "advanceKnockoutWinner: next match not found");
+    return;
+  }
+
+  const slotKey = fresh.nextSlot === 2 ? "participant2Id" : "participant1Id";
+  const nameKey = fresh.nextSlot === 2 ? "participant2Name" : "participant1Name";
+
+  if ((nextMatch[slotKey] ?? null) !== winner.id) {
+    await safeUpdate(nextMatch.id, { [slotKey]: winner.id, [nameKey]: winner.name });
+    logger.info(
+      { matchId: match.id, nextMatchId: nextMatch.id, slot: fresh.nextSlot, winnerId: winner.id, winnerName: winner.name },
+      "advanceKnockoutWinner: advanced winner",
+    );
+  } else {
+    logger.info(
+      { matchId: match.id, nextMatchId: nextMatch.id, slot: fresh.nextSlot, winnerId: winner.id },
+      "advanceKnockoutWinner: slot already correct",
+    );
   }
 }

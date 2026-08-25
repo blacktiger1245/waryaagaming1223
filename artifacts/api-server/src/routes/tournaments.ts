@@ -8,7 +8,7 @@ import {
   teamsTable,
   tournamentAdminsTable,
 } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import {
   ListTournamentsQueryParams,
   CreateTournamentBody,
@@ -30,7 +30,7 @@ router.get("/tournaments", async (req, res) => {
     .select()
     .from(tournamentsTable)
     .where(status ? eq(tournamentsTable.status, status) : undefined)
-    .orderBy(tournamentsTable.startDate);
+    .orderBy(sql`COALESCE(${tournamentsTable.startDate}, '9999-12-31')`, tournamentsTable.createdAt);
 
   return res.json(tournaments.map((t) => ({ ...t, createdAt: t.createdAt.toISOString() })));
 });
@@ -45,8 +45,14 @@ router.post("/tournaments", async (req, res) => {
   const body = CreateTournamentBody.safeParse(req.body);
   if (!body.success) return res.status(400).json({ error: "Invalid body" });
 
+  const status = (req.body as { status?: string }).status ?? "upcoming";
+  if (status === "upcoming" && !body.data.startDate) {
+    return res.status(400).json({ error: "startDate is required for upcoming tournaments" });
+  }
+
   const [tournament] = await db.insert(tournamentsTable).values({
     ...body.data,
+    status,
     teamCount: body.data.teamCount ?? undefined,
     isClanTournament: body.data.isClanTournament ?? false,
     createdBy: req.session.userId,
