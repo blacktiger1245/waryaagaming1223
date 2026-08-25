@@ -1378,14 +1378,32 @@ router.post("/admin/tournaments/:id/generate-knockout", requireAdmin, async (req
     const groupCount = tournament.groupCount ?? 4;
     const qualifyPerGroup = tournament.qualifyCount ?? 2;
 
-    // Idempotency: if any Stage 2 Knock-out match already exists, do NOT regenerate.
-    const [existingKo] = await db
-      .select({ id: matchesTable.id })
+    // Idempotency: if any Stage 2 Knock-out match exists with the stable bracket
+    // relationships populated, do NOT regenerate. If the existing Stage-2 rows
+    // are stale (created by older code that never stored parent/next links),
+    // clear them and rebuild a correct bracket — otherwise the bracket would be
+    // permanently broken and winners could never advance.
+    const existingKo = await db
+      .select({
+        id: matchesTable.id,
+        parentMatch1Id: matchesTable.parentMatch1Id,
+        parentMatch2Id: matchesTable.parentMatch2Id,
+        nextMatchId: matchesTable.nextMatchId,
+      })
       .from(matchesTable)
-      .where(and(eq(matchesTable.tournamentId, tournamentId), eq(matchesTable.stage, 2)))
-      .limit(1);
-    if (existingKo) {
-      return res.json({ generated: 0, alreadyGenerated: true, message: "The Knock-out stage has already been generated." });
+      .where(and(eq(matchesTable.tournamentId, tournamentId), eq(matchesTable.stage, 2)));
+    if (existingKo.length > 0) {
+      const linked = existingKo.some(
+        (r) => r.parentMatch1Id != null || r.parentMatch2Id != null || r.nextMatchId != null,
+      );
+      if (linked) {
+        return res.json({ generated: 0, alreadyGenerated: true, message: "The Knock-out stage has already been generated." });
+      }
+      // Stale/unlinked bracket — delete so it can be regenerated with correct
+      // parent_match1_id / parent_match2_id / next_match_id / next_slot.
+      await db
+        .delete(matchesTable)
+        .where(and(eq(matchesTable.tournamentId, tournamentId), eq(matchesTable.stage, 2)));
     }
 
     // Verify the group stage has been completed before generating anything.

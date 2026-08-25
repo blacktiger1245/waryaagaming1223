@@ -28,7 +28,36 @@ export async function ensureMatchBracketSchema(): Promise<void> {
     for (const sql of statements) {
       await pool.query(sql);
     }
-    logger.info("Ensured matches bracket schema");
+
+    // Safe runtime verification — only presence/counts, never credentials.
+    // Confirms the database actually connected to by the API has the bracket
+    // columns and how many rows carry stable parent/next links.
+    try {
+      const colsRes = await pool.query(
+        `SELECT column_name FROM information_schema.columns
+         WHERE table_name = 'matches'
+           AND column_name IN ('stage','parent_match1_id','parent_match2_id','next_match_id','next_slot')
+         ORDER BY column_name`,
+      );
+      const countsRes = await pool.query(
+        `SELECT
+           count(*) FILTER (WHERE stage = 2) AS stage2,
+           count(*) FILTER (WHERE stage = 2 AND (parent_match1_id IS NOT NULL OR parent_match2_id IS NOT NULL OR next_match_id IS NOT NULL)) AS linked
+         FROM matches`,
+      );
+      const present = colsRes.rows.map((r: { column_name: string }) => r.column_name);
+      const counts = countsRes.rows[0] ?? { stage2: 0, linked: 0 };
+      logger.info(
+        {
+          matchesColumns: present,
+          stage2Rows: Number(counts.stage2 ?? 0),
+          bracketLinkedRows: Number(counts.linked ?? 0),
+        },
+        "Matches bracket schema verified",
+      );
+    } catch (verifyErr) {
+      logger.warn({ err: verifyErr }, "Could not verify matches bracket schema");
+    }
   } catch (err) {
     // Interrupted DDL must not prevent boot; report and continue so the
     // global JSON error handler can surface a meaningful message at request time.

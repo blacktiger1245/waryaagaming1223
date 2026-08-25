@@ -53,16 +53,26 @@ export function computeWinnerFromResult(
   return {};
 }
 
-/** Recompute every Stage-2 slot that is fed by a parent match winner. */
-export async function syncKnockoutProgression(tournamentId: number, stage: number) {
-  const rows = await db
+/** Recompute every knockout slot that is fed by a parent match winner. */
+export async function syncKnockoutProgression(tournamentId: number, stage = 2) {
+  // Load the FULL match set for the tournament so parents (including seeded
+  // matches and BYE rows) are always resolvable, regardless of their stage.
+  const allRows = await db
     .select()
     .from(matchesTable)
-    .where(and(eq(matchesTable.tournamentId, tournamentId), eq(matchesTable.stage, stage)))
-    .orderBy(matchesTable.id);
-  const byId = new Map(rows.map((m) => [m.id, m]));
+    .where(eq(matchesTable.tournamentId, tournamentId));
+  if (allRows.length === 0) return;
 
-  for (const m of rows) {
+  // A row belongs to the bracket when it is explicitly `stage` OR carries a
+  // knockout round name. This covers legacy brackets that predate the stage
+  // column/backfill: their rounds (Round of 16, Quarter Finals, ...) still
+  // match and the whole tree recomputes exactly the same way.
+  const koRows = allRows.filter(
+    (m) => m.stage === stage || isKnockoutRoundName(m.roundName),
+  );
+  const byId = new Map(allRows.map((m) => [m.id, m]));
+
+  for (const m of koRows) {
     const a = m.parentMatch1Id != null ? resolveMatchWinner(byId.get(m.parentMatch1Id) ?? null) : null;
     const b = m.parentMatch2Id != null ? resolveMatchWinner(byId.get(m.parentMatch2Id) ?? null) : null;
 
@@ -91,8 +101,15 @@ export async function syncKnockoutProgression(tournamentId: number, stage: numbe
 
 /** Advance the winner of a completed match into the next round. */
 export async function advanceKnockoutWinner(match: typeof matchesTable.$inferSelect) {
-  // Linked Stage-2 brackets recompute the whole tree from parent/next relationships.
-  if ((match.stage ?? 1) === 2 || match.nextMatchId != null) {
+  // Trigger the whole-tree recompute whenever this is a knockout match: it has
+  // an explicit stage 2, carries a next-match link, OR its round name is a
+  // knockout round. The last check fixes legacy brackets whose matches were
+  // stored with stage = 1 (default) before the stage backfill existed.
+  const isKnockout =
+    (match.stage ?? 1) === 2 ||
+    match.nextMatchId != null ||
+    isKnockoutRoundName(match.roundName);
+  if (isKnockout) {
     await syncKnockoutProgression(match.tournamentId, 2);
     return;
   }
