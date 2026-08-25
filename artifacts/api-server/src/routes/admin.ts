@@ -615,7 +615,9 @@ router.post("/admin/tournaments", requireAdmin, async (req, res) => {
     } = req.body as Record<string, string | number | boolean | undefined>;
 
     if (!name) return res.status(400).json({ error: "Name is required" });
-    if (!startDate) return res.status(400).json({ error: "startDate is required" });
+    if (String(status ?? "upcoming") === "upcoming" && !startDate) {
+      return res.status(400).json({ error: "startDate is required for upcoming tournaments" });
+    }
 
     // 1. Create the tournament
     const [tournament] = await db.insert(tournamentsTable).values({
@@ -627,7 +629,7 @@ router.post("/admin/tournaments", requireAdmin, async (req, res) => {
       game: String(game ?? "eFootball"),
       maxParticipants: String(tournamentType) === "team" ? 9999 : Number(maxParticipants ?? 16),
       prizePool: String(prizePool ?? "$0"),
-      startDate: String(startDate),
+      startDate: String(startDate ?? new Date().toISOString().split("T")[0]),
       endDate: endDate ? String(endDate) : undefined,
       rules: rules ? String(rules) : undefined,
       streamUrl: streamUrl ? String(streamUrl) : undefined,

@@ -600,6 +600,10 @@ function CreateTournamentDialog({
       toast({ title: "Please enter a valid number of teams (2-128)", variant: "destructive" });
       return;
     }
+    if (status === "upcoming" && !startDate) {
+      toast({ title: "Start date is required for upcoming tournaments", variant: "destructive" });
+      return;
+    }
     setSaving(true);
     try {
       let logoUrl: string | undefined;
@@ -610,7 +614,7 @@ function CreateTournamentDialog({
         body: JSON.stringify({
           name: name.trim(),
           status,
-          startDate: startDate || new Date().toISOString().split("T")[0],
+          startDate: status === "upcoming" ? startDate : new Date().toISOString().split("T")[0],
           prizePool: prizePool.trim() || "$0",
           hostedBy: hostedBy.trim() || undefined,
           logoUrl,
@@ -658,12 +662,15 @@ function CreateTournamentDialog({
                 </label>
                 <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Waryaa Cup Season 3" required />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5" /> Start Date
-                </label>
-                <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-              </div>
+              {status === "upcoming" && (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5" /> Start Date <span className="text-destructive">*</span>
+                  </label>
+                  <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
+                  <p className="text-xs text-muted-foreground">Registration will open automatically on this date.</p>
+                </div>
+              )}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                   <DollarSign className="w-3.5 h-3.5" /> Prize Pool
@@ -717,8 +724,8 @@ function CreateTournamentDialog({
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {status === "active"
-                    ? "The tournament is live now — matches can be played immediately."
-                    : "The tournament is scheduled — it will appear as upcoming until it is activated."}
+                    ? "Active tournaments are live immediately — anyone can register right now."
+                    : "Upcoming tournaments are scheduled — registration opens automatically on the start date."}
                 </p>
               </div>
               <div className="space-y-3 pt-2">

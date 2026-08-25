@@ -181,6 +181,20 @@ router.post("/tournaments/:id/register-me", async (req, res) => {
   if (!tournament) return res.status(404).json({ error: "Tournament not found" });
   if (tournament.status === "completed" || tournament.status === "cancelled")
     return res.status(400).json({ error: "Tournament is no longer open for registration" });
+
+  // Upcoming tournaments only allow registration once the start date is reached.
+  if (tournament.status === "upcoming" && tournament.startDate) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const start = new Date(tournament.startDate);
+    start.setHours(0, 0, 0, 0);
+    if (start > today) {
+      return res.status(400).json({
+        error: `Registration opens on ${start.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`,
+      });
+    }
+  }
+
   if (tournament.currentParticipants >= tournament.maxParticipants)
     return res.status(400).json({ error: "Tournament is full" });
 
