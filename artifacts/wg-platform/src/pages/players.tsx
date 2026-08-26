@@ -1,46 +1,15 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { Search, Users, Shield, Lock } from "lucide-react";
+import { Search, Users, Shield } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useListPlayers } from "@workspace/api-client-react";
-import { useAuth } from "@/hooks/use-auth";
 import { accentForId, accentCardBackground } from "@/lib/accent-colors";
 
 export default function PlayersPage() {
   const [search, setSearch] = useState("");
   const { data: players, isLoading } = useListPlayers(search ? { search } : {});
-  const { isAdmin, isLoading: authLoading, loginWithDiscord } = useAuth();
-
-  // Block access for everyone except admins/owners
-  if (authLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-8 h-8 rounded-full border-2 border-cyan-500 border-t-transparent animate-spin" />
-      </div>
-    );
-  }
-
-  if (!isAdmin) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-5 px-6 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-[#162038] border border-[#2e3d60] flex items-center justify-center">
-          <Lock className="w-7 h-7 text-zinc-500" />
-        </div>
-        <div>
-          <p className="font-black text-lg text-white">Access Restricted</p>
-          <p className="text-sm text-zinc-500 mt-1">This page is only accessible to admins.</p>
-        </div>
-        <button
-          onClick={loginWithDiscord}
-          className="px-5 py-2.5 rounded-xl bg-[#5865F2] hover:bg-[#4752c4] text-white text-sm font-black transition-colors"
-        >
-          Sign in with Discord
-        </button>
-      </div>
-    );
-  }
 
   return (
     <div className="container mx-auto px-4 py-8">
