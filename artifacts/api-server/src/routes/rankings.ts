@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { playersTable, teamsTable, hallOfFameTable, tournamentsTable, matchesTable } from "@workspace/db";
-import { eq, desc, inArray, sql } from "drizzle-orm";
+import { eq, desc, inArray, sql, and } from "drizzle-orm";
 import { GetPlayerRankingsQueryParams } from "@workspace/api-zod";
 
 const router = Router();
@@ -105,7 +105,10 @@ router.get("/rankings/players", async (req, res) => {
       .select()
       .from(matchesTable)
       .where(
-        sql`${matchesTable.tournamentId} = ANY(ARRAY[${sql.join(soloTournamentIds.map((id) => sql`${id}`), sql`, `)}]) AND ${matchesTable.status} = 'completed'`
+        and(
+          inArray(matchesTable.tournamentId, soloTournamentIds),
+          eq(matchesTable.status, "completed"),
+        ),
       );
 
     // Aggregate per player
@@ -139,11 +142,10 @@ router.get("/rankings/players", async (req, res) => {
     if (statsMap.size === 0) return res.json([]);
 
     const playerIds = [...statsMap.keys()];
-    const idArray = sql`ARRAY[${sql.join(playerIds.map((id) => sql`${id}`), sql`, `)}]`;
     const players = await db
       .select()
       .from(playersTable)
-      .where(sql`${playersTable.id} = ANY(${idArray})`);
+      .where(inArray(playersTable.id, playerIds));
 
     const ranked = players
       .map((p) => {
@@ -209,11 +211,10 @@ router.get("/rankings/players", async (req, res) => {
     if (statsMap.size === 0) return res.json([]);
 
     const playerIds = [...statsMap.keys()];
-    const idArray = sql`ARRAY[${sql.join(playerIds.map((id) => sql`${id}`), sql`, `)}]`;
     const players = await db
       .select()
       .from(playersTable)
-      .where(sql`${playersTable.id} = ANY(${idArray})`);
+      .where(inArray(playersTable.id, playerIds));
 
     const ranked = rankWithStats(players, statsMap);
     return res.json(serializeRanked(ranked, teamMap, teamLogoMap));
@@ -281,11 +282,15 @@ router.get("/rankings/teams", async (req, res) => {
         .where(eq(tournamentsTable.seasonId, seasonId!));
       const tIds = seasonTournaments.map((t) => t.id);
       if (tIds.length > 0) {
-        const idArr = sql`ARRAY[${sql.join(tIds.map((id) => sql`${id}`), sql`, `)}]`;
         matches = await db
           .select()
           .from(matchesTable)
-          .where(sql`${matchesTable.tournamentId} = ANY(${idArr}) AND ${matchesTable.status} = 'completed'`);
+          .where(
+            and(
+              inArray(matchesTable.tournamentId, tIds),
+              eq(matchesTable.status, "completed"),
+            ),
+          );
       }
     } else if (since) {
       matches = await db
@@ -334,11 +339,10 @@ router.get("/rankings/teams", async (req, res) => {
     if (statsMap.size === 0) return res.json([]);
 
     const teamIds = [...statsMap.keys()];
-    const teamIdArr = sql`ARRAY[${sql.join(teamIds.map((id) => sql`${id}`), sql`, `)}]`;
     const teamRows = await db
       .select()
       .from(teamsTable)
-      .where(sql`${teamsTable.id} = ANY(${teamIdArr})`);
+      .where(inArray(teamsTable.id, teamIds));
 
     const rankedTeams = teamRows
       .map((team) => {
