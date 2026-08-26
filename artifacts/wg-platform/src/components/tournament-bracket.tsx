@@ -1,5 +1,5 @@
-﻿import { useMemo, useRef, useEffect, useState, useCallback } from "react";
-import { Trophy, Shield, Swords } from "lucide-react";
+﻿import { useMemo, useRef, useLayoutEffect, useState, useCallback } from "react";
+import { Trophy, Swords, Crown, Maximize, Minimize } from "lucide-react";
 import type { Match } from "@workspace/api-client-react";
 
 interface BracketMatch extends Match {
@@ -20,16 +20,42 @@ interface TournamentBracketProps {
   rounds: BracketRound[];
 }
 
-interface LineCoords {
-  key: string;
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
+interface ConnectorPath {
+  id: string;
+  d: string;
   color: string;
 }
 
-/* ── Team Avatar ────────────────────────────────────────────────────────── */
+const CARD_W = 250;
+const CARD_H = 72;
+const GAP = 8;
+const STEP = CARD_H + GAP;
+const COL_W = 250;
+const COL_GAP = 70;
+const CHAMP_W = 290;
+const CHAMP_H = 340;
+
+function roundAbbreviation(name: string): string {
+  const n = (name ?? "").toLowerCase();
+  if (n.includes("round of 32")) return "R32";
+  if (n.includes("round of 16")) return "R16";
+  if (n.includes("quarter")) return "QF";
+  if (n.includes("semi")) return "SF";
+  if (n.includes("third")) return "3P";
+  if (n.includes("grand final")) return "GF";
+  if (n.includes("final")) return "F";
+  return name ? name.replace(/\s+/g, " ").slice(0, 3).toUpperCase() : "M";
+}
+
+function isFinalRoundName(name: string): boolean {
+  const n = (name ?? "").toLowerCase();
+  return n.includes("final") && !n.includes("third");
+}
+
+function isThirdPlaceName(name: string): boolean {
+  return /third/i.test(name ?? "");
+}
+
 function TeamAvatar({ name, isWinner }: { name: string | null; isWinner: boolean }) {
   const initial = (name ?? "?")[0]?.toUpperCase() ?? "?";
   return (
@@ -45,288 +71,230 @@ function TeamAvatar({ name, isWinner }: { name: string | null; isWinner: boolean
   );
 }
 
-/* ── Knockout Match Card ────────────────────────────────────────────────── */
-function KnockoutMatchCard({
+function MatchCard({
   match,
+  label,
   isFinal,
   matchRef,
 }: {
   match: BracketMatch;
+  label: string;
   isFinal: boolean;
   matchRef: (el: HTMLDivElement | null) => void;
 }) {
   const p1Name = match.participant1Name ?? "TBD";
   const p2Name = match.participant2Name ?? "TBD";
-  const p1Score = match.participant1Score;
-  const p2Score = match.participant2Score;
+  const p1Score = match.participant1Score ?? "-";
+  const p2Score = match.participant2Score ?? "-";
   const isCompleted = match.status === "completed";
   const isLive = match.status === "live";
 
   const p1Winner = isCompleted && match.winnerId != null && match.winnerId === match.participant1Id;
   const p2Winner = isCompleted && match.winnerId != null && match.winnerId === match.participant2Id;
-  const p1Loser = isCompleted && match.winnerId != null && match.winnerId !== match.participant1Id && match.participant1Id != null;
-  const p2Loser = isCompleted && match.winnerId != null && match.winnerId !== match.participant2Id && match.participant2Id != null;
+  const p1Loser = isCompleted && match.winnerId != null && !p1Winner && match.participant1Id != null;
+  const p2Loser = isCompleted && match.winnerId != null && !p2Winner && match.participant2Id != null;
 
   return (
     <div
       ref={matchRef}
       data-match-id={match.id}
       className={`
-        relative w-56 shrink-0 rounded-xl border p-0 overflow-hidden transition-all duration-300
+        absolute left-0 rounded-xl border overflow-hidden transition-all duration-300
         ${isFinal
           ? "border-amber-500/40 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-amber-600/10 shadow-[0_0_30px_-8px_rgba(245,158,11,0.35)]"
           : isLive
           ? "border-red-500/30 bg-gradient-to-br from-red-500/8 to-transparent shadow-[0_0_20px_-8px_rgba(239,68,68,0.3)]"
-          : "border-[var(--card-border)] bg-card/80 backdrop-blur-sm shadow-[0_8px_24px_-16px_var(--card-glow)]"
+          : "border-[var(--card-border)] bg-card/90 backdrop-blur-sm shadow-[0_8px_24px_-16px_var(--card-glow)]"
         }
-        hover:shadow-[0_12px_32px_-12px_var(--card-glow)] hover:border-[var(--acc)]/30 hover:-translate-y-0.5
+        hover:shadow-[0_12px_32px_-12px_var(--card-glow)] hover:border-[var(--acc)]/30
       `}
+      style={{ width: CARD_W, height: CARD_H }}
     >
       {isFinal && (
         <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-500 to-amber-400 px-3 py-0.5 text-[10px] font-black uppercase tracking-wider text-black shadow-lg">
           <Trophy className="w-3 h-3" /> Grand Final
         </div>
       )}
-      {isLive && !isFinal && (
-        <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full bg-red-500 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-white shadow-lg">
-          <span className="w-1.5 h-1.5 rounded-full bg-white live-pulse" /> Live
-        </div>
-      )}
 
-      <div className="p-3 pt-4">
-        {/* Participant 1 */}
-        <div className={`flex items-center gap-2.5 py-1 ${p1Winner ? "text-amber-300" : p1Loser ? "text-muted-foreground/60" : "text-foreground"}`}>
-          <TeamAvatar name={p1Name} isWinner={!!p1Winner} />
-          <span className={`text-sm font-semibold truncate flex-1 ${p1Loser ? "line-through decoration-destructive/50" : ""}`}>
-            {p1Name}
-          </span>
-          <span className={`text-sm font-black tabular-nums ${p1Winner ? "text-amber-400" : ""}`}>
-            {p1Score ?? "-"}
-          </span>
-        </div>
-
-        {/* Divider */}
-        <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent my-1.5" />
-
-        {/* Participant 2 */}
-        <div className={`flex items-center gap-2.5 py-1 ${p2Winner ? "text-amber-300" : p2Loser ? "text-muted-foreground/60" : "text-foreground"}`}>
-          <TeamAvatar name={p2Name} isWinner={!!p2Winner} />
-          <span className={`text-sm font-semibold truncate flex-1 ${p2Loser ? "line-through decoration-destructive/50" : ""}`}>
-            {p2Name}
-          </span>
-          <span className={`text-sm font-black tabular-nums ${p2Winner ? "text-amber-400" : ""}`}>
-            {p2Score ?? "-"}
-          </span>
-        </div>
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 h-[20px] border-b border-white/5 bg-white/[0.02]">
+        <span className="text-[10px] font-black uppercase tracking-wider text-[var(--acc)]">{label}</span>
+        <span className="text-[9px] font-bold uppercase tracking-wide">
+          {isCompleted ? (
+            <span className="text-emerald-400">FT</span>
+          ) : isLive ? (
+            <span className="text-red-400 animate-pulse">LIVE</span>
+          ) : (
+            <span className="text-muted-foreground">TBD</span>
+          )}
+        </span>
       </div>
 
-      {/* Match meta */}
-      <div className="px-3 pb-2.5 pt-0 flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          {match.status === "completed" && (
-            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded">
-              FT
-            </span>
-          )}
-          {match.status === "live" && (
-            <span className="text-[10px] font-bold text-red-400 bg-red-500/10 border border-red-500/20 px-1.5 py-0.5 rounded animate-pulse">
-              LIVE
-            </span>
-          )}
-          {match.status === "scheduled" && (
-            <span className="text-[10px] font-bold text-muted-foreground bg-white/5 border border-white/10 px-1.5 py-0.5 rounded">
-              {match.scheduledAt
-                ? new Date(match.scheduledAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })
-                : "TBD"}
-            </span>
-          )}
+      {/* Teams */}
+      <div className="flex flex-col justify-center h-[52px]">
+        <div className={`flex items-center justify-between px-3 h-[26px] ${p1Winner ? "text-emerald-400 font-bold" : p1Loser ? "text-muted-foreground opacity-60" : "text-foreground"}`}>
+          <div className="flex items-center gap-2 min-w-0">
+            <TeamAvatar name={p1Name} isWinner={p1Winner} />
+            <span className="text-xs truncate">{p1Name}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-xs font-black tabular-nums">{p1Score}</span>
+            {p1Winner && <Trophy className="w-3 h-3 text-amber-400" />}
+          </div>
         </div>
-        {match.streamUrl && (
-          <a
-            href={match.streamUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[10px] font-bold text-red-400 hover:text-red-300 transition-colors flex items-center gap-1"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-red-500 live-pulse" />
-            Stream
-          </a>
-        )}
+        <div className={`flex items-center justify-between px-3 h-[26px] ${p2Winner ? "text-emerald-400 font-bold" : p2Loser ? "text-muted-foreground opacity-60" : "text-foreground"}`}>
+          <div className="flex items-center gap-2 min-w-0">
+            <TeamAvatar name={p2Name} isWinner={p2Winner} />
+            <span className="text-xs truncate">{p2Name}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-xs font-black tabular-nums">{p2Score}</span>
+            {p2Winner && <Trophy className="w-3 h-3 text-amber-400" />}
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-/* ── Champion Banner ────────────────────────────────────────────────────── */
-function ChampionBanner({ championName }: { championName: string }) {
+function ChampionCard({
+  name,
+  championRef,
+}: {
+  name: string | null;
+  championRef: (el: HTMLDivElement | null) => void;
+}) {
+  const resolved = name ?? "TBD";
+  const determined = name != null;
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-amber-600/10 p-6 text-center shadow-[0_0_40px_-12px_rgba(245,158,11,0.35)]">
-      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMSIgZmlsbD0icmdiYSgyNTUsMjE1LDAsMC4wNSkiLz48L3N2Zz4=')] opacity-30" />
-      <Trophy className="w-8 h-8 mx-auto mb-2 text-amber-400" />
-      <p className="text-xs font-black uppercase tracking-wider text-amber-400/80 mb-1">Tournament Champion</p>
-      <h3 className="text-2xl font-black text-amber-300">{championName}</h3>
+    <div
+      ref={championRef}
+      className={`
+        absolute left-0 rounded-2xl border-2 overflow-hidden flex flex-col items-center justify-center text-center p-5
+        ${determined
+          ? "border-amber-500/50 bg-gradient-to-b from-amber-500/15 via-amber-500/5 to-amber-600/10 shadow-[0_0_50px_-12px_rgba(245,158,11,0.45)]"
+          : "border-white/10 bg-card/80"
+        }
+      `}
+      style={{ width: CHAMP_W, height: CHAMP_H }}
+    >
+      <div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-400 mb-3">Hall of Fame</div>
+      <div className={`rounded-full flex items-center justify-center mb-4 ${determined ? "bg-amber-500/20 text-amber-400" : "bg-white/5 text-muted-foreground"}`} style={{ width: 96, height: 96 }}>
+        {determined ? <Trophy className="w-12 h-12" /> : <Crown className="w-12 h-12" />}
+      </div>
+      <div className="text-2xl font-black text-white mb-1 truncate w-full">{resolved}</div>
+      <div className="text-xs font-bold uppercase tracking-widest text-amber-400/80">Tournament Champion</div>
     </div>
   );
 }
 
-/* ── Bracket Connectors (tree-style lines) ──────────────────────────────── */
-function BracketConnectors({ lines }: { lines: LineCoords[] }) {
-  if (lines.length === 0) return null;
-  return (
-    <svg className="absolute inset-0 pointer-events-none z-10" style={{ width: "100%", height: "100%", overflow: "visible" }}>
-      <defs>
-        <linearGradient id="bracketLine" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="rgba(139,92,246,0.5)" />
-          <stop offset="100%" stopColor="rgba(139,92,246,0.2)" />
-        </linearGradient>
-        <linearGradient id="bracketLineFinal" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="rgba(245,158,11,0.5)" />
-          <stop offset="100%" stopColor="rgba(245,158,11,0.3)" />
-        </linearGradient>
-      </defs>
-      {lines.map((line) => {
-        const isFinalConnector = line.color.includes("amber");
-        return (
-          <g key={line.key}>
-            <line
-              x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2}
-              stroke={isFinalConnector ? "rgba(245,158,11,0.12)" : "rgba(139,92,246,0.12)"}
-              strokeWidth={5} strokeLinecap="round"
-            />
-            <line
-              x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2}
-              stroke={isFinalConnector ? "url(#bracketLineFinal)" : "url(#bracketLine)"}
-              strokeWidth={1.5} strokeLinecap="round"
-            />
-            <circle cx={line.x2} cy={line.y2} r={3} fill={isFinalConnector ? "rgba(245,158,11,0.6)" : "rgba(139,92,246,0.6)"} />
-          </g>
-        );
-      })}
-    </svg>
-  );
-}
-
-/* ── Main Bracket Component ─────────────────────────────────────────────── */
 export function TournamentBracket({ rounds }: TournamentBracketProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
   const matchRefs = useRef<Map<number, HTMLDivElement>>(new Map());
-  const [lines, setLines] = useState<LineCoords[]>([]);
+  const championRef = useRef<HTMLDivElement>(null);
+  const [paths, setPaths] = useState<ConnectorPath[]>([]);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
-  const allMatches = useMemo(() => rounds.flatMap((r) => r.matches), [rounds]);
-  const matchMap = useMemo(() => new Map(allMatches.map((m) => [m.id, m])), [allMatches]);
-  const finalRound = useMemo(() => {
-    const completed = allMatches.filter((m) => m.status === "completed" && m.winnerId != null);
-    if (completed.length === 0) return null;
-    return [...rounds].sort((a, b) => b.roundNumber - a.roundNumber)[0] ?? null;
-  }, [allMatches, rounds]);
+  const { orderedRounds, finalMatch, championName } = useMemo(() => {
+    const sorted = [...rounds].sort((a, b) => a.roundNumber - b.roundNumber);
+    const matchById = new Map<number, BracketMatch>();
+    sorted.forEach((r) => r.matches.forEach((m) => matchById.set(m.id, m)));
 
-  const champion = useMemo(() => {
-    const final = finalRound?.matches.find((m) => m.roundName?.toLowerCase().includes("final"));
-    if (!final || final.status !== "completed" || !final.winnerId) return null;
-    if (final.winnerId === final.participant1Id) return { name: final.participant1Name ?? "Winner" };
-    if (final.winnerId === final.participant2Id) return { name: final.participant2Name ?? "Winner" };
-    return null;
-  }, [finalRound]);
+    const childByParent = new Map<number, number>();
+    matchById.forEach((m, id) => {
+      if (m.nextMatchId) childByParent.set(id, m.nextMatchId);
+    });
+    matchById.forEach((child) => {
+      if (child.parentMatch1Id && !childByParent.has(child.parentMatch1Id)) {
+        childByParent.set(child.parentMatch1Id, child.id);
+      }
+      if (child.parentMatch2Id && !childByParent.has(child.parentMatch2Id)) {
+        childByParent.set(child.parentMatch2Id, child.id);
+      }
+    });
 
-  /* Build tree-style bracket connectors from actual parent/child relationships */
-  const calculateLines = useCallback(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const containerRect = container.getBoundingClientRect();
-    const newLines: LineCoords[] = [];
+    const ordered: BracketRound[] = [];
+    sorted.forEach((round, idx) => {
+      if (idx === 0) {
+        ordered.push({ ...round, matches: [...round.matches].sort((a, b) => a.id - b.id) });
+        return;
+      }
+      const prevMatches = ordered[idx - 1].matches;
+      const seen = new Set<number>();
+      const next: BracketMatch[] = [];
+      for (const p of prevMatches) {
+        const cid = childByParent.get(p.id);
+        if (cid != null && !seen.has(cid)) {
+          const child = matchById.get(cid);
+          if (child && round.matches.some((m) => m.id === cid)) {
+            seen.add(cid);
+            next.push(child);
+          }
+        }
+      }
+      for (const m of [...round.matches].sort((a, b) => a.id - b.id)) {
+        if (!seen.has(m.id)) next.push(m);
+      }
+      ordered.push({ ...round, matches: next });
+    });
 
-    // Build child -> parents map from both nextMatchId and parentMatchXId
-    const parentsByChild = new Map<number, number[]>();
-    for (const match of allMatches) {
-      if (match.nextMatchId) {
-        const list = parentsByChild.get(match.nextMatchId) ?? [];
-        if (!list.includes(match.id)) list.push(match.id);
-        parentsByChild.set(match.nextMatchId, list);
+    const lastRound = ordered[ordered.length - 1];
+    const finalMatch =
+      lastRound?.matches.find((m) => isFinalRoundName(m.roundName ?? "")) ??
+      lastRound?.matches[0] ??
+      null;
+
+    let championName: string | null = null;
+    if (finalMatch && finalMatch.status === "completed" && finalMatch.winnerId != null) {
+      if (finalMatch.winnerId === finalMatch.participant1Id) {
+        championName = finalMatch.participant1Name ?? finalMatch.winnerName ?? "TBD";
+      } else if (finalMatch.winnerId === finalMatch.participant2Id) {
+        championName = finalMatch.participant2Name ?? finalMatch.winnerName ?? "TBD";
+      } else {
+        championName = finalMatch.winnerName ?? "TBD";
       }
     }
-    for (const match of allMatches) {
-      if (match.parentMatch1Id) {
-        const list = parentsByChild.get(match.id) ?? [];
-        if (!list.includes(match.parentMatch1Id)) list.push(match.parentMatch1Id);
-        parentsByChild.set(match.id, list);
-      }
-      if (match.parentMatch2Id) {
-        const list = parentsByChild.get(match.id) ?? [];
-        if (!list.includes(match.parentMatch2Id)) list.push(match.parentMatch2Id);
-        parentsByChild.set(match.id, list);
-      }
-    }
 
-    for (const [childId, parentIds] of parentsByChild.entries()) {
-      const childEl = matchRefs.current.get(childId);
-      if (!childEl) continue;
-      const cRect = childEl.getBoundingClientRect();
-      const childX = cRect.left - containerRect.left;
-      const childY = cRect.top + cRect.height / 2 - containerRect.top;
+    return { orderedRounds: ordered, finalMatch, championName };
+  }, [rounds]);
 
-      const childMatch = matchMap.get(childId);
-      const isFinalConnector = childMatch
-        ? childMatch.roundName?.toLowerCase().includes("final") || childMatch.round === finalRound?.roundNumber
-        : false;
-      const color = isFinalConnector ? "amber" : "violet";
+  const positions = useMemo(() => {
+    const pos = new Map<number, { top: number; center: number }>();
+    orderedRounds.forEach((round, ridx) => {
+      round.matches.forEach((m, idx) => {
+        let center: number;
+        if (ridx === 0) {
+          center = idx * STEP + CARD_H / 2;
+        } else {
+          const parentCenters = [m.parentMatch1Id, m.parentMatch2Id]
+            .filter((id): id is number => id != null)
+            .map((id) => pos.get(id)?.center)
+            .filter((c): c is number => c != null);
+          if (parentCenters.length > 0) {
+            center = parentCenters.reduce((a, b) => a + b, 0) / parentCenters.length;
+          } else {
+            const prev = pos.get(round.matches[idx - 1]?.id);
+            center = prev ? prev.center + STEP : idx * STEP + CARD_H / 2;
+          }
+        }
+        pos.set(m.id, { top: center - CARD_H / 2, center });
+      });
+    });
+    return pos;
+  }, [orderedRounds]);
 
-      if (parentIds.length === 1) {
-        const parentEl = matchRefs.current.get(parentIds[0]);
-        if (!parentEl) continue;
-        const pRect = parentEl.getBoundingClientRect();
-        const parentX = pRect.right - containerRect.left;
-        const parentY = pRect.top + pRect.height / 2 - containerRect.top;
-        newLines.push({ key: `${parentIds[0]}-${childId}`, x1: parentX, y1: parentY, x2: childX, y2: childY, color });
-        continue;
-      }
-
-      const parentPositions = parentIds
-        .map((id) => {
-          const el = matchRefs.current.get(id);
-          if (!el) return null;
-          const rect = el.getBoundingClientRect();
-          return {
-            id,
-            x: rect.right - containerRect.left,
-            y: rect.top + rect.height / 2 - containerRect.top,
-          };
-        })
-        .filter((p): p is NonNullable<typeof p> => p !== null)
-        .sort((a, b) => a.y - b.y);
-
-      if (parentPositions.length < 2) continue;
-
-      const top = parentPositions[0];
-      const bottom = parentPositions[parentPositions.length - 1];
-      const midX = (top.x + childX) / 2;
-      const midY = (top.y + bottom.y) / 2;
-
-      // Horizontal from top parent to midX
-      newLines.push({ key: `${top.id}-h`, x1: top.x, y1: top.y, x2: midX, y2: top.y, color });
-      // Horizontal from bottom parent to midX
-      newLines.push({ key: `${bottom.id}-h`, x1: bottom.x, y1: bottom.y, x2: midX, y2: bottom.y, color });
-      // Vertical connecting the two horizontals
-      newLines.push({ key: `${childId}-v`, x1: midX, y1: top.y, x2: midX, y2: bottom.y, color });
-      // Horizontal from mid to child
-      newLines.push({ key: `${childId}-in`, x1: midX, y1: midY, x2: childX, y2: midY, color });
-    }
-
-    setLines(newLines);
-  }, [allMatches, matchMap, finalRound?.roundNumber]);
-
-  /* Draw lines after render and on resize */
-  useEffect(() => {
-    const timer = setTimeout(calculateLines, 150);
-    const ro = new ResizeObserver(() => calculateLines());
-    if (containerRef.current) ro.observe(containerRef.current);
-    window.addEventListener("resize", calculateLines);
-    return () => {
-      clearTimeout(timer);
-      ro.disconnect();
-      window.removeEventListener("resize", calculateLines);
-    };
-  }, [calculateLines]);
+  const { canvasHeight, championTop } = useMemo(() => {
+    let height = 0;
+    positions.forEach((p) => {
+      height = Math.max(height, p.top + CARD_H);
+    });
+    const finalCenter = finalMatch ? positions.get(finalMatch.id)?.center ?? height / 2 : height / 2;
+    let top = finalCenter - CHAMP_H / 2;
+    if (top < 20) top = 20;
+    height = Math.max(height, top + CHAMP_H + 40);
+    height = Math.max(height, 800);
+    return { canvasHeight: height, championTop: top };
+  }, [positions, finalMatch]);
 
   const setMatchRef = useCallback(
     (id: number) => (el: HTMLDivElement | null) => {
@@ -336,9 +304,131 @@ export function TournamentBracket({ rounds }: TournamentBracketProps) {
     []
   );
 
-  const sortedRounds = useMemo(() => [...rounds].sort((a, b) => a.roundNumber - b.roundNumber), [rounds]);
+  const matchById = useRef<Map<number, BracketMatch>>(new Map());
+  useMemo(() => {
+    const map = new Map<number, BracketMatch>();
+    orderedRounds.forEach((r) => r.matches.forEach((m) => map.set(m.id, m)));
+    matchById.current = map;
+  }, [orderedRounds]);
 
-  if (sortedRounds.length === 0) {
+  const calculateConnectors = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const canvasRect = canvas.getBoundingClientRect();
+    const getRect = (el: HTMLElement) => {
+      const r = el.getBoundingClientRect();
+      return {
+        left: r.left - canvasRect.left,
+        right: r.right - canvasRect.left,
+        top: r.top - canvasRect.top,
+        bottom: r.bottom - canvasRect.top,
+        cx: r.left - canvasRect.left + r.width / 2,
+        cy: r.top - canvasRect.top + r.height / 2,
+      };
+    };
+
+    const next: ConnectorPath[] = [];
+
+    for (const round of orderedRounds) {
+      for (const match of round.matches) {
+        const childEl = matchRefs.current.get(match.id);
+        if (!childEl) continue;
+        const child = getRect(childEl);
+
+        const parentIds = [match.parentMatch1Id, match.parentMatch2Id].filter(
+          (id): id is number => id != null
+        );
+        if (parentIds.length === 0) continue;
+
+        const parentEls = parentIds
+          .map((id) => matchRefs.current.get(id))
+          .filter((el): el is HTMLDivElement => el != null);
+        if (parentEls.length === 0) continue;
+
+        const isWinnerPath = (source: BracketMatch) =>
+          source.status === "completed" && source.winnerId != null;
+
+        if (parentEls.length === 1) {
+          const pEl = parentEls[0];
+          const p = getRect(pEl);
+          const midX = p.right + (child.left - p.right) / 2;
+          const d = `M ${p.right} ${p.cy} L ${midX} ${p.cy} L ${midX} ${child.cy} L ${child.left} ${child.cy}`;
+          const sourceMatch = matchById.current.get(parentIds[0]);
+          const color = sourceMatch && isWinnerPath(sourceMatch) ? "#f5b82e" : "rgba(150,100,255,0.75)";
+          next.push({ id: `conn-${match.id}`, d, color });
+        } else {
+          const rects = parentEls.map(getRect).sort((a, b) => a.cy - b.cy);
+          const [a, b] = rects;
+          const midX = a.right + (child.left - a.right) / 2;
+          const midY = (a.cy + b.cy) / 2;
+          const dFork = `M ${a.right} ${a.cy} L ${midX} ${a.cy} L ${midX} ${b.cy} L ${b.right} ${b.cy}`;
+          const dTarget = `M ${midX} ${midY} L ${child.left} ${child.cy}`;
+          const sourceA = matchById.current.get(parentIds[0]);
+          const sourceB = matchById.current.get(parentIds[1]);
+          const colorA = sourceA && isWinnerPath(sourceA) ? "#f5b82e" : "rgba(150,100,255,0.75)";
+          const colorB = sourceB && isWinnerPath(sourceB) ? "#f5b82e" : "rgba(150,100,255,0.75)";
+          const targetColor =
+            match.status === "completed" && match.winnerId != null
+              ? "#f5b82e"
+              : "rgba(150,100,255,0.75)";
+          // Draw each segment so winner paths can be highlighted independently.
+          next.push({ id: `conn-${match.id}-a`, d: `M ${a.right} ${a.cy} L ${midX} ${a.cy}`, color: colorA });
+          next.push({ id: `conn-${match.id}-b`, d: `M ${b.right} ${b.cy} L ${midX} ${b.cy}`, color: colorB });
+          next.push({ id: `conn-${match.id}-v`, d: `M ${midX} ${a.cy} L ${midX} ${b.cy}`, color: "rgba(150,100,255,0.75)" });
+          next.push({ id: `conn-${match.id}-t`, d: dTarget, color: targetColor });
+        }
+      }
+    }
+
+    // Champion connector from the final match.
+    if (finalMatch) {
+      const finalEl = matchRefs.current.get(finalMatch.id);
+      const champEl = championRef.current;
+      if (finalEl && champEl) {
+        const f = getRect(finalEl);
+        const c = getRect(champEl);
+        const midX = f.right + (c.left - f.right) / 2;
+        const d = `M ${f.right} ${f.cy} L ${midX} ${f.cy} L ${midX} ${c.cy} L ${c.left} ${c.cy}`;
+        const color =
+          finalMatch.status === "completed" && finalMatch.winnerId != null
+            ? "#f5b82e"
+            : "rgba(150,100,255,0.75)";
+        next.push({ id: "conn-champion", d, color });
+      }
+    }
+
+    setPaths(next);
+  }, [orderedRounds, finalMatch]);
+
+  useLayoutEffect(() => {
+    const raf = requestAnimationFrame(calculateConnectors);
+    const timer = setTimeout(calculateConnectors, 100);
+    const ro = new ResizeObserver(() => calculateConnectors());
+    if (canvasRef.current) ro.observe(canvasRef.current);
+    window.addEventListener("resize", calculateConnectors);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+      ro.disconnect();
+      window.removeEventListener("resize", calculateConnectors);
+    };
+  }, [calculateConnectors]);
+
+  const toggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      canvasRef.current?.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  }, []);
+
+  useLayoutEffect(() => {
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+
+  if (orderedRounds.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
         <Swords className="w-10 h-10 mx-auto mb-3 opacity-30" />
@@ -347,58 +437,124 @@ export function TournamentBracket({ rounds }: TournamentBracketProps) {
     );
   }
 
+  const totalWidth = orderedRounds.length * COL_W + orderedRounds.length * COL_GAP + CHAMP_W + 80;
+
   return (
-    <div className="space-y-8">
-      {champion && <ChampionBanner championName={champion.name} />}
+    <div className="w-full min-h-screen bg-background flex flex-col">
+      {/* Title area */}
+      <div className="flex items-center justify-between px-6 py-5 border-b border-white/5 bg-background/80 backdrop-blur shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-[var(--acc)]/10 border border-[var(--acc)]/20">
+            <Trophy className="w-5 h-5 text-[var(--acc)]" />
+          </div>
+          <div>
+            <h2 className="text-lg font-black uppercase tracking-wide text-foreground">Knockout Bracket</h2>
+            <p className="text-xs text-muted-foreground font-medium">Road to the Champion</p>
+          </div>
+        </div>
+        <button
+          onClick={toggleFullscreen}
+          className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-wider border border-white/10 bg-white/5 hover:bg-white/10 transition"
+        >
+          {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+          {isFullscreen ? "Exit" : "Full Screen"}
+        </button>
+      </div>
 
-      <div className="overflow-x-auto pb-4 -mx-4 px-4">
-        <div ref={containerRef} className="relative flex items-stretch gap-10 min-w-max py-4">
-          <BracketConnectors lines={lines} />
+      {/* Viewport */}
+      <div className="flex-1 overflow-x-auto overflow-y-auto w-full">
+        <div
+          ref={canvasRef}
+          className="relative mx-auto"
+          style={{ minWidth: totalWidth, minHeight: canvasHeight + 80, padding: "40px 40px 60px" }}
+        >
+          <svg className="absolute inset-0 w-full h-full pointer-events-none z-0" style={{ overflow: "visible" }}>
+            {paths.map((p) => (
+              <path
+                key={p.id}
+                d={p.d}
+                fill="none"
+                stroke={p.color}
+                strokeWidth={p.color === "#f5b82e" ? 2.5 : 2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            ))}
+          </svg>
 
-          {sortedRounds.map((round) => {
-            const isFinal = round.roundNumber === finalRound?.roundNumber;
+          <div className="flex relative z-10" style={{ gap: COL_GAP }}>
+            {orderedRounds.map((round) => {
+              const isFinalRound = round.matches.some((m) => isFinalRoundName(m.roundName ?? ""));
+              return (
+                <div key={round.roundNumber} className="flex flex-col" style={{ width: COL_W }}>
+                  <div className={`text-center mb-4 ${isFinalRound ? "text-amber-400" : "text-[var(--acc)]"}`}>
+                    <div
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider border ${
+                        isFinalRound ? "bg-amber-500/10 border-amber-500/30" : "bg-[var(--acc)]/10 border-[var(--acc)]/20"
+                      }`}
+                    >
+                      {isFinalRound && <Trophy className="w-3 h-3" />}
+                      {round.name}
+                    </div>
+                  </div>
 
-            return (
-              <div key={round.roundNumber} className="flex flex-col relative z-20 min-h-[480px]">
-                <div className={`text-center mb-5 ${isFinal ? "text-amber-400" : "text-[var(--acc)]"}`}>
-                  <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider border ${isFinal ? "bg-amber-500/10 border-amber-500/30" : "bg-[var(--acc)]/10 border-[var(--acc)]/20"}`}>
-                    {isFinal && <Trophy className="w-3 h-3" />}
-                    {round.name}
+                  <div className="relative" style={{ height: canvasHeight }}>
+                    {round.matches.map((match, idx) => {
+                      const pos = positions.get(match.id);
+                      if (!pos) return null;
+                      const isFinal = isFinalRoundName(match.roundName ?? "");
+                      const labelPrefix = roundAbbreviation(match.roundName ?? round.name);
+                      const labelNumber = String(idx + 1).padStart(2, "0");
+                      return (
+                        <MatchCard
+                          key={match.id}
+                          match={match}
+                          label={`${labelPrefix} - ${labelNumber}`}
+                          isFinal={isFinal}
+                          matchRef={setMatchRef(match.id)}
+                        />
+                      );
+                    })}
                   </div>
                 </div>
+              );
+            })}
 
-                <div className="flex flex-col justify-around flex-1">
-                  {round.matches.map((match) => (
-                    <KnockoutMatchCard
-                      key={match.id}
-                      match={match}
-                      isFinal={isFinal}
-                      matchRef={setMatchRef(match.id)}
-                    />
-                  ))}
+            {/* Champion column */}
+            <div className="flex flex-col" style={{ width: CHAMP_W }}>
+              <div className="text-center mb-4 text-amber-400">
+                <div className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider border bg-amber-500/10 border-amber-500/30">
+                  <Crown className="w-3 h-3" /> Champion
                 </div>
               </div>
-            );
-          })}
+              <div className="relative" style={{ height: canvasHeight }}>
+                <ChampionCard name={championName} championRef={(el) => (championRef.current = el)} />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap items-center justify-center gap-4 text-[11px] text-muted-foreground">
+      <div className="flex flex-wrap items-center justify-center gap-5 py-4 text-[11px] text-muted-foreground border-t border-white/5 shrink-0">
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded bg-amber-500/20 border border-amber-500/30" />
           <span>Winner</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded bg-white/5 border border-white/10" />
-          <span className="line-through decoration-destructive/50">Eliminated</span>
+          <span>Participant</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded bg-red-500/10 border border-red-500/20" />
           <span>Live Match</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-8 h-0.5 bg-gradient-to-r from-violet-500/50 to-violet-500/20 rounded" />
+          <div className="w-8 h-0.5 bg-violet-500/60 rounded" />
+          <span>Connector</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-8 h-0.5 bg-amber-400 rounded" />
           <span>Winner Path</span>
         </div>
       </div>
