@@ -1207,11 +1207,14 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
     onError: (err: Error) => toast({ title: "Knockout generation failed", description: err.message, variant: "destructive" }),
   });
 
+  // Seed exactly the number of players the admin chose when creating the
+  // tournament (fills the remaining slots up to maxParticipants).
+  const remainingSlots = Math.max(0, (tournament.maxParticipants ?? 0) - tournament.currentParticipants);
   const { mutate: seedParticipants, isPending: seedingPending } = useMutation({
-    mutationFn: () =>
+    mutationFn: (count: number) =>
       apiFetch(`/api/admin/tournaments/${tournament.id}/seed-participants`, {
         method: "POST",
-        body: JSON.stringify({ count: 16 }),
+        body: JSON.stringify({ count }),
       }),
     onSuccess: (data: { created: number; registered: number; totalParticipants: number }) => {
       toast({ title: `Seeded ${data.created} fake players!`, description: `${data.registered} registered. Total: ${data.totalParticipants} participants.` });
@@ -1347,7 +1350,7 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
             size="sm"
             variant="outline"
             className="gap-2 font-bold border-cyan-500/40 text-cyan-400 hover:border-cyan-500 hover:text-cyan-400"
-            onClick={() => { if (confirm("Create 16 fake players and register them to this tournament?")) seedParticipants(); }}
+            onClick={() => { if (remainingSlots <= 0) { alert("Tournament is already full."); return; } if (confirm(`Register ${remainingSlots} fake players to this tournament? (${tournament.currentParticipants}/${tournament.maxParticipants} filled)`)) seedParticipants(remainingSlots); }}
             disabled={seedingPending}
           >
             {seedingPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Users className="w-4 h-4" />}

@@ -576,7 +576,7 @@ function CreateTournamentDialog({
     } else if (step === 2) {
       const tc = Number(teamCount);
       if (!teamCount || tc < 2 || tc > 128 || !Number.isInteger(tc)) {
-        toast({ title: "Please enter a valid number of teams (2-128)", variant: "destructive" });
+        toast({ title: "Please enter a valid number of players (2-128)", variant: "destructive" });
         return;
       }
       setStep(3);
@@ -597,7 +597,7 @@ function CreateTournamentDialog({
     }
     const tc = Number(teamCount);
     if (!teamCount || tc < 2 || tc > 128 || !Number.isInteger(tc)) {
-      toast({ title: "Please enter a valid number of teams (2-128)", variant: "destructive" });
+      toast({ title: "Please enter a valid number of players (2-128)", variant: "destructive" });
       return;
     }
     if (status === "upcoming" && !startDate) {
@@ -755,9 +755,9 @@ function CreateTournamentDialog({
               <div className="space-y-1.5">
                 <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                   <Users className="w-3.5 h-3.5" />
-                  How many teams will participate?
+                  How many players will participate?
                 </label>
-                <Input type="number" min={2} max={128} value={teamCount} onChange={(e) => setTeamCount(e.target.value === "" ? "" : Number(e.target.value))} placeholder="Enter number of teams (2-128)" />
+                <Input type="number" min={2} max={128} value={teamCount} onChange={(e) => setTeamCount(e.target.value === "" ? "" : Number(e.target.value))} placeholder="Enter number of players (2-128)" />
                 <p className="text-xs text-muted-foreground">This determines the bracket size and group structure.</p>
               </div>
             </div>
@@ -789,7 +789,7 @@ function CreateTournamentDialog({
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Qualification Rule</label>
                     <div className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-2.5 text-sm text-primary font-bold">Top {qualifyCount} from each group qualify</div>
-                    <p className="text-xs text-muted-foreground">The top {qualifyCount} teams from every group advance to the Knock-out Stage.</p>
+                    <p className="text-xs text-muted-foreground">The top {qualifyCount} players from every group advance to the Knock-out Stage.</p>
                   </div>
                 </>
               )}
@@ -817,7 +817,7 @@ function CreateTournamentDialog({
                 <p className="text-sm font-bold text-primary">Review</p>
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <span className="text-muted-foreground">Name:</span> <span className="font-bold text-foreground">{name}</span>
-                  <span className="text-muted-foreground">Teams:</span> <span className="font-bold text-foreground">{teamCount}</span>
+                  <span className="text-muted-foreground">Players:</span> <span className="font-bold text-foreground">{teamCount}</span>
                   <span className="text-muted-foreground">Stage:</span> <span className="font-bold text-foreground">{STAGE_OPTIONS.find(s => s.value === stage)?.title}</span>
                   <span className="text-muted-foreground">Status:</span> <span className="font-bold text-foreground capitalize">{status}</span>
                   <span className="text-muted-foreground">Clan:</span> <span className="font-bold text-foreground">{isClanTournament ? "Yes" : "No"}</span>

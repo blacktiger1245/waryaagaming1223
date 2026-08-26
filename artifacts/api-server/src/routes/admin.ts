@@ -752,7 +752,10 @@ router.post("/admin/tournaments", requireAdmin, async (req, res) => {
       // Team tournaments use round-robin (league) and are unlimited in size
       format: String(tournamentType) === "team" ? "round-robin" : String(format ?? "single-elimination"),
       game: String(game ?? "eFootball"),
-      maxParticipants: String(tournamentType) === "team" ? 9999 : Number(maxParticipants ?? 16),
+      // Solo tournaments are capped exactly at the player count the admin chose.
+      maxParticipants: String(tournamentType) === "team"
+        ? 9999
+        : Number(teamCount ?? maxParticipants ?? 16),
       prizePool: String(prizePool ?? "$0"),
       startDate: startDate ? String(startDate) : undefined,
       endDate: endDate ? String(endDate) : undefined,
