@@ -1340,7 +1340,7 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
               <span className="text-xs text-muted-foreground">
                 {isTeamTournament
                   ? `${tournament.currentParticipants} teams`
-                  : `${tournament.currentParticipants}/${tournament.maxParticipants} players`}
+                  : `${tournament.maxParticipants}/${tournament.maxParticipants} players`}
               </span>
             </div>
           </div>
@@ -2108,7 +2108,7 @@ function TournamentPicker({ onSelect }: { onSelect: (t: Tournament) => void }) {
                     <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Prize</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-xs font-black">{t.currentParticipants}/{t.maxParticipants}</div>
+                    <div className="text-xs font-black">{t.maxParticipants}/{t.maxParticipants}</div>
                     <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Players</div>
                   </div>
                 </div>

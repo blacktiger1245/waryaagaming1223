@@ -929,7 +929,7 @@ export default function TournamentDetailPage() {
               label: isTeamTournament ? "Teams" : "Participants",
               value: tournament.maxParticipants >= 9999
                 ? String(tournament.currentParticipants)
-                : `${tournament.currentParticipants}/${tournament.maxParticipants}`,
+                : `${tournament.maxParticipants}/${tournament.maxParticipants}`,
               icon: isTeamTournament ? Shield : Users,
             },
             {

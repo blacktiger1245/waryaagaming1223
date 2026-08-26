@@ -294,7 +294,7 @@ export default function HomePage() {
                       </div>
                       <div className="text-center">
                         <div className="text-2xl font-black text-foreground">
-                          {upcomingTournament.maxParticipants >= 9999 ? upcomingTournament.currentParticipants : `${upcomingTournament.currentParticipants}/${upcomingTournament.maxParticipants}`}
+                          {upcomingTournament.maxParticipants >= 9999 ? upcomingTournament.currentParticipants : `${upcomingTournament.maxParticipants}/${upcomingTournament.maxParticipants}`}
                         </div>
                         <div className="text-xs text-muted-foreground uppercase tracking-wider mt-1">Participants</div>
                       </div>
