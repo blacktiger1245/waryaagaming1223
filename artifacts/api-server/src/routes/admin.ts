@@ -17,7 +17,7 @@ import {
   playerPoints,
   pointsToMarketValue,
 } from "@workspace/db";
-import { eq, desc, and, inArray, type AnyColumn } from "drizzle-orm";
+import { eq, desc, and, inArray, type AnyColumn, sql } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { advanceKnockoutWinner, computeWinnerFromResult, syncKnockoutProgression } from "../lib/knockout";
 
@@ -2166,10 +2166,25 @@ router.post("/admin/tournaments/:id/seed-participants", requireAdmin, async (req
   const [tournament] = await db.select().from(tournamentsTable).where(eq(tournamentsTable.id, tournamentId));
   if (!tournament) return res.status(404).json({ error: "Tournament not found" });
 
-  const count = Math.min(
-    Number(req.body.count ?? 16),
-    tournament.maxParticipants ?? 64
-  );
+  // Never exceed the tournament cap: count ONLY the free slots remaining,
+  // no matter what the client asks for.
+  const [{ c: registeredCount }] = await db
+    .select({ c: sql<number>`count(*)::int` })
+    .from(tournamentParticipantsTable)
+    .where(eq(tournamentParticipantsTable.tournamentId, tournamentId));
+
+  const maxSlots = tournament.maxParticipants ?? 64;
+  const freeSlots = Math.max(0, maxSlots - registeredCount);
+  const requested = Number(req.body.count ?? maxSlots);
+  const count = Math.min(Number.isFinite(requested) ? requested : maxSlots, freeSlots);
+
+  if (count <= 0) {
+    return res.status(400).json({
+      error: "Tournament is already full",
+      totalParticipants: registeredCount,
+      maxParticipants: maxSlots,
+    });
+  }
 
   const createdPlayers: Array<{ id: number; username: string; displayName: string }> = [];
   const registered: Array<{ participantId: number; playerId: number }> = [];
