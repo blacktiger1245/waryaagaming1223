@@ -187,7 +187,7 @@ router.get("/rankings/players", async (req, res) => {
       .select()
       .from(matchesTable)
       .where(
-        sql`${matchesTable.status} = 'completed' AND ${matchesTable.resultSetAt} >= ${since}`,
+        sql`${matchesTable.status} = 'completed' AND COALESCE(${matchesTable.resultSetAt}, ${matchesTable.createdAt}) >= ${since}`,
       );
 
     // Exclude team-format matches; their participant IDs are team IDs, not player IDs.
@@ -291,7 +291,7 @@ router.get("/rankings/teams", async (req, res) => {
       matches = await db
         .select()
         .from(matchesTable)
-        .where(sql`${matchesTable.status} = 'completed' AND ${matchesTable.resultSetAt} >= ${since}`);
+        .where(sql`${matchesTable.status} = 'completed' AND COALESCE(${matchesTable.resultSetAt}, ${matchesTable.createdAt}) >= ${since}`);
     }
 
     // Keep only team-format matches (their participant ids are team ids).

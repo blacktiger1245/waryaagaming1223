@@ -305,7 +305,7 @@ function TeamRankingsPanel({ teams, loading, seasons = [] }: { teams: TeamRankRo
 
   // Seasonal / Weekly / Monthly need per-period data from the backend.
   const needsFetch = period === "seasonal" || period === "weekly" || period === "monthly";
-  const { data: periodTeams, isLoading: periodLoading } = useQuery<TeamRankRow[]>({
+  const { data: periodTeams, isLoading: periodLoading, error: periodTeamsError } = useQuery<TeamRankRow[]>({
     queryKey: ["team-rankings", period, activeTeamSeason?.id],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -313,7 +313,10 @@ function TeamRankingsPanel({ teams, loading, seasons = [] }: { teams: TeamRankRo
       else if (period === "weekly" || period === "monthly") params.set("period", period);
       const qs = params.toString();
       const res = await fetch(`${import.meta.env.BASE_URL}api/rankings/teams${qs ? `?${qs}` : ""}`, { credentials: "include" });
-      if (!res.ok) return [];
+      if (!res.ok) {
+        const err = await res.text().catch(() => "Team rankings request failed");
+        throw new Error(err);
+      }
       return res.json() as Promise<TeamRankRow[]>;
     },
     enabled: needsFetch,
@@ -321,6 +324,7 @@ function TeamRankingsPanel({ teams, loading, seasons = [] }: { teams: TeamRankRo
 
   const displayTeams: TeamRankRow[] = needsFetch ? (periodTeams ?? []) : (teams as TeamRankRow[]);
   const tableLoading = needsFetch ? periodLoading : loading;
+  const tableError = periodTeamsError;
 
   function handleSort(k: TeamSortKey) {
     if (sortKey === k) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -466,7 +470,17 @@ function TeamRankingsPanel({ teams, loading, seasons = [] }: { teams: TeamRankRo
             </tr>
           </thead>
           <tbody>
-            {tableLoading
+            {tableError ? (
+              <tr>
+                <td colSpan={9} className="py-16 text-center text-red-400">
+                  <Shield className="w-10 h-10 mx-auto mb-3 opacity-20" />
+                  <p className="font-bold">Failed to load team rankings</p>
+                  <p className="text-xs mt-1 text-zinc-500">
+                    {tableError instanceof Error ? tableError.message : "Unknown error"}
+                  </p>
+                </td>
+              </tr>
+            ) : tableLoading
               ? Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i} className="border-b border-zinc-800">
                     <td colSpan={9} className="px-4 py-4"><Skeleton className="h-5 w-full bg-zinc-800" /></td>
@@ -564,7 +578,7 @@ function StarRating({ wins, max = 5 }: { wins: number; max?: number }) {
   );
 }
 import { Skeleton } from "@/components/ui/skeleton";
-import { useGetPlayerRankings, useGetTeamRankings } from "@workspace/api-client-react";
+import { getPlayerRankings, useGetTeamRankings } from "@workspace/api-client-react";
 
 type Tab = "players" | "teams";
 type Period = "all-time" | "monthly" | "weekly" | "seasonal";
@@ -594,26 +608,43 @@ export default function RankingsPage() {
     ? seasons.find((s) => s.id === selectedSeasonId) ?? currentSeason
     : currentSeason;
 
-  // Seasonal rankings: direct fetch (not through generated hook, needs seasonId param)
-  const { data: seasonalRankings, isLoading: loadingSeasonal } = useQuery({
-    queryKey: ["rankings", "seasonal", activeSeason?.id],
+  // Rankings fetch: all-time through generated hook; seasonal/weekly/monthly directly
+  // so we can pass seasonId and handle errors without a black screen.
+  const {
+    data: playerRankings,
+    isLoading: loadingPlayers,
+    error: playerRankingsError,
+  } = useQuery({
+    queryKey: ["rankings", "players", period, activeSeason?.id],
     queryFn: async () => {
-      if (!activeSeason) return [];
+      if (period === "all-time") {
+        return getPlayerRankings({ period: "all-time" });
+      }
+      const params = new URLSearchParams();
+      if (period === "seasonal") {
+        if (!activeSeason) return [];
+        params.set("seasonId", String(activeSeason.id));
+      } else if (period === "weekly" || period === "monthly") {
+        params.set("period", period);
+      }
+      const qs = params.toString();
       const res = await fetch(
-        `${import.meta.env.BASE_URL}api/rankings/players?seasonId=${activeSeason.id}`,
+        `${import.meta.env.BASE_URL}api/rankings/players${qs ? `?${qs}` : ""}`,
         { credentials: "include" }
       );
+      if (!res.ok) {
+        const err = await res.text().catch(() => "Rankings request failed");
+        throw new Error(err);
+      }
       return res.json();
     },
-    enabled: period === "seasonal" && !!activeSeason,
+    enabled: period !== "seasonal" || !!activeSeason,
   });
 
-  const { data: playerRankings, isLoading: loadingPlayers } = useGetPlayerRankings({ period: period === "seasonal" ? "all-time" : period });
   const { data: teamRankings, isLoading: loadingTeams } = useGetTeamRankings();
 
-  // Use the right data source depending on period
-  const activePlayerData = period === "seasonal" ? (seasonalRankings ?? []) : (playerRankings ?? []);
-  const activePlayerLoading = period === "seasonal" ? loadingSeasonal : loadingPlayers;
+  const activePlayerData = Array.isArray(playerRankings) ? playerRankings : [];
+  const activePlayerLoading = loadingPlayers;
 
   const sortedPlayers = useMemo(() => {
     if (!activePlayerData) return [];
@@ -769,7 +800,16 @@ export default function RankingsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {activePlayerLoading
+                  {playerRankingsError ? (
+                    <tr className="border-b border-border last:border-0">
+                      <td colSpan={9} className="px-4 py-8 text-center text-destructive">
+                        <p className="font-bold">Failed to load rankings</p>
+                        <p className="text-xs mt-1 text-muted-foreground">
+                          {playerRankingsError instanceof Error ? playerRankingsError.message : "Unknown error"}
+                        </p>
+                      </td>
+                    </tr>
+                  ) : activePlayerLoading
                     ? Array.from({ length: 10 }).map((_, i) => (
                         <tr key={i} className="border-b border-border">
                           <td colSpan={9} className="px-4 py-3"><Skeleton className="h-5 w-full" /></td>
