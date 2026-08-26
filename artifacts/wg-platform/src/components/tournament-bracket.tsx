@@ -1,4 +1,4 @@
-﻿import { useMemo, useRef, useLayoutEffect, useState, useCallback } from "react";
+import { useMemo, useRef, useLayoutEffect, useState, useCallback } from "react";
 import { Trophy, Swords, Crown, Maximize, Minimize } from "lucide-react";
 import type { Match } from "@workspace/api-client-react";
 
@@ -26,14 +26,22 @@ interface ConnectorPath {
   color: string;
 }
 
+interface Position {
+  x: number;
+  y: number;
+  cx: number;
+  cy: number;
+}
+
 const CARD_W = 250;
 const CARD_H = 72;
-const GAP = 8;
-const STEP = CARD_H + GAP;
+const R32_GAP = 8;
+const R32_STEP = CARD_H + R32_GAP; // 80
 const COL_W = 250;
 const COL_GAP = 70;
 const CHAMP_W = 290;
 const CHAMP_H = 340;
+const HEADER_H = 60;
 
 function roundAbbreviation(name: string): string {
   const n = (name ?? "").toLowerCase();
@@ -56,6 +64,18 @@ function isThirdPlaceName(name: string): boolean {
   return /third/i.test(name ?? "");
 }
 
+function canonicalRoundOrder(name: string): number {
+  const n = name.toLowerCase();
+  if (n.includes("round of 32")) return 0;
+  if (n.includes("round of 16")) return 1;
+  if (n.includes("quarter")) return 2;
+  if (n.includes("semi")) return 3;
+  if (n.includes("third")) return 5;
+  if (n.includes("grand final")) return 4;
+  if (n.includes("final")) return 4;
+  return 6;
+}
+
 function TeamAvatar({ name, isWinner }: { name: string | null; isWinner: boolean }) {
   const initial = (name ?? "?")[0]?.toUpperCase() ?? "?";
   return (
@@ -75,11 +95,13 @@ function MatchCard({
   match,
   label,
   isFinal,
+  style,
   matchRef,
 }: {
   match: BracketMatch;
   label: string;
   isFinal: boolean;
+  style: React.CSSProperties;
   matchRef: (el: HTMLDivElement | null) => void;
 }) {
   const p1Name = match.participant1Name ?? "TBD";
@@ -99,7 +121,7 @@ function MatchCard({
       ref={matchRef}
       data-match-id={match.id}
       className={`
-        absolute left-0 rounded-xl border overflow-hidden transition-all duration-300
+        absolute rounded-xl border overflow-hidden transition-all duration-300
         ${isFinal
           ? "border-amber-500/40 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-amber-600/10 shadow-[0_0_30px_-8px_rgba(245,158,11,0.35)]"
           : isLive
@@ -108,14 +130,8 @@ function MatchCard({
         }
         hover:shadow-[0_12px_32px_-12px_var(--card-glow)] hover:border-[var(--acc)]/30
       `}
-      style={{ width: CARD_W, height: CARD_H }}
+      style={style}
     >
-      {isFinal && (
-        <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1 rounded-full bg-gradient-to-r from-amber-500 to-amber-400 px-3 py-0.5 text-[10px] font-black uppercase tracking-wider text-black shadow-lg">
-          <Trophy className="w-3 h-3" /> Grand Final
-        </div>
-      )}
-
       {/* Header */}
       <div className="flex items-center justify-between px-3 h-[20px] border-b border-white/5 bg-white/[0.02]">
         <span className="text-[10px] font-black uppercase tracking-wider text-[var(--acc)]">{label}</span>
@@ -159,9 +175,11 @@ function MatchCard({
 
 function ChampionCard({
   name,
+  style,
   championRef,
 }: {
   name: string | null;
+  style: React.CSSProperties;
   championRef: (el: HTMLDivElement | null) => void;
 }) {
   const resolved = name ?? "TBD";
@@ -170,13 +188,13 @@ function ChampionCard({
     <div
       ref={championRef}
       className={`
-        absolute left-0 rounded-2xl border-2 overflow-hidden flex flex-col items-center justify-center text-center p-5
+        absolute rounded-2xl border-2 overflow-hidden flex flex-col items-center justify-center text-center p-5
         ${determined
           ? "border-amber-500/50 bg-gradient-to-b from-amber-500/15 via-amber-500/5 to-amber-600/10 shadow-[0_0_50px_-12px_rgba(245,158,11,0.45)]"
           : "border-white/10 bg-card/80"
         }
       `}
-      style={{ width: CHAMP_W, height: CHAMP_H }}
+      style={style}
     >
       <div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-400 mb-3">Hall of Fame</div>
       <div className={`rounded-full flex items-center justify-center mb-4 ${determined ? "bg-amber-500/20 text-amber-400" : "bg-white/5 text-muted-foreground"}`} style={{ width: 96, height: 96 }}>
@@ -188,55 +206,85 @@ function ChampionCard({
   );
 }
 
+function RoundTitle({ round }: { round: BracketRound }) {
+  const isFinalRound = round.matches.some((m) => isFinalRoundName(m.roundName ?? ""));
+  return (
+    <div className={`text-center ${isFinalRound ? "text-amber-400" : "text-[var(--acc)]"}`}>
+      <div
+        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider border ${
+          isFinalRound ? "bg-amber-500/10 border-amber-500/30" : "bg-[var(--acc)]/10 border-[var(--acc)]/20"
+        }`}
+      >
+        {isFinalRound && <Trophy className="w-3 h-3" />}
+        {round.name}
+      </div>
+    </div>
+  );
+}
+
+function orderRounds(rounds: BracketRound[]): BracketRound[] {
+  const sorted = [...rounds].sort((a, b) => {
+    const ao = canonicalRoundOrder(a.name);
+    const bo = canonicalRoundOrder(b.name);
+    if (ao !== bo) return ao - bo;
+    return a.roundNumber - b.roundNumber;
+  });
+
+  const matchById = new Map<number, BracketMatch>();
+  sorted.forEach((r) => r.matches.forEach((m) => matchById.set(m.id, m)));
+
+  const childrenOf = new Map<number, number[]>();
+  sorted.forEach((r) =>
+    r.matches.forEach((m) => {
+      const add = (parentId?: number | null) => {
+        if (parentId == null) return;
+        if (!childrenOf.has(parentId)) childrenOf.set(parentId, []);
+        childrenOf.get(parentId)!.push(m.id);
+      };
+      add(m.parentMatch1Id);
+      add(m.parentMatch2Id);
+      if (m.nextMatchId) add(m.nextMatchId);
+    })
+  );
+
+  const ordered: BracketRound[] = [];
+  sorted.forEach((round, idx) => {
+    if (idx === 0) {
+      ordered.push({ ...round, matches: [...round.matches].sort((a, b) => a.id - b.id) });
+      return;
+    }
+    const prevMatches = ordered[idx - 1].matches;
+    const seen = new Set<number>();
+    const nextMatches: BracketMatch[] = [];
+    for (const p of prevMatches) {
+      for (const cid of childrenOf.get(p.id) ?? []) {
+        if (seen.has(cid)) continue;
+        const child = matchById.get(cid);
+        if (child && round.matches.some((m) => m.id === cid)) {
+          seen.add(cid);
+          nextMatches.push(child);
+        }
+      }
+    }
+    for (const m of [...round.matches].sort((a, b) => a.id - b.id)) {
+      if (!seen.has(m.id)) nextMatches.push(m);
+    }
+    ordered.push({ ...round, matches: nextMatches });
+  });
+
+  return ordered;
+}
+
 export function TournamentBracket({ rounds }: TournamentBracketProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const matchRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const championRef = useRef<HTMLDivElement>(null);
-  const [paths, setPaths] = useState<ConnectorPath[]>([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  const { orderedRounds, finalMatch, championName } = useMemo(() => {
-    const sorted = [...rounds].sort((a, b) => a.roundNumber - b.roundNumber);
-    const matchById = new Map<number, BracketMatch>();
-    sorted.forEach((r) => r.matches.forEach((m) => matchById.set(m.id, m)));
-
-    const childByParent = new Map<number, number>();
-    matchById.forEach((m, id) => {
-      if (m.nextMatchId) childByParent.set(id, m.nextMatchId);
-    });
-    matchById.forEach((child) => {
-      if (child.parentMatch1Id && !childByParent.has(child.parentMatch1Id)) {
-        childByParent.set(child.parentMatch1Id, child.id);
-      }
-      if (child.parentMatch2Id && !childByParent.has(child.parentMatch2Id)) {
-        childByParent.set(child.parentMatch2Id, child.id);
-      }
-    });
-
-    const ordered: BracketRound[] = [];
-    sorted.forEach((round, idx) => {
-      if (idx === 0) {
-        ordered.push({ ...round, matches: [...round.matches].sort((a, b) => a.id - b.id) });
-        return;
-      }
-      const prevMatches = ordered[idx - 1].matches;
-      const seen = new Set<number>();
-      const next: BracketMatch[] = [];
-      for (const p of prevMatches) {
-        const cid = childByParent.get(p.id);
-        if (cid != null && !seen.has(cid)) {
-          const child = matchById.get(cid);
-          if (child && round.matches.some((m) => m.id === cid)) {
-            seen.add(cid);
-            next.push(child);
-          }
-        }
-      }
-      for (const m of [...round.matches].sort((a, b) => a.id - b.id)) {
-        if (!seen.has(m.id)) next.push(m);
-      }
-      ordered.push({ ...round, matches: next });
-    });
+  const { orderedRounds, finalMatch, championName, matchById } = useMemo(() => {
+    const ordered = orderRounds(rounds);
+    const map = new Map<number, BracketMatch>();
+    ordered.forEach((r) => r.matches.forEach((m) => map.set(m.id, m)));
 
     const lastRound = ordered[ordered.length - 1];
     const finalMatch =
@@ -255,46 +303,119 @@ export function TournamentBracket({ rounds }: TournamentBracketProps) {
       }
     }
 
-    return { orderedRounds: ordered, finalMatch, championName };
+    return { orderedRounds: ordered, finalMatch, championName, matchById: map };
   }, [rounds]);
 
+  // ── LAYOUT ENGINE: deterministic Y positions derived from actual parent matches ──
   const positions = useMemo(() => {
-    const pos = new Map<number, { top: number; center: number }>();
+    const pos = new Map<number, Position>();
     orderedRounds.forEach((round, ridx) => {
+      const colX = ridx * (COL_W + COL_GAP);
       round.matches.forEach((m, idx) => {
-        let center: number;
+        let cy: number;
         if (ridx === 0) {
-          center = idx * STEP + CARD_H / 2;
+          // R32 establishes base positions: 80px vertical steps.
+          cy = idx * R32_STEP + CARD_H / 2;
         } else {
-          const parentCenters = [m.parentMatch1Id, m.parentMatch2Id]
+          const parentCys = [m.parentMatch1Id, m.parentMatch2Id]
             .filter((id): id is number => id != null)
-            .map((id) => pos.get(id)?.center)
+            .map((id) => pos.get(id)?.cy)
             .filter((c): c is number => c != null);
-          if (parentCenters.length > 0) {
-            center = parentCenters.reduce((a, b) => a + b, 0) / parentCenters.length;
+          if (parentCys.length > 0) {
+            cy = parentCys.reduce((a, b) => a + b, 0) / parentCys.length;
           } else {
-            const prev = pos.get(round.matches[idx - 1]?.id);
-            center = prev ? prev.center + STEP : idx * STEP + CARD_H / 2;
+            const firstRound = orderedRounds[0];
+            const totalR32Height = firstRound
+              ? (firstRound.matches.length - 1) * R32_STEP + CARD_H
+              : 800;
+            cy = (idx + 0.5) * (totalR32Height / round.matches.length);
           }
         }
-        pos.set(m.id, { top: center - CARD_H / 2, center });
+        pos.set(m.id, { x: colX, y: cy - CARD_H / 2, cx: colX + CARD_W / 2, cy });
       });
     });
     return pos;
   }, [orderedRounds]);
 
-  const { canvasHeight, championTop } = useMemo(() => {
-    let height = 0;
-    positions.forEach((p) => {
-      height = Math.max(height, p.top + CARD_H);
-    });
-    const finalCenter = finalMatch ? positions.get(finalMatch.id)?.center ?? height / 2 : height / 2;
-    let top = finalCenter - CHAMP_H / 2;
-    if (top < 20) top = 20;
-    height = Math.max(height, top + CHAMP_H + 40);
-    height = Math.max(height, 800);
-    return { canvasHeight: height, championTop: top };
-  }, [positions, finalMatch]);
+  const championPos = useMemo((): Position | null => {
+    if (!finalMatch) return null;
+    const finalPos = positions.get(finalMatch.id);
+    if (!finalPos) return null;
+    const x = orderedRounds.length * (COL_W + COL_GAP);
+    const cy = finalPos.cy; // CHAMPION.centerY = FINAL.centerY
+    return { x, y: cy - CHAMP_H / 2, cx: x + CHAMP_W / 2, cy };
+  }, [positions, finalMatch, orderedRounds.length]);
+
+  const canvasHeight = useMemo(() => {
+    const firstRound = orderedRounds[0];
+    if (!firstRound || firstRound.matches.length === 0) return 800;
+    const contentBottom = (firstRound.matches.length - 1) * R32_STEP + CARD_H;
+    const champBottom = championPos ? championPos.y + CHAMP_H : 0;
+    return Math.max(contentBottom, champBottom) + 40;
+  }, [orderedRounds, championPos]);
+
+  // ── SVG CONNECTOR ENGINE: drawn from actual computed positions ──
+  const paths = useMemo(() => {
+    const next: ConnectorPath[] = [];
+    const isWinnerPath = (source: BracketMatch) =>
+      source.status === "completed" && source.winnerId != null;
+
+    for (const round of orderedRounds) {
+      for (const match of round.matches) {
+        const child = positions.get(match.id);
+        if (!child) continue;
+        const parentIds = [match.parentMatch1Id, match.parentMatch2Id].filter(
+          (id): id is number => id != null
+        );
+        if (parentIds.length === 0) continue;
+        const parents = parentIds
+          .map((id) => positions.get(id))
+          .filter((p): p is Position => p != null)
+          .sort((a, b) => a.cy - b.cy);
+        if (parents.length === 0) continue;
+
+        if (parents.length === 1) {
+          const p = parents[0];
+          const midX = p.x + CARD_W + (child.x - (p.x + CARD_W)) / 2;
+          const d = `M ${p.x + CARD_W} ${p.cy} L ${midX} ${p.cy} L ${midX} ${child.cy} L ${child.x} ${child.cy}`;
+          const src = matchById.get(parentIds[0]);
+          next.push({ id: `conn-${match.id}`, d, color: src && isWinnerPath(src) ? "#f5b82e" : "rgba(150,100,255,0.75)" });
+        } else {
+          const [a, b] = parents;
+          const midX = a.x + CARD_W + (child.x - (a.x + CARD_W)) / 2;
+          const midY = (a.cy + b.cy) / 2;
+          const srcA = matchById.get(parentIds[0]);
+          const srcB = matchById.get(parentIds[1]);
+          const colorA = srcA && isWinnerPath(srcA) ? "#f5b82e" : "rgba(150,100,255,0.75)";
+          const colorB = srcB && isWinnerPath(srcB) ? "#f5b82e" : "rgba(150,100,255,0.75)";
+          const targetColor =
+            match.status === "completed" && match.winnerId != null
+              ? "#f5b82e"
+              : "rgba(150,100,255,0.75)";
+          next.push({ id: `conn-${match.id}-a`, d: `M ${a.x + CARD_W} ${a.cy} L ${midX} ${a.cy}`, color: colorA });
+          next.push({ id: `conn-${match.id}-b`, d: `M ${b.x + CARD_W} ${b.cy} L ${midX} ${b.cy}`, color: colorB });
+          next.push({ id: `conn-${match.id}-v`, d: `M ${midX} ${a.cy} L ${midX} ${b.cy}`, color: "rgba(150,100,255,0.75)" });
+          next.push({ id: `conn-${match.id}-t`, d: `M ${midX} ${midY} L ${child.x} ${child.cy}`, color: targetColor });
+        }
+      }
+    }
+
+    if (finalMatch && championPos) {
+      const finalPos = positions.get(finalMatch.id);
+      if (finalPos) {
+        const midX = finalPos.x + CARD_W + (championPos.x - (finalPos.x + CARD_W)) / 2;
+        const d = `M ${finalPos.x + CARD_W} ${finalPos.cy} L ${midX} ${finalPos.cy} L ${midX} ${championPos.cy} L ${championPos.x} ${championPos.cy}`;
+        next.push({
+          id: "conn-champion",
+          d,
+          color: finalMatch.status === "completed" && finalMatch.winnerId != null ? "#f5b82e" : "rgba(150,100,255,0.75)",
+        });
+      }
+    }
+
+    return next;
+  }, [orderedRounds, positions, finalMatch, championPos, matchById]);
+
 
   const setMatchRef = useCallback(
     (id: number) => (el: HTMLDivElement | null) => {
@@ -303,116 +424,6 @@ export function TournamentBracket({ rounds }: TournamentBracketProps) {
     },
     []
   );
-
-  const matchById = useRef<Map<number, BracketMatch>>(new Map());
-  useMemo(() => {
-    const map = new Map<number, BracketMatch>();
-    orderedRounds.forEach((r) => r.matches.forEach((m) => map.set(m.id, m)));
-    matchById.current = map;
-  }, [orderedRounds]);
-
-  const calculateConnectors = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const canvasRect = canvas.getBoundingClientRect();
-    const getRect = (el: HTMLElement) => {
-      const r = el.getBoundingClientRect();
-      return {
-        left: r.left - canvasRect.left,
-        right: r.right - canvasRect.left,
-        top: r.top - canvasRect.top,
-        bottom: r.bottom - canvasRect.top,
-        cx: r.left - canvasRect.left + r.width / 2,
-        cy: r.top - canvasRect.top + r.height / 2,
-      };
-    };
-
-    const next: ConnectorPath[] = [];
-
-    for (const round of orderedRounds) {
-      for (const match of round.matches) {
-        const childEl = matchRefs.current.get(match.id);
-        if (!childEl) continue;
-        const child = getRect(childEl);
-
-        const parentIds = [match.parentMatch1Id, match.parentMatch2Id].filter(
-          (id): id is number => id != null
-        );
-        if (parentIds.length === 0) continue;
-
-        const parentEls = parentIds
-          .map((id) => matchRefs.current.get(id))
-          .filter((el): el is HTMLDivElement => el != null);
-        if (parentEls.length === 0) continue;
-
-        const isWinnerPath = (source: BracketMatch) =>
-          source.status === "completed" && source.winnerId != null;
-
-        if (parentEls.length === 1) {
-          const pEl = parentEls[0];
-          const p = getRect(pEl);
-          const midX = p.right + (child.left - p.right) / 2;
-          const d = `M ${p.right} ${p.cy} L ${midX} ${p.cy} L ${midX} ${child.cy} L ${child.left} ${child.cy}`;
-          const sourceMatch = matchById.current.get(parentIds[0]);
-          const color = sourceMatch && isWinnerPath(sourceMatch) ? "#f5b82e" : "rgba(150,100,255,0.75)";
-          next.push({ id: `conn-${match.id}`, d, color });
-        } else {
-          const rects = parentEls.map(getRect).sort((a, b) => a.cy - b.cy);
-          const [a, b] = rects;
-          const midX = a.right + (child.left - a.right) / 2;
-          const midY = (a.cy + b.cy) / 2;
-          const dFork = `M ${a.right} ${a.cy} L ${midX} ${a.cy} L ${midX} ${b.cy} L ${b.right} ${b.cy}`;
-          const dTarget = `M ${midX} ${midY} L ${child.left} ${child.cy}`;
-          const sourceA = matchById.current.get(parentIds[0]);
-          const sourceB = matchById.current.get(parentIds[1]);
-          const colorA = sourceA && isWinnerPath(sourceA) ? "#f5b82e" : "rgba(150,100,255,0.75)";
-          const colorB = sourceB && isWinnerPath(sourceB) ? "#f5b82e" : "rgba(150,100,255,0.75)";
-          const targetColor =
-            match.status === "completed" && match.winnerId != null
-              ? "#f5b82e"
-              : "rgba(150,100,255,0.75)";
-          // Draw each segment so winner paths can be highlighted independently.
-          next.push({ id: `conn-${match.id}-a`, d: `M ${a.right} ${a.cy} L ${midX} ${a.cy}`, color: colorA });
-          next.push({ id: `conn-${match.id}-b`, d: `M ${b.right} ${b.cy} L ${midX} ${b.cy}`, color: colorB });
-          next.push({ id: `conn-${match.id}-v`, d: `M ${midX} ${a.cy} L ${midX} ${b.cy}`, color: "rgba(150,100,255,0.75)" });
-          next.push({ id: `conn-${match.id}-t`, d: dTarget, color: targetColor });
-        }
-      }
-    }
-
-    // Champion connector from the final match.
-    if (finalMatch) {
-      const finalEl = matchRefs.current.get(finalMatch.id);
-      const champEl = championRef.current;
-      if (finalEl && champEl) {
-        const f = getRect(finalEl);
-        const c = getRect(champEl);
-        const midX = f.right + (c.left - f.right) / 2;
-        const d = `M ${f.right} ${f.cy} L ${midX} ${f.cy} L ${midX} ${c.cy} L ${c.left} ${c.cy}`;
-        const color =
-          finalMatch.status === "completed" && finalMatch.winnerId != null
-            ? "#f5b82e"
-            : "rgba(150,100,255,0.75)";
-        next.push({ id: "conn-champion", d, color });
-      }
-    }
-
-    setPaths(next);
-  }, [orderedRounds, finalMatch]);
-
-  useLayoutEffect(() => {
-    const raf = requestAnimationFrame(calculateConnectors);
-    const timer = setTimeout(calculateConnectors, 100);
-    const ro = new ResizeObserver(() => calculateConnectors());
-    if (canvasRef.current) ro.observe(canvasRef.current);
-    window.addEventListener("resize", calculateConnectors);
-    return () => {
-      cancelAnimationFrame(raf);
-      clearTimeout(timer);
-      ro.disconnect();
-      window.removeEventListener("resize", calculateConnectors);
-    };
-  }, [calculateConnectors]);
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -437,7 +448,7 @@ export function TournamentBracket({ rounds }: TournamentBracketProps) {
     );
   }
 
-  const totalWidth = orderedRounds.length * COL_W + orderedRounds.length * COL_GAP + CHAMP_W + 80;
+  const canvasWidth = Math.max(1800, orderedRounds.length * (COL_W + COL_GAP) + CHAMP_W + 80);
 
   return (
     <div className="w-full min-h-screen bg-background flex flex-col">
@@ -461,76 +472,73 @@ export function TournamentBracket({ rounds }: TournamentBracketProps) {
         </button>
       </div>
 
-      {/* Viewport */}
+      {/* Viewport - starts scrolled to the LEFT (scrollLeft = 0), R32 first */}
       <div className="flex-1 overflow-x-auto overflow-y-auto w-full">
         <div
           ref={canvasRef}
-          className="relative mx-auto"
-          style={{ minWidth: totalWidth, minHeight: canvasHeight + 80, padding: "40px 40px 60px" }}
+          className="relative flex flex-col"
+          style={{
+            width: "max-content",
+            minWidth: Math.max(canvasWidth, 1800),
+            minHeight: canvasHeight + HEADER_H + 80,
+            padding: "20px 40px 60px",
+          }}
         >
-          <svg className="absolute inset-0 w-full h-full pointer-events-none z-0" style={{ overflow: "visible" }}>
-            {paths.map((p) => (
-              <path
-                key={p.id}
-                d={p.d}
-                fill="none"
-                stroke={p.color}
-                strokeWidth={p.color === "#f5b82e" ? 2.5 : 2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            ))}
-          </svg>
-
-          <div className="flex relative z-10" style={{ gap: COL_GAP }}>
-            {orderedRounds.map((round) => {
-              const isFinalRound = round.matches.some((m) => isFinalRoundName(m.roundName ?? ""));
-              return (
-                <div key={round.roundNumber} className="flex flex-col" style={{ width: COL_W }}>
-                  <div className={`text-center mb-4 ${isFinalRound ? "text-amber-400" : "text-[var(--acc)]"}`}>
-                    <div
-                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider border ${
-                        isFinalRound ? "bg-amber-500/10 border-amber-500/30" : "bg-[var(--acc)]/10 border-[var(--acc)]/20"
-                      }`}
-                    >
-                      {isFinalRound && <Trophy className="w-3 h-3" />}
-                      {round.name}
-                    </div>
-                  </div>
-
-                  <div className="relative" style={{ height: canvasHeight }}>
-                    {round.matches.map((match, idx) => {
-                      const pos = positions.get(match.id);
-                      if (!pos) return null;
-                      const isFinal = isFinalRoundName(match.roundName ?? "");
-                      const labelPrefix = roundAbbreviation(match.roundName ?? round.name);
-                      const labelNumber = String(idx + 1).padStart(2, "0");
-                      return (
-                        <MatchCard
-                          key={match.id}
-                          match={match}
-                          label={`${labelPrefix} - ${labelNumber}`}
-                          isFinal={isFinal}
-                          matchRef={setMatchRef(match.id)}
-                        />
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-
-            {/* Champion column */}
-            <div className="flex flex-col" style={{ width: CHAMP_W }}>
-              <div className="text-center mb-4 text-amber-400">
-                <div className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider border bg-amber-500/10 border-amber-500/30">
-                  <Crown className="w-3 h-3" /> Champion
-                </div>
+          {/* Round header row - fixed header area, never overlaps cards */}
+          <div className="flex shrink-0" style={{ gap: COL_GAP, height: HEADER_H, marginBottom: 20 }}>
+            {orderedRounds.map((round) => (
+              <div key={round.roundNumber} style={{ width: COL_W }} className="flex items-start justify-center">
+                <RoundTitle round={round} />
               </div>
-              <div className="relative" style={{ height: canvasHeight }}>
-                <ChampionCard name={championName} championRef={(el) => (championRef.current = el)} />
+            ))}
+            <div style={{ width: CHAMP_W }} className="flex items-start justify-center text-amber-400">
+              <div className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider border bg-amber-500/10 border-amber-500/30">
+                <Crown className="w-3 h-3" /> Champion
               </div>
             </div>
+          </div>
+
+          {/* Bracket body - single coordinate system shared by cards and SVG */}
+          <div className="relative" style={{ height: canvasHeight, width: "100%" }}>
+            <svg className="absolute inset-0 w-full h-full pointer-events-none z-0" style={{ overflow: "visible" }}>
+              {paths.map((p) => (
+                <path
+                  key={p.id}
+                  d={p.d}
+                  fill="none"
+                  stroke={p.color}
+                  strokeWidth={p.color === "#f5b82e" ? 2.5 : 2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              ))}
+            </svg>
+
+            {orderedRounds.map((round, ridx) =>
+              round.matches.map((match, idx) => {
+                const pos = positions.get(match.id);
+                if (!pos) return null;
+                const labelPrefix = roundAbbreviation(match.roundName ?? round.name);
+                return (
+                  <MatchCard
+                    key={match.id}
+                    match={match}
+                    label={`${labelPrefix} - ${String(idx + 1).padStart(2, "0")}`}
+                    isFinal={isFinalRoundName(match.roundName ?? "")}
+                    style={{ left: pos.x, top: pos.y, width: CARD_W, height: CARD_H }}
+                    matchRef={setMatchRef(match.id)}
+                  />
+                );
+              })
+            )}
+
+            {championPos && (
+              <ChampionCard
+                name={championName}
+                style={{ left: championPos.x, top: championPos.y, width: CHAMP_W, height: CHAMP_H }}
+                championRef={(el) => (championRef.current = el)}
+              />
+            )}
           </div>
         </div>
       </div>
