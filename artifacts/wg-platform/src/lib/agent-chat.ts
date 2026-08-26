@@ -48,6 +48,78 @@ export interface AgentChatThread {
   messages: AgentChatMessage[];
 }
 
+// ── Team-invite (President / Coach) feature ─────────────────────────────────
+export interface AgentChannelContext {
+  isLeader: boolean;
+  role: "president" | "coach" | null;
+  teamId: number | null;
+  teamName: string | null;
+}
+
+export interface WgInvitePayload {
+  kind: "wg_invite";
+  inviteId: number;
+  teamId: number;
+  teamName: string;
+  presidentName: string;
+}
+
+export interface WgInviteResultPayload {
+  kind: "wg_invite_result";
+  inviteId: number;
+  accepted: boolean;
+  teamName: string;
+  agentName: string;
+}
+
+export type WgSystemPayload = WgInvitePayload | WgInviteResultPayload;
+
+/**
+ * Detect team-invite / invite-result system messages. Plain chat messages (and
+ * any other text) return null.
+ */
+export function parseWgSystemMessage(text: string): WgSystemPayload | null {
+  if (typeof text !== "string" || !text.startsWith("{")) return null;
+  try {
+    const parsed = JSON.parse(text) as WgSystemPayload;
+    if (parsed && (parsed.kind === "wg_invite" || parsed.kind === "wg_invite_result")) {
+      return parsed;
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+export function isWgInviteSystemMessage(text: string): boolean {
+  return parseWgSystemMessage(text)?.kind === "wg_invite";
+}
+
+/** Current user's leadership context — drives the chat gate + invite button. */
+export function fetchAgentChannelContext(): Promise<AgentChannelContext> {
+  return chatRequest<AgentChannelContext>("/api/agent-chat/me");
+}
+
+/** Post a team invitation as the player side (President/Coach). */
+export function sendTeamInvite(conversationId: number): Promise<{ id: number; sys: WgInvitePayload }> {
+  return chatRequest(`/api/agent-chat/conversations/${conversationId}/invite`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+/** Accept or reject a team invitation as the invited player (agent side). */
+export function respondToInvite(
+  conversationId: number,
+  inviteId: number,
+  decision: "accept" | "reject",
+): Promise<{ id: number; sys: WgInviteResultPayload }> {
+  return chatRequest(`/api/agent-chat/invites/${inviteId}/respond`, {
+    method: "POST",
+    body: JSON.stringify({ decision }),
+  });
+}
+
 async function chatRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const options: RequestInit = {
     credentials: "include",

@@ -4,6 +4,8 @@ import {
   playersTable,
   agentConversationsTable,
   agentMessagesTable,
+  teamsTable,
+  playerTransfersTable,
 } from "@workspace/db";
 import {
   eq,
@@ -44,6 +46,79 @@ function participantJson(
     avatarUrl: p.avatarUrl,
     country: p.country,
     online,
+  };
+}
+
+
+// ── Team-invite helpers ────────────────────────────────────────────────────────
+// We reuse the message TEXT column to carry structured invite/result payloads so
+// the feature needs no schema migration. Regular messages are plain text; invite
+// and result "cards" are serialized JSON starting with a sentinel kind.
+
+interface WgInvitePayload {
+  kind: "wg_invite";
+  inviteId: number;
+  teamId: number;
+  teamName: string;
+  presidentName: string;
+}
+
+interface WgInviteResultPayload {
+  kind: "wg_invite_result";
+  inviteId: number;
+  accepted: boolean;
+  teamName: string;
+  agentName: string;
+}
+
+type WgSystemPayload = WgInvitePayload | WgInviteResultPayload;
+
+function parseSystemMessage(text: string): WgSystemPayload | null {
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed && (parsed.kind === "wg_invite" || parsed.kind === "wg_invite_result")) {
+      return parsed as WgSystemPayload;
+    }
+  } catch {
+    /* not a system message */
+  }
+  return null;
+}
+
+function isSystemMessage(m: { text: string }): boolean {
+  return parseSystemMessage(m.text) !== null;
+}
+
+/** Friendly one-line preview used for inbox last-message summaries. */
+function friendlySystemText(m: { text: string; senderRole: string | null }): string | null {
+  const sys = parseSystemMessage(m.text);
+  if (!sys) return null;
+  if (sys.kind === "wg_invite") {
+    return `Invitation to join ${sys.teamName}`;
+  }
+  return sys.accepted
+    ? `${sys.agentName} accepted the invitation to ${sys.teamName}`
+    : `${sys.agentName} rejected the invitation to ${sys.teamName}`;
+}
+
+/**
+ * Resolve the authenticated user's leadership context (president or coach of a
+ * team). Returns null when the user has no president/coach role anywhere.
+ */
+async function resolveLeaderContext(
+  me: number,
+): Promise<{ role: "president" | "coach"; teamId: number; teamName: string } | null> {
+  const teams = await db
+    .select({ id: teamsTable.id, name: teamsTable.name, presidentId: teamsTable.presidentId, coachId: teamsTable.coachId })
+    .from(teamsTable)
+    .where(or(eq(teamsTable.presidentId, me), eq(teamsTable.coachId, me)))
+    .limit(1);
+  const team = teams[0];
+  if (!team) return null;
+  return {
+    role: team.presidentId === me ? "president" : "coach",
+    teamId: team.id,
+    teamName: team.name,
   };
 }
 
@@ -138,7 +213,15 @@ router.get("/agent-chat/inbox", async (req: Request, res: Response) => {
       unread,
       unreadByAgent: conv.unreadByAgent,
       unreadByPlayer: conv.unreadByPlayer,
-      lastMessage: last ? { ...messageJson(last), senderPlayerId: last.senderPlayerId } : null,
+      lastMessage: last
+        ? {
+            ...messageJson(last),
+            senderPlayerId: last.senderPlayerId,
+            // System invite/result cards get a friendly one-line preview instead
+            // of showing raw JSON in the conversation list.
+            text: friendlySystemText(last) ?? last.text,
+          }
+        : null,
       updatedAt: toIso(conv.updatedAt),
     };
   });
@@ -168,6 +251,13 @@ router.post("/agent-chat/conversations", async (req: Request, res: Response) => 
     .from(playersTable)
     .where(eq(playersTable.id, agentPlayerId));
   if (!agentPlayer) { res.status(404).json({ error: "Player not found" }); return; }
+
+  // Only a team President or Coach may start a chat with a player's agent.
+  const leader = await resolveLeaderContext(me);
+  if (!leader) {
+    res.status(403).json({ error: "You are not a President or Coach in a team" });
+    return;
+  }
 
   let [conv] = await db
     .select()
@@ -315,6 +405,15 @@ router.post("/agent-chat/conversations/:id/messages", async (req: Request, res: 
 
   const now = new Date();
 
+  // Only a team President or Coach may send as the "player" side.
+  if (meRole === "player") {
+    const leader = await resolveLeaderContext(me);
+    if (!leader) {
+      res.status(403).json({ error: "You are not a President or Coach in a team" });
+      return;
+    }
+  }
+
   const [message] = await db
     .insert(agentMessagesTable)
     .values({ conversationId: conv.id, senderPlayerId: me, senderRole: meRole, text })
@@ -366,6 +465,169 @@ router.get("/agent-chat/unread-count", async (req: Request, res: Response) => {
   );
 
   res.json({ totalUnread });
+});
+
+// ── GET /agent-chat/me (current user's leadership context) ─────────────────
+router.get("/agent-chat/me", async (req: Request, res: Response) => {
+  const me = req.session?.userId;
+  if (!me) { res.status(401).json({ error: "Login required" }); return; }
+
+  const leader = await resolveLeaderContext(me);
+  res.json({
+    isLeader: leader !== null,
+    role: leader?.role ?? null,
+    teamId: leader?.teamId ?? null,
+    teamName: leader?.teamName ?? null,
+  });
+});
+
+// ── POST /agent-chat/conversations/:id/invite (player side) ─────────────────
+router.post("/agent-chat/conversations/:id/invite", async (req: Request, res: Response) => {
+  const me = req.session?.userId;
+  if (!me) { res.status(401).json({ error: "Login required" }); return; }
+
+  const convId = Number(req.params.id);
+  if (!Number.isInteger(convId)) { res.status(400).json({ error: "Invalid conversation id" }); return; }
+
+  const [conv] = await db.select().from(agentConversationsTable).where(eq(agentConversationsTable.id, convId));
+  if (!conv) { res.status(404).json({ error: "Conversation not found" }); return; }
+  if (conv.playerId !== me) { res.status(403).json({ error: "Only the player side may invite" }); return; }
+
+  const leader = await resolveLeaderContext(me);
+  if (!leader) {
+    res.status(403).json({ error: "You are not a President or Coach in a team" });
+    return;
+  }
+
+  const [meRow] = await db
+    .select({ displayName: playersTable.displayName, username: playersTable.username })
+    .from(playersTable)
+    .where(eq(playersTable.id, me));
+  const presidentName = meRow?.displayName ?? meRow?.username ?? me.toString();
+
+  const payload: WgInvitePayload = {
+    kind: "wg_invite",
+    inviteId: -1,
+    teamId: leader.teamId,
+    teamName: leader.teamName,
+    presidentName,
+  };
+
+  const [inserted] = await db
+    .insert(agentMessagesTable)
+    .values({ conversationId: conv.id, senderPlayerId: me, senderRole: "player", text: JSON.stringify(payload) })
+    .returning();
+
+  const finalText = JSON.stringify({ ...payload, inviteId: inserted.id });
+  await db
+    .update(agentMessagesTable)
+    .set({ text: finalText })
+    .where(eq(agentMessagesTable.id, inserted.id));
+
+  const now = new Date();
+  await db
+    .update(agentConversationsTable)
+    .set({ updatedAt: now, agentLastSeenAt: now, unreadByAgent: sql`${agentConversationsTable.unreadByAgent} + 1` })
+    .where(eq(agentConversationsTable.id, conv.id));
+
+  res.status(201).json({ ...messageJson({ ...inserted, text: finalText }), sys: JSON.parse(finalText) });
+});
+
+// ── POST /agent-chat/invites/:messageId/respond (agent side) ───────────────
+router.post("/agent-chat/invites/:messageId/respond", async (req: Request, res: Response) => {
+  const me = req.session?.userId;
+  if (!me) { res.status(401).json({ error: "Login required" }); return; }
+
+  const messageId = Number(req.params.messageId);
+  if (!Number.isInteger(messageId)) { res.status(400).json({ error: "Invalid message id" }); return; }
+
+  const decision = (req.body as { decision?: unknown })?.decision;
+  if (decision !== "accept" && decision !== "reject") {
+    res.status(400).json({ error: "decision must be accept or reject" });
+    return;
+  }
+
+  const [inviteMsg] = await db
+    .select()
+    .from(agentMessagesTable)
+    .where(eq(agentMessagesTable.id, messageId));
+  if (!inviteMsg) { res.status(404).json({ error: "Invitation not found" }); return; }
+
+  const [conv] = await db
+    .select()
+    .from(agentConversationsTable)
+    .where(eq(agentConversationsTable.id, inviteMsg.conversationId));
+  if (!conv) { res.status(404).json({ error: "Conversation not found" }); return; }
+  if (conv.agentPlayerId !== me) { res.status(403).json({ error: "Only the invited player may respond" }); return; }
+
+  const sys = parseSystemMessage(inviteMsg.text);
+  if (!sys || sys.kind !== "wg_invite") {
+    res.status(400).json({ error: "Message is not a valid invitation" });
+    return;
+  }
+
+  // Prevent a double response: if a result for this invitation already exists,
+  // refuse to process it again.
+  const prior = await db
+    .select({ id: agentMessagesTable.id, text: agentMessagesTable.text })
+    .from(agentMessagesTable)
+    .where(and(eq(agentMessagesTable.conversationId, conv.id), eq(agentMessagesTable.senderRole, "system")));
+  const alreadyResolved = prior.some((r) => {
+    const s = parseSystemMessage(r.text);
+    return s?.kind === "wg_invite_result" && s.inviteId === sys.inviteId;
+  });
+  if (alreadyResolved) {
+    res.status(409).json({ error: "This invitation has already been answered" });
+    return;
+  }
+
+  const accepted = decision === "accept";
+
+  if (accepted) {
+    // Verify the destination team still exists.
+    const [team] = await db.select({ id: teamsTable.id }).from(teamsTable).where(eq(teamsTable.id, sys.teamId));
+    if (!team) { res.status(404).json({ error: "The team no longer exists" }); return; }
+    const [target] = await db.select().from(playersTable).where(eq(playersTable.id, me));
+    if (!target) { res.status(404).json({ error: "Player not found" }); return; }
+    if (target.teamId != null) {
+      res.status(409).json({ error: "You are already on a team" });
+      return;
+    }
+    await db
+      .update(playersTable)
+      .set({ teamId: sys.teamId, isFreeAgent: false })
+      .where(eq(playersTable.id, me));
+    await db
+      .insert(playerTransfersTable)
+      .values({ playerId: me, fromTeamId: null, toTeamId: sys.teamId });
+  }
+
+  const [meRow] = await db
+    .select({ displayName: playersTable.displayName, username: playersTable.username })
+    .from(playersTable)
+    .where(eq(playersTable.id, me));
+  const agentName = meRow?.displayName ?? meRow?.username ?? me.toString();
+
+  const result: WgInviteResultPayload = {
+    kind: "wg_invite_result",
+    inviteId: sys.inviteId,
+    accepted,
+    teamName: sys.teamName,
+    agentName,
+  };
+
+  const [resMsg] = await db
+    .insert(agentMessagesTable)
+    .values({ conversationId: conv.id, senderPlayerId: me, senderRole: "system", text: JSON.stringify(result) })
+    .returning();
+
+  const now = new Date();
+  await db
+    .update(agentConversationsTable)
+    .set({ updatedAt: now, playerLastSeenAt: now, unreadByPlayer: sql`${agentConversationsTable.unreadByPlayer} + 1` })
+    .where(eq(agentConversationsTable.id, conv.id));
+
+  res.status(201).json({ ...messageJson(resMsg), sys: result });
 });
 
 export default router;
