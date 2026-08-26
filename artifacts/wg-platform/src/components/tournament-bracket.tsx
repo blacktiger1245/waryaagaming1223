@@ -222,7 +222,7 @@ export function TournamentBracket({ rounds }: TournamentBracketProps) {
   }, [allMatches, rounds]);
 
   const champion = useMemo(() => {
-    const final = finalRound?.matches[0];
+    const final = finalRound?.matches.find((m) => m.roundName?.toLowerCase().includes("final"));
     if (!final || final.status !== "completed" || !final.winnerId) return null;
     if (final.winnerId === final.participant1Id) return { name: final.participant1Name ?? "Winner" };
     if (final.winnerId === final.participant2Id) return { name: final.participant2Name ?? "Winner" };
@@ -357,11 +357,9 @@ export function TournamentBracket({ rounds }: TournamentBracketProps) {
 
           {sortedRounds.map((round) => {
             const isFinal = round.roundNumber === finalRound?.roundNumber;
-            const matchCount = round.matches.length;
-            const baseGap = matchCount <= 1 ? 24 : matchCount <= 2 ? 48 : matchCount <= 4 ? 72 : matchCount <= 8 ? 96 : 120;
 
             return (
-              <div key={round.roundNumber} className="flex flex-col relative z-20">
+              <div key={round.roundNumber} className="flex flex-col relative z-20 min-h-[480px]">
                 <div className={`text-center mb-5 ${isFinal ? "text-amber-400" : "text-[var(--acc)]"}`}>
                   <div className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider border ${isFinal ? "bg-amber-500/10 border-amber-500/30" : "bg-[var(--acc)]/10 border-[var(--acc)]/20"}`}>
                     {isFinal && <Trophy className="w-3 h-3" />}
@@ -369,7 +367,7 @@ export function TournamentBracket({ rounds }: TournamentBracketProps) {
                   </div>
                 </div>
 
-                <div className="flex flex-col justify-around flex-1" style={{ gap: `${baseGap}px` }}>
+                <div className="flex flex-col justify-around flex-1">
                   {round.matches.map((match) => (
                     <KnockoutMatchCard
                       key={match.id}

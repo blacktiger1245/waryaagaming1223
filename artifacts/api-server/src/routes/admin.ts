@@ -1283,7 +1283,7 @@ function generateSeededKnockout(
 
   if (thirdPlaceMatch) {
     links.push({ index: rows.length, parent1: null, parent2: null, next: null, nextSlot: null });
-    rows.push({ tournamentId, round: round + 1, roundName: "Third Place", stage: 2, status: "scheduled" });
+    rows.push({ tournamentId, round, roundName: "Third Place", stage: 2, status: "scheduled" });
   }
 
   return { rows, links };
@@ -1312,11 +1312,17 @@ function generateGroupKnockout(
 } {
   const BYE: Participant = { id: 0, playerId: 0, name: "BYE" };
   const groupNames = Array.from(qualifiedByGroup.keys()).sort();
+  const maxRank = Math.max(...groupNames.map((g) => qualifiedByGroup.get(g)!.length));
+
+  // Flatten qualifiers ordered by rank across groups. This spreads same-group
+  // teams apart in the standard bracket seeding order, avoiding early rematches.
+  // e.g. 8 groups of 4 qualifiers -> [A1,B1,...,H1, A2,...,H2, A3,...,H3, A4,...,H4]
   const ordered: Participant[] = [];
-  for (const g of groupNames) {
-    const arr = qualifiedByGroup.get(g) ?? [];
-    if (arr[0]) ordered.push(arr[0]);
-    if (arr[1]) ordered.push(arr[1]);
+  for (let rank = 0; rank < maxRank; rank++) {
+    for (const g of groupNames) {
+      const arr = qualifiedByGroup.get(g) ?? [];
+      if (arr[rank]) ordered.push(arr[rank]);
+    }
   }
   const total = ordered.length;
   if (total < 2) return { rows: [], links: [] };
@@ -1338,17 +1344,36 @@ function generateGroupKnockout(
   const entrants: Entrant[] = [];
   let round = startRound;
 
-  if (byes === 0) {
+  // For the no-bye case pair groups cross-seeded by rank: rank r from group g1
+  // plays rank (maxRank+1-r) from the paired group g2. This guarantees no
+  // same-group rematch in the first knockout round and scales to top-2, top-4,
+  // etc. qualifiers. For non-power-of-two totals we fall back to standard
+  // bracket seeding with BYEs.
+  if (byes === 0 && maxRank % 2 === 0) {
     const r1Name = eliminationRoundName(total);
     for (let i = 0; i < groupNames.length; i += 2) {
       const g1 = groupNames[i];
       const g2 = groupNames[i + 1];
       const arr1 = qualifiedByGroup.get(g1) ?? [];
       const arr2 = qualifiedByGroup.get(g2) ?? [];
-      nodes.push({ round, name: r1Name, p1: arr1[0] ?? BYE, p2: arr2[1] ?? BYE, parent1: null, parent2: null });
-      entrants.push({ kind: "match", idx: nodes.length - 1 });
-      nodes.push({ round, name: r1Name, p1: arr2[0] ?? BYE, p2: arr1[1] ?? BYE, parent1: null, parent2: null });
-      entrants.push({ kind: "match", idx: nodes.length - 1 });
+      for (let r = 0; r < maxRank / 2; r++) {
+        const a = arr1[r] ?? null;
+        const b = arr2[maxRank - 1 - r] ?? null;
+        const c = arr2[r] ?? null;
+        const d = arr1[maxRank - 1 - r] ?? null;
+        if (a && b) {
+          nodes.push({ round, name: r1Name, p1: a, p2: b, parent1: null, parent2: null });
+          entrants.push({ kind: "match", idx: nodes.length - 1 });
+        } else if (a || b) {
+          entrants.push({ kind: "team", p: a ?? b });
+        }
+        if (c && d) {
+          nodes.push({ round, name: r1Name, p1: c, p2: d, parent1: null, parent2: null });
+          entrants.push({ kind: "match", idx: nodes.length - 1 });
+        } else if (c || d) {
+          entrants.push({ kind: "team", p: c ?? d });
+        }
+      }
     }
   } else {
     const order = bracketSeedOrder(size);
@@ -1420,7 +1445,7 @@ function generateGroupKnockout(
 
   if (thirdPlaceMatch) {
     links.push({ index: rows.length, parent1: null, parent2: null, next: null, nextSlot: null });
-    rows.push({ tournamentId, round: round + 1, roundName: "Third Place", stage: 2, status: "scheduled" });
+    rows.push({ tournamentId, round, roundName: "Third Place", stage: 2, status: "scheduled" });
   }
 
   return { rows, links };
