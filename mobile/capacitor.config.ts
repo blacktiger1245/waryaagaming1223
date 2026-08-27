@@ -1,5 +1,3 @@
-import { defineConfig } from "@capacitor/cli";
-
 /**
  * Waryaa Gaming Android app (Capacitor).
  *
@@ -16,26 +14,23 @@ import { defineConfig } from "@capacitor/cli";
  *   VITE_SITE_URL – public URL of the existing website, e.g.
  *                   https://p01--waryaagaming1223--w5kk4bgjlsdp.code.run
  */
-const siteUrl = (
-  process.env.VITE_SITE_URL ??
-  "https://p01--waryaagaming1223--w5kk4bgjlsdp.code.run"
-).replace(/\/$/, "");
-
-export default defineConfig({
+const baseConfig = {
   appId: "com.waryaa.gaming",
   appName: "Waryaa Gaming",
   webDir: "www",
   server: {
-    url: siteUrl,
     // Load the remote site inside the app's WebView; Capacitor still injects
     // its bridge so the page can call the native ScreenCast plugin.
+    url:
+      process.env.VITE_SITE_URL ??
+      "https://p01--waryaagaming1223--w5kk4bgjlsdp.code.run",
     cleartext: false,
     androidScheme: "https",
   },
   android: {
     allowMixedContent: true,
   },
-  ios: {
-    // iOS is out of scope (Android-only per the task) — left for future work.
-  },
-});
+};
+
+// Capacitor accepts a plain default export (no defineConfig needed).
+export default baseConfig;

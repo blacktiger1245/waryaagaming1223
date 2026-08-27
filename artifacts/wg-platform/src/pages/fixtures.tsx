@@ -593,14 +593,19 @@ export default function FixturesPage() {
       return;
     }
 
-    // 1.5 Native path (Capacitor app): if the Waryaa Android app exposed its
-    //     MediaProjection broadcaster on window.WaryaaNative, prefer it. On a
-    //     normal browser this is undefined and the web screen-share path below
-    //     runs exactly as before — the desktop site is unaffected.
-    const native = (window as unknown as { WaryaaNative?: { start: (id: number) => Promise<unknown> } }).WaryaaNative;
-    if (native) {
+    // 1.5 Native path (Capacitor app): within the Waryaa Android app, Capacitor
+    //     injects window.Capacitor.Plugins.ScreenCast (native MediaProjection
+    //     broadcaster). On a normal browser this is undefined and the web
+    //     screen-share path below runs exactly as before — the site is unchanged.
+    const cap = (window as unknown as {
+      Capacitor?: { Plugins?: { ScreenCast?: { start: (o: { matchId: number; apiOrigin?: string }) => Promise<unknown> } } };
+    }).Capacitor;
+    const screenCastNative = cap?.Plugins?.ScreenCast;
+    if (screenCastNative) {
+      setLiveStatus("starting");
       try {
-        await native.start(matchId);
+        await screenCastNative.start({ matchId, apiOrigin: window.location.origin });
+        setLiveStatus("live");
         return;
       } catch (e) {
         setLiveStatus("error");
