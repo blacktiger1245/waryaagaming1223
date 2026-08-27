@@ -44,7 +44,8 @@ interface Broadcast {
   lastSeen: number;
   seq: number;
   pubInbox: SignalMessage[];
-  viewerInbox: Map<string, SignalMessage[]>;
+  /** viewerId → inbox + lastSeen (viewers idle for VIEWER_TTL_MS are dropped). */
+  viewerInbox: Map<string, { inbox: SignalMessage[]; lastSeen: number }>;
   info: {
     participant1Name: string | null;
     participant2Name: string | null;
@@ -85,11 +86,26 @@ export function serializeBroadcast(b: Broadcast) {
   };
 }
 
+/** Viewers that stop polling (closed the page, lost signal) are dropped. */
+const VIEWER_TTL_MS = 30_000;
+
 function cleanupExpired() {
   const now = Date.now();
   for (const [id, b] of broadcasts) {
     if (now - b.lastSeen > BROADCAST_TTL_MS) {
-      broadcasts.delete(id);
+      // Expired broadcasts must restore the match status too — deleting the
+      // entry alone left matches stuck as "live" in the database forever,
+      // which kept showing "Watch Live Now" on fixtures after the stream ended.
+      endBroadcast(b);
+      continue;
+    }
+    // Drop viewer sessions that stopped polling so the viewer count and the
+    // broadcaster's peer connections don't linger forever.
+    for (const [viewerId, v] of b.viewerInbox) {
+      if (now - v.lastSeen > VIEWER_TTL_MS) {
+        b.viewerInbox.delete(viewerId);
+        push(b, b.pubInbox, "viewer-left", "server", { viewerId });
+      }
     }
   }
 }
@@ -101,9 +117,8 @@ function endBroadcast(b: Broadcast) {
     db.update(matchesTable).set({ status: b.originalStatus }).where(eq(matchesTable.id, b.matchId)).catch(() => undefined);
   }
   // Notify every connected viewer that the stream ended.
-  for (const viewerId of b.viewerInbox.keys()) {
-    const inbox = b.viewerInbox.get(viewerId);
-    if (inbox) push(b, inbox, "ended", "server", { reason: "broadcaster-ended" });
+  for (const entry of b.viewerInbox.values()) {
+    push(b, entry.inbox, "ended", "server", { reason: "broadcaster-ended" });
   }
   // Stop the publisher's poll loop by posting an ended control to its inbox.
   push(b, b.pubInbox, "ended", "server", { reason: "broadcaster" });
@@ -220,8 +235,10 @@ router.post("/live/broadcast/:id/watch/start", async (req: Request, res: Respons
   if (!viewerId) return res.status(400).json({ error: "A viewerId is required" });
 
   if (!b.viewerInbox.has(viewerId)) {
-    b.viewerInbox.set(viewerId, []);
+    b.viewerInbox.set(viewerId, { inbox: [], lastSeen: Date.now() });
     push(b, b.pubInbox, "viewer-joined", "server", { viewerId });
+  } else {
+    b.viewerInbox.get(viewerId)!.lastSeen = Date.now();
   }
   return res.json({ ok: true });
 });
@@ -264,13 +281,13 @@ router.post("/live/broadcast/:id/signal", async (req: Request, res: Response) =>
 
   if (typeof to === "string" && to.startsWith("viewer:")) {
     const viewerId = to.slice("viewer:".length);
-    const inbox = b.viewerInbox.get(viewerId);
-    if (!inbox) {
+    const entry = b.viewerInbox.get(viewerId);
+    if (!entry) {
       // Viewer already left — silently drop the signal.
       return res.json({ ok: true });
     }
     if (!type) return res.status(400).json({ error: "Missing message.type" });
-    push(b, inbox, type, from, data);
+    push(b, entry.inbox, type, from, data);
     return res.json({ ok: true });
   }
 
@@ -295,10 +312,11 @@ router.get("/live/broadcast/:id/viewer-inbox", async (req: Request, res: Respons
   if (!b) return res.status(404).json({ error: "Broadcast not found" });
   const viewerId = String(req.query.viewerId ?? "");
   if (!viewerId) return res.status(400).json({ error: "A viewerId is required" });
-  const inbox = b.viewerInbox.get(viewerId);
-  if (!inbox) return res.status(404).json({ error: "Viewer session not found" });
+  const entry = b.viewerInbox.get(viewerId);
+  if (!entry) return res.status(404).json({ error: "Viewer session not found" });
+  entry.lastSeen = Date.now(); // polling keeps the viewer session alive
   const since = Number(req.query.since ?? 0) || 0;
-  const messages = inbox.filter((m) => m.seq > since);
+  const messages = entry.inbox.filter((m) => m.seq > since);
   return res.json({ seq: b.seq, messages });
 });
 
@@ -314,6 +332,15 @@ router.get("/live/broadcast/:id", async (req: Request, res: Response) => {
   if (!b) return res.status(404).json({ error: "Broadcast not found or already ended" });
   return res.json(serializeBroadcast(b));
 });
+
+// The broadcast registry is in-memory only: if the server restarted while a
+// match was live, that match would stay "live" in the database forever. Only
+// this module ever sets status "live", so reset any leftovers on boot.
+void db
+  .update(matchesTable)
+  .set({ status: "scheduled" })
+  .where(eq(matchesTable.status, "live"))
+  .catch(() => undefined);
 
 export default router;
 

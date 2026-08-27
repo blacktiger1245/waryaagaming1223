@@ -9,7 +9,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { storageUrl } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
-import { publishScreen, requestScreenStream, startBroadcast, type PublishHandle } from "@/lib/live";
+import { publishScreen, requestScreenStream, startBroadcast, fetchLiveBroadcasts, type PublishHandle, type LiveBroadcastInfo } from "@/lib/live";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Tournament {
@@ -305,7 +305,7 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
 }
 
 // ── Live match spotlight ───────────────────────────────────────────────────────
-function LiveSpotlight({ m, logoMap }: { m: FlatMatch; logoMap: Map<number, string | null> }) {
+function LiveSpotlight({ m, logoMap, broadcast }: { m: FlatMatch; logoMap: Map<number, string | null>; broadcast?: LiveBroadcastInfo | null }) {
   const logo1 = m.participant1Id ? logoMap.get(m.participant1Id) ?? null : null;
   const logo2 = m.participant2Id ? logoMap.get(m.participant2Id) ?? null : null;
   return (
@@ -340,9 +340,12 @@ function LiveSpotlight({ m, logoMap }: { m: FlatMatch; logoMap: Map<number, stri
             </span>
           </div>
         </div>
-        <button className="mt-5 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-blue-500 hover:from-sky-400 hover:to-blue-400 shadow-[0_6px_20px_-6px_rgba(56,189,248,0.7)] transition-all text-sm font-black text-white">
+        <Link
+          href={broadcast ? `/live/${broadcast.id}` : "/live"}
+          className="mt-5 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-blue-500 hover:from-sky-400 hover:to-blue-400 shadow-[0_6px_20px_-6px_rgba(56,189,248,0.7)] transition-all text-sm font-black text-white"
+        >
           <Radio className="w-4 h-4" /> Watch Live Now
-        </button>
+        </Link>
       </div>
     </div>
   );
@@ -599,6 +602,14 @@ export default function FixturesPage() {
     },
   });
 
+  // ── Poll currently-live screen-share broadcasts ─────────────────────────────
+  // Used by the Live Match spotlight to deep-link straight into a stream.
+  const { data: liveBroadcasts = [] } = useQuery<LiveBroadcastInfo[]>({
+    queryKey: ["live-broadcasts"],
+    queryFn: fetchLiveBroadcasts,
+    refetchInterval: 8000,
+  });
+
   // ── Fetch matches for every tournament in parallel ────────────────────────
   const matchQueries = useQueries({
     queries: tournaments.map((t) => ({
@@ -614,6 +625,9 @@ export default function FixturesPage() {
         }));
       },
       enabled: tournaments.length > 0,
+      // Keep LIVE badges in sync across every open browser: when a broadcast
+      // ends the server restores the match status and this refetch picks it up.
+      refetchInterval: 15000,
     })),
   });
 
@@ -1462,7 +1476,13 @@ export default function FixturesPage() {
         {/* ── Right sidebar ─────────────────────────────────────────────────── */}
         <aside className="w-full mt-6 lg:mt-0 lg:w-72 lg:shrink-0 lg:ml-4 space-y-4">
           {/* Live match spotlight */}
-          {firstLive && <LiveSpotlight m={firstLive} logoMap={logoMap} />}
+          {firstLive && (
+            <LiveSpotlight
+              m={firstLive}
+              logoMap={logoMap}
+              broadcast={liveBroadcasts.find((b) => b.matchId === firstLive.id)}
+            />
+          )}
 
           {/* Top players */}
           {topPlayers.length > 0 && <TopPlayers players={topPlayers} teamLogoMap={teamNameLogoMap} />}

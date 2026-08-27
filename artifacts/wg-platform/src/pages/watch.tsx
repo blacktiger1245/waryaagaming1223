@@ -24,6 +24,7 @@ export default function WatchPage() {
   const [status, setStatus] = useState<WatchStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [muted, setMuted] = useState(true);
+  const [needsTap, setNeedsTap] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -37,10 +38,14 @@ export default function WatchPage() {
     if (!video || !broadcast) return;
     setStatus("connecting");
     setError(null);
+    setNeedsTap(false);
     const handle = watchBroadcast(broadcast.id, video, (s, e) => {
       if (s === "live") {
         setStatus("live");
-        void video.play().catch(() => undefined);
+        video.play().catch(() => {
+          // Some mobile browsers block autoplay — fall back to tap-to-play.
+          setNeedsTap(true);
+        });
       } else if (s === "ended") {
         setStatus("ended");
         handle?.close();
@@ -152,6 +157,19 @@ export default function WatchPage() {
                   <p className="text-white font-bold mb-1">Could not connect</p>
                   <p className="text-zinc-400 text-sm text-center">{error}</p>
                 </div>
+              )}
+
+              {status === "live" && needsTap && (
+                <button
+                  onClick={() => {
+                    setNeedsTap(false);
+                    void videoRef.current?.play().catch(() => undefined);
+                  }}
+                  className="absolute inset-0 flex flex-col items-center justify-center bg-black/70"
+                >
+                  <Play className="w-14 h-14 text-white" />
+                  <span className="text-white font-black mt-3">Tap to watch</span>
+                </button>
               )}
 
               {status === "live" && (

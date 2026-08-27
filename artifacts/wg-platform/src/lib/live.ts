@@ -35,12 +35,56 @@ interface SignalMessage {
   };
 }
 
-const ICE_SERVERS: RTCConfiguration = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
-  ],
-};
+/**
+ * STUN alone is not enough for viewers on mobile networks: carrier NATs are
+ * typically symmetric, so a direct peer-to-peer connection fails and the video
+ * never loads on phones (it keeps saying "Connecting…"). A TURN relay fixes
+ * that — when the direct path is unavailable, media flows through the relay.
+ *
+ * Defaults use the free public OpenRelay TURN project. To run your own relay,
+ * set VITE_TURN_URLS (comma-separated), VITE_TURN_USERNAME and
+ * VITE_TURN_CREDENTIAL at build time. Set VITE_TURN_URLS=off to disable.
+ */
+function buildIceServers(): RTCIceServer[] {
+  const servers: RTCIceServer[] = [
+    { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
+  ];
+  const turnUrls = ((import.meta.env.VITE_TURN_URLS as string | undefined)
+    ?? "turn:openrelay.metered.ca:80,turn:openrelay.metered.ca:443,turn:openrelay.metered.ca:443?transport=tcp,turns:openrelay.metered.ca:443?transport=tcp")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (turnUrls.length && turnUrls[0] !== "off" && turnUrls[0] !== "none") {
+    servers.push({
+      urls: turnUrls,
+      username: (import.meta.env.VITE_TURN_USERNAME as string | undefined) ?? "openrelayproject",
+      credential: (import.meta.env.VITE_TURN_CREDENTIAL as string | undefined) ?? "openrelayproject",
+    });
+  }
+  return servers;
+}
+
+const ICE_SERVERS: RTCConfiguration = { iceServers: buildIceServers() };
+
+/**
+ * `crypto.randomUUID` only exists in secure contexts (HTTPS / localhost).
+ * Phones often reach the site over plain HTTP or a LAN IP, where it is
+ * undefined — generate a UUID-compatible id without it.
+ */
+function randomId(): string {
+  const c = globalThis.crypto;
+  if (c && typeof c.randomUUID === "function") return c.randomUUID();
+  const bytes = new Uint8Array(16);
+  if (c && typeof c.getRandomValues === "function") {
+    c.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+  }
+  bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
+  bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant 10
+  const h = Array.from(bytes, (b) => b.toString(16).padStart(2, "0"));
+  return `${h.slice(0, 4).join("")}-${h.slice(4, 6).join("")}-${h.slice(6, 8).join("")}-${h.slice(8, 10).join("")}-${h.slice(10).join("")}`;
+}
 
 const POLL_MS = 1200;
 const HEARTBEAT_MS = 5000;
@@ -261,7 +305,10 @@ export function publishScreen(
         }
       });
     }
-    json(`/api/live/broadcast/${id}/stop`, { method: "POST", body: JSON.stringify({ id }) }).catch(() => undefined);
+    // NOTE: the server route is POST /live/broadcast/stop with the id in the
+    // body — a path-param URL here would 404 and the broadcast (and the
+    // match's LIVE status) would stay up forever.
+    json("/api/live/broadcast/stop", { method: "POST", body: JSON.stringify({ id }) }).catch(() => undefined);
   }
 
   poll();
@@ -283,7 +330,7 @@ export function watchBroadcast(
   video: HTMLVideoElement,
   onStatus?: (status: "connecting" | "live" | "ended" | "error", error?: string) => void,
 ): WatchHandle {
-  const viewerId = crypto.randomUUID();
+  const viewerId = randomId();
   const pc = new RTCPeerConnection(ICE_SERVERS);
   let seq = 0;
   let ended = false;
