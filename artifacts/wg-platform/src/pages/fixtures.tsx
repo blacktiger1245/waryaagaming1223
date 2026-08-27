@@ -2,14 +2,14 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  CalendarDays, Circle, Radio, Shield, Trophy,
+  CalendarDays, Camera, Circle, Radio, Shield, Trophy,
   RefreshCw, ChevronRight, LayoutList, Clock, CheckCircle2, BarChart2,
   ChevronDown, Check, Layers, Loader2, X, MonitorPlay,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { storageUrl } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
-import { publishScreen, requestScreenStream, startBroadcast, fetchLiveBroadcasts, isScreenShareSupported, type PublishHandle, type LiveBroadcastInfo } from "@/lib/live";
+import { publishScreen, requestScreenStream, requestCameraStream, startBroadcast, fetchLiveBroadcasts, isScreenShareSupported, type PublishHandle, type LiveBroadcastInfo } from "@/lib/live";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Tournament {
@@ -540,6 +540,7 @@ export default function FixturesPage() {
   const [liveHandle, setLiveHandle] = useState<PublishHandle | null>(null);
   const [liveMatchId, setLiveMatchId] = useState<number | null>(null);
   const [liveStatus, setLiveStatus] = useState<"idle" | "starting" | "live" | "error">("idle");
+  const [liveMode, setLiveMode] = useState<"screen" | "camera">("screen");
   const [liveError, setLiveError] = useState<string | null>(null);
   const [viewerCount, setViewerCount] = useState(0);
   const liveHandleRef = useRef<PublishHandle | null>(null);
@@ -554,6 +555,7 @@ export default function FixturesPage() {
     setLiveMatchId(null);
     setLiveStatus("idle");
     setLiveError(null);
+    setLiveMode("screen");
     setViewerCount(0);
     // Refresh so the LIVE badge disappears from the fixture list.
     qc.invalidateQueries({ queryKey: ["tournament-matches"] });
@@ -564,30 +566,50 @@ export default function FixturesPage() {
     setLiveStatus("starting");
     setLiveError(null);
 
-    // 1. Make sure this browser can share screens at all. Mobile browsers
-    //    cannot (iPhones never, Android only in standalone Chrome) — without
-    //    this check the getDisplayMedia call throws instantly.
-    if (!isScreenShareSupported()) {
+    // 1. WebRTC and screen capture only exist on secure (HTTPS) pages. On a
+    //    phone opening http://<ip>:3000 the browser hides these APIs
+    //    entirely — show the exact HTTPS link to use instead.
+    if (typeof window !== "undefined" && !window.isSecureContext) {
       setLiveStatus("error");
       setLiveError(
-        "This device cannot share its screen. Go live from a desktop PC using Chrome, Edge or Firefox. Watching live streams on this phone still works.",
+        `Live features are blocked on plain HTTP. Open https://${window.location.host}${window.location.pathname} instead and accept the certificate warning.`,
       );
       return;
     }
 
-    // 2. Ask the user to allow screen sharing (browser prompt).
+    // 2. Desktops and Android Chrome share the screen. Other phones (iPhones,
+    //    in-app browsers) have no screen-capture API — Discord and WhatsApp
+    //    can only do that from native apps — so fall back to a live camera
+    //    broadcast, which works on every phone over HTTPS.
     let stream: MediaStream | null = null;
-    try {
-      stream = await requestScreenStream(true);
-    } catch (err) {
-      setLiveStatus("error");
-      const name = err instanceof DOMException ? err.name : "";
-      if (name === "NotAllowedError") {
-        setLiveError("Screen sharing was blocked. Click Go Live again and press Allow (on Android choose Entire screen).");
-      } else {
-        setLiveError("Could not start screen sharing on this device. Try going live from a desktop PC with Chrome, Edge or Firefox.");
+    if (isScreenShareSupported()) {
+      setLiveMode("screen");
+      try {
+        stream = await requestScreenStream(true);
+      } catch (err) {
+        setLiveStatus("error");
+        const name = err instanceof DOMException ? err.name : "";
+        if (name === "NotAllowedError") {
+          setLiveError("Screen sharing was blocked. Click Go Live again and press Allow (on Android choose Entire screen).");
+        } else {
+          setLiveError("Could not start screen sharing on this device. Try going live from a desktop PC with Chrome, Edge or Firefox.");
+        }
+        return;
       }
-      return;
+    } else {
+      setLiveMode("camera");
+      try {
+        stream = await requestCameraStream("environment");
+      } catch (err) {
+        setLiveStatus("error");
+        const name = err instanceof DOMException ? err.name : "";
+        if (name === "NotAllowedError") {
+          setLiveError("Camera access was blocked. Click Go Live again and press Allow to go live from your camera.");
+        } else {
+          setLiveError("This browser cannot broadcast live. Try Chrome on Android, or go live from a desktop PC.");
+        }
+        return;
+      }
     }
 
     // 2. Register the broadcast, then publish the stream and handle signaling.
@@ -814,15 +836,19 @@ export default function FixturesPage() {
       {liveStatus === "starting" && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-[#0f1628]/95 backdrop-blur border border-amber-500/40 rounded-full px-5 py-2.5 shadow-[0_0_24px_rgba(245,158,11,0.25)]">
           <Loader2 className="w-4 h-4 text-amber-400 animate-spin" />
-          <span className="text-xs font-bold text-amber-300">Allow screen sharing in your browser to go live…</span>
+          <span className="text-xs font-bold text-amber-300">
+            {liveMode === "camera" ? "Allow camera access to go live…" : "Allow screen sharing in your browser to go live…"}
+          </span>
         </div>
       )}
       {liveStatus === "live" && liveHandle && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-[#0f1628]/95 backdrop-blur border border-red-500/50 rounded-full pl-4 pr-1.5 py-1.5 shadow-[0_0_24px_rgba(239,68,68,0.35)]">
           <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-          <span className="text-xs font-black tracking-widest text-red-400">LIVE</span>
+          <span className="text-xs font-black tracking-widest text-red-400">
+            {liveMode === "camera" ? "LIVE · CAMERA" : "LIVE"}
+          </span>
           <span className="text-xs text-zinc-400 flex items-center gap-1">
-            <MonitorPlay className="w-3.5 h-3.5" /> {viewerCount} watching
+            {liveMode === "camera" ? <Camera className="w-3.5 h-3.5" /> : <MonitorPlay className="w-3.5 h-3.5" />} {viewerCount} watching
           </span>
           <button
             onClick={handleCloseLive}

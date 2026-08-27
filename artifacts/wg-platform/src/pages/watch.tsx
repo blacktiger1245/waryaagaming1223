@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "wouter";
 import { motion } from "framer-motion";
-import { Radio, Play, Loader2, MonitorPlay, Volume2, VolumeX } from "lucide-react";
+import { Radio, Play, Loader2, MonitorPlay, Volume2, VolumeX, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { fetchBroadcast, watchBroadcast, type WatchHandle } from "@/lib/live";
@@ -37,6 +37,13 @@ export default function WatchPage() {
   function startWatching() {
     const video = videoRef.current;
     if (!video || !broadcast) return;
+    // WebRTC only exists on secure (HTTPS) pages — over plain HTTP the
+    // connection can never start, so say so instead of spinning forever.
+    if (typeof window !== "undefined" && !window.isSecureContext) {
+      setStatus("error");
+      setError("Live streaming is blocked because this page is open over plain HTTP. Open the site using its https:// address (accept the certificate warning when testing locally).");
+      return;
+    }
     setStatus("connecting");
     setError(null);
     setNeedsTap(false);
@@ -165,6 +172,16 @@ export default function WatchPage() {
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 px-6">
                   <p className="text-white font-bold mb-1">Could not connect</p>
                   <p className="text-zinc-400 text-sm text-center mb-4">{error}</p>
+                  {typeof window !== "undefined" && !window.isSecureContext && (
+                    <Button
+                      onClick={() => {
+                        window.location.protocol = "https:";
+                      }}
+                      className="gap-2 mb-2"
+                    >
+                      <ShieldCheck className="w-4 h-4" /> Switch to HTTPS
+                    </Button>
+                  )}
                   <Button
                     onClick={() => {
                       stopWatching();
