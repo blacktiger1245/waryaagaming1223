@@ -2,14 +2,14 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  CalendarDays, Circle, Radio, Shield, Trophy,
+  CalendarDays, Camera, Circle, Radio, Shield, Trophy,
   RefreshCw, ChevronRight, LayoutList, Clock, CheckCircle2, BarChart2,
   ChevronDown, Check, Layers, Loader2, X, MonitorPlay,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { storageUrl } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
-import { publishScreen, requestScreenStream, startBroadcast, fetchLiveBroadcasts, isScreenShareSupported, type PublishHandle, type LiveBroadcastInfo } from "@/lib/live";
+import { publishScreen, requestScreenStream, requestCameraStream, startBroadcast, fetchLiveBroadcasts, isScreenShareSupported, type PublishHandle, type LiveBroadcastInfo } from "@/lib/live";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Tournament {
@@ -305,13 +305,6 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
 }
 
 // ── Live match spotlight ───────────────────────────────────────────────────────
-/** True on iPhone/iPad — Apple does not give any browser screen capture. */
-function isIosDevice(): boolean {
-  if (typeof navigator === "undefined") return false;
-  const ua = navigator.userAgent;
-  return /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && typeof document !== "undefined" && "ontouchend" in document);
-}
-
 function LiveSpotlight({ m, logoMap, broadcast }: { m: FlatMatch; logoMap: Map<number, string | null>; broadcast?: LiveBroadcastInfo | null }) {
   const logo1 = m.participant1Id ? logoMap.get(m.participant1Id) ?? null : null;
   const logo2 = m.participant2Id ? logoMap.get(m.participant2Id) ?? null : null;
@@ -547,6 +540,11 @@ export default function FixturesPage() {
   const [liveHandle, setLiveHandle] = useState<PublishHandle | null>(null);
   const [liveMatchId, setLiveMatchId] = useState<number | null>(null);
   const [liveStatus, setLiveStatus] = useState<"idle" | "starting" | "live" | "error">("idle");
+  const [liveMode, setLiveMode] = useState<"screen" | "camera">("screen");
+  // Shown when a phone can't screen-share — asks instead of silently opening
+  // the camera.
+  const [cameraConfirm, setCameraConfirm] = useState(false);
+  const [pendingMatchId, setPendingMatchId] = useState<number | null>(null);
   const [liveError, setLiveError] = useState<string | null>(null);
   const [viewerCount, setViewerCount] = useState(0);
   const liveHandleRef = useRef<PublishHandle | null>(null);
@@ -561,9 +559,34 @@ export default function FixturesPage() {
     setLiveMatchId(null);
     setLiveStatus("idle");
     setLiveError(null);
+    setLiveMode("screen");
+    setCameraConfirm(false);
+    setPendingMatchId(null);
     setViewerCount(0);
     // Refresh so the LIVE badge disappears from the fixture list.
     qc.invalidateQueries({ queryKey: ["tournament-matches"] });
+  }
+
+  // Register the broadcast and start publishing an already-captured stream.
+  async function beginStreaming(matchId: number, stream: MediaStream, mode: "screen" | "camera") {
+    setLiveMode(mode);
+    try {
+      const { id } = await startBroadcast(matchId);
+      const handle = publishScreen(id, stream, (count) => setViewerCount(count));
+      setLiveHandle(handle);
+      setLiveMatchId(matchId);
+      setLiveStatus("live");
+      // If the user stops sharing from the browser UI, close the live too.
+      const videoTrack = mode === "camera"
+        ? stream.getVideoTracks()[0] ?? stream.getTracks()[0]
+        : stream.getVideoTracks()[0];
+      videoTrack?.addEventListener("ended", () => handleCloseLive());
+      qc.invalidateQueries({ queryKey: ["tournament-matches"] });
+    } catch (e) {
+      stream.getTracks().forEach((t) => t.stop());
+      setLiveStatus("error");
+      setLiveError(e instanceof Error ? e.message : "Could not start the broadcast");
+    }
   }
 
   async function handleGoLive(matchId: number) {
@@ -582,51 +605,56 @@ export default function FixturesPage() {
       return;
     }
 
-    // 2. Screen sharing needs a browser that implements screen capture
-    //    (Android Chrome/Firefox and all desktop browsers). iPhones and
-    //    in-app browsers cannot — Apple does not expose the screen to any
-    //    browser — so say exactly that instead of opening the camera.
-    if (!isScreenShareSupported()) {
+    // 2. Try real screen sharing first. Desktop + Android Chrome support it;
+    //    if the browser doesn't, we offer the camera explicitly instead of
+    //    silently opening it.
+    if (isScreenShareSupported()) {
+      setLiveMode("screen");
+      setLiveStatus("starting");
+      let stream: MediaStream | null = null;
+      try {
+        stream = await requestScreenStream(true);
+      } catch (err) {
+        setLiveStatus("error");
+        const name = err instanceof DOMException ? err.name : "";
+        if (name === "NotAllowedError") {
+          setLiveError("Screen sharing was blocked. Click Go Live again and press Allow (on Android choose Entire screen).");
+        } else {
+          setLiveError("Could not start screen sharing on this device. Try going live from a desktop PC with Chrome, Edge or Firefox.");
+        }
+        return;
+      }
+      if (stream) await beginStreaming(matchId, stream, "screen");
+      return;
+    }
+
+    // 3. Phones have no screen-capture API in any browser — ask first.
+    setCameraConfirm(true);
+    setPendingMatchId(matchId);
+    setLiveStatus("idle");
+  }
+
+  // User tapped "Use camera" on the offer dialog (never opened unprompted).
+  async function confirmCameraLive() {
+    const matchId = pendingMatchId;
+    setCameraConfirm(false);
+    setPendingMatchId(null);
+    if (matchId == null) return;
+    setLiveMode("camera");
+    setLiveStatus("starting");
+    let stream: MediaStream | null = null;
+    try {
+      stream = await requestCameraStream("environment");
+    } catch (err) {
       setLiveStatus("error");
       setLiveError(
-        isIosDevice()
-          ? "iPhones and iPads cannot share their screen from any browser — Apple blocks it. Go live from an Android phone (Chrome) or a PC. Watching live streams on this device still works."
-          : "This browser cannot share its screen. Open this page in Chrome on Android, or go live from a PC. Watching live streams still works.",
+        err instanceof DOMException && err.name === "NotAllowedError"
+          ? "Camera access was blocked. Click Go Live again and press Allow to use your camera."
+          : "Could not start the camera. Check permissions and try again.",
       );
       return;
     }
-
-    // 3. Ask the browser to share the screen — Chrome shows the screen picker.
-    let stream: MediaStream | null = null;
-    try {
-      stream = await requestScreenStream(true);
-    } catch (err) {
-      setLiveStatus("error");
-      const name = err instanceof DOMException ? err.name : "";
-      if (name === "NotAllowedError") {
-        setLiveError("Screen sharing was blocked. Click Go Live again and press Allow (on Android choose Entire screen).");
-      } else {
-        setLiveError("Could not start screen sharing on this device. Try going live from a desktop PC with Chrome, Edge or Firefox.");
-      }
-      return;
-    }
-
-    // 2. Register the broadcast, then publish the stream and handle signaling.
-    try {
-      const { id } = await startBroadcast(matchId);
-      const handle = publishScreen(id, stream, (count) => setViewerCount(count));
-      setLiveHandle(handle);
-      setLiveMatchId(matchId);
-      setLiveStatus("live");
-      // If the user stops sharing from the browser UI, close the live too.
-      stream.getVideoTracks()[0]?.addEventListener("ended", () => handleCloseLive());
-      // Refresh so the fixture shows the LIVE badge.
-      qc.invalidateQueries({ queryKey: ["tournament-matches"] });
-    } catch (e) {
-      stream.getTracks().forEach((t) => t.stop());
-      setLiveStatus("error");
-      setLiveError(e instanceof Error ? e.message : "Could not start the broadcast");
-    }
+    if (stream) await beginStreaming(matchId, stream, "camera");
   }
 
   // ── Fetch all tournaments ─────────────────────────────────────────────────
@@ -835,14 +863,19 @@ export default function FixturesPage() {
       {liveStatus === "starting" && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-[#0f1628]/95 backdrop-blur border border-amber-500/40 rounded-full px-5 py-2.5 shadow-[0_0_24px_rgba(245,158,11,0.25)]">
           <Loader2 className="w-4 h-4 text-amber-400 animate-spin" />
-          <span className="text-xs font-bold text-amber-300">Allow screen sharing in your browser to go live…</span>
+          <span className="text-xs font-bold text-amber-300">
+            {liveMode === "camera" ? "Setting up your camera broadcast…" : "Allow screen sharing in your browser to go live…"}
+          </span>
         </div>
       )}
       {liveStatus === "live" && liveHandle && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-[#0f1628]/95 backdrop-blur border border-red-500/50 rounded-full pl-4 pr-1.5 py-1.5 shadow-[0_0_24px_rgba(239,68,68,0.35)]">
           <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-          <span className="text-xs font-black tracking-widest text-red-400">LIVE</span>
+          <span className="text-xs font-black tracking-widest text-red-400">
+            {liveMode === "camera" ? "LIVE · CAMERA" : "LIVE"}
+          </span>
           <span className="text-xs text-zinc-400 flex items-center gap-1">
+            {liveMode === "camera" ? <Camera className="w-3.5 h-3.5" /> : <MonitorPlay className="w-3.5 h-3.5" />}
             <MonitorPlay className="w-3.5 h-3.5" /> {viewerCount} watching
           </span>
           <button
@@ -863,6 +896,38 @@ export default function FixturesPage() {
           >
             <X className="w-3.5 h-3.5" />
           </button>
+        </div>
+      )}
+
+      {/* Ask-before-camera dialog — phones can't screen-share in any browser,
+          so we offer an explicit choice instead of silently opening the camera */}
+      {cameraConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-6 text-center shadow-2xl">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-500/15 border border-amber-500/30">
+              <Camera className="w-7 h-7 text-amber-400" />
+            </div>
+            <h3 className="text-lg font-black text-white mb-2">Screen share isn't available here</h3>
+            <p className="text-sm text-muted-foreground mb-6">
+              This browser can't capture your screen (phones can't show their screen in any browser).
+              If you're using a PC or Android Chrome it should have worked — otherwise you can go
+              live with your camera, like Instagram or Twitch.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setCameraConfirm(false); setPendingMatchId(null); }}
+                className="flex-1 text-xs font-black px-4 py-2.5 rounded-lg border border-border text-muted-foreground hover:text-white hover:border-zinc-500 transition-colors"
+              >
+                Not now
+              </button>
+              <button
+                onClick={confirmCameraLive}
+                className="flex-1 text-xs font-black px-4 py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <Camera className="w-3.5 h-3.5" /> Use camera
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

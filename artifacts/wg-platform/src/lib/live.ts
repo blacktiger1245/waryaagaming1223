@@ -130,6 +130,20 @@ export function isScreenShareSupported(): boolean {
   );
 }
 
+/**
+ * Camera broadcast — the only mobile option. iPhones/iPads and every other
+ * phone have no screen-capture API in any browser, so this is offered as a
+ * clearly-labelled alternative (never opened without the user's explicit OK).
+ */
+export function requestCameraStream(
+  facing: "user" | "environment" = "environment",
+): Promise<MediaStream> {
+  return navigator.mediaDevices.getUserMedia({
+    video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } },
+    audio: true,
+  });
+}
+
 export interface PublishHandle {
   id: string;
   close: () => void;
