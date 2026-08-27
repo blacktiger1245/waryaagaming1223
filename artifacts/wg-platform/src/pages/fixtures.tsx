@@ -593,6 +593,22 @@ export default function FixturesPage() {
       return;
     }
 
+    // 1.5 Native path (Capacitor app): if the Waryaa Android app exposed its
+    //     MediaProjection broadcaster on window.WaryaaNative, prefer it. On a
+    //     normal browser this is undefined and the web screen-share path below
+    //     runs exactly as before — the desktop site is unaffected.
+    const native = (window as unknown as { WaryaaNative?: { start: (id: number) => Promise<unknown> } }).WaryaaNative;
+    if (native) {
+      try {
+        await native.start(matchId);
+        return;
+      } catch (e) {
+        setLiveStatus("error");
+        setLiveError(e instanceof Error ? e.message : "The Android screen-share broadcaster could not start.");
+        return;
+      }
+    }
+
     // 2. Try real screen sharing. This works on desktop browsers only.
     //    Mobile browsers have no screen-capture API (getDisplayMedia does not
     //    exist on Android Chrome or iOS Safari), so genuine mobile screen

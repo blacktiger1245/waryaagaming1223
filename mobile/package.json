@@ -1,0 +1,22 @@
+{
+  "name": "waryaagaming-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Waryaa Gaming Android app: wraps the existing website for viewing/auth and adds native MediaProjection screen-capture broadcasting into the existing WebRTC/live infrastructure.",
+  "type": "module",
+  "scripts": {
+    "android:sync": "cap sync android",
+    "android:add": "cap add android",
+    "android:open": "cap open android",
+    "build:web": "vite build",
+    "dev": "vite"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/core": "^6.1.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.2",
+    "vite": "^5.4.0"
+  }
+}
