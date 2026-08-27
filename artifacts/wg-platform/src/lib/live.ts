@@ -88,6 +88,8 @@ export function publishScreen(
   onViewerChange?: (count: number) => void,
 ): PublishHandle {
   const peers = new Map<string, RTCPeerConnection>();
+  // ICE candidates that arrived before a viewer's answer was processed.
+  const pendingCandidates = new Map<string, RTCIceCandidateInit[]>();
   let seq = 0;
   let stopped = false;
   let viewerCount = 0;
@@ -160,6 +162,7 @@ export function publishScreen(
           /* ignore */
         }
         peers.delete(viewerId!);
+        pendingCandidates.delete(viewerId!);
         viewerCount = Math.max(0, viewerCount - 1);
         onViewerChange?.(viewerCount);
       }
@@ -176,39 +179,63 @@ export function publishScreen(
     if (msg.type === "answer") {
       try {
         await pc.setRemoteDescription({ type: "answer", sdp: msg.data?.sdp });
+        // Flush any ICE candidates that arrived before the answer did.
+        const pending = pendingCandidates.get(msg.from);
+        if (pending) {
+          pendingCandidates.delete(msg.from);
+          for (const c of pending.splice(0)) {
+            try {
+              await pc.addIceCandidate(c);
+            } catch {
+              /* ignore */
+            }
+          }
+        }
       } catch {
         /* ignore */
       }
     } else if (msg.type === "candidate") {
-      if (msg.data?.candidate && pc.remoteDescription) {
+      if (!msg.data?.candidate) return;
+      if (pc.remoteDescription) {
         try {
           await pc.addIceCandidate(msg.data.candidate);
         } catch {
           /* ignore */
         }
+      } else {
+        // The answer has not been processed yet — queue the candidate.
+        let queue = pendingCandidates.get(msg.from);
+        if (!queue) {
+          queue = [];
+          pendingCandidates.set(msg.from, queue);
+        }
+        queue.push(msg.data.candidate);
       }
     }
   }
 
+  let pollFailures = 0;
   async function poll() {
     if (stopped) return;
-    let ok = true;
     try {
       const res = await json<{ seq: number; messages: SignalMessage[] }>(
         `/api/live/broadcast/${id}/pub-inbox?since=${seq}`,
       );
+      pollFailures = 0;
       seq = res.seq;
       for (const m of res.messages) {
         await handle(m);
       }
     } catch {
-      ok = false; // broadcast is gone → stop
+      // A single failed poll (network hiccup) should not kill the broadcast —
+      // give up only after several consecutive failures (~10s).
+      pollFailures++;
+      if (pollFailures >= 8) {
+        stop();
+        return;
+      }
     }
     if (stopped) return;
-    if (!ok) {
-      stop();
-      return;
-    }
     setTimeout(poll, POLL_MS);
   }
 
@@ -261,9 +288,23 @@ export function watchBroadcast(
   let seq = 0;
   let ended = false;
   let peerConnected = false;
+  // ICE candidates that arrived before the broadcaster's offer was processed.
+  let pendingCandidates: RTCIceCandidateInit[] = [];
+  // If no media arrives within this window, surface an error instead of an
+  // endless spinner.
+  const connectTimeout = setTimeout(() => {
+    if (!peerConnected && !ended) {
+      onStatus?.(
+        "error",
+        "Timed out connecting to the broadcaster. Make sure they are still sharing their screen, then try again.",
+      );
+      void close();
+    }
+  }, 30000);
 
   pc.ontrack = (e) => {
     peerConnected = true;
+    clearTimeout(connectTimeout);
     try {
       video.srcObject = e.streams[0];
     } catch {
@@ -275,6 +316,7 @@ export function watchBroadcast(
   pc.onconnectionstatechange = () => {
     if ((pc.connectionState === "failed" || pc.connectionState === "disconnected") && !peerConnected) {
       ended = true;
+      clearTimeout(connectTimeout);
       onStatus?.("error", "Could not reach the broadcaster. Check they are still sharing their screen.");
     }
   };
@@ -294,38 +336,60 @@ export function watchBroadcast(
 
   async function handle(msg: SignalMessage) {
     if (msg.type === "offer") {
-      await pc.setRemoteDescription({ type: "offer", sdp: msg.data?.sdp });
+      if (!msg.data?.sdp) return;
+      await pc.setRemoteDescription({ type: "offer", sdp: msg.data.sdp });
+      // Flush ICE candidates that arrived before the offer.
+      const pending = pendingCandidates.splice(0);
+      for (const c of pending) {
+        try {
+          await pc.addIceCandidate(c);
+        } catch {
+          /* ignore */
+        }
+      }
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       await sendToPub("answer", { sdp: answer.sdp });
     } else if (msg.type === "candidate") {
-      if (msg.data?.candidate && pc.remoteDescription) {
+      if (!msg.data?.candidate) return;
+      if (pc.remoteDescription) {
         try {
           await pc.addIceCandidate(msg.data.candidate);
         } catch {
           /* ignore */
         }
+      } else {
+        // The offer has not been processed yet — queue the candidate.
+        pendingCandidates.push(msg.data.candidate);
       }
     } else if (msg.type === "ended") {
       ended = true;
+      clearTimeout(connectTimeout);
       onStatus?.("ended");
     }
   }
 
+  let pollFailures = 0;
   async function poll() {
     if (ended) return;
     try {
       const res = await json<{ seq: number; messages: SignalMessage[] }>(
         `/api/live/broadcast/${id}/viewer-inbox?viewerId=${encodeURIComponent(viewerId)}&since=${seq}`,
       );
+      pollFailures = 0;
       seq = res.seq;
       for (const m of res.messages) {
         await handle(m);
       }
     } catch {
-      ended = true;
-      onStatus?.("ended");
-      return;
+      // Tolerate transient failures instead of instantly ending the stream.
+      pollFailures++;
+      if (pollFailures >= 8) {
+        ended = true;
+        clearTimeout(connectTimeout);
+        onStatus?.("ended");
+        return;
+      }
     }
     if (ended) return;
     setTimeout(poll, POLL_MS);
@@ -343,12 +407,14 @@ export function watchBroadcast(
     })
     .catch(() => {
       ended = true;
+      clearTimeout(connectTimeout);
       onStatus?.("error", "This broadcast is no longer available.");
     });
 
   async function close() {
-    if (ended && !pc.signalingState) return;
+    if (ended) return; // idempotent
     ended = true;
+    clearTimeout(connectTimeout);
     try {
       await json(`/api/live/broadcast/${id}/watch/stop`, {
         method: "POST",

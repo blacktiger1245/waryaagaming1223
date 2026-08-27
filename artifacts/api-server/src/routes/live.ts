@@ -250,8 +250,12 @@ router.post("/live/broadcast/:id/signal", async (req: Request, res: Response) =>
   const data = message.data;
 
   if (to === "pub") {
-    if (b.broadcasterId !== req.session?.userId) {
-      return res.status(403).json({ error: "Only the broadcaster can send publisher messages" });
+    // Messages routed to the broadcaster's inbox are viewer answers and ICE
+    // candidates. Accept them from any viewer registered on this broadcast
+    // (see watch/start). Requiring the broadcaster's own session here would
+    // reject exactly the messages the broadcaster is waiting for.
+    if (!b.viewerInbox.has(from)) {
+      return res.status(403).json({ error: "Only viewers of this broadcast can signal the broadcaster" });
     }
     if (!type) return res.status(400).json({ error: "Missing message.type" });
     push(b, b.pubInbox, type, from, data);
@@ -266,7 +270,7 @@ router.post("/live/broadcast/:id/signal", async (req: Request, res: Response) =>
       return res.json({ ok: true });
     }
     if (!type) return res.status(400).json({ error: "Missing message.type" });
-    push(b, inbox, type, to, data);
+    push(b, inbox, type, from, data);
     return res.json({ ok: true });
   }
 

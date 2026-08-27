@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "wouter";
 import { motion } from "framer-motion";
-import { Radio, Play, Loader2, MonitorPlay } from "lucide-react";
+import { Radio, Play, Loader2, MonitorPlay, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { fetchBroadcast, watchBroadcast, type WatchHandle } from "@/lib/live";
@@ -23,6 +23,7 @@ export default function WatchPage() {
   const watchRef = useRef<WatchHandle | null>(null);
   const [status, setStatus] = useState<WatchStatus>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [muted, setMuted] = useState(true);
 
   useEffect(() => {
     return () => {
@@ -42,10 +43,12 @@ export default function WatchPage() {
         void video.play().catch(() => undefined);
       } else if (s === "ended") {
         setStatus("ended");
+        handle?.close();
         watchRef.current = null;
       } else if (s === "error") {
         setStatus("error");
         setError(e ?? "Failed to watch this broadcast.");
+        handle?.close();
         watchRef.current = null;
       } else {
         setStatus("connecting");
@@ -149,6 +152,23 @@ export default function WatchPage() {
                   <p className="text-white font-bold mb-1">Could not connect</p>
                   <p className="text-zinc-400 text-sm text-center">{error}</p>
                 </div>
+              )}
+
+              {status === "live" && (
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    const v = videoRef.current;
+                    if (!v) return;
+                    v.muted = !v.muted;
+                    setMuted(v.muted);
+                    if (!v.muted) void v.play().catch(() => undefined);
+                  }}
+                  className="absolute bottom-3 right-3 gap-2 bg-black/70 border border-white/20 text-white hover:bg-black/85"
+                >
+                  {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                  {muted ? "Unmute" : "Mute"}
+                </Button>
               )}
             </div>
 
