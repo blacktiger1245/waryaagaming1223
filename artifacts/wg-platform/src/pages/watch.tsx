@@ -21,6 +21,7 @@ export default function WatchPage() {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const watchRef = useRef<WatchHandle | null>(null);
+  const retriedRef = useRef(false);
   const [status, setStatus] = useState<WatchStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [muted, setMuted] = useState(true);
@@ -51,10 +52,17 @@ export default function WatchPage() {
         handle?.close();
         watchRef.current = null;
       } else if (s === "error") {
-        setStatus("error");
-        setError(e ?? "Failed to watch this broadcast.");
         handle?.close();
         watchRef.current = null;
+        // One silent retry with a fresh session — the first negotiation can
+        // wedge on flaky mobile networks.
+        if (!retriedRef.current) {
+          retriedRef.current = true;
+          setTimeout(() => startWatching(), 1200);
+          return;
+        }
+        setStatus("error");
+        setError(e ?? "Failed to watch this broadcast.");
       } else {
         setStatus("connecting");
       }
@@ -65,6 +73,7 @@ export default function WatchPage() {
   function stopWatching() {
     watchRef.current?.close();
     watchRef.current = null;
+    retriedRef.current = false;
     setStatus("idle");
     if (videoRef.current) {
       try {
@@ -155,7 +164,16 @@ export default function WatchPage() {
               {status === "error" && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 px-6">
                   <p className="text-white font-bold mb-1">Could not connect</p>
-                  <p className="text-zinc-400 text-sm text-center">{error}</p>
+                  <p className="text-zinc-400 text-sm text-center mb-4">{error}</p>
+                  <Button
+                    onClick={() => {
+                      stopWatching();
+                      startWatching();
+                    }}
+                    className="gap-2"
+                  >
+                    <Play className="w-4 h-4" /> Try Again
+                  </Button>
                 </div>
               )}
 

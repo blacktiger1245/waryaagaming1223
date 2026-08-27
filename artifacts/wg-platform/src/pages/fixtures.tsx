@@ -9,7 +9,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { storageUrl } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
-import { publishScreen, requestScreenStream, startBroadcast, fetchLiveBroadcasts, type PublishHandle, type LiveBroadcastInfo } from "@/lib/live";
+import { publishScreen, requestScreenStream, startBroadcast, fetchLiveBroadcasts, isScreenShareSupported, type PublishHandle, type LiveBroadcastInfo } from "@/lib/live";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Tournament {
@@ -564,13 +564,29 @@ export default function FixturesPage() {
     setLiveStatus("starting");
     setLiveError(null);
 
-    // 1. Ask the user to allow screen sharing (browser prompt).
+    // 1. Make sure this browser can share screens at all. Mobile browsers
+    //    cannot (iPhones never, Android only in standalone Chrome) — without
+    //    this check the getDisplayMedia call throws instantly.
+    if (!isScreenShareSupported()) {
+      setLiveStatus("error");
+      setLiveError(
+        "This device cannot share its screen. Go live from a desktop PC using Chrome, Edge or Firefox. Watching live streams on this phone still works.",
+      );
+      return;
+    }
+
+    // 2. Ask the user to allow screen sharing (browser prompt).
     let stream: MediaStream | null = null;
     try {
       stream = await requestScreenStream(true);
-    } catch {
+    } catch (err) {
       setLiveStatus("error");
-      setLiveError("Screen sharing was not allowed. Click Go Live again and allow screen access.");
+      const name = err instanceof DOMException ? err.name : "";
+      if (name === "NotAllowedError") {
+        setLiveError("Screen sharing was blocked. Click Go Live again and press Allow (on Android choose Entire screen).");
+      } else {
+        setLiveError("Could not start screen sharing on this device. Try going live from a desktop PC with Chrome, Edge or Firefox.");
+      }
       return;
     }
 

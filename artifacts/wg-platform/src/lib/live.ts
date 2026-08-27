@@ -47,7 +47,7 @@ interface SignalMessage {
  */
 function buildIceServers(): RTCIceServer[] {
   const servers: RTCIceServer[] = [
-    { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
+    { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302", "stun:stun.cloudflare.com:3478"] },
   ];
   const turnUrls = ((import.meta.env.VITE_TURN_URLS as string | undefined)
     ?? "turn:openrelay.metered.ca:80,turn:openrelay.metered.ca:443,turn:openrelay.metered.ca:443?transport=tcp,turns:openrelay.metered.ca:443?transport=tcp")
@@ -114,6 +114,20 @@ export function requestScreenStream(includeAudio = true): Promise<MediaStream> {
   return navigator.mediaDevices
     .getDisplayMedia({ video: true, audio: includeAudio })
     .catch(() => navigator.mediaDevices.getDisplayMedia({ video: true }));
+}
+
+/**
+ * True when this browser can capture the screen at all. Mobile browsers
+ * cannot: iPhones (all browsers) have no screen-capture API, and Android
+ * only supports it in standalone Chrome — never in in-app browsers
+ * (Instagram/Facebook/Samsung Internet WebView).
+ */
+export function isScreenShareSupported(): boolean {
+  return (
+    typeof navigator !== "undefined" &&
+    !!navigator.mediaDevices &&
+    typeof navigator.mediaDevices.getDisplayMedia === "function"
+  );
 }
 
 export interface PublishHandle {
@@ -347,7 +361,7 @@ export function watchBroadcast(
       );
       void close();
     }
-  }, 30000);
+  }, 15000);
 
   pc.ontrack = (e) => {
     peerConnected = true;
