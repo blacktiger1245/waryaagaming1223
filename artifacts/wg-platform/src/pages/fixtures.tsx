@@ -1,13 +1,15 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Link } from "wouter";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CalendarDays, Circle, Radio, Shield, Trophy,
   RefreshCw, ChevronRight, LayoutList, Clock, CheckCircle2, BarChart2,
-  ChevronDown, Check, Layers,
+  ChevronDown, Check, Layers, Loader2, X, MonitorPlay,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { storageUrl } from "@/lib/api";
+import { useAuth } from "@/hooks/use-auth";
+import { publishScreen, requestScreenStream, startBroadcast, type PublishHandle } from "@/lib/live";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Tournament {
@@ -118,9 +120,40 @@ function Av({ name, size = "md", url }: { name: string; size?: "sm" | "md" | "lg
 }
 
 // ── Match card ─────────────────────────────────────────────────────────────────
-function MatchCard({ m, logoMap }: { m: FlatMatch; logoMap: Map<number, string | null> }) {
+function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLive }: {
+  m: FlatMatch;
+  logoMap: Map<number, string | null>;
+  canShare: boolean;
+  broadcasting: boolean;
+  onStartLive: (id: number) => void;
+  onCloseLive: () => void;
+}) {
   const done = m.status === "completed";
   const live = m.status === "live";
+
+  const goLiveButton = (() => {
+    if (!canShare || done) return null;
+    if (broadcasting) {
+      return (
+        <button
+          onClick={onCloseLive}
+          className="shrink-0 inline-flex items-center gap-1.5 text-xs font-black px-3 py-1.5 rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors"
+          data-testid="button-close-live"
+        >
+          <X className="w-3.5 h-3.5" /> Close Live
+        </button>
+      );
+    }
+    return (
+      <button
+        onClick={() => onStartLive(m.id)}
+        className="shrink-0 inline-flex items-center gap-1.5 text-xs font-black px-3 py-1.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 hover:border-amber-400 transition-colors"
+        data-testid="button-go-live"
+      >
+        <Radio className="w-3.5 h-3.5" /> Go Live
+      </button>
+    );
+  })();
   const hasScore = m.participant1Score != null && m.participant2Score != null;
   const time = fmtTime(m.scheduledAt);
   const p1wins = done && m.winnerId === m.participant1Id;
@@ -176,6 +209,7 @@ function MatchCard({ m, logoMap }: { m: FlatMatch; logoMap: Map<number, string |
             {time ? `${time} GMT+3` : "TBD"}
           </span>
           <div className="flex items-center gap-2">
+            {goLiveButton}
             {live && (
               <span className="flex items-center gap-1 text-[10px] font-black bg-red-500 text-white px-2 py-0.5 rounded-full animate-pulse">
                 <Radio className="w-2.5 h-2.5" /> LIVE
@@ -263,6 +297,7 @@ function MatchCard({ m, logoMap }: { m: FlatMatch; logoMap: Map<number, string |
               View Details →
             </span>
           </Link>
+          {goLiveButton}
         </div>
       </div>
     </>
@@ -495,6 +530,65 @@ export default function FixturesPage() {
   const [selectedGroupsTournamentId, setSelectedGroupsTournamentId] = useState<number | null>(null);
   const [groupsDropdownOpen, setGroupsDropdownOpen] = useState(false);
 
+  const qc = useQueryClient();
+  const { canShareScreen } = useAuth();
+
+  // ── Live screen-share broadcast ───────────────────────────────────────────
+  const [liveHandle, setLiveHandle] = useState<PublishHandle | null>(null);
+  const [liveMatchId, setLiveMatchId] = useState<number | null>(null);
+  const [liveStatus, setLiveStatus] = useState<"idle" | "starting" | "live" | "error">("idle");
+  const [liveError, setLiveError] = useState<string | null>(null);
+  const [viewerCount, setViewerCount] = useState(0);
+  const liveHandleRef = useRef<PublishHandle | null>(null);
+  liveHandleRef.current = liveHandle;
+
+  // Close any open broadcast when leaving the page.
+  useEffect(() => () => { liveHandleRef.current?.close(); }, []);
+
+  function handleCloseLive() {
+    liveHandleRef.current?.close();
+    setLiveHandle(null);
+    setLiveMatchId(null);
+    setLiveStatus("idle");
+    setLiveError(null);
+    setViewerCount(0);
+    // Refresh so the LIVE badge disappears from the fixture list.
+    qc.invalidateQueries({ queryKey: ["tournament-matches"] });
+  }
+
+  async function handleGoLive(matchId: number) {
+    if (liveStatus === "starting" || liveHandleRef.current) return;
+    setLiveStatus("starting");
+    setLiveError(null);
+
+    // 1. Ask the user to allow screen sharing (browser prompt).
+    let stream: MediaStream | null = null;
+    try {
+      stream = await requestScreenStream(true);
+    } catch {
+      setLiveStatus("error");
+      setLiveError("Screen sharing was not allowed. Click Go Live again and allow screen access.");
+      return;
+    }
+
+    // 2. Register the broadcast, then publish the stream and handle signaling.
+    try {
+      const { id } = await startBroadcast(matchId);
+      const handle = publishScreen(id, stream, (count) => setViewerCount(count));
+      setLiveHandle(handle);
+      setLiveMatchId(matchId);
+      setLiveStatus("live");
+      // If the user stops sharing from the browser UI, close the live too.
+      stream.getVideoTracks()[0]?.addEventListener("ended", () => handleCloseLive());
+      // Refresh so the fixture shows the LIVE badge.
+      qc.invalidateQueries({ queryKey: ["tournament-matches"] });
+    } catch (e) {
+      stream.getTracks().forEach((t) => t.stop());
+      setLiveStatus("error");
+      setLiveError(e instanceof Error ? e.message : "Could not start the broadcast");
+    }
+  }
+
   // ── Fetch all tournaments ─────────────────────────────────────────────────
   const { data: tournaments = [], isLoading: tournamentsLoading } = useQuery<Tournament[]>({
     queryKey: ["tournaments"],
@@ -685,6 +779,42 @@ export default function FixturesPage() {
 
   return (
     <div className="min-h-screen bg-[#080c18] pb-20 lg:pb-6 wg-fixtures">
+
+      {/* ── Live broadcast control bar ─────────────────────────────────────── */}
+      {liveStatus === "starting" && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-[#0f1628]/95 backdrop-blur border border-amber-500/40 rounded-full px-5 py-2.5 shadow-[0_0_24px_rgba(245,158,11,0.25)]">
+          <Loader2 className="w-4 h-4 text-amber-400 animate-spin" />
+          <span className="text-xs font-bold text-amber-300">Allow screen sharing in your browser to go live…</span>
+        </div>
+      )}
+      {liveStatus === "live" && liveHandle && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-[#0f1628]/95 backdrop-blur border border-red-500/50 rounded-full pl-4 pr-1.5 py-1.5 shadow-[0_0_24px_rgba(239,68,68,0.35)]">
+          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+          <span className="text-xs font-black tracking-widest text-red-400">LIVE</span>
+          <span className="text-xs text-zinc-400 flex items-center gap-1">
+            <MonitorPlay className="w-3.5 h-3.5" /> {viewerCount} watching
+          </span>
+          <button
+            onClick={handleCloseLive}
+            className="text-xs font-black px-3 py-1.5 rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors"
+            data-testid="button-end-broadcast"
+          >
+            End Broadcast
+          </button>
+        </div>
+      )}
+      {liveStatus === "error" && liveError && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-[#0f1628]/95 backdrop-blur border border-red-500/40 rounded-full pl-5 pr-2 py-2 shadow-lg max-w-[90vw]">
+          <span className="text-xs text-red-300">{liveError}</span>
+          <button
+            onClick={() => setLiveStatus("idle")}
+            className="shrink-0 w-6 h-6 rounded-full bg-zinc-800 text-zinc-400 hover:text-white flex items-center justify-center"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       <div className="max-w-[1440px] mx-auto px-3 py-4 lg:px-4 lg:py-6">
 
         {/* ── Page hero ─────────────────────────────────────────────────── */}
@@ -1302,7 +1432,17 @@ export default function FixturesPage() {
                           {groupLabel(key)}
                         </span>
                       </div>
-                      {matches.map(m => <MatchCard key={m.id} m={m} logoMap={logoMap} />)}
+                      {matches.map(m => (
+                        <MatchCard
+                          key={m.id}
+                          m={m}
+                          logoMap={logoMap}
+                          canShare={canShareScreen}
+                          broadcasting={liveMatchId === m.id}
+                          onStartLive={handleGoLive}
+                          onCloseLive={handleCloseLive}
+                        />
+                      ))}
                     </div>
                   ))}
                   {grouped.length > visibleDates && (

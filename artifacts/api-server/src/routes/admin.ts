@@ -173,6 +173,37 @@ router.patch("/admin/players/:id/referee", requireAdmin, async (req, res) => {
   return res.json({ ok: true, id, role: referee ? "referee" : "player" });
 });
 
+// Toggle the non-privileged 'sharescreen' role from the Players admin page.
+// Any admin can grant/remove it (the same model as the referee role). It only
+// ever flips an ordinary account between 'player'/'referee'/'sharescreen' and
+// can never touch admin/owner privileges.
+router.patch("/admin/players/:id/sharescreen", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ error: "Invalid player id" });
+  }
+  const share = (req.body as { sharescreen?: unknown } | null)?.sharescreen === true;
+
+  const [target] = await db.select({ role: playersTable.role }).from(playersTable).where(eq(playersTable.id, id));
+  if (!target) {
+    return res.status(404).json({ error: "Player not found" });
+  }
+
+  if (share) {
+    if (target.role === "admin" || target.role === "owner") {
+      return res.status(400).json({ error: "Admin and owner accounts can already go live" });
+    }
+    await db.update(playersTable).set({ role: "sharescreen" }).where(eq(playersTable.id, id));
+  } else {
+    if (target.role !== "sharescreen") {
+      return res.status(400).json({ error: "Player does not have the sharescreen role" });
+    }
+    await db.update(playersTable).set({ role: "player" }).where(eq(playersTable.id, id));
+  }
+
+  return res.json({ ok: true, id, role: share ? "sharescreen" : "player" });
+});
+
 // ─── Generic CRUD entity routes ───────────────────────────────────────────────
 function registerEntityRoutes(path: string, table: PgTable & { id: AnyColumn }) {
   router.get(`/admin/${path}`, async (_req, res) => {

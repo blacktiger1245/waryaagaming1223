@@ -7,7 +7,7 @@ export interface AuthUser {
   displayName: string | null;
   avatarUrl: string | null;
   discordId: string;
-  role: "player" | "admin" | "owner";
+  role: "player" | "admin" | "owner" | "referee" | "sharescreen";
   profileComplete: boolean;
   isBanned: boolean;
   bannedUntil: string | null;
@@ -60,6 +60,8 @@ export function useAuth() {
     isLoggedIn: !!user,
     isAdmin: user?.role === "admin" || user?.role === "owner",
     isOwner: user?.role === "owner",
+    canShareScreen: !!user && (user.role === "sharescreen" || user.role === "admin" || user.role === "owner"),
+    canReferee: user?.role === "referee",
     loginWithDiscord,
     logout: logoutMutation.mutate,
   };

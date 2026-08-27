@@ -1,13 +1,28 @@
 import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { Radio, ExternalLink, Trophy } from "lucide-react";
+import { Radio, ExternalLink, Trophy, MonitorPlay, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGetLiveMatches } from "@workspace/api-client-react";
+import { useQuery } from "@tanstack/react-query";
+import { fetchLiveBroadcasts } from "@/lib/live";
 
 export default function LivePage() {
   const { data: liveMatches, isLoading, refetch } = useGetLiveMatches();
+  const { data: streams = [], refetch: refetchStreams } = useQuery({
+    queryKey: ["live-broadcasts"],
+    queryFn: fetchLiveBroadcasts,
+    refetchInterval: 8000,
+  });
+
+  const refresh = () => {
+    void refetch();
+    void refetchStreams();
+  };
+
+  const hasAnything =
+    (!isLoading && (liveMatches?.length ?? 0) > 0) || streams.length > 0;
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -22,18 +37,73 @@ export default function LivePage() {
               <h1 className="wg-hero-title text-4xl">Match Center</h1>
               <p className="text-muted-foreground text-sm mt-2">Real-time scores, streams and drama — as it happens.</p>
             </div>
-            <Button variant="outline" size="sm" onClick={() => refetch()} className="wg-btn-pill gap-2">
+            <Button variant="outline" size="sm" onClick={refresh} className="wg-btn-pill gap-2">
               <Radio className="w-4 h-4" />
               Refresh
             </Button>
           </div>
         </div>
 
+        {/* Screen-share broadcasts */}
+        {streams.length > 0 && (
+          <div className="mb-10">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="w-2 h-2 rounded-full bg-red-500 live-pulse" />
+              <h2 className="text-sm font-black uppercase tracking-widest text-red-400">Screen-Share Streams</h2>
+              <span className="text-xs text-muted-foreground">— broadcaster sharing their screen</span>
+            </div>
+            <div className="grid gap-4">
+              {streams.map((s, i) => (
+                <motion.div key={s.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
+                  <div className="wg-card wg-live-card rounded-xl border border-red-500/30 bg-card p-6 relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-r from-red-500/10 via-transparent to-red-500/5 pointer-events-none" />
+                    <div className="absolute left-0 top-4 bottom-4 w-1 rounded-full bg-gradient-to-b from-red-500 to-rose-500 shadow-[0_0_12px_rgba(248,113,113,0.7)]" />
+                    <div className="relative z-10">
+                      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-red-500/15 text-red-400 border-red-500/30 text-[10px] uppercase tracking-widest">
+                            <MonitorPlay className="w-3 h-3 mr-1" /> Live Stream
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">{s.tournamentName ?? "Fixture"}</span>
+                          {s.roundName && <span className="text-xs text-muted-foreground">— {s.roundName}</span>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">by <span className="font-bold text-red-400">{s.broadcasterName}</span></span>
+                          <span className="text-[10px] font-bold text-zinc-500 bg-zinc-800/60 px-2 py-0.5 rounded-full">{s.viewers} watching</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex-1 text-center">
+                          <p className="text-2xl font-black mb-0.5">{s.participant1Name ?? "TBD"}</p>
+                        </div>
+                        <div className="text-center px-4">
+                          <div className="text-xs font-black text-red-400 uppercase tracking-widest mb-0.5">Live</div>
+                          <div className="text-xl font-black text-muted-foreground">VS</div>
+                        </div>
+                        <div className="flex-1 text-center">
+                          <p className="text-2xl font-black mb-0.5">{s.participant2Name ?? "TBD"}</p>
+                        </div>
+                      </div>
+                      <div className="flex justify-center mt-5">
+                        <Button className="gap-2 bg-red-600 hover:bg-red-500" asChild>
+                          <Link href={`/live/${s.id}`}>
+                            <Play className="w-4 h-4" /> Watch Now
+                          </Link>
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {isLoading ? (
           <div className="grid gap-4">
             {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-xl" />)}
           </div>
-        ) : !liveMatches || liveMatches.length === 0 ? (
+        ) : !hasAnything ? (
           <div className="text-center py-24 border border-red-500/20 rounded-2xl bg-card/40">
             <Radio className="w-16 h-16 mx-auto mb-4 text-red-400/50" />
             <h2 className="text-2xl font-black text-white mb-2">No Live Matches</h2>
@@ -47,7 +117,7 @@ export default function LivePage() {
           </div>
         ) : (
           <div className="grid gap-4">
-            {liveMatches.map((match, i) => (
+            {(liveMatches ?? []).map((match, i) => (
               <motion.div key={match.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
                 <div className="wg-card wg-live-card rounded-xl border border-red-500/30 bg-card p-6 relative overflow-hidden">
                   {/* Live glow */}

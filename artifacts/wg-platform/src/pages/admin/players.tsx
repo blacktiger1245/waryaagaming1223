@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { User, Ban, CheckCircle, AlertTriangle, X, ChevronDown, BadgeCheck } from "lucide-react";
+import { User, Ban, CheckCircle, AlertTriangle, X, ChevronDown, BadgeCheck, MonitorPlay } from "lucide-react";
 import { marketValueLabel } from "@/lib/player-stats";
 
 interface Player {
@@ -97,6 +97,24 @@ export default function AdminPlayersPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ referee }),
+      });
+      qc.invalidateQueries({ queryKey: ["admin-players"] });
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Grants/removes the non-privileged 'sharescreen' role so the player can
+  // broadcast their screen on the Live page (same model as the referee role).
+  async function toggleShareScreen(playerId: number, sharescreen: boolean) {
+    setLoading(true); setError("");
+    try {
+      await apiFetch(`/api/admin/players/${playerId}/sharescreen`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sharescreen }),
       });
       qc.invalidateQueries({ queryKey: ["admin-players"] });
     } catch (e: any) {
@@ -298,6 +316,19 @@ export default function AdminPlayersPage() {
                     >
                       <BadgeCheck className="w-3.5 h-3.5" />
                       {player.role === "referee" ? "Remove Referee" : "Make Referee"}
+                    </button>
+                    <button
+                      onClick={() => toggleShareScreen(player.id, player.role !== "sharescreen")}
+                      disabled={loading}
+                      title={player.role === "sharescreen" ? "Remove screen-share access" : "Allow player to broadcast their screen live"}
+                      className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors flex items-center gap-1.5 ${
+                        player.role === "sharescreen"
+                          ? "bg-amber-500/20 border-amber-500/40 text-amber-300"
+                          : "text-zinc-400 hover:text-amber-300 bg-zinc-800 border-zinc-700 hover:border-amber-400/30"
+                      }`}
+                    >
+                      <MonitorPlay className="w-3.5 h-3.5" />
+                      {player.role === "sharescreen" ? "Remove ScreenShare" : "Allow ScreenShare"}
                     </button>
                     {banned ? (
                       <button

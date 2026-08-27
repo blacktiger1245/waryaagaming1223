@@ -23,6 +23,7 @@ import NewsDetailPage from "@/pages/news-detail";
 import MediaPage from "@/pages/media";
 import MediaHubPage from "@/pages/media-hub";
 import LivePage from "@/pages/live";
+import WatchPage from "@/pages/watch";
 import ComingSoonPage from "@/pages/coming-soon";
 import PartnershipPage from "@/pages/partnership";
 import MarketplacePage from "@/pages/marketplace";
@@ -90,6 +91,7 @@ function SiteRouter() {
         <Route path="/media" component={MediaPage} />
         <Route path="/media-hub" component={MediaHubPage} />
         <Route path="/live" component={LivePage} />
+        <Route path="/live/:id" component={WatchPage} />
         <Route path="/marketplace" component={MarketplacePage} />
         <Route path="/agent-messages" component={AgentMessagesPage} />
         <Route path="/login" component={LoginPage} />
