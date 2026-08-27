@@ -130,20 +130,6 @@ export function isScreenShareSupported(): boolean {
   );
 }
 
-/**
- * Camera fallback for devices without a screen-capture API (iPhones and
- * Android in-app browsers). Works everywhere `getUserMedia` exists — the
- * broadcast pipeline is identical to the screen-share one.
- */
-export function requestCameraStream(
-  facing: "user" | "environment" = "environment",
-): Promise<MediaStream> {
-  return navigator.mediaDevices.getUserMedia({
-    video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } },
-    audio: true,
-  });
-}
-
 export interface PublishHandle {
   id: string;
   close: () => void;
