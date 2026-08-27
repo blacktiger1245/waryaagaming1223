@@ -30,10 +30,12 @@ const apiProxy = {
 };
 
 // Self-signed HTTPS for dev/preview so phones on the same network get a
-// secure context (required for WebRTC, camera and screen capture). Loaded
-// only when the package is installed — run `pnpm add -D
-// @vitejs/plugin-basic-ssl` once (needs internet); offline machines and
-// production builds simply skip it.
+// secure context (required for WebRTC, camera and screen capture). The
+// package is intentionally NOT in package.json — adding it without updating
+// pnpm-lock.yaml breaks `pnpm install --frozen-lockfile` in the Docker build.
+// To enable local HTTPS phone testing, run (needs internet):
+//   pnpm -C artifacts/wg-platform add -D @vitejs/plugin-basic-ssl
+// Production deployments are already HTTPS at the edge and skip it entirely.
 const basicSslPlugin: import("vite").Plugin | null = await import(
   "@vitejs/plugin-basic-ssl" as string
 )
