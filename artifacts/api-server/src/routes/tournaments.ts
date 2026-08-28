@@ -186,30 +186,27 @@ router.get("/tournaments/:id/my-registration", async (req, res) => {
 });
 
 /**
- * POST /tournaments/:id/register-team
- * Clan tournaments: registers the logged-in user's TEAM as a participant.
- * Only the team President or Coach may register the team (roles come from the DB).
+ * Shared team-registration logic for clan tournaments.
+ * Validates open status, capacity, team membership and the President/Coach role
+ * (all from the DB), then inserts a team participant. Sends the response itself.
  */
-router.post("/tournaments/:id/register-team", async (req, res) => {
-  const id = Number(req.params.id);
-  if (!req.session?.userId) return res.status(401).json({ error: "Login with Discord first" });
-
-  const [tournament] = await db
-    .select()
-    .from(tournamentsTable)
-    .where(eq(tournamentsTable.id, id));
-  if (!tournament) return res.status(404).json({ error: "Tournament not found" });
-  if (!tournament.isClanTournament)
-    return res.status(400).json({ error: "This is not a clan tournament" });
+async function registerTeamForTournament(
+  tournament: typeof tournamentsTable.$inferSelect,
+  req: import("express").Request,
+  res: import("express").Response
+) {
+  const id = tournament.id;
   if (tournament.status === "completed" || tournament.status === "cancelled")
     return res.status(400).json({ error: "Tournament is no longer open for registration" });
   if (tournament.currentParticipants >= tournament.maxParticipants)
     return res.status(400).json({ error: "Tournament is full" });
 
+  const uid = req.session?.userId;
+  if (uid == null) return res.status(401).json({ error: "Login with Discord first" });
   const [player] = await db
     .select()
     .from(playersTable)
-    .where(eq(playersTable.id, req.session.userId));
+    .where(eq(playersTable.id, uid));
   if (!player) return res.status(400).json({ error: "Player profile not found" });
   if (!player.teamId)
     return res.status(403).json({ error: "You are not on a team — only a team President or Coach can register their team" });
@@ -246,6 +243,28 @@ router.post("/tournaments/:id/register-team", async (req, res) => {
     .where(eq(tournamentsTable.id, id));
 
   return res.status(201).json({ ...participant, teamName: team.name, seed: null });
+}
+
+/**
+ * POST /tournaments/:id/register-team
+/**
+ * POST /tournaments/:id/register-team
+ * Clan tournaments: registers the logged-in user's TEAM as a participant.
+ * Only the team President or Coach may register the team (roles come from the DB).
+ */
+router.post("/tournaments/:id/register-team", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!req.session?.userId) return res.status(401).json({ error: "Login with Discord first" });
+
+  const [tournament] = await db
+    .select()
+    .from(tournamentsTable)
+    .where(eq(tournamentsTable.id, id));
+  if (!tournament) return res.status(404).json({ error: "Tournament not found" });
+  if (!tournament.isClanTournament)
+    return res.status(400).json({ error: "This is not a clan tournament" });
+
+  return registerTeamForTournament(tournament, req, res);
 });
 
 /**
@@ -266,10 +285,11 @@ router.post("/tournaments/:id/register-me", async (req, res) => {
   if (tournament.status === "completed" || tournament.status === "cancelled")
     return res.status(400).json({ error: "Tournament is no longer open for registration" });
 
-  // Clan tournaments are team-registration only: a team President or Coach
-  // registers the whole team via /register-team — individuals cannot sign up.
+  // Clan tournaments are team-registration only. If the caller is the team
+  // President or Coach, register their WHOLE team (delegate to the shared
+  // team-registration logic); otherwise reject with an explanatory error.
   if (tournament.isClanTournament) {
-    return res.status(403).json({ error: "This is a clan tournament — only a team President or Coach can register their team" });
+    return registerTeamForTournament(tournament, req, res);
   }
 
   // Upcoming tournaments only allow registration once the start date is reached.
