@@ -22,6 +22,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Discord OAuth return flow: the system browser redirects to this
+                 custom scheme after login; Android reopens the app (MainActivity,
+                 singleTask) and the Capacitor App plugin fires `appUrlOpen`. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="waryaagaming" android:host="auth" />
+            </intent-filter>
+
         </activity>
 
         <provider
