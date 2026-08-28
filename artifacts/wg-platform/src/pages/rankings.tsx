@@ -27,11 +27,34 @@ function FormBadge({ result }: { result: string }) {
   );
 }
 
+// ── Top-3 medal styling (gold / silver / bronze) ──────────────────────────────
+const MEDAL: Record<number, { badge: string; name: string; star: string }> = {
+  1: {
+    badge: "w-7 h-7 rounded-full inline-flex items-center justify-center text-xs font-black text-black bg-gradient-to-br from-amber-200 via-amber-400 to-yellow-600 shadow-[0_0_12px_rgba(251,191,36,.65)] ring-1 ring-amber-200/60",
+    name: "text-amber-300",
+    star: "text-amber-300 fill-amber-300 drop-shadow-[0_0_4px_rgba(251,191,36,.8)]",
+  },
+  2: {
+    badge: "w-7 h-7 rounded-full inline-flex items-center justify-center text-xs font-black text-slate-900 bg-gradient-to-br from-slate-100 via-slate-300 to-slate-500 shadow-[0_0_12px_rgba(203,213,225,.55)] ring-1 ring-slate-200/60",
+    name: "text-slate-200",
+    star: "text-slate-200 fill-slate-200 drop-shadow-[0_0_4px_rgba(203,213,225,.7)]",
+  },
+  3: {
+    badge: "w-7 h-7 rounded-full inline-flex items-center justify-center text-xs font-black text-white bg-gradient-to-br from-orange-400 via-amber-700 to-amber-900 shadow-[0_0_12px_rgba(180,83,9,.6)] ring-1 ring-orange-300/50",
+    name: "text-orange-400",
+    star: "text-orange-400 fill-orange-400 drop-shadow-[0_0_4px_rgba(234,88,12,.7)]",
+  },
+};
+const medalOf = (rank: number) => (rank >= 1 && rank <= 3 ? MEDAL[rank] : null);
+
+
 function TeamStars({ rating, max = 5 }: { rating: number; max?: number }) {
   return (
     <div className="flex items-center gap-0.5">
       {Array.from({ length: max }).map((_, i) => (
-        <Star key={i} className={`w-3.5 h-3.5 ${i < rating ? "text-teal-400 fill-teal-400" : "text-zinc-700 fill-zinc-700"}`} />
+        <Star key={i} className={`w-3.5 h-3.5 transition-transform hover:scale-125 ${i < rating
+          ? "text-amber-400 fill-amber-400 drop-shadow-[0_0_5px_rgba(251,191,36,.8)]"
+          : "text-zinc-800 fill-zinc-800/60"}`} />
       ))}
     </div>
   );
@@ -499,7 +522,12 @@ function TeamRankingsPanel({ teams, loading, seasons = [] }: { teams: TeamRankRo
                   <tr key={t.teamId} className="border-b border-zinc-800 last:border-0 hover:bg-zinc-900/60 transition-colors">
                     {/* Rank */}
                     <td className="px-4 py-4 text-center">
-                      <span className={`text-base font-black ${t.rank <= 3 ? "text-teal-400" : "text-zinc-400"}`}>{t.rank}</span>
+                      {(() => {
+                        const m = medalOf(t.rank);
+                        return m
+                          ? <span className={m.badge}>{t.rank}</span>
+                          : <span className="text-sm font-black text-zinc-500">{t.rank}</span>;
+                      })()}
                     </td>
 
                     {/* Club */}
@@ -511,7 +539,7 @@ function TeamRankingsPanel({ teams, loading, seasons = [] }: { teams: TeamRankRo
                               ? <img src={storageUrl(t.logoUrl)} alt={t.name} className="w-full h-full object-cover" />
                               : <Shield className="w-5 h-5 text-zinc-500" />}
                           </div>
-                          <span className="font-bold text-sm group-hover/club:text-teal-400 transition-colors">
+                          <span className={`font-bold text-sm group-hover/club:text-teal-400 transition-colors ${t.rank <= 3 ? (medalOf(t.rank)?.name ?? "") : ""}`}>
                             {t.name}{t.tag ? ` (${t.tag})` : ""}
                           </span>
                         </div>
@@ -567,9 +595,9 @@ function StarRating({ wins, max = 5 }: { wins: number; max?: number }) {
       {Array.from({ length: max }).map((_, i) => (
         <Star
           key={i}
-          className={`w-4 h-4 ${
+          className={`w-4 h-4 transition-transform hover:scale-125 ${
             i < filled
-              ? "text-teal-400 fill-teal-400"
+              ? "text-amber-400 fill-amber-400 drop-shadow-[0_0_5px_rgba(251,191,36,.8)]"
               : "text-muted-foreground/25 fill-transparent"
           }`}
         />
@@ -839,9 +867,12 @@ export default function RankingsPage() {
                             {/* # with change indicator */}
                             <td className="px-4 py-3 text-center">
                               <div className="flex flex-col items-center gap-0.5">
-                                <span className={`text-sm font-black ${isTop3 ? "wg-chip-solid" : "text-muted-foreground"}`}>
-                                  {displayRank}
-                                </span>
+                                {(() => {
+                                  const m = medalOf(displayRank);
+                                  return m
+                                    ? <span className={m.badge}>{displayRank}</span>
+                                    : <span className="text-sm font-black text-muted-foreground">{displayRank}</span>;
+                                })()}
                                 {p.change == null || p.change === 0 ? (
                                   <span className="text-muted-foreground/30 text-[9px]">—</span>
                                 ) : (p.change as number) > 0 ? (
@@ -868,11 +899,11 @@ export default function RankingsPage() {
                                   )}
                                   <div>
                                     <div className="flex items-center gap-1.5">
-                                      <span className="font-bold text-sm hover:text-primary transition-colors cursor-pointer">{p.displayName ?? p.username}</span>
+                                      <span className={`font-black text-sm hover:text-primary transition-colors cursor-pointer ${isTop3 ? (medalOf(displayRank)?.name ?? "") : ""}`}>{p.displayName ?? p.username}</span>
                                       {(p as any).verified && (
                                         <img src={`${import.meta.env.BASE_URL}verified.png`} alt="" className="h-3.5 w-3.5 object-contain" draggable={false} />
                                       )}
-                                      {isTop3 && <Star className="w-3 h-3 text-primary fill-primary" />}
+                                      {isTop3 && <Star className={`w-3.5 h-3.5 ${medalOf(displayRank)?.star ?? "text-primary fill-primary"}`} />}
                                     </div>
                                     {p.teamName && (
                                       <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
