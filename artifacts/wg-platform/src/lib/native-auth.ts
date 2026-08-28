@@ -21,6 +21,7 @@ export const APP_DEEP_LINK_HOST = "waryaagaming://auth/callback";
 
 interface CapacitorAppPlugin {
   launchUrl(options: { url: string; openInSystemBrowser?: boolean }): Promise<void>;
+  canOpenUrl(options: { url: string }): Promise<{ value: boolean }>;
   addListener(
     eventName: "appUrlOpen",
     listener: (data: { url: string }) => void,
@@ -73,17 +74,46 @@ export function registerAppAuthListener(onResult?: (ok: boolean) => void): void 
 }
 
 /**
- * Starts the Discord login. In the native app this hands off to the system
- * browser (deep-link return); on the web it's the unchanged full-page redirect.
+ * Starts the Discord login. In the native app this hands off OUT of the
+ * WebView (Discord blocks OAuth inside WebViews, so an in-WebView redirect
+ * silently fails — the "button does nothing" bug); on the web it's the
+ * unchanged full-page redirect to /auth/discord.
+ *
+ * Launch preference on Android (Discord-compatible, no invented schemes):
+ *  1. If the Discord app is installed, it registers App Links for
+ *     discord.com — so we first try a plain `launchUrl` WITHOUT forcing the
+ *     system browser, letting Android's intent resolution pick the Discord
+ *     app when it can handle the URL chain.
+ *  2. Otherwise (or if that throws) we open in the system browser — Chrome
+ *     Custom Tabs, the standard, Discord-supported OAuth surface.
+ *  3. Last resort: navigate the WebView itself (better than a dead button).
+ * The OAuth authorize URL is our own domain (/api/auth/discord), which the
+ * Discord app does not claim — so in practice step 2 is what runs; step 1 is
+ * attempted only via real Android intent resolution, never a fake
+ * `discord://` URL (Discord's scheme is for servers/chats, not OAuth).
  */
-export function startDiscordLogin(): void {
+export async function startDiscordLogin(): Promise<void> {
   const loginUrl = apiUrl("/api/auth/discord");
   if (isNativeApp()) {
     const App = getAppPlugin();
     if (App) {
-      void App.launchUrl({ url: `${loginUrl}?app=1`, openInSystemBrowser: true });
-      return;
+      const url = `${loginUrl}?app=1`;
+      // 1. Let Android resolve the URL natively (Discord app if it claims it).
+      try {
+        await App.launchUrl({ url, openInSystemBrowser: false });
+        return;
+      } catch {
+        /* fall through */
+      }
+      // 2. System-browser fallback (Chrome Custom Tabs) — always Discord-safe.
+      try {
+        await App.launchUrl({ url, openInSystemBrowser: true });
+        return;
+      } catch {
+        /* fall through */
+      }
     }
   }
+  // 3. Web (unchanged desktop behavior) or absolute last resort in-app.
   window.location.href = loginUrl;
 }
