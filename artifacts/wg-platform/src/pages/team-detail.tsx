@@ -1686,15 +1686,16 @@ export default function TeamDetailPage() {
 
                           return (
                             <div key={m.id} className="px-5 py-3.5">
-                              {/* Player row */}
+                              {/* Player row — clicking the avatar/name opens the player's profile */}
                               <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 rounded-full bg-zinc-800 overflow-hidden flex items-center justify-center flex-shrink-0 border border-zinc-700">
-                                  {m.avatarUrl
-                                    ? <img src={m.avatarUrl} alt="" className="w-full h-full object-cover" />
-                                    : <span className="text-xs font-black text-zinc-400">{(m.displayName ?? m.username ?? "?")[0].toUpperCase()}</span>}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-bold truncate">{m.displayName ?? m.username}</p>
+                                <Link href={`/players/${m.id}`} className="flex items-center gap-3 flex-1 min-w-0 group focus:outline-none">
+                                  <div className="w-9 h-9 rounded-full bg-zinc-800 overflow-hidden flex items-center justify-center flex-shrink-0 border border-zinc-700 group-hover:border-teal-400/60 transition-colors">
+                                    {m.avatarUrl
+                                      ? <img src={m.avatarUrl} alt="" className="w-full h-full object-cover" />
+                                      : <span className="text-xs font-black text-zinc-400">{(m.displayName ?? m.username ?? "?")[0].toUpperCase()}</span>}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-bold truncate group-hover:text-teal-400 transition-colors">{m.displayName ?? m.username}</p>
                                   <div className="flex items-center gap-1.5 mt-0.5">
                                     {isMemberPresident && (
                                       <span className="flex items-center gap-0.5 text-[10px] font-black text-yellow-400 bg-yellow-400/10 border border-yellow-400/20 px-1.5 py-0.5 rounded-full">
@@ -1712,7 +1713,8 @@ export default function TeamDetailPage() {
                                       </span>
                                     )}
                                   </div>
-                                </div>
+                                  </div>
+                                </Link>
 
                                 {/* Coach action buttons */}
                                 {isCoach && (
