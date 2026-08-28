@@ -1067,12 +1067,48 @@ export default function TeamDetailPage() {
                       ))}
                     </div>
                   ) : (
-                    <div className="text-center py-24 border border-zinc-800 rounded-2xl">
-                      <Users className="w-12 h-12 mx-auto opacity-20 mb-3" />
-                      <p className="font-bold text-zinc-500">No squad photos yet</p>
-                      {isCoachOrCaptain
-                        ? <p className="text-xs text-zinc-600 mt-1">Use the upload panel above to add your first squad photo</p>
-                        : <p className="text-xs text-zinc-600 mt-1">The team hasn't added any photos yet</p>}
+                    /* No photos yet — show the squad's players instead (clickable profiles) */
+                    <div className="border border-zinc-800 rounded-2xl p-5">
+                      <p className="text-xs font-black uppercase tracking-widest text-zinc-500 mb-4">Squad Players</p>
+                      {(team.members ?? []).length === 0 ? (
+                        <div className="text-center py-12">
+                          <Users className="w-12 h-12 mx-auto opacity-20 mb-3" />
+                          <p className="font-bold text-zinc-500">No players yet</p>
+                          <p className="text-xs text-zinc-600 mt-1">This team hasn't added any players yet</p>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                          {(team.members as any[]).map((m: any) => (
+                            <Link
+                              key={m.id}
+                              href={`/players/${m.id}`}
+                              className="group flex flex-col items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-2xl px-3 py-4 hover:border-teal-400/50 hover:bg-zinc-800/60 transition-colors focus:outline-none"
+                            >
+                              <div className="w-14 h-14 rounded-full bg-zinc-800 overflow-hidden flex items-center justify-center border border-zinc-700 group-hover:border-teal-400/60 transition-colors">
+                                {m.avatarUrl
+                                  ? <img src={m.avatarUrl} alt="" className="w-full h-full object-cover" />
+                                  : <span className="text-lg font-black text-zinc-400">{(m.displayName ?? m.username ?? "?")[0].toUpperCase()}</span>}
+                              </div>
+                              <span className="text-xs font-bold text-zinc-300 group-hover:text-teal-400 transition-colors text-center truncate w-full">
+                                {m.displayName ?? m.username}
+                              </span>
+                              {m.id === (team as any).presidentId && (
+                                <span className="flex items-center gap-0.5 text-[9px] font-black text-yellow-400 bg-yellow-400/10 border border-yellow-400/20 px-1.5 py-0.5 rounded-full">
+                                  <Crown className="w-2 h-2" /> President
+                                </span>
+                              )}
+                              {m.id === team.captainId && (
+                                <span className="flex items-center gap-0.5 text-[9px] font-black text-blue-400 bg-blue-400/10 border border-blue-400/20 px-1.5 py-0.5 rounded-full">
+                                  <Star className="w-2 h-2" /> Captain
+                                </span>
+                              )}
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                      {isCoachOrCaptain && (
+                        <p className="text-xs text-zinc-600 mt-4 text-center">Use the upload panel above to add squad photos</p>
+                      )}
                     </div>
                   )}
                 </div>
