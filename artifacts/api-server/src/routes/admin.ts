@@ -805,8 +805,10 @@ router.post("/admin/tournaments", requireAdmin, async (req, res) => {
       createdBy: req.session.userId ?? undefined,
     }).returning();
 
-    // 2. If team tournament, auto-enroll all registered teams
-    if (String(tournamentType) === "team") {
+    // 2. If team tournament, auto-enroll all registered teams.
+    //    Clan tournaments are the exception: teams opt in by having their
+    //    President or Coach register them via POST /tournaments/:id/register-team.
+    if (String(tournamentType) === "team" && !isClanTournament) {
       const teams = await db.select({ id: teamsTable.id, name: teamsTable.name }).from(teamsTable);
       if (teams.length > 0) {
         await db.insert(tournamentParticipantsTable).values(

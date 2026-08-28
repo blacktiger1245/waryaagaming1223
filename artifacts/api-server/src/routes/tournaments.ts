@@ -151,7 +151,7 @@ router.get("/tournaments/:id/my-registration", async (req, res) => {
   if (!req.session?.userId) return res.json({ registered: false });
 
   const [player] = await db
-    .select({ id: playersTable.id })
+    .select({ id: playersTable.id, teamId: playersTable.teamId })
     .from(playersTable)
     .where(eq(playersTable.id, req.session.userId));
 
@@ -166,8 +166,86 @@ router.get("/tournaments/:id/my-registration", async (req, res) => {
         eq(tournamentParticipantsTable.playerId, player.id)
       )
     );
+  if (existing) return res.json({ registered: true, asTeam: false });
 
-  return res.json({ registered: !!existing });
+  // Clan/team tournaments: the user counts as registered if their TEAM is registered.
+  if (player.teamId) {
+    const [teamPart] = await db
+      .select({ id: tournamentParticipantsTable.id })
+      .from(tournamentParticipantsTable)
+      .where(
+        and(
+          eq(tournamentParticipantsTable.tournamentId, id),
+          eq(tournamentParticipantsTable.teamId, player.teamId)
+        )
+      );
+    if (teamPart) return res.json({ registered: true, asTeam: true });
+  }
+
+  return res.json({ registered: false });
+});
+
+/**
+ * POST /tournaments/:id/register-team
+ * Clan tournaments: registers the logged-in user's TEAM as a participant.
+ * Only the team President or Coach may register the team (roles come from the DB).
+ */
+router.post("/tournaments/:id/register-team", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!req.session?.userId) return res.status(401).json({ error: "Login with Discord first" });
+
+  const [tournament] = await db
+    .select()
+    .from(tournamentsTable)
+    .where(eq(tournamentsTable.id, id));
+  if (!tournament) return res.status(404).json({ error: "Tournament not found" });
+  if (!tournament.isClanTournament)
+    return res.status(400).json({ error: "This is not a clan tournament" });
+  if (tournament.status === "completed" || tournament.status === "cancelled")
+    return res.status(400).json({ error: "Tournament is no longer open for registration" });
+  if (tournament.currentParticipants >= tournament.maxParticipants)
+    return res.status(400).json({ error: "Tournament is full" });
+
+  const [player] = await db
+    .select()
+    .from(playersTable)
+    .where(eq(playersTable.id, req.session.userId));
+  if (!player) return res.status(400).json({ error: "Player profile not found" });
+  if (!player.teamId)
+    return res.status(403).json({ error: "You are not on a team — only a team President or Coach can register their team" });
+
+  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, player.teamId));
+  if (!team) return res.status(400).json({ error: "Team not found" });
+
+  // Role gate: only President or Coach can register the team.
+  const isPresident = team.presidentId === player.id;
+  const isCoach = (team as { coachId?: number | null }).coachId === player.id;
+  if (!isPresident && !isCoach) {
+    return res.status(403).json({ error: "Only the team President or Coach can register the team" });
+  }
+
+  const [existing] = await db
+    .select({ id: tournamentParticipantsTable.id })
+    .from(tournamentParticipantsTable)
+    .where(
+      and(
+        eq(tournamentParticipantsTable.tournamentId, id),
+        eq(tournamentParticipantsTable.teamId, team.id)
+      )
+    );
+  if (existing) return res.status(409).json({ error: "Your team is already registered" });
+
+  const [participant] = await db
+    .insert(tournamentParticipantsTable)
+    .values({ tournamentId: id, type: "team", playerId: null, teamId: team.id })
+    .returning();
+
+  await db
+    .update(tournamentsTable)
+    .set({ currentParticipants: tournament.currentParticipants + 1 })
+    .where(eq(tournamentsTable.id, id));
+
+  return res.status(201).json({ ...participant, teamName: team.name, seed: null });
 });
 
 /**
@@ -187,6 +265,12 @@ router.post("/tournaments/:id/register-me", async (req, res) => {
   if (!tournament) return res.status(404).json({ error: "Tournament not found" });
   if (tournament.status === "completed" || tournament.status === "cancelled")
     return res.status(400).json({ error: "Tournament is no longer open for registration" });
+
+  // Clan tournaments are team-registration only: a team President or Coach
+  // registers the whole team via /register-team — individuals cannot sign up.
+  if (tournament.isClanTournament) {
+    return res.status(403).json({ error: "This is a clan tournament — only a team President or Coach can register their team" });
+  }
 
   // Upcoming tournaments only allow registration once the start date is reached.
   if (tournament.status === "upcoming" && tournament.startDate) {

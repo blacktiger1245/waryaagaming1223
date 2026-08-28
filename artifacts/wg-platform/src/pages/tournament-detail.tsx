@@ -377,7 +377,7 @@ function MatchDetailDialog({
 
 // â”€â”€â”€ Register Button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-function RegisterButton({ tournamentId, status, isFull }: { tournamentId: number; status: string; isFull: boolean }) {
+function RegisterButton({ tournamentId, status, isFull, isClanTournament }: { tournamentId: number; status: string; isFull: boolean; isClanTournament?: boolean }) {
   const { user, isLoading: authLoading, loginWithDiscord } = useAuth();
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -386,14 +386,32 @@ function RegisterButton({ tournamentId, status, isFull }: { tournamentId: number
     queryKey: ["tournament-registration", tournamentId],
     queryFn: async () => {
       const res = await fetch(`/api/tournaments/${tournamentId}/my-registration`, { credentials: "include" });
-      return res.json() as Promise<{ registered: boolean }>;
+      return res.json() as Promise<{ registered: boolean; asTeam?: boolean }>;
     },
     enabled: !!user,
   });
 
+  // Clan tournaments: registration is done by the team President or Coach —
+  // clicking Register registers the whole team.
+  const { data: myTeam, isLoading: myTeamLoading } = useQuery<any | null>({
+    queryKey: ["my-team"],
+    queryFn: async () => {
+      const res = await fetch("/api/teams/mine", { credentials: "include" });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data && data.id ? data : null;
+    },
+    enabled: !!user && !!isClanTournament,
+  });
+  const myRole = isClanTournament ? ((myTeam as any)?.selfRole ?? null) : null;
+  const isTeamManager = myRole === "president" || myRole === "coach";
+
   const { mutate: register, isPending } = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`/api/tournaments/${tournamentId}/register-me`, {
+      const url = isClanTournament
+        ? `/api/tournaments/${tournamentId}/register-team`
+        : `/api/tournaments/${tournamentId}/register-me`;
+      const res = await fetch(url, {
         method: "POST",
         credentials: "include",
       });
@@ -404,7 +422,10 @@ function RegisterButton({ tournamentId, status, isFull }: { tournamentId: number
       return res.json();
     },
     onSuccess: (data) => {
-      toast({ title: "You're registered! ðŸŽ®", description: `Welcome, ${data.displayName ?? data.playerName}` });
+      toast({
+        title: isClanTournament ? "Your team is registered! 🏆" : "You're registered! 🎮",
+        description: isClanTournament ? `${data.teamName ?? "Your team"} is in the tournament!` : `Welcome, ${data.displayName ?? data.playerName}`,
+      });
       qc.invalidateQueries({ queryKey: ["tournament-registration", tournamentId] });
       qc.invalidateQueries({ queryKey: ["tournament", tournamentId] });
     },
@@ -414,8 +435,9 @@ function RegisterButton({ tournamentId, status, isFull }: { tournamentId: number
   });
 
   const canRegister = status === "upcoming" || status === "active";
+  const teamManagerLoading = !!isClanTournament && !!user && myTeamLoading;
 
-  if (authLoading || regLoading) {
+  if (authLoading || regLoading || teamManagerLoading) {
     return <Button disabled className="gap-2 h-12 px-6 text-base"><Loader2 className="w-4 h-4 animate-spin" /> Loadingâ€¦</Button>;
   }
 
@@ -430,7 +452,7 @@ function RegisterButton({ tournamentId, status, isFull }: { tournamentId: number
   if (regData?.registered) {
     return (
       <Button disabled className="gap-2 h-12 px-6 text-base font-bold bg-emerald-600/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-600/20 cursor-default">
-        <CheckCircle2 className="w-4 h-4" /> You're Registered
+        <CheckCircle2 className="w-4 h-4" /> {regData.asTeam ? "Your Team is Registered" : "You're Registered"}
       </Button>
     );
   }
@@ -451,13 +473,26 @@ function RegisterButton({ tournamentId, status, isFull }: { tournamentId: number
     );
   }
 
+  if (isClanTournament && !isTeamManager) {
+    return (
+      <div className="flex flex-col items-end gap-1.5">
+        <Button disabled className="gap-2 h-12 px-6 text-base font-bold" variant="outline" title="Only the team President or Coach can register the team">
+          <ShieldOff className="w-4 h-4" /> {myTeam ? "President / Coach Only" : "Need a Team"}
+        </Button>
+        <p className="text-[11px] text-muted-foreground text-right max-w-[220px]">
+          Clan tournaments are registered by team — only the team President or Coach can register the whole team.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <Button
       onClick={() => register()}
       disabled={isPending}
       className="gap-2 h-12 px-8 text-base font-bold bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-500 hover:to-pink-500 border-0"
     >
-      {isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Registeringâ€¦</> : <><Trophy className="w-4 h-4" /> Register Now</>}
+      {isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Registering…</> : <><Trophy className="w-4 h-4" /> {isClanTournament ? "Register My Team" : "Register Now"}</>}
     </Button>
   );
 }
@@ -907,12 +942,13 @@ export default function TournamentDetailPage() {
                 <p className="text-muted-foreground text-lg max-w-2xl">{tournament.description}</p>
               )}
             </div>
-            {!isTeamTournament && (
+            {(!isTeamTournament || (tournament as unknown as { isClanTournament?: boolean }).isClanTournament) && (
               <div className="shrink-0">
                 <RegisterButton
                   tournamentId={tournament.id}
                   status={tournament.status}
                   isFull={tournament.maxParticipants < 9999 && tournament.currentParticipants >= tournament.maxParticipants}
+                  isClanTournament={Boolean((tournament as unknown as { isClanTournament?: boolean }).isClanTournament)}
                 />
               </div>
             )}
