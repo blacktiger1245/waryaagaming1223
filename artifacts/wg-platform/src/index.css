@@ -460,7 +460,7 @@ html { scroll-behavior: smooth; }
 .wg-site[data-wg-page="players"]     { --a: #818cf8; --b: #38bdf8; --c: #22d3ee; }
 .wg-site[data-wg-page="teams"]       { --a: #34d399; --b: #14b8a6; --c: #38bdf8; }
 .wg-site[data-wg-page="fixtures"]    { --a: #38bdf8; --b: #22d3ee; --c: #818cf8; }
-.wg-site[data-wg-page="rankings"]    { --a: #fbbf24; --b: #f97316; --c: #ef4444; }
+.wg-site[data-wg-page="rankings"]    { --a: #34d399; --b: #22c55e; --c: #a3e635; }
 .wg-site[data-wg-page="hall-of-fame"]{ --a: #facc15; --b: #f59e0b; --c: #fde047; }
 .wg-site[data-wg-page="news"]        { --a: #fb7185; --b: #f472b6; --c: #c084fc; }
 .wg-site[data-wg-page="media-hub"]   { --a: #e879f9; --b: #a855f7; --c: #f472b6; }
@@ -637,15 +637,15 @@ html { scroll-behavior: smooth; }
   --btn-a: #38bdf8; --btn-b: #0284c7; --btn-glow: rgba(14, 165, 233, .55);
   --card-border: rgba(56, 189, 248, .5); --card-glow: rgba(14, 165, 233, .5); --acc: #38bdf8;
 }
-/* ── Rankings: champion gold-ember ── */
+/* ── Rankings: emerald-lime victory green ── */
 .wg-site[data-wg-page="rankings"] {
-  --ab1: #fbbf24; --ab2: #f97316; --ab3: #ef4444;
-  --blob-1: #f59e0b; --blob-2: #fbbf24; --blob-3: #ef4444; --blob-4: #fb923c;
-  --pg-a: rgba(251, 191, 36, .2); --pg-b: rgba(249, 115, 22, .16); --pg-c: rgba(239, 68, 68, .08);
-  --grid-a: rgba(252, 211, 77, .09); --grid-b: rgba(251, 146, 60, .05); --grid-size: 40px;
-  --h1-a: #fde047; --h1-b: #f59e0b; --h1-c: #f97316; --h1-d: #fb923c;
-  --btn-a: #fbbf24; --btn-b: #f97316; --btn-glow: rgba(251, 146, 60, .6);
-  --card-border: rgba(251, 191, 36, .5); --card-glow: rgba(251, 146, 60, .55); --acc: #fbbf24;
+  --ab1: #34d399; --ab2: #22c55e; --ab3: #a3e635;
+  --blob-1: #10b981; --blob-2: #34d399; --blob-3: #a3e635; --blob-4: #4ade80;
+  --pg-a: rgba(52, 211, 153, .2); --pg-b: rgba(34, 197, 94, .16); --pg-c: rgba(163, 230, 53, .08);
+  --grid-a: rgba(110, 231, 183, .09); --grid-b: rgba(74, 222, 128, .05); --grid-size: 40px;
+  --h1-a: #86efac; --h1-b: #10b981; --h1-c: #22c55e; --h1-d: #4ade80;
+  --btn-a: #34d399; --btn-b: #22c55e; --btn-glow: rgba(74, 222, 128, .6);
+  --card-border: rgba(52, 211, 153, .5); --card-glow: rgba(74, 222, 128, .55); --acc: #34d399;
 }
 /* ── Hall of Fame: legendary gold ── */
 .wg-site[data-wg-page="hall-of-fame"] {
@@ -955,11 +955,11 @@ html { scroll-behavior: smooth; }
    BRIDGE PALETTES — hardcoded utility accents are mapped to each page's
    identity so giant detail/interior pages stay coherent (public only).
    ───────────────────────────────────────────────────────────────────────────── */
-.wg-site[data-wg-page="rankings"] .text-teal-400 { color: #fbbf24; }
-.wg-site[data-wg-page="rankings"] .bg-teal-400 { background-color: #fbbf24; }
-.wg-site[data-wg-page="rankings"] .border-teal-500\/50, .wg-site[data-wg-page="rankings"] .border-teal-400 { border-color: rgba(251, 191, 36, .55); }
-.wg-site[data-wg-page="rankings"] .bg-teal-400\/10 { background-color: rgba(251, 191, 36, .1); }
-.wg-site[data-wg-page="rankings"] .text-teal-400 { color: #fb923c; }
+.wg-site[data-wg-page="rankings"] .text-teal-400 { color: #34d399; }
+.wg-site[data-wg-page="rankings"] .bg-teal-400 { background-color: #34d399; }
+.wg-site[data-wg-page="rankings"] .border-teal-500\/50, .wg-site[data-wg-page="rankings"] .border-teal-400 { border-color: rgba(52, 211, 153, .55); }
+.wg-site[data-wg-page="rankings"] .bg-teal-400\/10 { background-color: rgba(52, 211, 153, .1); }
+.wg-site[data-wg-page="rankings"] .text-teal-400 { color: #a3e635; }
 
 .wg-site[data-wg-page="teams"] .text-teal-400 { color: #34d399; }
 .wg-site[data-wg-page="teams"] .bg-teal-400 { background-color: #34d399; }
