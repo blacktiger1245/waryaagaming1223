@@ -53,20 +53,26 @@ export function registerAppAuthListener(onResult?: (ok: boolean) => void): void 
 
   listenerRegistered = true;
   void App.addListener("appUrlOpen", async ({ url }: { url: string }) => {
+    console.log("OAUTH: deep link received —", url);
     if (!url.startsWith(APP_DEEP_LINK_HOST)) return;
     let ok = false;
     try {
       const token = new URL(url).searchParams.get("token");
+      console.log("OAUTH: token extracted:", token ? "yes" : "NO");
       if (token) {
+        console.log("OAUTH: calling app-exchange…");
         const res = await fetch(apiUrl("/api/auth/app-exchange") + `?token=${encodeURIComponent(token)}`, {
           credentials: "include",
         });
         ok = res.ok;
+        console.log("OAUTH: app-exchange response:", res.status, ok ? "— session created in WebView" : "— FAILED");
       }
-    } catch {
+    } catch (err) {
+      console.error("OAUTH: app-exchange error", err);
       ok = false;
     }
     onResult?.(ok);
+    console.log("OAUTH: reloading WebView — authenticated:", ok);
     // Full reload so every query (auth/me included) re-fetches with the new
     // session cookie. Lands on the site root; use-auth redirects from there.
     window.location.replace(ok ? "/" : "/login?error=session_failed");
@@ -94,6 +100,7 @@ export function registerAppAuthListener(onResult?: (ok: boolean) => void): void 
  */
 export async function startDiscordLogin(): Promise<void> {
   const loginUrl = apiUrl("/api/auth/discord");
+  console.log("OAUTH: startDiscordLogin — native app:", isNativeApp());
   if (isNativeApp()) {
     const App = getAppPlugin();
     if (App) {

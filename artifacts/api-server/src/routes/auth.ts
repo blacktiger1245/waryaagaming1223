@@ -434,7 +434,28 @@ router.get("/auth/discord/callback", async (req, res) => {
         if (req.session.oauthApp) {
           delete req.session.oauthApp;
           const appToken = issueAppLoginToken(player.id);
-          req.session.save(() => res.redirect(`${APP_DEEP_LINK_BASE}?token=${appToken}`));
+          const deepLink = `${APP_DEEP_LINK_BASE}?token=${appToken}`;
+          req.log.info({ playerId: player.id }, "OAUTH: app login token issued — returning to app via deep link");
+          req.session.save(() => {
+            // Render an HTML handoff page instead of a raw 302: Chrome on
+            // Android can block automatic redirects to custom schemes, but an
+            // in-page navigation (JS + visible fallback link) is reliable.
+            res.status(200).type("html").send(
+              `<!doctype html><html><head><meta charset="utf-8">` +
+              `<meta name="viewport" content="width=device-width,initial-scale=1">` +
+              `<title>Returning to Waryaa Gaming…</title>` +
+              `<style>body{font-family:sans-serif;background:#0b0b13;color:#fff;display:flex;` +
+              `flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:16px}` +
+              `a{color:#8b8bff;font-size:18px}</style></head><body>` +
+              `<p>Signing you in…</p>` +
+              `<a id="go" href="${deepLink}">Tap here to return to the Waryaa Gaming app</a>` +
+              `<script>` +
+              `console.log("OAUTH: deep link handoff page loaded");` +
+              `function go(){ console.log("OAUTH: navigating to app deep link"); location.replace("${deepLink}"); }` +
+              `setTimeout(go, 300); setTimeout(go, 1500);` +
+              `</script></body></html>`,
+            );
+          });
           return;
         }
         return res.redirect(player.profileComplete ? "/dashboard" : "/onboarding");
@@ -448,12 +469,14 @@ router.get("/auth/discord/callback", async (req, res) => {
 
 router.get("/auth/app-exchange", async (req, res) => {
   const token = req.query["token"] as string | undefined;
+  req.log.info("OAUTH: app-exchange called");
   if (!token) return res.status(400).json({ error: "Missing token" });
 
   const entry = appLoginTokens.get(token);
   // One-time: always consume, even on failure, so a token can never be replayed.
   appLoginTokens.delete(token);
   if (!entry || entry.expiresAt <= Date.now()) {
+    req.log.warn("OAUTH: app-exchange rejected — invalid or expired token");
     return res.status(401).json({ error: "Invalid or expired token" });
   }
 
@@ -472,7 +495,7 @@ router.get("/auth/app-exchange", async (req, res) => {
     req.session.userId = player.id;
     req.session.discordId = player.discordId ?? "";
     req.session.username = player.username;
-    req.session.displayName = player.displayName;
+    req.session.displayName = player.displayName ?? undefined;
     req.session.avatarUrl = player.avatarUrl;
     req.session.role = player.role;
     if (player.role === "admin" || player.role === "owner") {
@@ -494,9 +517,9 @@ router.get("/auth/app-exchange", async (req, res) => {
         },
       });
     });
-    return;
+    return undefined;
   });
-  return;
+  return undefined;
 });
 
 router.get("/auth/me", async (req, res) => {
