@@ -593,35 +593,14 @@ export default function FixturesPage() {
       return;
     }
 
-    // 1.5 Native path (Capacitor app): within the Waryaa Android app, Capacitor
-    //     injects window.Capacitor.Plugins.ScreenCast (native MediaProjection
-    //     broadcaster). On a normal browser this is undefined and the web
-    //     screen-share path below runs exactly as before — the site is unchanged.
-    const cap = (window as unknown as {
-      Capacitor?: { Plugins?: { ScreenCast?: { start: (o: { matchId: number; apiOrigin?: string }) => Promise<unknown> } } };
-    }).Capacitor;
-    const screenCastNative = cap?.Plugins?.ScreenCast;
-    if (screenCastNative) {
-      setLiveStatus("starting");
-      try {
-        await screenCastNative.start({ matchId, apiOrigin: window.location.origin });
-        setLiveStatus("live");
-        return;
-      } catch (e) {
-        setLiveStatus("error");
-        setLiveError(e instanceof Error ? e.message : "The Android screen-share broadcaster could not start.");
-        return;
-      }
-    }
-
     // 2. Try real screen sharing. This works on desktop browsers only.
     //    Mobile browsers have no screen-capture API (getDisplayMedia does not
-    //    exist on Android Chrome or iOS Safari), so genuine mobile screen
-    //    sharing requires the native app — never a camera workaround.
+    //    exist on Android Chrome or iOS Safari), so screen sharing is a
+    //    desktop feature — never a camera workaround.
     if (!isScreenShareSupported()) {
       setLiveStatus("error");
       setLiveError(
-        "Mobile browsers cannot capture the phone screen — screen-capture is desktop-only in the browser. Use a PC to share your screen. To go live from your phone with real screen share, the Waryaa native Android/iOS app (MediaProjection on Android, ReplayKit on iOS) is required.",
+        "Screen sharing is not available in this browser. Go live from a desktop PC using Chrome, Edge or Firefox. Watching live streams still works on any device.",
       );
       return;
     }

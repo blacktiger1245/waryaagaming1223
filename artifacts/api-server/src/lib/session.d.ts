@@ -11,6 +11,5 @@ declare module "express-session" {
     isAdmin: boolean;
     adminUsername: string;
     oauthState: string;
-    oauthApp?: boolean;
   }
 }

@@ -1,6 +1,5 @@
 import { useEffect, type ReactNode } from "react";
 import { Switch, Route, Router as WouterRouter } from "wouter";
-import { registerAppAuthListener } from "@/lib/native-auth";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -173,18 +172,9 @@ function BanGate({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-/** One-time deep-link listener for the Capacitor app OAuth return flow. */
-function NativeAuthBridge() {
-  useEffect(() => {
-    registerAppAuthListener();
-  }, []);
-  return null;
-}
-
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <NativeAuthBridge />
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
           <BanGate>

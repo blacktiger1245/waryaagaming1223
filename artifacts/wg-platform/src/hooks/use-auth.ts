@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiUrl } from "@/lib/api";
-import { startDiscordLogin } from "@/lib/native-auth";
 
 export interface AuthUser {
   id: number;
@@ -50,10 +49,8 @@ export function useAuth() {
   });
 
   const loginWithDiscord = () => {
-    // In the Capacitor Android app this opens the system browser and returns
-    // via the warayaagaming:// deep link; on the web it's the unchanged
-    // full-page redirect to /auth/discord.
-    startDiscordLogin();
+    // Full-page redirect to the Discord OAuth flow (classic browser login).
+    window.location.href = apiUrl("/api/auth/discord");
   };
 
   return {

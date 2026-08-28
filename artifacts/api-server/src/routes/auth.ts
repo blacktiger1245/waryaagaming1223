@@ -24,32 +24,6 @@ const API_PREFIX = (process.env["API_BASE_PATH"] ?? "/api").replace(/\/$/, "");
 // hammering Discord's API on rapid repeated requests.
 const SYNC_THROTTLE_MS = 60_000;
 
-// Deep link scheme the Waryaa Gaming Android app registers in its manifest
-// (see mobile/android/.../AndroidManifest.xml). Used ONLY for the Capacitor
-// app OAuth return flow — desktop/browser logins never touch it.
-const APP_DEEP_LINK_BASE = "waryaagaming://auth/callback";
-
-/**
- * One-time tokens used to hand an OAuth login completed in the SYSTEM browser
- * (Chrome) over to the Capacitor app's WebView. The browser can't share its
- * session cookie with the WebView, so the callback mints a short-lived token
- * bound to the freshly authenticated player; the app then redeems it via
- * GET /auth/app-exchange which creates the WebView's own session.
- */
-const appLoginTokens = new Map<string, { userId: number; expiresAt: number }>();
-const APP_TOKEN_TTL_MS = 5 * 60 * 1000;
-
-function issueAppLoginToken(userId: number): string {
-  // Opportunistic cleanup of expired tokens so the map cannot grow unbounded.
-  const now = Date.now();
-  for (const [key, entry] of appLoginTokens) {
-    if (entry.expiresAt <= now) appLoginTokens.delete(key);
-  }
-  const token = randomBytes(32).toString("hex");
-  appLoginTokens.set(token, { userId, expiresAt: now + APP_TOKEN_TTL_MS });
-  return token;
-}
-
 interface DiscordUser {
   id: string;
   username: string;
@@ -320,12 +294,6 @@ router.get("/auth/discord", (req, res) => {
   const state = randomBytes(32).toString("hex");
   req.session.oauthState = state;
 
-  // Capacitor app flow: the app opens /auth/discord?app=1 in the SYSTEM
-  // browser (Discord blocks OAuth inside WebViews). When set, the callback
-  // returns to the app via deep link instead of a normal browser redirect.
-  // Desktop/browser logins never send this flag and behave exactly as before.
-  req.session.oauthApp = req.query["app"] === "1";
-
   req.session.save((err) => {
     if (err) {
       req.log.error({ err }, "Failed to persist OAuth state");
@@ -428,36 +396,6 @@ router.get("/auth/discord/callback", async (req, res) => {
           req.log.error({ err: saveErr }, "Session save error");
           return res.redirect("/login?error=session_failed");
         }
-        // Capacitor app flow: hand the login to the app via deep link with a
-        // one-time token. The browser session created here is never used —
-        // the app redeems the token in its own WebView (see /auth/app-exchange).
-        if (req.session.oauthApp) {
-          delete req.session.oauthApp;
-          const appToken = issueAppLoginToken(player.id);
-          const deepLink = `${APP_DEEP_LINK_BASE}?token=${appToken}`;
-          req.log.info({ playerId: player.id }, "OAUTH: app login token issued — returning to app via deep link");
-          req.session.save(() => {
-            // Render an HTML handoff page instead of a raw 302: Chrome on
-            // Android can block automatic redirects to custom schemes, but an
-            // in-page navigation (JS + visible fallback link) is reliable.
-            res.status(200).type("html").send(
-              `<!doctype html><html><head><meta charset="utf-8">` +
-              `<meta name="viewport" content="width=device-width,initial-scale=1">` +
-              `<title>Returning to Waryaa Gaming…</title>` +
-              `<style>body{font-family:sans-serif;background:#0b0b13;color:#fff;display:flex;` +
-              `flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:16px}` +
-              `a{color:#8b8bff;font-size:18px}</style></head><body>` +
-              `<p>Signing you in…</p>` +
-              `<a id="go" href="${deepLink}">Tap here to return to the Waryaa Gaming app</a>` +
-              `<script>` +
-              `console.log("OAUTH: deep link handoff page loaded");` +
-              `function go(){ console.log("OAUTH: navigating to app deep link"); location.replace("${deepLink}"); }` +
-              `setTimeout(go, 300); setTimeout(go, 1500);` +
-              `</script></body></html>`,
-            );
-          });
-          return;
-        }
         return res.redirect(player.profileComplete ? "/dashboard" : "/onboarding");
       });
     });
@@ -465,61 +403,6 @@ router.get("/auth/discord/callback", async (req, res) => {
     req.log.error({ err }, "Discord auth error");
     return res.redirect("/login?error=auth_failed");
   }
-});
-
-router.get("/auth/app-exchange", async (req, res) => {
-  const token = req.query["token"] as string | undefined;
-  req.log.info("OAUTH: app-exchange called");
-  if (!token) return res.status(400).json({ error: "Missing token" });
-
-  const entry = appLoginTokens.get(token);
-  // One-time: always consume, even on failure, so a token can never be replayed.
-  appLoginTokens.delete(token);
-  if (!entry || entry.expiresAt <= Date.now()) {
-    req.log.warn("OAUTH: app-exchange rejected — invalid or expired token");
-    return res.status(401).json({ error: "Invalid or expired token" });
-  }
-
-  const [player] = await db.select().from(playersTable).where(eq(playersTable.id, entry.userId));
-  if (!player) return res.status(401).json({ error: "Player not found" });
-
-  // Create the WebView's own session (regenerate to avoid fixation), exactly
-  // like the browser callback does. The wg.sid cookie is set for the site
-  // origin the WebView is already on, so the app is now fully authenticated.
-  req.session.regenerate((err) => {
-    if (err) {
-      req.log.error({ err }, "App exchange session regenerate error");
-      return res.status(500).json({ error: "session_failed" });
-    }
-
-    req.session.userId = player.id;
-    req.session.discordId = player.discordId ?? "";
-    req.session.username = player.username;
-    req.session.displayName = player.displayName ?? undefined;
-    req.session.avatarUrl = player.avatarUrl;
-    req.session.role = player.role;
-    if (player.role === "admin" || player.role === "owner") {
-      req.session.isAdmin = true;
-    }
-
-    req.session.save((saveErr: unknown) => {
-      if (saveErr) {
-        req.log.error({ saveErr }, "App exchange session save error");
-        return res.status(500).json({ error: "session_failed" });
-      }
-      return res.json({
-        ok: true,
-        player: {
-          id: player.id,
-          username: player.username,
-          displayName: player.displayName,
-          profileComplete: player.profileComplete,
-        },
-      });
-    });
-    return undefined;
-  });
-  return undefined;
 });
 
 router.get("/auth/me", async (req, res) => {
