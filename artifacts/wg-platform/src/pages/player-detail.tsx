@@ -114,6 +114,65 @@ const matchStatusColors: Record<string, string> = {
   cancelled:  "text-destructive",
 };
 
+// Shared stat aggregation shape (solo matches + team games)
+interface AggStats {
+  played: number; wins: number; draws: number; losses: number;
+  goals: number; conceded: number; cleanSheets: number; motm: number; deciderWins: number;
+}
+const ZERO_AGG: AggStats = { played: 0, wins: 0, draws: 0, losses: 0, goals: 0, conceded: 0, cleanSheets: 0, motm: 0, deciderWins: 0 };
+
+function aggSoloMatches(rows: any[], playerId: number): AggStats {
+  const acc: AggStats = { ...ZERO_AGG };
+  for (const m of rows) {
+    if (m.status !== "completed") continue;
+    const isP1 = m.participant1Id === playerId;
+    const my  = (isP1 ? m.participant1Score : m.participant2Score) ?? 0;
+    const opp = (isP1 ? m.participant2Score : m.participant1Score) ?? 0;
+    acc.goals    += my;
+    acc.conceded += opp;
+    if (opp === 0) acc.cleanSheets++;
+    if (m.manOfTheMatchId === playerId) acc.motm++;
+    if (my > opp) { acc.wins++; if (my - opp === 1) acc.deciderWins++; }
+    else if (my === opp) acc.draws++;
+    else acc.losses++;
+  }
+  acc.played = rows.filter((m) => m.status === "completed").length;
+  return acc;
+}
+
+function aggTeamGames(rows: any[], playerId: number): AggStats {
+  const acc: AggStats = { ...ZERO_AGG };
+  for (const g of rows) {
+    if (g.matchStatus !== "completed") continue;
+    const isHome = g.homePlayerId === playerId;
+    const my  = (isHome ? g.homeScore : g.awayScore) ?? 0;
+    const opp = (isHome ? g.awayScore : g.homeScore) ?? 0;
+    acc.goals    += my;
+    acc.conceded += opp;
+    if (opp === 0) acc.cleanSheets++;
+    if (g.manOfTheMatchId === playerId) acc.motm++;
+    if (my > opp) { acc.wins++; if (my - opp === 1) acc.deciderWins++; }
+    else if (my === opp) acc.draws++;
+    else acc.losses++;
+  }
+  acc.played = rows.filter((g) => g.matchStatus === "completed").length;
+  return acc;
+}
+
+function combineAgg(a: AggStats, b: AggStats): AggStats {
+  return {
+    played: a.played + b.played,
+    wins: a.wins + b.wins,
+    draws: a.draws + b.draws,
+    losses: a.losses + b.losses,
+    goals: a.goals + b.goals,
+    conceded: a.conceded + b.conceded,
+    cleanSheets: a.cleanSheets + b.cleanSheets,
+    motm: a.motm + b.motm,
+    deciderWins: a.deciderWins + b.deciderWins,
+  };
+}
+
 // ── page ──────────────────────────────────────────────────────────────────────
 export default function PlayerDetailPage() {
   const params = useParams<{ id: string }>();
@@ -137,55 +196,75 @@ export default function PlayerDetailPage() {
   const isCoach = !!coachStats?.isCoach;
 
   // ── Live computed stats (solo matches only) ───────────────────────────────
-  const liveStats = useMemo(() => {
-    const completed = (history ?? []).filter((m) => m.status === "completed");
-    let wins = 0, draws = 0, losses = 0, goals = 0, conceded = 0, cleanSheets = 0, motm = 0, deciderWins = 0;
-    for (const m of completed) {
-      const isP1 = m.participant1Id === id;
-      const my  = (isP1 ? m.participant1Score : m.participant2Score) ?? 0;
-      const opp = (isP1 ? m.participant2Score : m.participant1Score) ?? 0;
-      goals    += my;
-      conceded += opp;
-      if (opp === 0) cleanSheets++;
-      if ((m as any).manOfTheMatchId === id) motm++;
-      if (my > opp) { wins++; if (my - opp === 1) deciderWins++; }
-      else if (my === opp) draws++;
-      else losses++;
-    }
-    return { played: completed.length, wins, draws, losses, goals, conceded, cleanSheets, motm, deciderWins };
-  }, [history, id]);
+  const liveStats = useMemo(
+    () => aggSoloMatches(history ?? [], id),
+    [history, id]
+  );
 
   // ── Live computed stats from team-tournament player games ─────────────────
-  const teamGameStats = useMemo(() => {
-    const completed = (playerGames ?? []).filter((g) => g.matchStatus === "completed");
-    let wins = 0, draws = 0, losses = 0, goals = 0, conceded = 0, cleanSheets = 0, motm = 0, deciderWins = 0;
-    for (const g of completed) {
-      const isHome = g.homePlayerId === id;
-      const my  = (isHome ? g.homeScore : g.awayScore) ?? 0;
-      const opp = (isHome ? g.awayScore : g.homeScore) ?? 0;
-      goals    += my;
-      conceded += opp;
-      if (opp === 0) cleanSheets++;
-      if (g.manOfTheMatchId === id) motm++;
-      if (my > opp) { wins++; if (my - opp === 1) deciderWins++; }
-      else if (my === opp) draws++;
-      else losses++;
-    }
-    return { played: completed.length, wins, draws, losses, goals, conceded, cleanSheets, motm, deciderWins };
-  }, [playerGames, id]);
+  const teamGameStats = useMemo(
+    () => aggTeamGames(playerGames ?? [], id),
+    [playerGames, id]
+  );
 
   // ── Combined overall (solo + team games) ─────────────────────────────────
-  const overall = useMemo(() => ({
-    played:      liveStats.played      + teamGameStats.played,
-    wins:        liveStats.wins        + teamGameStats.wins,
-    draws:       liveStats.draws       + teamGameStats.draws,
-    losses:      liveStats.losses      + teamGameStats.losses,
-    goals:       liveStats.goals       + teamGameStats.goals,
-    conceded:    liveStats.conceded    + teamGameStats.conceded,
-    cleanSheets: liveStats.cleanSheets + teamGameStats.cleanSheets,
-    motm:        liveStats.motm        + teamGameStats.motm,
-    deciderWins: liveStats.deciderWins  + teamGameStats.deciderWins,
-  }), [liveStats, teamGameStats]);
+  const overall = useMemo(
+    () => combineAgg(liveStats, teamGameStats),
+    [liveStats, teamGameStats]
+  );
+
+  // ── Seasons + tournament→season mapping (for the Overall scope picker) ────
+  const { data: seasons = [] } = useQuery<any[]>({
+    queryKey: ["seasons"],
+    queryFn: async () => {
+      const r = await fetch("/api/seasons");
+      if (!r.ok) return [];
+      return r.json();
+    },
+  });
+  const { data: allTournaments = [] } = useQuery<any[]>({
+    queryKey: ["tournaments-all"],
+    queryFn: async () => {
+      const r = await fetch("/api/tournaments");
+      if (!r.ok) return [];
+      return r.json();
+    },
+  });
+  const tournamentSeason = useMemo(() => {
+    const map = new Map<number, number | null>();
+    for (const t of allTournaments) map.set(t.id, t.seasonId ?? null);
+    return map;
+  }, [allTournaments]);
+
+  // Per-season combined stats computed from the same real match data
+  const statsBySeason = useMemo(() => {
+    const map = new Map<number, AggStats>();
+    for (const s of seasons as any[]) {
+      const soloRows = (history ?? []).filter(
+        (m: any) => m.tournamentId != null && tournamentSeason.get(m.tournamentId) === s.id
+      );
+      const teamRows = (playerGames ?? []).filter(
+        (g: any) => g.tournamentId != null && tournamentSeason.get(g.tournamentId) === s.id
+      );
+      map.set(s.id, combineAgg(aggSoloMatches(soloRows, id), aggTeamGames(teamRows, id)));
+    }
+    return map;
+  }, [seasons, allTournaments, history, playerGames, id, tournamentSeason]);
+
+  // Tournaments the player won, per season (winnerId on the tournament row)
+  const seasonTournamentWins = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const t of allTournaments) {
+      if (t.winnerId === id && t.seasonId != null) {
+        map.set(t.seasonId, (map.get(t.seasonId) ?? 0) + 1);
+      }
+    }
+    return map;
+  }, [allTournaments, id]);
+
+  // Overall scope: "career" or a season id
+  const [overallScope, setOverallScope] = useState<"career" | number>("career");
+  const [scopeOpen, setScopeOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -381,8 +460,21 @@ export default function PlayerDetailPage() {
   function OverallTab() {
     if (!player) return null;
 
-    const { played, wins: won, draws: drawn, losses: lost, goals: goalsScored } = overall;
+    // Stats source: career aggregate or the selected season's aggregate
+    const scopeStats: AggStats =
+      overallScope === "career"
+        ? overall
+        : statsBySeason.get(overallScope as number) ?? ZERO_AGG;
+    const { played, wins: won, draws: drawn, losses: lost, goals: goalsScored } = scopeStats;
     const winPct = played > 0 ? Math.round((won / played) * 100) : 0;
+    const tournamentWinCount =
+      overallScope === "career"
+        ? player.tournamentWins ?? 0
+        : seasonTournamentWins.get(overallScope as number) ?? 0;
+    const scopeLabel =
+      overallScope === "career"
+        ? "Career (overall)"
+        : `${(seasons as any[]).find((s) => s.id === overallScope)?.name ?? "Season"}`;
 
     // Market Value is derived from the player's TOTAL POINTS (persisted value,
     // with a live fallback computed from points).
@@ -393,13 +485,13 @@ export default function PlayerDetailPage() {
       { icon: <User        className="w-6 h-6 text-violet-400" />,  value: played,                          label: "Appearances" },
       { icon: <Trophy      className="w-6 h-6 text-amber-400"  />,  value: won,                             label: "Win" },
       { icon: <Handshake   className="w-6 h-6 text-amber-300"  />,  value: drawn,                           label: "Draw" },
-      { icon: <Zap         className="w-6 h-6 text-yellow-400" />,  value: overall.deciderWins,             label: "Decider Win" },
+      { icon: <Zap         className="w-6 h-6 text-yellow-400" />,  value: scopeStats.deciderWins,          label: "Decider Win" },
       { icon: <Target      className="w-6 h-6 text-blue-400"   />,  value: goalsScored,                     label: "Goal" },
-      { icon: <ShieldCheck className="w-6 h-6 text-violet-400" />,  value: overall.cleanSheets,             label: "Clean Sheets" },
+      { icon: <ShieldCheck className="w-6 h-6 text-violet-400" />,  value: scopeStats.cleanSheets,          label: "Clean Sheets" },
       { icon: <BarChart2   className="w-6 h-6 text-primary"    />,  value: `${winPct}%`,                    label: "Win Rate" },
-      { icon: <Star        className="w-6 h-6 text-amber-400"  />,  value: overall.motm,                    label: "MOTM" },
+      { icon: <Star        className="w-6 h-6 text-amber-400"  />,  value: scopeStats.motm,                 label: "MOTM" },
       { icon: <Square      className="w-6 h-6 text-orange-400" />,  value: 0,                               label: "Card" },
-      { icon: <Award       className="w-6 h-6 text-amber-400"  />,  value: player.tournamentWins ?? 0,      label: "Tournament Win" },
+      { icon: <Award       className="w-6 h-6 text-amber-400"  />,  value: tournamentWinCount,              label: "Tournament Win" },
       { icon: <Coins       className="w-6 h-6 text-amber-400"  />,  value: marketValue,                     label: "Market Value" },
     ];
 
@@ -407,10 +499,49 @@ export default function PlayerDetailPage() {
       <div className="space-y-4">
         {/* header */}
         <div className="flex items-center justify-between">
-          <h3 className="font-bold text-lg">Career statistics</h3>
-          <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-sm text-muted-foreground">
-            Career (overall)
-            <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" /></svg>
+          <h3 className="font-bold text-lg">
+            {overallScope === "career" ? "Career statistics" : `${scopeLabel} statistics`}
+          </h3>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setScopeOpen((o) => !o)}
+              className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-sm text-muted-foreground hover:border-primary/50 hover:text-foreground transition-colors cursor-pointer"
+            >
+              {scopeLabel}
+              <svg className={`w-4 h-4 transition-transform ${scopeOpen ? "rotate-180" : ""}`} viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" /></svg>
+            </button>
+            {scopeOpen && (
+              <>
+                {/* click-away backdrop */}
+                <div className="fixed inset-0 z-40" onClick={() => setScopeOpen(false)} />
+                <div className="absolute right-0 z-50 mt-1 w-52 rounded-xl border border-border bg-card shadow-xl overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => { setOverallScope("career"); setScopeOpen(false); }}
+                    className={`w-full text-left px-3 py-2 text-sm transition-colors cursor-pointer ${overallScope === "career" ? "bg-primary/10 text-primary font-bold" : "hover:bg-muted/60"}`}
+                  >
+                    Career (overall)
+                  </button>
+                  {(seasons as any[]).length > 0 && (
+                    <div className="border-t border-border" />
+                  )}
+                  {(seasons as any[]).map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => { setOverallScope(s.id); setScopeOpen(false); }}
+                      className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between gap-2 transition-colors cursor-pointer ${overallScope === s.id ? "bg-primary/10 text-primary font-bold" : "hover:bg-muted/60"}`}
+                    >
+                      <span>{s.name}</span>
+                      {s.isCurrent && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400">Current</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
 
