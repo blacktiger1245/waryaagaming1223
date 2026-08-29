@@ -19,6 +19,30 @@ interface Season {
 // ── SeasonAwardCard ────────────────────────────────────────────────────────────
 const WG_GOLD_FILTER = "brightness(0) saturate(100%) invert(77%) sepia(64%) saturate(1200%) hue-rotate(357deg) brightness(102%) contrast(96%)";
 
+// Convert an image URL to a data URL via canvas so html-to-image can always embed it.
+// Returns null if the image cannot be loaded/embedded (CORS etc.).
+function urlToDataUrl(url: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return resolve(null);
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL("image/png"));
+      } catch {
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+}
+
 function SeasonAwardCard({
   title, subtitle, seasonName, winner, icon, awardKey,
 }: {
@@ -33,15 +57,38 @@ function SeasonAwardCard({
   const [downloading, setDownloading] = useState(false);
 
   async function handleDownload() {
-    if (!cardRef.current) return;
+    const node = cardRef.current;
+    if (!node) return;
     setDownloading(true);
     try {
-      const dataUrl = await toPng(cardRef.current, { pixelRatio: 3, cacheBust: true });
-      const link = document.createElement("a");
-      const safeName = (winner?.username ?? title).replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "") || "winner";
-      link.download = `${safeName}-${awardKey}.png`;
-      link.href = dataUrl;
-      link.click();
+      // Pre-embed every <img> as a data URL so the export can never come out empty.
+      const imgs = Array.from(node.querySelectorAll("img")) as HTMLImageElement[];
+      const originals = imgs.map((img) => img.src);
+      const embedded = await Promise.all(originals.map((src) => urlToDataUrl(src)));
+      imgs.forEach((img, i) => {
+        if (embedded[i]) img.src = embedded[i] as string;
+      });
+
+      let dataUrl = "";
+      try {
+        dataUrl = await toPng(node, { pixelRatio: 3, backgroundColor: "#141821", skipFonts: true });
+      } catch {
+        // Retry with default settings in case skipFonts is the issue
+        dataUrl = await toPng(node, { pixelRatio: 2, backgroundColor: "#141821" });
+      }
+
+      // Restore original sources
+      imgs.forEach((img, i) => {
+        img.src = originals[i];
+      });
+
+      if (dataUrl && dataUrl.length > 1000) {
+        const link = document.createElement("a");
+        const safeName = (winner?.username ?? title).replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "") || "winner";
+        link.download = `${safeName}-${awardKey}.png`;
+        link.href = dataUrl;
+        link.click();
+      }
     } catch {
       // export failed — nothing else to do here
     } finally {
