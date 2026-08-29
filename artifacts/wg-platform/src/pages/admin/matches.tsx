@@ -167,6 +167,41 @@ function MatchFormDialog({
     enabled: isTeam && isEdit && form.status === "completed",
   });
 
+  // Registered teams for this tournament — lets the admin pick participants
+  // from a dropdown instead of typing names free-hand.
+  const { data: registeredTeams = [] } = useQuery<Participant[]>({
+    queryKey: ["admin-tournament-participants", tournamentId],
+    queryFn: () => apiFetch(`/api/admin/tournaments/${tournamentId}/participants`),
+    enabled: isTeam && open,
+  });
+
+  // Pick the best selection value for a side: prefer matching by team ID,
+  // fall back to matching by name (covers legacy rows without IDs).
+  function selectedTeamValue(side: 1 | 2): string {
+    const id = side === 1 ? form.participant1Id : form.participant2Id;
+    const name = side === 1 ? form.participant1Name : form.participant2Name;
+    if (id != null) {
+      const byId = registeredTeams.find((p) => p.teamId != null && p.teamId === id);
+      if (byId) return String(byId.teamId);
+    }
+    if (name) {
+      const byName = registeredTeams.find((p) => (p.teamName ?? p.displayName ?? p.username) === name);
+      if (byName?.teamId != null) return String(byName.teamId);
+    }
+    return name ?? "";
+  }
+
+  function setTeamParticipant(side: 1 | 2, teamIdStr: string) {
+    const team = registeredTeams.find((p) => String(p.teamId) === teamIdStr);
+    if (!team) return;
+    const name = team.teamName ?? team.displayName ?? team.username ?? `Team ${team.teamId}`;
+    if (side === 1) {
+      setForm((f) => ({ ...f, participant1Id: team.teamId, participant1Name: name }));
+    } else {
+      setForm((f) => ({ ...f, participant2Id: team.teamId, participant2Name: name }));
+    }
+  }
+
   // Build a deduplicated list of players from both sides
   const teamPlayers = useMemo(() => {
     const seen = new Set<number>();
@@ -233,8 +268,28 @@ function MatchFormDialog({
             <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Participant 1</p>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Name</label>
-                <Input value={form.participant1Name ?? ""} placeholder="Player / Team" onChange={(e) => set("participant1Name", e.target.value)} />
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                  {isTeam ? "Team (registered)" : "Name"}
+                </label>
+                {isTeam ? (
+                  <select
+                    className="w-full h-9 rounded-md border border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    value={selectedTeamValue(1)}
+                    onChange={(e) => setTeamParticipant(1, e.target.value)}
+                  >
+                    <option value="">{registeredTeams.length === 0 ? "Loading teams…" : "— Select team —"}</option>
+                    {registeredTeams.map((p) => {
+                      const nm = p.teamName ?? p.displayName ?? p.username ?? `Team ${p.teamId ?? p.id}`;
+                      return (
+                        <option key={p.id} value={String(p.teamId ?? "")} disabled={p.teamId == null}>
+                          {nm}
+                        </option>
+                      );
+                    })}
+                  </select>
+                ) : (
+                  <Input value={form.participant1Name ?? ""} placeholder="Player / Team" onChange={(e) => set("participant1Name", e.target.value)} />
+                )}
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Score</label>
@@ -247,8 +302,28 @@ function MatchFormDialog({
             <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Participant 2</p>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Name</label>
-                <Input value={form.participant2Name ?? ""} placeholder="Player / Team" onChange={(e) => set("participant2Name", e.target.value)} />
+                <label className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                  {isTeam ? "Team (registered)" : "Name"}
+                </label>
+                {isTeam ? (
+                  <select
+                    className="w-full h-9 rounded-md border border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    value={selectedTeamValue(2)}
+                    onChange={(e) => setTeamParticipant(2, e.target.value)}
+                  >
+                    <option value="">{registeredTeams.length === 0 ? "Loading teams…" : "— Select team —"}</option>
+                    {registeredTeams.map((p) => {
+                      const nm = p.teamName ?? p.displayName ?? p.username ?? `Team ${p.teamId ?? p.id}`;
+                      return (
+                        <option key={p.id} value={String(p.teamId ?? "")} disabled={p.teamId == null}>
+                          {nm}
+                        </option>
+                      );
+                    })}
+                  </select>
+                ) : (
+                  <Input value={form.participant2Name ?? ""} placeholder="Player / Team" onChange={(e) => set("participant2Name", e.target.value)} />
+                )}
               </div>
               <div className="space-y-1">
                 <label className="text-[10px] text-muted-foreground uppercase tracking-wider">Score</label>
