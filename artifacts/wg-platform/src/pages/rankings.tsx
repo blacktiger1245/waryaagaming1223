@@ -66,69 +66,199 @@ function SeasonAwardCard({
     <div>
       <div
         ref={cardRef}
-        className="relative w-[420px] max-w-full mx-auto rounded-3xl overflow-hidden border border-[#F5C542]/50 shadow-[0_0_80px_-20px_rgba(245,197,66,0.55)]"
-        style={{ background: "linear-gradient(160deg, #0C0C0C 0%, #050505 42%, #14100A 78%, #050505 100%)" }}
+        style={{
+          position: "relative",
+          width: 420,
+          maxWidth: "100%",
+          margin: "0 auto",
+          borderRadius: 24,
+          overflow: "hidden",
+          border: "2px solid #F5C542",
+          backgroundColor: "#141821",
+          backgroundImage:
+            "radial-gradient(circle at 18% 12%, rgba(225,29,72,0.45) 0%, rgba(225,29,72,0) 42%)," +
+            "radial-gradient(circle at 85% 18%, rgba(0,102,255,0.50) 0%, rgba(0,102,255,0) 45%)," +
+            "radial-gradient(circle at 78% 85%, rgba(148,163,184,0.35) 0%, rgba(148,163,184,0) 45%)," +
+            "radial-gradient(circle at 12% 88%, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 40%)," +
+            "linear-gradient(160deg, #1B2230 0%, #232B3D 38%, #2E3446 62%, #191E2B 100%)",
+          boxShadow: "0 0 60px -12px rgba(0,102,255,0.45)",
+        }}
       >
-        {/* gold glow orb */}
-        <div className="absolute -top-28 left-1/2 -translate-x-1/2 w-80 h-80 rounded-full bg-[#F5C542]/15 blur-[90px] pointer-events-none" />
-
-        <div className="relative px-8 pt-6 pb-7 flex flex-col items-center text-center">
+        <div
+          style={{
+            position: "relative",
+            padding: "24px 32px 28px",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            textAlign: "center",
+          }}
+        >
           {/* Brand row: WG gold logo + title */}
-          <div className="w-full flex items-center justify-center gap-3">
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12 }}>
             <img
               src={`${import.meta.env.BASE_URL}waryaalogo-removebg-preview.png`}
               alt="Waryaa Gaming"
-              className="h-9 w-auto object-contain"
-              style={{ filter: WG_GOLD_FILTER }}
+              style={{ height: 36, width: "auto", objectFit: "contain", filter: WG_GOLD_FILTER }}
               crossOrigin="anonymous"
             />
-            <span className="text-lg font-black uppercase tracking-[0.3em] bg-gradient-to-r from-[#FFF3C4] via-[#F5C542] to-[#B8860B] bg-clip-text text-transparent">
+            <span
+              style={{
+                fontSize: 18,
+                fontWeight: 900,
+                textTransform: "uppercase",
+                letterSpacing: "0.3em",
+                color: "#F5C542",
+                textShadow: "0 0 18px rgba(245,197,66,0.6)",
+              }}
+            >
               Waryaa Gaming
             </span>
           </div>
-          <div className="w-full h-px mt-4 mb-6 bg-gradient-to-r from-transparent via-[#F5C542]/70 to-transparent" />
+          <div
+            style={{
+              width: "100%",
+              height: 2,
+              marginTop: 16,
+              marginBottom: 24,
+              background: "linear-gradient(90deg, rgba(245,197,66,0) 0%, #F5C542 50%, rgba(245,197,66,0) 100%)",
+            }}
+          />
 
           {/* Award icon */}
-          <div className="mb-4 drop-shadow-[0_0_22px_rgba(245,197,66,0.85)]">{icon}</div>
+          <div style={{ marginBottom: 16, filter: "drop-shadow(0 0 22px rgba(245,197,66,0.85))" }}>{icon}</div>
 
           {/* Title */}
-          <p className="text-[11px] font-black uppercase tracking-[0.35em] text-[#F5C542]/90">{subtitle}</p>
-          <h2 className="text-3xl font-black mt-1 bg-gradient-to-br from-[#FFF3C4] via-[#F5C542] to-[#B8860B] bg-clip-text text-transparent">
+          <p
+            style={{
+              fontSize: 11,
+              fontWeight: 900,
+              textTransform: "uppercase",
+              letterSpacing: "0.35em",
+              color: "#F5C542",
+            }}
+          >
+            {subtitle}
+          </p>
+          <h2
+            style={{
+              fontSize: 30,
+              fontWeight: 900,
+              marginTop: 4,
+              color: "#FFFFFF",
+              textShadow: "0 2px 20px rgba(0,102,255,0.55), 0 0 30px rgba(225,29,72,0.35)",
+            }}
+          >
             {title}
           </h2>
-          <p className="text-xs font-bold text-[#94A3B8] mt-1 flex items-center gap-1.5">
-            <CalendarRange className="w-3.5 h-3.5 text-[#F5C542]" /> {seasonName || "Season"}
-          </p>
+          <p style={{ fontSize: 12, fontWeight: 700, color: "#CBD5E1", marginTop: 4 }}>{seasonName || "Season"}</p>
 
           {/* Avatar + name (clickable to profile) */}
-          <Link href={`/players/${winner.id}`} className="mt-5 flex flex-col items-center group">
-            <div className="relative">
-              <div className="absolute -inset-1.5 rounded-full bg-gradient-to-br from-[#FFF3C4] via-[#F5C542] to-[#B8860B] blur-[2px] opacity-80" />
-              <div className="relative w-32 h-32 rounded-full overflow-hidden ring-4 ring-[#F5C542]/60 bg-[#101010] flex items-center justify-center">
+          <Link
+            href={`/players/${winner.id}`}
+            style={{ marginTop: 20, display: "flex", flexDirection: "column", alignItems: "center" }}
+          >
+            <div style={{ position: "relative" }}>
+              <div
+                style={{
+                  position: "absolute",
+                  inset: -6,
+                  borderRadius: "50%",
+                  background: "linear-gradient(135deg, #FFF3C4 0%, #F5C542 45%, #B8860B 100%)",
+                  filter: "blur(2px)",
+                  opacity: 0.85,
+                }}
+              />
+              <div
+                style={{
+                  position: "relative",
+                  width: 128,
+                  height: 128,
+                  borderRadius: "50%",
+                  overflow: "hidden",
+                  border: "4px solid #F5C542",
+                  backgroundColor: "#101010",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
                 {winner.avatarUrl ? (
-                  <img src={winner.avatarUrl} alt={winner.username} className="w-full h-full object-cover" crossOrigin="anonymous" />
+                  <img
+                    src={winner.avatarUrl}
+                    alt={winner.username}
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    crossOrigin="anonymous"
+                  />
                 ) : (
-                  <span className="text-4xl font-black text-[#F5C542]">{winner.username?.charAt(0)?.toUpperCase() ?? "?"}</span>
+                  <span style={{ fontSize: 40, fontWeight: 900, color: "#F5C542" }}>
+                    {winner.username?.charAt(0)?.toUpperCase() ?? "?"}
+                  </span>
                 )}
               </div>
-              <div className="absolute -bottom-2 -right-2 w-9 h-9 rounded-full bg-gradient-to-br from-[#FFF3C4] via-[#F5C542] to-[#B8860B] flex items-center justify-center shadow-lg ring-2 ring-black/40">
-                <Trophy className="w-5 h-5 text-black fill-black" />
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: -8,
+                  right: -8,
+                  width: 36,
+                  height: 36,
+                  borderRadius: "50%",
+                  background: "linear-gradient(135deg, #FFF3C4 0%, #F5C542 45%, #B8860B 100%)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+                  border: "2px solid #141821",
+                  color: "#000",
+                }}
+              >
+                <Trophy size={20} strokeWidth={2.5} />
               </div>
             </div>
 
             {/* Player name */}
-            <p className="text-2xl font-black text-white mt-6 group-hover:text-[#F5C542] transition-colors">
-              {winner.username}
-            </p>
-            <span className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-[0.2em] text-black bg-gradient-to-r from-[#F5C542] to-[#D4A017] rounded-full px-4 py-1.5">
-              <Star className="w-3.5 h-3.5 fill-black" /> View Profile
+            <p style={{ fontSize: 26, fontWeight: 900, color: "#FFFFFF", marginTop: 24 }}>{winner.username}</p>
+            <span
+              style={{
+                marginTop: 12,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: 11,
+                fontWeight: 900,
+                textTransform: "uppercase",
+                letterSpacing: "0.2em",
+                color: "#000000",
+                background: "linear-gradient(90deg, #F5C542 0%, #D4A017 100%)",
+                borderRadius: 999,
+                padding: "6px 16px",
+              }}
+            >
+              View Profile
             </span>
           </Link>
 
           {/* Footer brand */}
-          <div className="w-full h-px mt-7 mb-3 bg-gradient-to-r from-transparent via-[#F5C542]/50 to-transparent" />
-          <p className="text-[11px] font-bold uppercase tracking-[0.35em] text-[#94A3B8]">
-            waryaagaming<span className="text-[#F5C542]">.com</span>
+          <div
+            style={{
+              width: "100%",
+              height: 2,
+              marginTop: 28,
+              marginBottom: 12,
+              background: "linear-gradient(90deg, rgba(245,197,66,0) 0%, rgba(245,197,66,0.6) 50%, rgba(245,197,66,0) 100%)",
+            }}
+          />
+          <p
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: "0.35em",
+              color: "#CBD5E1",
+            }}
+          >
+            waryaagaming<span style={{ color: "#F5C542" }}>.com</span>
           </p>
         </div>
       </div>
