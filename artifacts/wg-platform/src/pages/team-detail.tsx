@@ -20,13 +20,14 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useQueries, useQueryClient } from "@tanstack/react-query";
 import { useUpload } from "@workspace/object-storage-web";
 import { storageUrl } from "@/lib/api";
+import ClubCard from "@/components/club-card";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell,
 } from "recharts";
 
 // ── types ──────────────────────────────────────────────────────────────────────
-type TeamTab = "info" | "squad" | "fixtures" | "matches" | "stats" | "table" | "round" | "ranking" | "transfer" | "news";
+type TeamTab = "info" | "squad" | "fixtures" | "matches" | "stats" | "table" | "round" | "ranking" | "transfer" | "news" | "club-card";
 
 // ── StatCard ───────────────────────────────────────────────────────────────────
 function StatCard({ label, value, accent }: { label: string; value: string | number; accent?: string }) {
@@ -690,6 +691,7 @@ export default function TeamDetailPage() {
     { id: "ranking",  label: "Ranking" },
     { id: "transfer", label: "Transfer" },
     { id: "news",     label: "News" },
+    { id: "club-card", label: "Club Card" },
   ];
 
   if (isLoading) {
@@ -981,6 +983,20 @@ export default function TeamDetailPage() {
                   </DetailItem>
                 </div>
               </div>
+            )}
+
+            {/* ── CLUB CARD ── */}
+            {activeTab === "club-card" && (
+              <ClubCard
+                team={team}
+                stats={{
+                  members: team.memberCount ?? 0,
+                  played: liveStats.played,
+                  wins: liveStats.wins,
+                  draws: liveStats.draws,
+                  losses: liveStats.losses,
+                }}
+              />
             )}
 
             {/* ── SQUAD ── */}
