@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useParams, Link } from "wouter";
-import { countryNameToFlag } from "@/lib/countries";
+import { countryNameToFlagUrl } from "@/lib/countries";
 import { motion } from "framer-motion";
 import {
   ArrowLeft, Star, ScrollText, Fingerprint, Activity, Building2, Swords, BookOpen, CreditCard,
@@ -91,6 +91,20 @@ interface CoachStats {
   points: number;
   tournamentWins: number;
   winRate: number;
+}
+
+// Real flag image (emoji flags render as plain letters, e.g. "SO", on Windows)
+function CountryFlag({ country, className }: { country: string; className?: string }) {
+  const src = countryNameToFlagUrl(country, "w80");
+  if (!src) return null;
+  return (
+    <img
+      src={src}
+      alt={country}
+      loading="lazy"
+      className={`inline-block h-4 w-6 rounded-[2px] object-cover ring-1 ring-border/60 ${className ?? ""}`}
+    />
+  );
 }
 
 const matchStatusColors: Record<string, string> = {
@@ -231,7 +245,7 @@ export default function PlayerDetailPage() {
                   </div>
                   {player.country && (
                     <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-0.5">
-                      <span className="text-base leading-none">{countryNameToFlag(player.country)}</span>
+                      <CountryFlag country={player.country} />
                       {player.country}
                     </div>
                   )}
@@ -254,7 +268,7 @@ export default function PlayerDetailPage() {
                   </div>
                   <div className="font-bold text-lg flex items-center gap-2">
                     {player.country
-                      ? <><span className="text-2xl leading-none">{countryNameToFlag(player.country)}</span>{player.country}</>
+                      ? <><CountryFlag country={player.country} className="h-6 w-9" />{player.country}</>
                       : "—"}
                   </div>
                 </div>
@@ -308,7 +322,7 @@ export default function PlayerDetailPage() {
             </div>
             <div className="font-bold text-base flex items-center gap-2">
               {player.country
-                ? <><span className="text-xl leading-none">{countryNameToFlag(player.country)}</span>{player.country}</>
+                ? <><CountryFlag country={player.country} className="h-5 w-7" />{player.country}</>
                 : "—"}
             </div>
           </div>
@@ -836,7 +850,7 @@ export default function PlayerDetailPage() {
                       </h1>
                 {player.country && (
                   <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                    <span className="text-lg leading-none">{countryNameToFlag(player.country)}</span>
+                    <CountryFlag country={player.country} />
                     {player.country}
                   </span>
                 )}

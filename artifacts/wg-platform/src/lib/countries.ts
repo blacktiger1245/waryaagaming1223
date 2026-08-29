@@ -16,6 +16,22 @@ export function countryNameToFlag(name: string): string {
   return entry ? countryCodeToFlag(entry.code) : "";
 }
 
+/**
+ * Country name → real flag image URL (flagcdn.com).
+ * Emoji flags render as plain letters (e.g. "SO") on Windows, so the UI uses
+ * actual flag images instead. Returns "" if the country is not found.
+ */
+export function countryNameToFlagUrl(
+  name: string,
+  width: "w20" | "w40" | "w80" | "w160" = "w80"
+): string {
+  if (!name) return "";
+  const entry = COUNTRIES.find(
+    (c) => c.name.toLowerCase() === name.toLowerCase()
+  );
+  return entry ? `https://flagcdn.com/${width}/${entry.code.toLowerCase()}.png` : "";
+}
+
 export interface Country {
   code: string; // ISO 3166-1 alpha-2
   name: string;

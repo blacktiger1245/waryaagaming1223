@@ -2,7 +2,7 @@
 import { toPng } from "html-to-image";
 import { Download, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { countryNameToFlag } from "@/lib/countries";
+import { countryNameToFlagUrl } from "@/lib/countries";
 
 // Fixed export dimensions (4:5 portrait, social-media ready)
 const CARD_W = 1080;
@@ -204,7 +204,7 @@ export default function PlayerCard({ player, overall, marketValue }: PlayerCardP
               </div>
               {country && (
                 <div style={{ marginTop: 12, fontSize: 24, fontWeight: 700, color: "#94A3B8", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
-                  <span style={{ fontSize: 28 }}>{countryNameToFlag(country)}</span>
+                  {(() => { const flagSrc = countryNameToFlagUrl(country, "w160"); return flagSrc ? (<img src={flagSrc} alt={country} crossOrigin="anonymous" style={{ width: 46, height: 31, objectFit: "cover", borderRadius: 4, border: "1px solid rgba(148,163,184,0.4)" }} />) : null; })()}
                   {country}
                 </div>
               )}
