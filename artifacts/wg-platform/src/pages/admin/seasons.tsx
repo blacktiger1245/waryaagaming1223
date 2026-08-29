@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Loader2, Plus, Trash2, CalendarRange, Star } from "lucide-react";
+import { Loader2, Plus, Trash2, CalendarRange, Star, Award, Medal, Search, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface Season {
@@ -18,6 +18,17 @@ interface Season {
   name: string;
   isCurrent: boolean;
   createdAt: string;
+  topScorerPlayerId?: number | null;
+  ballonDorPlayerId?: number | null;
+  topScorerPlayer?: { id: number; username: string; displayName?: string | null; avatarUrl?: string | null } | null;
+  ballonDorPlayer?: { id: number; username: string; displayName?: string | null; avatarUrl?: string | null } | null;
+}
+
+interface PlayerLite {
+  id: number;
+  username: string;
+  displayName?: string | null;
+  avatarUrl?: string | null;
 }
 
 async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
@@ -134,10 +145,136 @@ function CreateSeasonDialog({
   );
 }
 
+// ── AwardsDialog ────────────────────────────────────────────────────────────────
+function AwardsDialog({ season, open, onClose, onSaved }: { season: Season; open: boolean; onClose: () => void; onSaved: () => void }) {
+  const { toast } = useToast();
+  const [search, setSearch] = useState("");
+  const [topScorerId, setTopScorerId] = useState<number | null>(season.topScorerPlayerId ?? null);
+  const [ballonDorId, setBallonDorId] = useState<number | null>(season.ballonDorPlayerId ?? null);
+  const [saving, setSaving] = useState(false);
+
+  const { data: players = [], isLoading: playersLoading } = useQuery<PlayerLite[]>({
+    queryKey: ["admin", "award-players"],
+    queryFn: () => apiFetch("/api/players"),
+    enabled: open,
+  });
+
+  const filtered = players
+    .filter((p) => {
+      const q = search.trim().toLowerCase();
+      if (!q) return true;
+      return (p.displayName ?? p.username).toLowerCase().includes(q) || p.username.toLowerCase().includes(q);
+    })
+    .slice(0, 8);
+
+  function playerName(p?: { id: number; username: string; displayName?: string | null } | null) {
+    return p ? p.displayName || p.username : null;
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await apiFetch(`/api/admin/seasons/${season.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ topScorerPlayerId: topScorerId, ballonDorPlayerId: ballonDorId }),
+      });
+      toast({ title: "Season awards saved!" });
+      onSaved();
+      onClose();
+    } catch (err) {
+      toast({ title: "Failed to save awards", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function PickerRow({ label, icon, selectedId, onSelect }: { label: string; icon: React.ReactNode; selectedId: number | null; onSelect: (id: number | null) => void }) {
+    const selected = selectedId != null ? players.find((p) => p.id === selectedId) ?? null : null;
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">{icon}{label}</label>
+          {selectedId != null && (
+            <button type="button" className="text-xs text-muted-foreground hover:text-destructive flex items-center gap-1" onClick={() => onSelect(null)}>
+              <X className="w-3 h-3" /> Clear
+            </button>
+          )}
+        </div>
+        <div className="rounded-lg border border-border bg-muted/10 px-3 py-2 text-sm font-bold flex items-center gap-2 min-h-10">
+          {selected
+            ? <>{selected.avatarUrl && <img src={selected.avatarUrl} alt="" className="w-6 h-6 rounded-full object-cover" />}{playerName(selected)}</>
+            : <span className="text-muted-foreground font-normal">No winner selected</span>}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Award className="w-5 h-5 text-yellow-400" />
+            Season Awards — {season.name}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          <div className="space-y-3">
+            <PickerRow label="Top Scorer" icon={<Medal className="w-3.5 h-3.5 text-yellow-400" />} selectedId={topScorerId} onSelect={setTopScorerId} />
+            <PickerRow label="Ballon d'Or" icon={<Award className="w-3.5 h-3.5 text-yellow-400" />} selectedId={ballonDorId} onSelect={setBallonDorId} />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Select a player</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search players..." className="pl-9" />
+            </div>
+            <div className="rounded-lg border border-border divide-y divide-border max-h-56 overflow-y-auto">
+              {playersLoading ? (
+                <div className="flex items-center justify-center py-6"><Loader2 className="w-4 h-4 animate-spin text-primary" /></div>
+              ) : filtered.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">No players found</p>
+              ) : (
+                filtered.map((p) => (
+                  <div key={p.id} className="flex items-center gap-2 px-3 py-2">
+                    {p.avatarUrl
+                      ? <img src={p.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover flex-shrink-0" />
+                      : <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-[10px] font-black flex-shrink-0">{(p.displayName ?? p.username).slice(0, 2).toUpperCase()}</div>}
+                    <span className="text-sm font-bold truncate flex-1">{p.displayName ?? p.username}</span>
+                    <div className="flex gap-1">
+                      <Button size="sm" variant={topScorerId === p.id ? "default" : "outline"} className="h-6 text-[10px] gap-1 px-2" onClick={() => setTopScorerId(topScorerId === p.id ? null : p.id)}>
+                        <Medal className="w-3 h-3" /> Top Scorer
+                      </Button>
+                      <Button size="sm" variant={ballonDorId === p.id ? "default" : "outline"} className="h-6 text-[10px] gap-1 px-2" onClick={() => setBallonDorId(ballonDorId === p.id ? null : p.id)}>
+                        <Award className="w-3 h-3" /> Ballon d'Or
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button type="button" onClick={handleSave} disabled={saving} className="gap-2">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Award className="w-4 h-4" />}
+            Save Awards
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function AdminSeasonsPage() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [createOpen, setCreateOpen] = useState(false);
+  const [awardsSeason, setAwardsSeason] = useState<Season | null>(null);
 
   const { data: seasons = [], isLoading } = useQuery<Season[]>({
     queryKey: ["admin", "seasons"],
@@ -187,6 +324,15 @@ export default function AdminSeasonsPage() {
         onCreated={() => qc.invalidateQueries({ queryKey: ["admin", "seasons"] })}
       />
 
+      {awardsSeason && (
+        <AwardsDialog
+          season={awardsSeason}
+          open={!!awardsSeason}
+          onClose={() => setAwardsSeason(null)}
+          onSaved={() => qc.invalidateQueries({ queryKey: ["admin", "seasons"] })}
+        />
+      )}
+
       {isLoading ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="w-6 h-6 animate-spin text-primary" />
@@ -207,6 +353,7 @@ export default function AdminSeasonsPage() {
               <tr className="border-b border-border bg-muted/20">
                 <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">Season</th>
                 <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">Status</th>
+                <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">Awards</th>
                 <th className="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">Created</th>
                 <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-muted-foreground">Actions</th>
               </tr>
@@ -229,11 +376,32 @@ export default function AdminSeasonsPage() {
                       <Badge variant="secondary">Past</Badge>
                     )}
                   </td>
+                  <td className="px-5 py-4">
+                    <div className="space-y-1">
+                      {s.topScorerPlayer ? (
+                        <span className="text-xs flex items-center gap-1.5"><Medal className="w-3 h-3 text-yellow-400 flex-shrink-0" />{s.topScorerPlayer.displayName || s.topScorerPlayer.username}</span>
+                      ) : null}
+                      {s.ballonDorPlayer ? (
+                        <span className="text-xs flex items-center gap-1.5"><Award className="w-3 h-3 text-yellow-400 flex-shrink-0" />{s.ballonDorPlayer.displayName || s.ballonDorPlayer.username}</span>
+                      ) : null}
+                      {!s.topScorerPlayer && !s.ballonDorPlayer && (
+                        <span className="text-xs text-muted-foreground">No awards yet</span>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-5 py-4 text-sm text-muted-foreground">
                     {new Date(s.createdAt).toLocaleDateString()}
                   </td>
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-2 justify-end">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs gap-1"
+                        onClick={() => setAwardsSeason(s)}
+                      >
+                        <Award className="w-3 h-3" /> Awards
+                      </Button>
                       {!s.isCurrent && (
                         <Button
                           size="sm"

@@ -736,14 +736,28 @@ router.post("/admin/seasons", requireAdmin, async (req, res) => {
 
 router.patch("/admin/seasons/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
-  const { name, isCurrent } = req.body as { name?: string; isCurrent?: boolean };
+  const { name, isCurrent, topScorerPlayerId, ballonDorPlayerId } = req.body as {
+    name?: string;
+    isCurrent?: boolean;
+    topScorerPlayerId?: number | null;
+    ballonDorPlayerId?: number | null;
+  };
   try {
     if (isCurrent) {
       await db.update(seasonsTable).set({ isCurrent: false });
     }
+    // Validate award player ids (null clears the award)
+    for (const [field, value] of [["topScorerPlayerId", topScorerPlayerId], ["ballonDorPlayerId", ballonDorPlayerId]] as const) {
+      if (value != null) {
+        const [player] = await db.select({ id: playersTable.id }).from(playersTable).where(eq(playersTable.id, value));
+        if (!player) return res.status(400).json({ error: `${field} does not match any player` });
+      }
+    }
     const updates: Record<string, unknown> = {};
     if (name !== undefined) updates.name = name.trim();
     if (isCurrent !== undefined) updates.isCurrent = isCurrent;
+    if (topScorerPlayerId !== undefined) updates.topScorerPlayerId = topScorerPlayerId;
+    if (ballonDorPlayerId !== undefined) updates.ballonDorPlayerId = ballonDorPlayerId;
     const [season] = await db.update(seasonsTable).set(updates).where(eq(seasonsTable.id, id)).returning();
     if (!season) return res.status(404).json({ error: "Season not found" });
     return res.json(season);

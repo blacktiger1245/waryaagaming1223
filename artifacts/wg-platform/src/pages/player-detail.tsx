@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import {
   ArrowLeft, Star, ScrollText, Fingerprint, Activity, Building2, Swords, BookOpen, CreditCard,
   CalendarDays, MapPin, Droplets, Gamepad2, Shield, Trophy, Share2,
-  TrendingUp, Zap, Target, ShieldCheck, Award, Coins, Handshake, XCircle, Square, User, BarChart2, Presentation,
+  TrendingUp, Zap, Target, ShieldCheck, Award, Coins, Handshake, XCircle, Square, User, BarChart2, Presentation, Medal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -475,6 +475,10 @@ export default function PlayerDetailPage() {
       overallScope === "career"
         ? "Career (overall)"
         : `${(seasons as any[]).find((s) => s.id === overallScope)?.name ?? "Season"}`;
+    // Season awards (Top Scorer / Ballon d'Or) — only shown when that season is selected
+    const selectedSeason = overallScope === "career" ? null : (seasons as any[]).find((s) => s.id === overallScope);
+    const isTopScorer = !!selectedSeason && selectedSeason.topScorerPlayerId === player.id;
+    const isBallonDor = !!selectedSeason && selectedSeason.ballonDorPlayerId === player.id;
 
     // Market Value is derived from the player's TOTAL POINTS (persisted value,
     // with a live fallback computed from points).
@@ -497,6 +501,21 @@ export default function PlayerDetailPage() {
 
     return (
       <div className="space-y-4">
+        {/* season award badges */}
+        {(isTopScorer || isBallonDor) && (
+          <div className="flex flex-wrap gap-2">
+            {isTopScorer && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-yellow-400/40 bg-yellow-400/10 px-3 py-1 text-xs font-black uppercase tracking-wider text-yellow-400">
+                <Medal className="w-3.5 h-3.5" /> Top Scorer — {scopeLabel}
+              </span>
+            )}
+            {isBallonDor && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-yellow-400/40 bg-yellow-400/10 px-3 py-1 text-xs font-black uppercase tracking-wider text-yellow-400">
+                <Award className="w-3.5 h-3.5" /> Ballon d'Or — {scopeLabel}
+              </span>
+            )}
+          </div>
+        )}
         {/* header */}
         <div className="flex items-center justify-between">
           <h3 className="font-bold text-lg">
