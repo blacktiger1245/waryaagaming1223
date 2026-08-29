@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
+import { toPng } from "html-to-image";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
 import { Trophy, Star, TrendingUp, TrendingDown, ArrowUpDown, ChevronsUpDown, Search, Shield, X, Minus, CalendarRange, ChevronDown } from "lucide-react";
@@ -16,15 +17,38 @@ interface Season {
 }
 
 // ── SeasonAwardCard ────────────────────────────────────────────────────────────
+const WG_GOLD_FILTER = "brightness(0) saturate(100%) invert(77%) sepia(64%) saturate(1200%) hue-rotate(357deg) brightness(102%) contrast(96%)";
+
 function SeasonAwardCard({
-  title, subtitle, seasonName, winner, icon,
+  title, subtitle, seasonName, winner, icon, awardKey,
 }: {
   title: string;
   subtitle: string;
   seasonName: string;
   winner: { id: number; username: string; avatarUrl?: string | null } | null;
   icon: React.ReactNode;
+  awardKey: string;
 }) {
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  async function handleDownload() {
+    if (!cardRef.current) return;
+    setDownloading(true);
+    try {
+      const dataUrl = await toPng(cardRef.current, { pixelRatio: 3, cacheBust: true });
+      const link = document.createElement("a");
+      const safeName = (winner?.username ?? title).replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "") || "winner";
+      link.download = `${safeName}-${awardKey}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch {
+      // export failed — nothing else to do here
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   if (!winner) {
     return (
       <div className="max-w-md mx-auto rounded-2xl border border-border bg-card p-10 text-center mt-4">
@@ -39,51 +63,87 @@ function SeasonAwardCard({
     );
   }
   return (
-    <Link href={`/players/${winner.id}`}>
-      <motion.div
-        whileHover={{ y: -4, scale: 1.01 }}
-        className="relative max-w-md mx-auto mt-4 cursor-pointer rounded-3xl overflow-hidden border border-amber-400/40 bg-gradient-to-b from-[#1a1206] via-[#12100a] to-[#0a0a0a] shadow-[0_0_60px_-15px_rgba(251,191,36,0.5)]"
+    <div>
+      <div
+        ref={cardRef}
+        className="relative w-[420px] max-w-full mx-auto rounded-3xl overflow-hidden border border-[#F5C542]/50 shadow-[0_0_80px_-20px_rgba(245,197,66,0.55)]"
+        style={{ background: "linear-gradient(160deg, #0C0C0C 0%, #050505 42%, #14100A 78%, #050505 100%)" }}
       >
-        {/* glow orb */}
-        <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-72 h-72 rounded-full bg-amber-400/20 blur-[80px] pointer-events-none" />
-        <div className="relative px-8 pt-10 pb-8 flex flex-col items-center text-center">
-          {/* Icon */}
-          <div className="mb-5 drop-shadow-[0_0_20px_rgba(251,191,36,0.8)]">{icon}</div>
+        {/* gold glow orb */}
+        <div className="absolute -top-28 left-1/2 -translate-x-1/2 w-80 h-80 rounded-full bg-[#F5C542]/15 blur-[90px] pointer-events-none" />
+
+        <div className="relative px-8 pt-6 pb-7 flex flex-col items-center text-center">
+          {/* Brand row: WG gold logo + title */}
+          <div className="w-full flex items-center justify-center gap-3">
+            <img
+              src={`${import.meta.env.BASE_URL}waryaalogo-removebg-preview.png`}
+              alt="Waryaa Gaming"
+              className="h-9 w-auto object-contain"
+              style={{ filter: WG_GOLD_FILTER }}
+              crossOrigin="anonymous"
+            />
+            <span className="text-lg font-black uppercase tracking-[0.3em] bg-gradient-to-r from-[#FFF3C4] via-[#F5C542] to-[#B8860B] bg-clip-text text-transparent">
+              Waryaa Gaming
+            </span>
+          </div>
+          <div className="w-full h-px mt-4 mb-6 bg-gradient-to-r from-transparent via-[#F5C542]/70 to-transparent" />
+
+          {/* Award icon */}
+          <div className="mb-4 drop-shadow-[0_0_22px_rgba(245,197,66,0.85)]">{icon}</div>
 
           {/* Title */}
-          <p className="text-[11px] font-black uppercase tracking-[0.35em] text-amber-300/90">{subtitle}</p>
-          <h2 className="text-3xl font-black mt-1 bg-gradient-to-br from-amber-100 via-amber-300 to-yellow-600 bg-clip-text text-transparent">
+          <p className="text-[11px] font-black uppercase tracking-[0.35em] text-[#F5C542]/90">{subtitle}</p>
+          <h2 className="text-3xl font-black mt-1 bg-gradient-to-br from-[#FFF3C4] via-[#F5C542] to-[#B8860B] bg-clip-text text-transparent">
             {title}
           </h2>
-          <p className="text-xs font-bold text-muted-foreground mt-1 flex items-center gap-1.5">
-            <CalendarRange className="w-3.5 h-3.5 text-amber-400" /> {seasonName || "Season"}
+          <p className="text-xs font-bold text-[#94A3B8] mt-1 flex items-center gap-1.5">
+            <CalendarRange className="w-3.5 h-3.5 text-[#F5C542]" /> {seasonName || "Season"}
           </p>
 
-          {/* Avatar */}
-          <div className="relative mt-6">
-            <div className="absolute -inset-1.5 rounded-full bg-gradient-to-br from-amber-200 via-amber-400 to-yellow-600 blur-[2px] opacity-80" />
-            <div className="relative w-32 h-32 rounded-full overflow-hidden ring-4 ring-amber-300/60 bg-zinc-900 flex items-center justify-center">
-              {winner.avatarUrl ? (
-                <img src={winner.avatarUrl} alt={winner.username} className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-4xl font-black text-amber-300">{winner.username?.charAt(0)?.toUpperCase() ?? "?"}</span>
-              )}
+          {/* Avatar + name (clickable to profile) */}
+          <Link href={`/players/${winner.id}`} className="mt-5 flex flex-col items-center group">
+            <div className="relative">
+              <div className="absolute -inset-1.5 rounded-full bg-gradient-to-br from-[#FFF3C4] via-[#F5C542] to-[#B8860B] blur-[2px] opacity-80" />
+              <div className="relative w-32 h-32 rounded-full overflow-hidden ring-4 ring-[#F5C542]/60 bg-[#101010] flex items-center justify-center">
+                {winner.avatarUrl ? (
+                  <img src={winner.avatarUrl} alt={winner.username} className="w-full h-full object-cover" crossOrigin="anonymous" />
+                ) : (
+                  <span className="text-4xl font-black text-[#F5C542]">{winner.username?.charAt(0)?.toUpperCase() ?? "?"}</span>
+                )}
+              </div>
+              <div className="absolute -bottom-2 -right-2 w-9 h-9 rounded-full bg-gradient-to-br from-[#FFF3C4] via-[#F5C542] to-[#B8860B] flex items-center justify-center shadow-lg ring-2 ring-black/40">
+                <Trophy className="w-5 h-5 text-black fill-black" />
+              </div>
             </div>
-            <div className="absolute -bottom-2 -right-2 w-9 h-9 rounded-full bg-gradient-to-br from-amber-200 via-amber-400 to-yellow-600 flex items-center justify-center shadow-lg ring-2 ring-black/40">
-              <Trophy className="w-5 h-5 text-black fill-black" />
-            </div>
-          </div>
 
-          {/* Player name */}
-          <p className="text-2xl font-black text-white mt-6 group-hover:text-amber-200 transition-colors">
-            {winner.username}
+            {/* Player name */}
+            <p className="text-2xl font-black text-white mt-6 group-hover:text-[#F5C542] transition-colors">
+              {winner.username}
+            </p>
+            <span className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-[0.2em] text-black bg-gradient-to-r from-[#F5C542] to-[#D4A017] rounded-full px-4 py-1.5">
+              <Star className="w-3.5 h-3.5 fill-black" /> View Profile
+            </span>
+          </Link>
+
+          {/* Footer brand */}
+          <div className="w-full h-px mt-7 mb-3 bg-gradient-to-r from-transparent via-[#F5C542]/50 to-transparent" />
+          <p className="text-[11px] font-bold uppercase tracking-[0.35em] text-[#94A3B8]">
+            waryaagaming<span className="text-[#F5C542]">.com</span>
           </p>
-          <span className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-[0.2em] text-black bg-gradient-to-r from-amber-300 to-yellow-500 rounded-full px-4 py-1.5">
-            <Star className="w-3.5 h-3.5 fill-black" /> View Profile
-          </span>
         </div>
-      </motion.div>
-    </Link>
+      </div>
+
+      {/* Download button — outside the exported card */}
+      <div className="flex justify-center mt-5">
+        <button
+          onClick={handleDownload}
+          disabled={downloading}
+          className="inline-flex items-center gap-2 text-sm font-black uppercase tracking-wider text-black bg-gradient-to-r from-[#F5C542] to-[#D4A017] rounded-xl px-6 py-2.5 shadow-[0_0_25px_-5px_rgba(245,197,66,0.7)] hover:brightness-110 transition disabled:opacity-60"
+        >
+          {downloading ? "Preparing…" : "⬇ Download Card"}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -1075,6 +1135,7 @@ export default function RankingsPage() {
                 subtitle="Player of the Season"
                 seasonName={activeSeason?.name ?? ""}
                 winner={activeSeason?.ballonDorPlayer ?? null}
+                awardKey="ballon-dor"
                 icon={<BallonDorIcon size={56} className="drop-shadow-[0_0_18px_rgba(251,191,36,0.8)]" />}
               />
             )}
@@ -1084,6 +1145,7 @@ export default function RankingsPage() {
                 subtitle="Golden Boot"
                 seasonName={activeSeason?.name ?? ""}
                 winner={activeSeason?.topScorerPlayer ?? null}
+                awardKey="top-scorer"
                 icon={<TopScorerIcon size={56} className="drop-shadow-[0_0_18px_rgba(251,191,36,0.8)]" />}
               />
             )}
