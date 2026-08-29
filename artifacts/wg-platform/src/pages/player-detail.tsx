@@ -15,6 +15,7 @@ import { useGetPlayer, useGetPlayerMatchHistory } from "@workspace/api-client-re
 import { useQuery } from "@tanstack/react-query";
 import { marketValueLabel, pointsToMarketValue } from "@/lib/player-stats";
 import PlayerCard from "@/components/player-card";
+import { BallonDorIcon, TopScorerIcon } from "@/components/award-icons";
 
 // Fetch individual player games inside team-tournament matches
 function usePlayerGames(playerId: number) {
@@ -506,12 +507,12 @@ export default function PlayerDetailPage() {
           <div className="flex flex-wrap gap-2">
             {isTopScorer && (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-yellow-400/40 bg-yellow-400/10 px-3 py-1 text-xs font-black uppercase tracking-wider text-yellow-400">
-                <Medal className="w-3.5 h-3.5" /> Top Scorer — {scopeLabel}
+                <TopScorerIcon size={14} /> Top Scorer — {scopeLabel}
               </span>
             )}
             {isBallonDor && (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-yellow-400/40 bg-yellow-400/10 px-3 py-1 text-xs font-black uppercase tracking-wider text-yellow-400">
-                <Award className="w-3.5 h-3.5" /> Ballon d'Or — {scopeLabel}
+                <BallonDorIcon size={14} /> Ballon d'Or — {scopeLabel}
               </span>
             )}
           </div>

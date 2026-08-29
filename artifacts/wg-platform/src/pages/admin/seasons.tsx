@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Loader2, Plus, Trash2, CalendarRange, Star, Award, Medal, Search, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { BallonDorIcon, TopScorerIcon } from "@/components/award-icons";
 
 interface Season {
   id: number;
@@ -221,8 +222,8 @@ function AwardsDialog({ season, open, onClose, onSaved }: { season: Season; open
 
         <div className="space-y-4 py-2">
           <div className="space-y-3">
-            <PickerRow label="Top Scorer" icon={<Medal className="w-3.5 h-3.5 text-yellow-400" />} selectedId={topScorerId} onSelect={setTopScorerId} />
-            <PickerRow label="Ballon d'Or" icon={<Award className="w-3.5 h-3.5 text-yellow-400" />} selectedId={ballonDorId} onSelect={setBallonDorId} />
+            <PickerRow label="Top Scorer" icon={<TopScorerIcon size={14} />} selectedId={topScorerId} onSelect={setTopScorerId} />
+            <PickerRow label="Ballon d'Or" icon={<BallonDorIcon size={14} />} selectedId={ballonDorId} onSelect={setBallonDorId} />
           </div>
 
           <div className="space-y-1.5">
@@ -245,10 +246,10 @@ function AwardsDialog({ season, open, onClose, onSaved }: { season: Season; open
                     <span className="text-sm font-bold truncate flex-1">{p.displayName ?? p.username}</span>
                     <div className="flex gap-1">
                       <Button size="sm" variant={topScorerId === p.id ? "default" : "outline"} className="h-6 text-[10px] gap-1 px-2" onClick={() => setTopScorerId(topScorerId === p.id ? null : p.id)}>
-                        <Medal className="w-3 h-3" /> Top Scorer
+                        <TopScorerIcon size={12} /> Top Scorer
                       </Button>
                       <Button size="sm" variant={ballonDorId === p.id ? "default" : "outline"} className="h-6 text-[10px] gap-1 px-2" onClick={() => setBallonDorId(ballonDorId === p.id ? null : p.id)}>
-                        <Award className="w-3 h-3" /> Ballon d'Or
+                        <BallonDorIcon size={12} /> Ballon d'Or
                       </Button>
                     </div>
                   </div>
@@ -379,10 +380,10 @@ export default function AdminSeasonsPage() {
                   <td className="px-5 py-4">
                     <div className="space-y-1">
                       {s.topScorerPlayer ? (
-                        <span className="text-xs flex items-center gap-1.5"><Medal className="w-3 h-3 text-yellow-400 flex-shrink-0" />{s.topScorerPlayer.displayName || s.topScorerPlayer.username}</span>
+                        <span className="text-xs flex items-center gap-1.5"><TopScorerIcon size={12} className="flex-shrink-0" />{s.topScorerPlayer.displayName || s.topScorerPlayer.username}</span>
                       ) : null}
                       {s.ballonDorPlayer ? (
-                        <span className="text-xs flex items-center gap-1.5"><Award className="w-3 h-3 text-yellow-400 flex-shrink-0" />{s.ballonDorPlayer.displayName || s.ballonDorPlayer.username}</span>
+                        <span className="text-xs flex items-center gap-1.5"><BallonDorIcon size={12} className="flex-shrink-0" />{s.ballonDorPlayer.displayName || s.ballonDorPlayer.username}</span>
                       ) : null}
                       {!s.topScorerPlayer && !s.ballonDorPlayer && (
                         <span className="text-xs text-muted-foreground">No awards yet</span>

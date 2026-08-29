@@ -5,6 +5,7 @@ import { Trophy, Star, TrendingUp, TrendingDown, ArrowUpDown, ChevronsUpDown, Se
 import { useQuery } from "@tanstack/react-query";
 import { storageUrl } from "@/lib/api";
 import { marketValueLabel } from "@/lib/player-stats";
+import { BallonDorIcon, TopScorerIcon } from "@/components/award-icons";
 
 interface Season {
   id: number;
@@ -1074,7 +1075,7 @@ export default function RankingsPage() {
                 subtitle="Player of the Season"
                 seasonName={activeSeason?.name ?? ""}
                 winner={activeSeason?.ballonDorPlayer ?? null}
-                icon={<Trophy className="w-12 h-12 text-amber-400 fill-amber-400/40" />}
+                icon={<BallonDorIcon size={56} className="drop-shadow-[0_0_18px_rgba(251,191,36,0.8)]" />}
               />
             )}
             {tab === "topscorer" && (
@@ -1083,7 +1084,7 @@ export default function RankingsPage() {
                 subtitle="Golden Boot"
                 seasonName={activeSeason?.name ?? ""}
                 winner={activeSeason?.topScorerPlayer ?? null}
-                icon={<span className="text-5xl drop-shadow-[0_0_18px_rgba(251,191,36,0.8)]">⚽</span>}
+                icon={<TopScorerIcon size={56} className="drop-shadow-[0_0_18px_rgba(251,191,36,0.8)]" />}
               />
             )}
           </div>
