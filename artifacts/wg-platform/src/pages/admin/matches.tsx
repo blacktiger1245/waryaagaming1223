@@ -1237,6 +1237,10 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
 
   // ── Detect tournament type ────────────────────────────────────────────────
   const isTeamTournament = tournament.tournamentType === "team";
+  // Clan (team) tournaments are always two-stage: 1st Stage = table rounds
+  // (round robin), 2nd Stage = Knock-out bracket from the final table.
+  const isClanTwoStage = isTeamTournament;
+  const showStageTabs = isGroupKnockout || isClanTwoStage;
 
   // ── Detect group-stage mode ────────────────────────────────────────────────
   const isGroupStage =
@@ -1304,6 +1308,36 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
   }, [matches]);
   const sortedRounds = Object.keys(rounds).map(Number).sort((a, b) => a - b);
 
+  // ── Clan view: Stage 1 "table rounds" bucketed by round number ─────────────
+  const stage1Rounds = useMemo(() => {
+    const out: Record<number, Match[]> = {};
+    groupStageMatches.forEach((m) => { (out[m.round] ??= []).push(m); });
+    return out;
+  }, [groupStageMatches]);
+  const stage1RoundKeys = Object.keys(stage1Rounds).map(Number).sort((a, b) => a - b);
+
+  // ── Rename a whole round (all matches sharing the same round # + name) ─────
+  const [renamingRound, setRenamingRound] = useState(false);
+  async function renameRound(roundNum: number, rMatches: Match[]) {
+    const current = rMatches[0]?.roundName ?? `Matchday ${roundNum}`;
+    const name = window.prompt("Rename this round (applies to all matches in it):", current);
+    if (name == null || name.trim() === "" || name.trim() === current) return;
+    setRenamingRound(true);
+    try {
+      await Promise.all(
+        rMatches.map((m) =>
+          apiFetch(`/api/admin/matches/${m.id}`, { method: "PATCH", body: JSON.stringify({ roundName: name.trim() }) }),
+        ),
+      );
+      toast({ title: "Round renamed", description: `All ${rMatches.length} matches now use "${name.trim()}".` });
+      qc.invalidateQueries({ queryKey: ["admin-tournament-matches", tournament.id] });
+    } catch (err) {
+      toast({ title: "Rename failed", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setRenamingRound(false);
+    }
+  }
+
   // ── Knock-out view: group Stage 2 matches by round name, ordered by round ──
   const knockoutRoundGroups = useMemo(() => {
     const buckets: Record<string, Match[]> = {};
@@ -1357,9 +1391,9 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
             Seed Players
           </Button>
           <Button size="sm" variant="outline" className="gap-2 font-bold" onClick={() => setGenerateOpen(true)}>
-            <Sparkles className="w-4 h-4" /> Generate
+            <Sparkles className="w-4 h-4" /> {isTeamTournament ? "Generate Match (Clan Teams)" : "Generate"}
           </Button>
-          {isGroupKnockout && (
+          {(isGroupKnockout || isClanTwoStage) && (
             <Button
               size="sm"
               variant="outline"
@@ -1380,7 +1414,7 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
       {/* Stage / view tabs — Round Robin + Knock-out shows two clear stages */}
       {matches.length > 0 && (
         <div className="space-y-2">
-          {isGroupKnockout && (
+          {showStageTabs && (
             <div className="flex gap-1 p-1 rounded-xl bg-muted/40 border border-border w-fit">
               <button
                 onClick={() => setStageTab("group")}
@@ -1390,7 +1424,7 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <Users className="w-3.5 h-3.5" /> 1st Stage — Group Stage
+                <Users className="w-3.5 h-3.5" /> {isClanTwoStage ? "1st Stage — Table Rounds" : "1st Stage — Group Stage"}
               </button>
               <button
                 onClick={() => setStageTab("knockout")}
@@ -1466,6 +1500,7 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
       {/* ── TEAM TOURNAMENT: League table + matchday fixtures ── */}
       {isTeamTournament && !isLoading && (
         <div className="space-y-8">
+          {(!isClanTwoStage || stageTab === "group") && (<>
           {/* League Table */}
           <div>
             <div className="flex items-center justify-between mb-3">
@@ -1481,7 +1516,19 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
               <div className="text-center py-12 border border-dashed border-border rounded-xl text-muted-foreground">
                 <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-20" />
                 <p className="font-bold text-sm">No schedule yet</p>
-                <p className="text-xs mt-1">Click Generate to create the full league schedule.</p>
+                <p className="text-xs mt-1">
+                  {isClanTwoStage
+                    ? "Generate the 1st Stage table rounds — every clan plays every other clan."
+                    : "Click Generate to create the full league schedule."}
+                </p>
+                <Button
+                  size="sm"
+                  className="mt-4 gap-2 bg-blue-600 hover:bg-blue-500 text-white font-black"
+                  onClick={() => setGenerateOpen(true)}
+                  disabled={generateOpen}
+                >
+                  <Sparkles className="w-4 h-4" /> Generate Match (Clan Teams)
+                </Button>
               </div>
             ) : (
               <>
@@ -1561,8 +1608,16 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
                   return (
                     <div key={rNum} className="rounded-xl border border-border overflow-hidden">
                       <div className="flex items-center justify-between px-4 py-2 bg-muted/30 border-b border-border">
-                        <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">
+                        <span className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
                           {rMatches[0]?.roundName ?? `Matchday ${rNum}`}
+                          <button
+                            title="Rename this round"
+                            disabled={renamingRound}
+                            onClick={() => renameRound(rNum, rMatches)}
+                            className="text-muted-foreground/60 hover:text-primary transition-colors"
+                          >
+                            {renamingRound ? <Loader2 className="w-3 h-3 animate-spin" /> : <Pencil className="w-3 h-3" />}
+                          </button>
                         </span>
                         <span className="text-[10px] text-muted-foreground">
                           {rMatches.filter((m) => m.status === "completed").length}/{rMatches.length} played
@@ -1639,6 +1694,59 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
                   );
                 })}
               </div>
+            </div>
+          )}
+          </>)}
+
+          {/* ── 2nd Stage — Knock-out (clan) ── */}
+          {isClanTwoStage && stageTab === "knockout" && (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-5">
+                <h3 className="font-black text-amber-400 text-sm">2nd Stage — Knock-out</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Top clans from the 1st Stage table enter the Knock-out bracket. Edit any pairing with the pencil on each match — including undecided ones.
+                </p>
+              </div>
+              {knockoutMatches.length === 0 ? (
+                <div className="text-center py-12 border border-dashed border-border rounded-xl text-muted-foreground">
+                  <Swords className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                  <p className="font-bold text-sm">No knock-out bracket yet</p>
+                  <p className="text-xs mt-1">Play out the 1st Stage table rounds, then generate the bracket.</p>
+                  <Button
+                    size="sm"
+                    className="mt-4 gap-2 border-amber-500/40 text-amber-400 font-black"
+                    variant="outline"
+                    onClick={() => generateKnockout()}
+                    disabled={knockoutPending}
+                  >
+                    {knockoutPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                    {knockoutPending ? "Generating…" : "Generate Knock-out"}
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {knockoutRoundGroups.map(({ name, matches: koMatches }) => (
+                    <div key={name} className="rounded-xl border border-border overflow-hidden">
+                      <div className="flex items-center justify-between px-4 py-2 bg-muted/30 border-b border-border">
+                        <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">{name}</span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {koMatches.filter((m) => m.status === "completed").length}/{koMatches.length} played
+                        </span>
+                      </div>
+                      {koMatches.map((match) => (
+                        <ClanKnockoutRow
+                          key={match.id}
+                          match={match}
+                          teamLogoMap={teamLogoMap}
+                          onEdit={() => setEditing(match)}
+                          onDelete={() => { if (confirm("Delete this match?")) deleteMatch(match.id); }}
+                          onOpen={() => setPlayerGamesMatch(match)}
+                        />
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -2045,6 +2153,78 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
           existing={editing}
         />
       )}
+    </div>
+  );
+}
+
+// ── Clan Knock-out match row ───────────────────────────────────────────────────
+function ClanKnockoutRow({
+  match,
+  teamLogoMap,
+  onEdit,
+  onDelete,
+  onOpen,
+}: {
+  match: Match;
+  teamLogoMap: Record<string, string | null>;
+  onEdit: () => void;
+  onDelete: () => void;
+  onOpen: () => void;
+}) {
+  const logo1 = teamLogoMap[match.participant1Name ?? ""];
+  const logo2 = teamLogoMap[match.participant2Name ?? ""];
+  const p1Win = match.status === "completed" && match.winnerId === match.participant1Id;
+  const p2Win = match.status === "completed" && match.winnerId === match.participant2Id;
+  return (
+    <div
+      className="flex items-center gap-3 px-4 py-3 border-b border-border last:border-0 hover:bg-primary/5 cursor-pointer transition-colors"
+      onClick={onOpen}
+    >
+      <div className="flex-1 flex items-center justify-end gap-2.5">
+        <span className={`text-sm font-bold truncate text-right ${p1Win ? "text-emerald-400" : ""}`}>
+          {match.participant1Name ?? "TBD"}
+        </span>
+        {logo1 ? (
+          <img src={logo1} alt="" className={`w-8 h-8 rounded-full object-cover shrink-0 ring-2 ${p1Win ? "ring-emerald-500" : "ring-border"}`} />
+        ) : (
+          <div className={`w-8 h-8 rounded-full bg-muted border shrink-0 flex items-center justify-center text-[10px] font-black text-muted-foreground ${p1Win ? "border-emerald-500" : "border-border"}`}>
+            {(match.participant1Name ?? "?").charAt(0)}
+          </div>
+        )}
+      </div>
+      <div className="text-center min-w-[64px] shrink-0">
+        {match.status === "completed" ? (
+          <span className="font-mono font-black text-sm tabular-nums">
+            {match.participant1Score} – {match.participant2Score}
+          </span>
+        ) : match.status === "live" ? (
+          <span className="text-red-400 text-xs font-bold flex items-center gap-1 justify-center">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /> LIVE
+          </span>
+        ) : (
+          <span className="text-muted-foreground text-xs font-bold">vs</span>
+        )}
+      </div>
+      <div className="flex-1 flex items-center gap-2.5">
+        {logo2 ? (
+          <img src={logo2} alt="" className={`w-8 h-8 rounded-full object-cover shrink-0 ring-2 ${p2Win ? "ring-emerald-500" : "ring-border"}`} />
+        ) : (
+          <div className={`w-8 h-8 rounded-full bg-muted border shrink-0 flex items-center justify-center text-[10px] font-black text-muted-foreground ${p2Win ? "border-emerald-500" : "border-border"}`}>
+            {(match.participant2Name ?? "?").charAt(0)}
+          </div>
+        )}
+        <span className={`text-sm font-bold truncate ${p2Win ? "text-emerald-400" : ""}`}>
+          {match.participant2Name ?? "TBD"}
+        </span>
+      </div>
+      <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={onEdit}>
+          <Pencil className="w-3.5 h-3.5" />
+        </Button>
+        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={onDelete}>
+          <Trash2 className="w-3.5 h-3.5" />
+        </Button>
+      </div>
     </div>
   );
 }

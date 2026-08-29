@@ -1849,8 +1849,14 @@ router.post("/admin/tournaments/:id/generate-knockout", requireAdmin, async (req
     return res.json({ generated: inserted.length, alreadyGenerated: false, qualified: qualifiedList, matches: inserted });
   }
 
-  // ── Legacy round-robin-knockout path (kept; now also idempotent) ──────────
-  if (tournament.format === "round-robin-knockout") {
+  // ── Round-robin / clan-tournament path (kept; now also idempotent) ──────────
+  // Team (clan) tournaments always run Stage 1 as round-robin "table rounds",
+  // so they can always build a Stage 2 knockout from the final table.
+  if (
+    tournament.format === "round-robin-knockout" ||
+    tournament.format === "round-robin" ||
+    isTeamTournament
+  ) {
     const [existingKo] = await db
       .select({ id: matchesTable.id })
       .from(matchesTable)
