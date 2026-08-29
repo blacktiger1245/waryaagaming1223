@@ -1,5 +1,15 @@
 import { motion } from "framer-motion";
 import {
+  FaDiscord,
+  FaFacebook,
+  FaInstagram,
+  FaTelegram,
+  FaTiktok,
+  FaTwitch,
+  FaXTwitter,
+  FaYoutube,
+} from "react-icons/fa6";
+import {
   ArrowUpRight,
   ExternalLink,
   Gamepad2,
@@ -18,7 +28,67 @@ import {
 // WG logo ships with the app. The SFF logo is the EXACT file the owner supplies.
 const WG_LOGO = `${import.meta.env.BASE_URL}logo.jpg`;
 const SFF_LOGO = `${import.meta.env.BASE_URL}sff-logo.jpg`;
-const SFF_URL = "https://footballsomalia.so/";
+const SFF_URL = "https://essf.so/";
+
+// ── ESSF social links ─────────────────────────────────────────────────────────
+const ESSF_SOCIALS: { name: string; url: string; icon: React.ReactNode; color: string; glow: string }[] = [
+  {
+    name: "Facebook",
+    url: "https://www.facebook.com/ESSFofficials/",
+    icon: <FaFacebook className="h-6 w-6" />,
+    color: "text-[#1877F2]",
+    glow: "group-hover:shadow-[0_0_30px_-5px_rgba(24,119,242,0.8)] group-hover:border-[#1877F2]/60",
+  },
+  {
+    name: "Instagram",
+    url: "https://www.instagram.com/essfofficials",
+    icon: <FaInstagram className="h-6 w-6" />,
+    color: "text-[#E1306C]",
+    glow: "group-hover:shadow-[0_0_30px_-5px_rgba(225,48,108,0.8)] group-hover:border-[#E1306C]/60",
+  },
+  {
+    name: "YouTube",
+    url: "https://youtube.com/@essfofficials",
+    icon: <FaYoutube className="h-6 w-6" />,
+    color: "text-[#FF0000]",
+    glow: "group-hover:shadow-[0_0_30px_-5px_rgba(255,0,0,0.7)] group-hover:border-[#FF0000]/60",
+  },
+  {
+    name: "TikTok",
+    url: "https://www.tiktok.com/@essfofficials",
+    icon: <FaTiktok className="h-6 w-6" />,
+    color: "text-[#25F4EE]",
+    glow: "group-hover:shadow-[0_0_30px_-5px_rgba(37,244,238,0.7)] group-hover:border-[#25F4EE]/60",
+  },
+  {
+    name: "Discord",
+    url: "https://discord.com/invite/cwaeW3Bn5Q",
+    icon: <FaDiscord className="h-6 w-6" />,
+    color: "text-[#5865F2]",
+    glow: "group-hover:shadow-[0_0_30px_-5px_rgba(88,101,242,0.8)] group-hover:border-[#5865F2]/60",
+  },
+  {
+    name: "Telegram",
+    url: "https://t.me/essfofficials",
+    icon: <FaTelegram className="h-6 w-6" />,
+    color: "text-[#26A5E4]",
+    glow: "group-hover:shadow-[0_0_30px_-5px_rgba(38,165,228,0.8)] group-hover:border-[#26A5E4]/60",
+  },
+  {
+    name: "X (Twitter)",
+    url: "https://x.com/essfofficials",
+    icon: <FaXTwitter className="h-6 w-6" />,
+    color: "text-white",
+    glow: "group-hover:shadow-[0_0_30px_-5px_rgba(255,255,255,0.5)] group-hover:border-white/60",
+  },
+  {
+    name: "Twitch",
+    url: "https://www.twitch.tv/essfofficials",
+    icon: <FaTwitch className="h-6 w-6" />,
+    color: "text-[#9146FF]",
+    glow: "group-hover:shadow-[0_0_30px_-5px_rgba(145,70,255,0.8)] group-hover:border-[#9146FF]/60",
+  },
+];
 
 // ── Motion helpers ─────────────────────────────────────────────────────────────
 function FadeUp({
@@ -396,6 +466,50 @@ export default function PartnershipPage() {
           </div>
         </FadeUp>
 
+        {/* ── ESSF SOCIAL LINKS ── */}
+        <FadeUp delay={0.16} className="mt-16 text-center">
+          <p className="mb-2 flex items-center justify-center gap-3 text-[11px] font-bold uppercase tracking-[0.35em] text-teal-300">
+            <span className="h-px w-10 bg-teal-300/60" />
+            Follow the Federation
+            <span className="h-px w-10 bg-teal-300/60" />
+          </p>
+          <h3 className="text-2xl font-black uppercase tracking-tight text-white sm:text-3xl">
+            Esomali Sport Federation{" "}
+            <span className="bg-gradient-to-r from-teal-300 to-amber-300 bg-clip-text text-transparent">
+              Socials
+            </span>
+          </h3>
+          <p className="mx-auto mt-3 max-w-md text-sm text-zinc-400">
+            Stay connected with the federation everywhere — official channels below.
+          </p>
+
+          <div className="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-4 sm:gap-5">
+            {ESSF_SOCIALS.map((social, i) => (
+              <motion.a
+                key={social.name}
+                href={social.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Esomali Sport Federation on ${social.name}`}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.45, delay: 0.05 * i, ease: [0.22, 1, 0.36, 1] }}
+                className={`group relative flex flex-col items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-6 backdrop-blur transition-all duration-300 hover:-translate-y-1.5 hover:bg-white/[0.07] ${social.glow}`}
+              >
+                {/* decorative corner glow */}
+                <span className="pointer-events-none absolute -top-8 left-1/2 h-16 w-16 -translate-x-1/2 rounded-full bg-teal-300/10 blur-2xl transition-opacity duration-300 group-hover:opacity-100" />
+                <span className={`flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3 ${social.color}`}>
+                  {social.icon}
+                </span>
+                <span className="text-[11px] font-bold uppercase tracking-widest text-zinc-300 transition-colors group-hover:text-white">
+                  {social.name}
+                </span>
+              </motion.a>
+            ))}
+          </div>
+        </FadeUp>
+
         {/* Visit button */}
         <FadeUp delay={0.2} className="mt-12 text-center">
           <a
@@ -410,7 +524,7 @@ export default function PartnershipPage() {
           </a>
           <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-zinc-500">
             <Globe className="h-3.5 w-3.5 text-teal-300/70" />
-            This opens footballsomalia.so — the official SFF website, outside WG.
+            This opens essf.so — the official Esomali Sport Federation website, outside WG.
           </p>
         </FadeUp>
       </section>
