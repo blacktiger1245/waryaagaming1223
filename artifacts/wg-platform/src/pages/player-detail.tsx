@@ -3,7 +3,7 @@ import { useParams, Link } from "wouter";
 import { countryNameToFlag } from "@/lib/countries";
 import { motion } from "framer-motion";
 import {
-  ArrowLeft, Star, ScrollText, Fingerprint, Activity, Building2, Swords, BookOpen,
+  ArrowLeft, Star, ScrollText, Fingerprint, Activity, Building2, Swords, BookOpen, CreditCard,
   CalendarDays, MapPin, Droplets, Gamepad2, Shield, Trophy, Share2,
   TrendingUp, Zap, Target, ShieldCheck, Award, Coins, Handshake, XCircle, Square, User, BarChart2, Presentation,
 } from "lucide-react";
@@ -14,6 +14,7 @@ import { Progress } from "@/components/ui/progress";
 import { useGetPlayer, useGetPlayerMatchHistory } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
 import { marketValueLabel, pointsToMarketValue } from "@/lib/player-stats";
+import PlayerCard from "@/components/player-card";
 
 // Fetch individual player games inside team-tournament matches
 function usePlayerGames(playerId: number) {
@@ -74,6 +75,7 @@ const TABS = [
   { id: "club",     label: "Club",     icon: Building2 },
   { id: "solo",     label: "Solo",     icon: Swords },
   { id: "history",  label: "History",  icon: BookOpen },
+  { id: "card",     label: "Player Card", icon: CreditCard },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"] | "coach";
@@ -923,6 +925,13 @@ export default function PlayerDetailPage() {
             {activeTab === "solo"     && <SoloTab />}
             {activeTab === "coach"     && <CoachTab />}
             {activeTab === "history"  && <HistoryTab />}
+            {activeTab === "card"     && (
+              <PlayerCard
+                player={player}
+                overall={overall}
+                marketValue={marketValueLabel((player as any).marketValue ?? pointsToMarketValue(player.points ?? 0))}
+              />
+            )}
           </div>
         </div>
       </motion.div>
