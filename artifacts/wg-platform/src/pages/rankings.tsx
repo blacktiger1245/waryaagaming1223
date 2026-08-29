@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef } from "react";
 import { toPng } from "html-to-image";
+import html2canvas from "html2canvas-pro";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
 import { Trophy, Star, TrendingUp, TrendingDown, ArrowUpDown, ChevronsUpDown, Search, Shield, X, Minus, CalendarRange, ChevronDown } from "lucide-react";
@@ -71,10 +72,21 @@ function SeasonAwardCard({
 
       let dataUrl = "";
       try {
-        dataUrl = await toPng(node, { pixelRatio: 3, backgroundColor: "#141821", skipFonts: true });
+        // Primary engine: html2canvas-pro (direct canvas rasterization, handles modern CSS)
+        const canvas = await html2canvas(node, {
+          scale: 3,
+          backgroundColor: "#141821",
+          useCORS: true,
+          logging: false,
+        });
+        dataUrl = canvas.toDataURL("image/png");
       } catch {
-        // Retry with default settings in case skipFonts is the issue
-        dataUrl = await toPng(node, { pixelRatio: 2, backgroundColor: "#141821" });
+        // Fallback engine
+        try {
+          dataUrl = await toPng(node, { pixelRatio: 3, backgroundColor: "#141821", skipFonts: true });
+        } catch {
+          dataUrl = await toPng(node, { pixelRatio: 2, backgroundColor: "#141821" });
+        }
       }
 
       // Restore original sources
