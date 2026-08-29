@@ -181,6 +181,7 @@ export default function ClubCard({ team, stats }: ClubCardProps) {
           <Download className="w-4 h-4" />
           {downloading ? "Generating…" : "Download Club Card"}
         </Button>
+      </div>
 
       {/* Responsive preview container — card scales down, export stays full-size */}
       <div ref={wrapRef} className="w-full overflow-hidden" style={{ height: CARD_H * scale }}>
@@ -236,9 +237,6 @@ export default function ClubCard({ team, stats }: ClubCardProps) {
                 </div>
               </div>
             </div>
-
-      </div>
-
 
             {/* Name + tag + country */}
             <div style={{ textAlign: "center", marginTop: 24, position: "relative" }}>
