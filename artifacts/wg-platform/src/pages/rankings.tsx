@@ -10,6 +10,80 @@ interface Season {
   id: number;
   name: string;
   isCurrent: boolean;
+  topScorerPlayer?: { id: number; username: string; avatarUrl?: string | null } | null;
+  ballonDorPlayer?: { id: number; username: string; avatarUrl?: string | null } | null;
+}
+
+// ── SeasonAwardCard ────────────────────────────────────────────────────────────
+function SeasonAwardCard({
+  title, subtitle, seasonName, winner, icon,
+}: {
+  title: string;
+  subtitle: string;
+  seasonName: string;
+  winner: { id: number; username: string; avatarUrl?: string | null } | null;
+  icon: React.ReactNode;
+}) {
+  if (!winner) {
+    return (
+      <div className="max-w-md mx-auto rounded-2xl border border-border bg-card p-10 text-center mt-4">
+        <div className="w-16 h-16 mx-auto rounded-full bg-muted/40 flex items-center justify-center mb-4">
+          {icon}
+        </div>
+        <p className="font-black text-lg">No winner yet</p>
+        <p className="text-sm text-muted-foreground mt-1">
+          The {title} for {seasonName || "this season"} has not been awarded. Check back soon.
+        </p>
+      </div>
+    );
+  }
+  return (
+    <Link href={`/players/${winner.id}`}>
+      <motion.div
+        whileHover={{ y: -4, scale: 1.01 }}
+        className="relative max-w-md mx-auto mt-4 cursor-pointer rounded-3xl overflow-hidden border border-amber-400/40 bg-gradient-to-b from-[#1a1206] via-[#12100a] to-[#0a0a0a] shadow-[0_0_60px_-15px_rgba(251,191,36,0.5)]"
+      >
+        {/* glow orb */}
+        <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-72 h-72 rounded-full bg-amber-400/20 blur-[80px] pointer-events-none" />
+        <div className="relative px-8 pt-10 pb-8 flex flex-col items-center text-center">
+          {/* Icon */}
+          <div className="mb-5 drop-shadow-[0_0_20px_rgba(251,191,36,0.8)]">{icon}</div>
+
+          {/* Title */}
+          <p className="text-[11px] font-black uppercase tracking-[0.35em] text-amber-300/90">{subtitle}</p>
+          <h2 className="text-3xl font-black mt-1 bg-gradient-to-br from-amber-100 via-amber-300 to-yellow-600 bg-clip-text text-transparent">
+            {title}
+          </h2>
+          <p className="text-xs font-bold text-muted-foreground mt-1 flex items-center gap-1.5">
+            <CalendarRange className="w-3.5 h-3.5 text-amber-400" /> {seasonName || "Season"}
+          </p>
+
+          {/* Avatar */}
+          <div className="relative mt-6">
+            <div className="absolute -inset-1.5 rounded-full bg-gradient-to-br from-amber-200 via-amber-400 to-yellow-600 blur-[2px] opacity-80" />
+            <div className="relative w-32 h-32 rounded-full overflow-hidden ring-4 ring-amber-300/60 bg-zinc-900 flex items-center justify-center">
+              {winner.avatarUrl ? (
+                <img src={winner.avatarUrl} alt={winner.username} className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-4xl font-black text-amber-300">{winner.username?.charAt(0)?.toUpperCase() ?? "?"}</span>
+              )}
+            </div>
+            <div className="absolute -bottom-2 -right-2 w-9 h-9 rounded-full bg-gradient-to-br from-amber-200 via-amber-400 to-yellow-600 flex items-center justify-center shadow-lg ring-2 ring-black/40">
+              <Trophy className="w-5 h-5 text-black fill-black" />
+            </div>
+          </div>
+
+          {/* Player name */}
+          <p className="text-2xl font-black text-white mt-6 group-hover:text-amber-200 transition-colors">
+            {winner.username}
+          </p>
+          <span className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-[0.2em] text-black bg-gradient-to-r from-amber-300 to-yellow-500 rounded-full px-4 py-1.5">
+            <Star className="w-3.5 h-3.5 fill-black" /> View Profile
+          </span>
+        </div>
+      </motion.div>
+    </Link>
+  );
 }
 
 // ── TeamRankingsPanel ──────────────────────────────────────────────────────────
@@ -608,7 +682,7 @@ function StarRating({ wins, max = 5 }: { wins: number; max?: number }) {
 import { Skeleton } from "@/components/ui/skeleton";
 import { getPlayerRankings, useGetTeamRankings } from "@workspace/api-client-react";
 
-type Tab = "players" | "teams";
+type Tab = "players" | "teams" | "ballondor" | "topscorer";
 type Period = "all-time" | "monthly" | "weekly" | "seasonal";
 
 export default function RankingsPage() {
@@ -706,6 +780,8 @@ export default function RankingsPage() {
   const tabs = [
     { id: "players" as Tab, label: "Top Players" },
     { id: "teams" as Tab, label: "Top Teams" },
+    { id: "ballondor" as Tab, label: "Ballon d'Or" },
+    { id: "topscorer" as Tab, label: "Top Scorer" },
   ];
 
   return (
@@ -954,6 +1030,62 @@ export default function RankingsPage() {
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+
+        {/* Season Awards — Ballon d'Or & Top Scorer */}
+        {(tab === "ballondor" || tab === "topscorer") && (
+          <div>
+            {/* Season selector */}
+            <div className="flex items-center gap-3 mb-2">
+              <span className="text-sm font-bold text-muted-foreground flex items-center gap-1.5">
+                <CalendarRange className="w-4 h-4 text-amber-400" /> Season
+              </span>
+              <div className="relative">
+                <button
+                  onClick={() => setSeasonDropdownOpen((v) => !v)}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-amber-500/40 bg-card text-sm font-bold text-white hover:border-amber-400 transition-colors min-w-[160px]"
+                >
+                  <span className="flex-1 text-left truncate">
+                    {activeSeason ? `${activeSeason.name}${activeSeason.isCurrent ? " (Current)" : ""}` : "Select season"}
+                  </span>
+                  <ChevronDown className="w-4 h-4 text-amber-400 shrink-0" />
+                </button>
+                {seasonDropdownOpen && (
+                  <div className="absolute top-full mt-1 left-0 z-50 min-w-[200px] rounded-lg border border-amber-700/40 bg-card shadow-xl backdrop-blur overflow-hidden">
+                    {seasons.map((s) => (
+                      <button
+                        key={s.id}
+                        onClick={() => { setSelectedSeasonId(s.id); setSeasonDropdownOpen(false); }}
+                        className={`w-full px-3 py-2 text-sm text-left flex items-center justify-between hover:bg-muted transition-colors ${activeSeason?.id === s.id ? "text-amber-400 font-bold" : "text-muted-foreground"}`}
+                      >
+                        <span>{s.name}</span>
+                        {s.isCurrent && <span className="text-[10px] font-bold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded">Current</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {tab === "ballondor" && (
+              <SeasonAwardCard
+                title="Ballon d'Or"
+                subtitle="Player of the Season"
+                seasonName={activeSeason?.name ?? ""}
+                winner={activeSeason?.ballonDorPlayer ?? null}
+                icon={<Trophy className="w-12 h-12 text-amber-400 fill-amber-400/40" />}
+              />
+            )}
+            {tab === "topscorer" && (
+              <SeasonAwardCard
+                title="Top Scorer"
+                subtitle="Golden Boot"
+                seasonName={activeSeason?.name ?? ""}
+                winner={activeSeason?.topScorerPlayer ?? null}
+                icon={<span className="text-5xl drop-shadow-[0_0_18px_rgba(251,191,36,0.8)]">⚽</span>}
+              />
+            )}
           </div>
         )}
 
