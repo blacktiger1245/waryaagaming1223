@@ -1,6 +1,4 @@
 import { useState, useMemo, useRef } from "react";
-import { toPng } from "html-to-image";
-import html2canvas from "html2canvas-pro";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
 import { Trophy, Star, TrendingUp, TrendingDown, ArrowUpDown, ChevronsUpDown, Search, Shield, X, Minus, CalendarRange, ChevronDown } from "lucide-react";
@@ -44,6 +42,39 @@ function urlToDataUrl(url: string): Promise<string | null> {
   });
 }
 
+function loadImageFromSrc(src: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
+// Serialize a standalone inline SVG (gradients/clip-paths are internal, so this
+// renders reliably when drawn to canvas) to a data URL.
+function svgToDataUrl(svg: SVGSVGElement): string | null {
+  try {
+    const clone = svg.cloneNode(true) as SVGSVGElement;
+    clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    const xml = new XMLSerializer().serializeToString(clone);
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(xml)}`;
+  } catch {
+    return null;
+  }
+}
+
+function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
 function SeasonAwardCard({
   title, subtitle, seasonName, winner, icon, awardKey,
 }: {
@@ -59,57 +90,264 @@ function SeasonAwardCard({
 
   async function handleDownload() {
     const node = cardRef.current;
-    if (!node) return;
+    if (!node || downloading) return;
     setDownloading(true);
     try {
-      // Pre-embed every <img> as a data URL so the export can never come out empty.
-      const imgs = Array.from(node.querySelectorAll("img")) as HTMLImageElement[];
-      const originals = imgs.map((img) => img.src);
-      const embedded = await Promise.all(originals.map((src) => urlToDataUrl(src)));
-      imgs.forEach((img, i) => {
-        if (embedded[i]) img.src = embedded[i] as string;
-      });
+      const W = node.offsetWidth || 420;
+      const H = node.offsetHeight || 640;
+      const S = 3; // high-res export (1260 x ~1920)
 
-      let dataUrl = "";
-      // Primary engine: html-to-image toPng — the exact proven path the Player Card
-      // export uses successfully on this site (inline hex styles + data-URL images).
-      try {
-        dataUrl = await toPng(node, {
-          pixelRatio: 3,
-          backgroundColor: "#141821",
-          skipFonts: true,
-          width: node.offsetWidth,
-          height: node.offsetHeight,
-        });
-      } catch {
-        try {
-          dataUrl = await toPng(node, { pixelRatio: 3, backgroundColor: "#141821" });
-        } catch {
-          // Last-resort engine
-          const canvas = await html2canvas(node, {
-            scale: 3,
-            backgroundColor: "#141821",
-            useCORS: true,
-            logging: false,
-          });
-          dataUrl = canvas.toDataURL("image/png");
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(W * S);
+      canvas.height = Math.round(H * S);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("2d context unavailable");
+      ctx.scale(S, S);
+
+      // Live positions of every element, relative to the card — the canvas
+      // replica always matches what the user sees on screen.
+      const nodeRect = node.getBoundingClientRect();
+      const rel = (el: Element) => {
+        const r = el.getBoundingClientRect();
+        return { x: r.left - nodeRect.left, y: r.top - nodeRect.top, w: r.width, h: r.height };
+      };
+
+      // ── Background (replicates the card CSS) ──────────────────────────────
+      ctx.save();
+      roundRectPath(ctx, 0, 0, W, H, 24);
+      ctx.clip();
+      const lin = ctx.createLinearGradient(0, 0, 0, H);
+      lin.addColorStop(0, "#1B2230");
+      lin.addColorStop(0.38, "#232B3D");
+      lin.addColorStop(0.62, "#2E3446");
+      lin.addColorStop(1, "#191E2B");
+      ctx.fillStyle = lin;
+      ctx.fillRect(0, 0, W, H);
+      const radials: Array<[number, number, number, string, string]> = [
+        [0.18, 0.12, 0.45, "rgba(225,29,72,0.45)", "rgba(225,29,72,0)"],
+        [0.85, 0.18, 0.45, "rgba(0,102,255,0.50)", "rgba(0,102,255,0)"],
+        [0.78, 0.85, 0.45, "rgba(148,163,184,0.35)", "rgba(148,163,184,0)"],
+        [0.12, 0.88, 0.40, "rgba(255,255,255,0.14)", "rgba(255,255,255,0)"],
+      ];
+      for (const [fx, fy, rr, from, to] of radials) {
+        const cx = W * fx, cy = H * fy, r = W * rr;
+        const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+        g.addColorStop(0, from);
+        g.addColorStop(1, to);
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, W, H);
+      }
+      ctx.restore();
+      roundRectPath(ctx, 1, 1, W - 2, H - 2, 24);
+      ctx.strokeStyle = "#F5C542";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // ── Collect elements ──────────────────────────────────────────────────
+      const q = <T extends Element>(sel: string) => node.querySelector(sel) as T | null;
+      const textEls = (sel: string) => Array.from(node.querySelectorAll(sel));
+      const logoImgEl = q<HTMLImageElement>("img");
+      const brandEl = textEls("span").find((s) => s.textContent?.trim() === "Waryaa Gaming") ?? null;
+      const pillEl = textEls("span").find((s) => s.textContent?.trim() === "View Profile") ?? null;
+      const ps = textEls("p");
+      const subtitleEl = ps[0] ?? null;
+      const titleEl = q("h2");
+      const seasonEl = ps[1] ?? null;
+      const nameEl = ps.length > 2 ? ps[ps.length - 2] : null;
+      const footerEl = ps.length > 0 ? ps[ps.length - 1] : null;
+      const linkEl = q("a");
+      const avatarImgEl = linkEl?.querySelector("img") ?? null;
+      const initialEl = linkEl && !avatarImgEl ? linkEl.querySelector("span") : null;
+      const svgs = textEls("svg") as unknown as SVGSVGElement[];
+      const awardSvg = svgs[0] ?? null;
+      const trophySvg = svgs.length > 1 ? svgs[svgs.length - 1] : null;
+
+      // ── Divider lines ──────────────────────────────────────────────────────
+      for (const d of textEls("div")) {
+        const r = d.getBoundingClientRect();
+        if (r.height <= 4 && r.width > 120) {
+          const rr = rel(d);
+          const g = ctx.createLinearGradient(rr.x, 0, rr.x + rr.w, 0);
+          g.addColorStop(0, "rgba(245,197,66,0)");
+          g.addColorStop(0.5, "#F5C542");
+          g.addColorStop(1, "rgba(245,197,66,0)");
+          ctx.fillStyle = g;
+          ctx.fillRect(rr.x, rr.y, rr.w, Math.max(2, rr.h));
         }
       }
 
-      // Restore original sources
-      imgs.forEach((img, i) => {
-        img.src = originals[i];
-      });
-
-      if (dataUrl && dataUrl.length > 1000) {
-        const link = document.createElement("a");
-        const safeName = (winner?.username ?? title).replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "") || "winner";
-        link.download = `${safeName}-${awardKey}.png`;
-        link.href = dataUrl;
-        link.click();
+      // ── Text painter ──────────────────────────────────────────────────────
+      function drawText(el: Element, glow?: string) {
+        const c = ctx as CanvasRenderingContext2D;
+        const r = rel(el);
+        const cs = getComputedStyle(el);
+        c.save();
+        c.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+        c.fillStyle = cs.color;
+        c.textAlign = "center";
+        c.textBaseline = "middle";
+        try {
+          (c as unknown as { letterSpacing: string }).letterSpacing =
+            cs.letterSpacing === "normal" ? "0px" : cs.letterSpacing;
+        } catch { /* older browsers */ }
+        if (glow) {
+          c.shadowColor = glow;
+          c.shadowBlur = 18;
+        }
+        c.fillText(el.textContent?.trim() ?? "", r.x + r.w / 2, r.y + r.h / 2 + 1);
+        c.restore();
       }
-    } catch {
-      // export failed — nothing else to do here
+
+      if (brandEl) drawText(brandEl, "rgba(245,197,66,0.6)");
+      if (subtitleEl) drawText(subtitleEl);
+      if (titleEl) drawText(titleEl, "rgba(0,102,255,0.55)");
+      if (seasonEl) drawText(seasonEl);
+      if (nameEl) drawText(nameEl);
+      if (initialEl) drawText(initialEl);
+      if (footerEl) drawText(footerEl);
+
+      // ── WG logo, award icon, avatar, badge, pill ─────────────────────────
+      if (logoImgEl) {
+        const dataUrl = await urlToDataUrl(logoImgEl.src);
+        const img = dataUrl ? await loadImageFromSrc(dataUrl) : null;
+        const r = rel(logoImgEl);
+        if (img) {
+          // Recolor the logo to gold via source-in composite (works in all browsers,
+          // unlike ctx.filter) while preserving transparency.
+          const off = document.createElement("canvas");
+          off.width = img.naturalWidth || 64;
+          off.height = img.naturalHeight || 64;
+          const octx = off.getContext("2d");
+          if (octx) {
+            octx.drawImage(img, 0, 0);
+            octx.globalCompositeOperation = "source-in";
+            octx.fillStyle = "#F5C542";
+            octx.fillRect(0, 0, off.width, off.height);
+            const lw = r.h * (off.width / off.height || 1);
+            ctx.drawImage(off, r.x, r.y, lw, r.h);
+          }
+        } else {
+          ctx.fillStyle = "#F5C542";
+          ctx.font = "900 26px system-ui, sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText("WG", r.x + 20, r.y + r.h / 2);
+        }
+      }
+
+      if (awardSvg) {
+        const dataUrl = svgToDataUrl(awardSvg);
+        const img = dataUrl ? await loadImageFromSrc(dataUrl) : null;
+        const wrapper = awardSvg.parentElement ?? awardSvg;
+        const r = rel(wrapper);
+        const size = Math.min(r.w, r.h) || 56;
+        if (img) {
+          ctx.save();
+          ctx.shadowColor = "rgba(245,197,66,0.85)";
+          ctx.shadowBlur = 22;
+          ctx.drawImage(img, r.x + r.w / 2 - size / 2, r.y + r.h / 2 - size / 2, size, size);
+          ctx.restore();
+        }
+      }
+
+      if (linkEl) {
+        const avatarBox = avatarImgEl
+          ? avatarImgEl.parentElement
+          : initialEl?.parentElement ?? null;
+        if (avatarBox) {
+          const r = rel(avatarBox);
+          const cx = r.x + r.w / 2;
+          const cy = r.y + r.h / 2;
+          const radius = r.w / 2;
+          // Gold glow ring behind
+          ctx.save();
+          const gg = ctx.createRadialGradient(cx, cy, radius * 0.7, cx, cy, radius + 6);
+          gg.addColorStop(0, "rgba(245,197,66,0.85)");
+          gg.addColorStop(1, "rgba(245,197,66,0)");
+          ctx.fillStyle = gg;
+          ctx.beginPath();
+          ctx.arc(cx, cy, radius + 6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+          // Avatar image or dark base
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(cx, cy, radius - 4, 0, Math.PI * 2);
+          ctx.clip();
+          ctx.fillStyle = "#101010";
+          ctx.fillRect(r.x, r.y, r.w, r.h);
+          if (avatarImgEl) {
+            const dataUrl = await urlToDataUrl(avatarImgEl.src);
+            const img = dataUrl ? await loadImageFromSrc(dataUrl) : null;
+            if (img) ctx.drawImage(img, r.x, r.y, r.w, r.h);
+          }
+          ctx.restore();
+          // Gold border ring
+          ctx.beginPath();
+          ctx.arc(cx, cy, radius - 2, 0, Math.PI * 2);
+          ctx.strokeStyle = "#F5C542";
+          ctx.lineWidth = 4;
+          ctx.stroke();
+        }
+
+        // Trophy badge
+        const badgeEl = trophySvg ? trophySvg.parentElement : null;
+        if (badgeEl) {
+          const r = rel(badgeEl);
+          const cx = r.x + r.w / 2;
+          const cy = r.y + r.h / 2;
+          const g = ctx.createLinearGradient(r.x, r.y, r.x + r.w, r.y + r.h);
+          g.addColorStop(0, "#FFF3C4");
+          g.addColorStop(0.45, "#F5C542");
+          g.addColorStop(1, "#B8860B");
+          ctx.save();
+          ctx.shadowColor = "rgba(0,0,0,0.5)";
+          ctx.shadowBlur = 12;
+          ctx.shadowOffsetY = 4;
+          ctx.beginPath();
+          ctx.arc(cx, cy, r.w / 2, 0, Math.PI * 2);
+          ctx.fillStyle = g;
+          ctx.fill();
+          ctx.restore();
+          if (trophySvg) {
+            const dataUrl = svgToDataUrl(trophySvg);
+            const img = dataUrl ? await loadImageFromSrc(dataUrl) : null;
+            if (img) ctx.drawImage(img, r.x + 8, r.y + 8, r.w - 16, r.h - 16);
+          }
+        }
+      }
+
+      // View Profile pill (gradient background + black text)
+      if (pillEl) {
+        const r = rel(pillEl);
+        const g = ctx.createLinearGradient(r.x, 0, r.x + r.w, 0);
+        g.addColorStop(0, "#F5C542");
+        g.addColorStop(1, "#D4A017");
+        roundRectPath(ctx, r.x, r.y, r.w, r.h, r.h / 2);
+        ctx.fillStyle = g;
+        ctx.fill();
+        const cs = getComputedStyle(pillEl);
+        ctx.save();
+        ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = cs.color;
+        try {
+          (ctx as unknown as { letterSpacing: string }).letterSpacing =
+            cs.letterSpacing === "normal" ? "0px" : cs.letterSpacing;
+        } catch { /* older browsers */ }
+        ctx.fillText(pillEl.textContent?.trim() ?? "", r.x + r.w / 2, r.y + r.h / 2 + 1);
+        ctx.restore();
+      }
+
+      const dataUrl2 = canvas.toDataURL("image/png");
+      const link = document.createElement("a");
+      const safeName = (winner?.username ?? title).replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "") || "winner";
+      link.download = `${safeName}-${awardKey}.png`;
+      link.href = dataUrl2;
+      link.click();
+    } catch (err) {
+      console.error("Award card export failed:", err);
     } finally {
       setDownloading(false);
     }
