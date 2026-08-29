@@ -71,21 +71,28 @@ function SeasonAwardCard({
       });
 
       let dataUrl = "";
+      // Primary engine: html-to-image toPng — the exact proven path the Player Card
+      // export uses successfully on this site (inline hex styles + data-URL images).
       try {
-        // Primary engine: html2canvas-pro (direct canvas rasterization, handles modern CSS)
-        const canvas = await html2canvas(node, {
-          scale: 3,
+        dataUrl = await toPng(node, {
+          pixelRatio: 3,
           backgroundColor: "#141821",
-          useCORS: true,
-          logging: false,
+          skipFonts: true,
+          width: node.offsetWidth,
+          height: node.offsetHeight,
         });
-        dataUrl = canvas.toDataURL("image/png");
       } catch {
-        // Fallback engine
         try {
-          dataUrl = await toPng(node, { pixelRatio: 3, backgroundColor: "#141821", skipFonts: true });
+          dataUrl = await toPng(node, { pixelRatio: 3, backgroundColor: "#141821" });
         } catch {
-          dataUrl = await toPng(node, { pixelRatio: 2, backgroundColor: "#141821" });
+          // Last-resort engine
+          const canvas = await html2canvas(node, {
+            scale: 3,
+            backgroundColor: "#141821",
+            useCORS: true,
+            logging: false,
+          });
+          dataUrl = canvas.toDataURL("image/png");
         }
       }
 
