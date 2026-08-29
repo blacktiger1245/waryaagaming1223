@@ -25,6 +25,7 @@ import MediaHubPage from "@/pages/media-hub";
 import LivePage from "@/pages/live";
 import WatchPage from "@/pages/watch";
 import ComingSoonPage from "@/pages/coming-soon";
+import AcademyPage from "@/pages/academy";
 import PartnershipPage from "@/pages/partnership";
 import MarketplacePage from "@/pages/marketplace";
 import AgentMessagesPage from "@/pages/agent-messages";
@@ -155,7 +156,7 @@ function Router() {
       <Route path="/referee" component={RefereeHome} />
       <Route path="/referee/matches" component={RefereeMatchesPage} />
       <Route path="/academy">
-        <ComingSoonPage section="WG Academy" />
+        <AcademyPage />
       </Route>
       <Route>
         <SiteRouter />

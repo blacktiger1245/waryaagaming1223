@@ -6,6 +6,7 @@ import connectPgSimple from "connect-pg-simple";
 import router from "./routes";
 import authRouter from "./routes/auth";
 import adminRouter from "./routes/admin";
+import academyRouter from "./routes/academy";
 import { logger } from "./lib/logger";
 import { banCheck } from "./middleware/ban-check";
 
@@ -123,6 +124,7 @@ app.use(API_PREFIX, banCheck);
 
 app.use(API_PREFIX, authRouter);
 app.use(API_PREFIX, adminRouter);
+app.use(API_PREFIX, academyRouter);
 app.use(API_PREFIX, router);
 
 // Also expose the plain (unprefixed) /auth/discord, /auth/discord/callback,

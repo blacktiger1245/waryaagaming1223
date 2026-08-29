@@ -10,7 +10,24 @@ const appBasePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
 export function apiUrl(path: string): string {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return `${configuredApiOrigin ?? appBasePath}${normalizedPath}`;
+  // Routed through nginx on the same origin in production; VITE_API_URL wins if set.
+  return `${configuredApiOrigin ?? ""}${appBasePath === "" ? "" : appBasePath}${normalizedPath}`;
+}
+
+// Convenience JSON fetch wrapper used by admin pages: throws on non-2xx with the
+// server's error message, returns parsed JSON otherwise.
+export async function apiFetch<T = unknown>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(apiUrl(path), {
+    credentials: "include",
+    ...init,
+    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    const message = (data as { error?: string } | null)?.error ?? `Request failed (${res.status})`;
+    throw new Error(message);
+  }
+  return data as T;
 }
 
 export function storageUrl(objectPath: string | null | undefined): string | undefined {
