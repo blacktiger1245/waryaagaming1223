@@ -82,19 +82,20 @@ function ImageDropzone({
       }
       setUploading(true);
       try {
-        const { uploadURL, objectPath } = await api<{ uploadURL: string; objectPath: string }>(
-          `${BASE}/api/storage/uploads/news-image`,
-          {
-            method: "POST",
-            body: JSON.stringify({ name: file.name, size: file.size, contentType: file.type }),
-          },
-        );
-        await fetch(uploadURL, {
-          method: "PUT",
+        // Upload through the API (server→R2) so the browser never talks to the
+        // bucket directly — avoids CORS "Failed to fetch" on hosts where the
+        // bucket does not expose PUT to the browser.
+        const res = await fetch(`${BASE}/api/storage/uploads/news-image/direct`, {
+          method: "POST",
+          credentials: "include",
           headers: { "Content-Type": file.type },
           body: file,
         });
-        const publicUrl = `${BASE}/api/storage/objects/${objectPath.replace(/^\/objects\//, "")}`;
+        const data = (await res.json().catch(() => ({}))) as { objectPath?: string; error?: string };
+        if (!res.ok || !data.objectPath) {
+          throw new Error(data.error ?? "Upload failed");
+        }
+        const publicUrl = `${BASE}/api/storage/objects/${data.objectPath.replace(/^\/objects\//, "")}`;
         setPreview(publicUrl);
         onChange(publicUrl);
         toast({ title: "Image uploaded" });

@@ -99,6 +99,41 @@ router.post(
   },
 );
 /**
+ * POST /storage/uploads/news-image/direct
+ *
+ * Upload a news article image through the API (server→R2) so the browser
+ * never talks to the bucket directly (avoids bucket CORS requirements).
+ * Only accessible to admins/owners — mirrors /storage/uploads/news-image.
+ */
+router.post(
+  '/storage/uploads/news-image/direct',
+  async (req: Request, res: Response) => {
+    if (!isAdmin(req)) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      res.status(400).json({ error: 'An image file is required' });
+      return;
+    }
+
+    const contentType = req.get('content-type') || 'application/octet-stream';
+    if (!contentType.startsWith('image/')) {
+      res.status(400).json({ error: 'Only image uploads are supported' });
+      return;
+    }
+
+    try {
+      const objectPath = await objectStorageService.uploadObject(req.body, contentType);
+      return res.status(201).json({ objectPath });
+    } catch (error) {
+      req.log.error({ err: error }, 'Error uploading news image through API');
+      return res.status(500).json({ error: 'Failed to upload news image' });
+    }
+  },
+);
+/**
  * POST /storage/uploads/community-media/direct
  *
  * Upload a community post image/video through the API so the browser never
