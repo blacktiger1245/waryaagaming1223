@@ -6,6 +6,7 @@ import {
   agentMessagesTable,
   teamsTable,
   playerTransfersTable,
+  seasonsTable,
 } from "@workspace/db";
 import {
   eq,
@@ -61,6 +62,8 @@ interface WgInvitePayload {
   teamId: number;
   teamName: string;
   presidentName: string;
+  /** Contract length in seasons offered with this invitation (1 or 2). */
+  seasons: number;
 }
 
 interface WgInviteResultPayload {
@@ -505,12 +508,21 @@ router.post("/agent-chat/conversations/:id/invite", async (req: Request, res: Re
     .where(eq(playersTable.id, me));
   const presidentName = meRow?.displayName ?? meRow?.username ?? me.toString();
 
+  // The President/Coach must choose the contract length (1 or 2 seasons).
+  const rawSeasons = (req.body as { seasons?: unknown })?.seasons;
+  const seasons = typeof rawSeasons === "string" ? Number(rawSeasons) : rawSeasons;
+  if (seasons !== 1 && seasons !== 2) {
+    res.status(400).json({ error: "You must select a contract length of 1 or 2 seasons" });
+    return;
+  }
+
   const payload: WgInvitePayload = {
     kind: "wg_invite",
     inviteId: -1,
     teamId: leader.teamId,
     teamName: leader.teamName,
     presidentName,
+    seasons,
   };
 
   const [inserted] = await db
@@ -600,6 +612,23 @@ router.post("/agent-chat/invites/:messageId/respond", async (req: Request, res: 
     await db
       .insert(playerTransfersTable)
       .values({ playerId: me, fromTeamId: null, toTeamId: sys.teamId });
+
+    // Sign the contract: record the offered length and the season it was
+    // signed in. Each time an admin ends the current season the remaining
+    // count is decremented; at 0 the player becomes a free agent again.
+    const [currentSeason] = await db
+      .select({ id: seasonsTable.id })
+      .from(seasonsTable)
+      .where(eq(seasonsTable.isCurrent, true))
+      .limit(1);
+    await db
+      .update(playersTable)
+      .set({
+        contractSeasons: sys.seasons,
+        contractSeasonsLeft: sys.seasons,
+        contractSignedSeasonId: currentSeason?.id ?? null,
+      })
+      .where(eq(playersTable.id, me));
   }
 
   const [meRow] = await db

@@ -131,6 +131,10 @@ function InviteCard({
           <p className="text-[#eaf0ff]">
             Do you agree to join my team <span className="font-bold text-[#5aa2ff]">{invite.teamName}</span>?
           </p>
+          <p className="mt-1 text-xs text-[#ffd66e]">
+            Contract offer: <span className="font-bold">{invite.seasons ?? 1} season{(invite.seasons ?? 1) > 1 ? "s" : ""}</span> — the
+            contract expires after that many seasons.
+          </p>
           {isAgentSide ? (
             <div className="mt-2.5 flex gap-2">
               <button
@@ -221,6 +225,7 @@ export function ChatPane({
   const [sendError, setSendError] = useState(false);
   const [channel, setChannel] = useState<AgentChannelContext | null>(null);
   const [inviting, setInviting] = useState(false);
+  const [inviteSeasons, setInviteSeasons] = useState<1 | 2>(1);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [respondingId, setRespondingId] = useState<number | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -300,7 +305,7 @@ export function ChatPane({
     setInviting(true);
     setInviteError(null);
     try {
-      await sendTeamInvite(conversationId);
+      await sendTeamInvite(conversationId, inviteSeasons);
       const data = await fetchConversationMessages(conversationId);
       setThread(data);
     } catch (err) {
@@ -410,11 +415,24 @@ export function ChatPane({
             className="h-11 flex-1 rounded-xl border border-[#22345c] bg-[#0a1428] px-4 text-sm text-[#eef3ff] placeholder:text-[#5d7195] outline-none transition-colors focus:border-[#3b6fe0]"
           />
           {canInvite && (
+            <select
+              value={inviteSeasons}
+              onChange={(event) => setInviteSeasons(Number(event.target.value) === 2 ? 2 : 1)}
+              disabled={inviting || sending}
+              title="Contract length (seasons) for the invitation"
+              aria-label="Contract length in seasons"
+              className="h-11 shrink-0 rounded-xl border border-[#2a3f6b] bg-[#14223f] px-2 text-xs font-bold text-[#8fc0ff] outline-none transition-colors hover:bg-[#1a2c50] disabled:opacity-40"
+            >
+              <option value={1}>1 season</option>
+              <option value={2}>2 seasons</option>
+            </select>
+          )}
+          {canInvite && (
             <button
               type="button"
               onClick={sendInvite}
               disabled={inviting || sending}
-              title={`Invite to join ${channel?.teamName ?? "my team"}`}
+              title={`Invite to join ${channel?.teamName ?? "my team"} (${inviteSeasons} season contract)`}
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#2a3f6b] bg-[#14223f] text-[#5aa2ff] transition-colors hover:bg-[#1a2c50] hover:text-[#8fc0ff] disabled:cursor-not-allowed disabled:opacity-40"
               aria-label="Invite to join my team"
             >

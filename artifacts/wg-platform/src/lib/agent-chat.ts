@@ -62,6 +62,8 @@ export interface WgInvitePayload {
   teamId: number;
   teamName: string;
   presidentName: string;
+  /** Contract length in seasons offered with this invitation (1 or 2). */
+  seasons: number;
 }
 
 export interface WgInviteResultPayload {
@@ -101,10 +103,10 @@ export function fetchAgentChannelContext(): Promise<AgentChannelContext> {
 }
 
 /** Post a team invitation as the player side (President/Coach). */
-export function sendTeamInvite(conversationId: number): Promise<{ id: number; sys: WgInvitePayload }> {
+export function sendTeamInvite(conversationId: number, seasons: 1 | 2): Promise<{ id: number; sys: WgInvitePayload }> {
   return chatRequest(`/api/agent-chat/conversations/${conversationId}/invite`, {
     method: "POST",
-    body: JSON.stringify({}),
+    body: JSON.stringify({ seasons }),
   });
 }
 

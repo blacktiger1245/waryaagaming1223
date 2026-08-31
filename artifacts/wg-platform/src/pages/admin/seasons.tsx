@@ -305,6 +305,25 @@ export default function AdminSeasonsPage() {
     onError: (err) => toast({ title: "Failed to delete", description: (err as Error).message, variant: "destructive" }),
   });
 
+  const endSeasonMutation = useMutation({
+    mutationFn: (id: number) =>
+      apiFetch<{ ok: boolean; endedSeason: string; releasedCount: number; released: string[] }>(
+        `/api/admin/seasons/${id}/end`,
+        { method: "POST" },
+      ),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["admin", "seasons"] });
+      toast({
+        title: `Season "${data.endedSeason}" ended`,
+        description:
+          data.releasedCount > 0
+            ? `${data.releasedCount} player contract(s) expired and the players are now free agents.`
+            : "No player contracts expired this season.",
+      });
+    },
+    onError: (err) => toast({ title: "Failed to end season", description: (err as Error).message, variant: "destructive" }),
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -403,6 +422,21 @@ export default function AdminSeasonsPage() {
                       >
                         <Award className="w-3 h-3" /> Awards
                       </Button>
+                      {s.isCurrent && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs gap-1 border-orange-500/50 text-orange-400 hover:bg-orange-500/10 hover:text-orange-300"
+                          onClick={() => {
+                            if (confirm(`End season "${s.name}"? All 1-season contracts will expire and those players will become free agents. 2-season contracts will move to their final season.`)) {
+                              endSeasonMutation.mutate(s.id);
+                            }
+                          }}
+                          disabled={endSeasonMutation.isPending}
+                        >
+                          <CalendarRange className="w-3 h-3" /> End Season
+                        </Button>
+                      )}
                       {!s.isCurrent && (
                         <Button
                           size="sm"

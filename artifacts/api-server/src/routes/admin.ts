@@ -14,6 +14,7 @@ import {
   seasonsTable,
   tournamentAdminsTable,
   teamMemberDevicesTable,
+  playerTransfersTable,
   playerPoints,
   pointsToMarketValue,
 } from "@workspace/db";
@@ -771,6 +772,58 @@ router.delete("/admin/seasons/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   await db.delete(seasonsTable).where(eq(seasonsTable.id, id));
   return res.json({ ok: true });
+});
+
+// ── POST /admin/seasons/:id/end — end the season ─────────────────────────────
+// Marks the season as no longer current and processes player contracts:
+// every contracted player has their remaining seasons decremented by 1.
+// Players whose contract reaches 0 are released and become free agents.
+router.post("/admin/seasons/:id/end", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: "Invalid season id" });
+
+  const [season] = await db.select().from(seasonsTable).where(eq(seasonsTable.id, id));
+  if (!season) return res.status(404).json({ error: "Season not found" });
+
+  // Find contracted players whose contract expires with this season.
+  const expiring = await db
+    .select({ id: playersTable.id, teamId: playersTable.teamId, username: playersTable.username, displayName: playersTable.displayName })
+    .from(playersTable)
+    .where(eq(playersTable.contractSeasonsLeft, 1));
+
+  // Decrement remaining seasons for every contracted player (never below 0).
+  await db
+    .update(playersTable)
+    .set({ contractSeasonsLeft: sql`GREATEST(${playersTable.contractSeasonsLeft} - 1, 0)` })
+    .where(sql`${playersTable.contractSeasonsLeft} IS NOT NULL`);
+
+  // Release players whose contract has fully expired.
+  if (expiring.length > 0) {
+    const expiredIds = expiring.map((p) => p.id);
+    await db
+      .update(playersTable)
+      .set({
+        teamId: null,
+        isFreeAgent: true,
+        contractSeasons: null,
+        contractSeasonsLeft: null,
+        contractSignedSeasonId: null,
+      })
+      .where(inArray(playersTable.id, expiredIds));
+    await db.insert(playerTransfersTable).values(
+      expiring.map((p) => ({ playerId: p.id, fromTeamId: p.teamId, toTeamId: null })),
+    );
+  }
+
+  // Mark the season as ended (no longer current).
+  await db.update(seasonsTable).set({ isCurrent: false }).where(eq(seasonsTable.id, id));
+
+  return res.json({
+    ok: true,
+    endedSeason: season.name,
+    releasedCount: expiring.length,
+    released: expiring.map((p) => p.displayName ?? p.username),
+  });
 });
 
 // ── POST /admin/tournaments — custom create with team auto-enroll ─────────────

@@ -32,6 +32,12 @@ export const playersTable = pgTable("players", {
   redCards: integer("red_cards").notNull().default(0),
   gamingDevice: text("gaming_device"),
   coinBalance: integer("coin_balance").notNull().default(0),
+  // Player contract: number of seasons signed for (1 or 2) and how many remain.
+  // When `contract_seasons_left` reaches 0 (admin ends the season), the player
+  // is automatically released back to free agency.
+  contractSeasons: integer("contract_seasons"),
+  contractSeasonsLeft: integer("contract_seasons_left"),
+  contractSignedSeasonId: integer("contract_signed_season_id"),
   deviceName: text("device_name"),
   konamiId: text("konami_id"),
   bloodGroup: text("blood_group"),
