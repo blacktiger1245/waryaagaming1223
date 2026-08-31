@@ -31,6 +31,7 @@ export const playersTable = pgTable("players", {
   yellowCards: integer("yellow_cards").notNull().default(0),
   redCards: integer("red_cards").notNull().default(0),
   gamingDevice: text("gaming_device"),
+  coinBalance: integer("coin_balance").notNull().default(0),
   deviceName: text("device_name"),
   konamiId: text("konami_id"),
   bloodGroup: text("blood_group"),

@@ -25,6 +25,7 @@ import MediaHubPage from "@/pages/media-hub";
 import LivePage from "@/pages/live";
 import WatchPage from "@/pages/watch";
 import ComingSoonPage from "@/pages/coming-soon";
+import BuyCoinsPage from "@/pages/buy-coins";
 import AcademyPage from "@/pages/academy";
 import PartnershipPage from "@/pages/partnership";
 import MarketplacePage from "@/pages/marketplace";
@@ -107,6 +108,7 @@ function SiteRouter() {
         <Route path="/referees" component={RefereesPage} />
         <Route path="/partners" component={PartnershipPage} />
         <Route path="/partnership" component={PartnershipPage} />
+        <Route path="/buy-coins" component={BuyCoinsPage} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

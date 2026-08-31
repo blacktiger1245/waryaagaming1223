@@ -20,6 +20,7 @@ import supportAdminRouter from "./support-admin";
 import adsRouter from "./ads";
 import hallOfFameRouter from "./hall-of-fame";
 import liveRouter from "./live";
+import coinsRouter from "./coins";
 
 const router: IRouter = Router();
 
@@ -44,6 +45,7 @@ router.use(supportAdminRouter);
 router.use(adsRouter);
 router.use(hallOfFameRouter);
 router.use(liveRouter);
+router.use(coinsRouter);
 // Note: auth routes are mounted directly in app.ts
 
 export default router;
