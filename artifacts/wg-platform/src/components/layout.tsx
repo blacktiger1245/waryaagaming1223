@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
+import type { LucideIcon } from "lucide-react";
 import {
   Trophy,
   Users,
@@ -12,7 +13,6 @@ import {
   LogOut,
   ChevronDown,
   Home,
-  GraduationCap,
   Handshake,
   ShoppingBag,
   LayoutDashboard,
@@ -37,7 +37,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { user, isLoading, isLoggedIn, loginWithDiscord, logout } = useAuth();
   const pageKey = location.split("/").filter(Boolean)[0] || "home";
 
-  const navLinks = [
+  type NavLink = { href: string; label: string; icon?: LucideIcon; live?: boolean; logo?: boolean };
+  const navLinks: NavLink[] = [
     { href: "/", label: "Home", icon: Home },
     { href: "/tournaments", label: "Tournaments", icon: Trophy },
     { href: "/players", label: "Players", icon: Users },
@@ -49,7 +50,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/media-hub", label: "Media Hub", icon: Clapperboard },
     { href: "/community", label: "Community", icon: MessageSquare },
     { href: "/live", label: "Live", icon: Radio, live: true },
-    { href: "/academy", label: "WG Academy", icon: GraduationCap },
+    { href: "/academy", label: "WG Academy", logo: true },
     { href: "/partners", label: "Partners", icon: Handshake },
     { href: "/marketplace", label: "Transfer Market", icon: ShoppingBag },
     { href: "/support", label: "Support", icon: LifeBuoy },
@@ -112,9 +113,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   <span className="relative flex items-center justify-center w-4 h-4">
                     <span className="w-2 h-2 rounded-full bg-pink-accent live-pulse" />
                   </span>
-                ) : (
+                ) : link.logo ? (
+                  <img src={`${import.meta.env.BASE_URL}logo.jpg`} alt="" className="w-4 h-4 rounded-sm object-cover" />
+                ) : Icon ? (
                   <Icon className="w-4 h-4" />
-                )}
+                ) : null}
                 {link.label}
               </Link>
             );

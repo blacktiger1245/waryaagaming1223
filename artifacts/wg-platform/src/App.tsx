@@ -109,6 +109,7 @@ function SiteRouter() {
         <Route path="/partners" component={PartnershipPage} />
         <Route path="/partnership" component={PartnershipPage} />
         <Route path="/buy-coins" component={BuyCoinsPage} />
+        <Route path="/academy" component={AcademyPage} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
@@ -157,9 +158,6 @@ function Router() {
       <Route path="/admin/*" component={AdminRouter} />
       <Route path="/referee" component={RefereeHome} />
       <Route path="/referee/matches" component={RefereeMatchesPage} />
-      <Route path="/academy">
-        <AcademyPage />
-      </Route>
       <Route>
         <SiteRouter />
       </Route>

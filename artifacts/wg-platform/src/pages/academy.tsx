@@ -1,7 +1,7 @@
 ﻿import { useState, useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  GraduationCap, Pencil, Trash2, Plus, Loader2, Save, X, Eye, EyeOff,
+  Pencil, Trash2, Plus, Loader2, Save, X, Eye, EyeOff,
   Lightbulb, BookOpen, UserRound, Search, Upload, Image as ImageIcon, Timer,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
@@ -382,9 +382,11 @@ export default function AcademyPage() {
 
       <div className="relative mx-auto w-full max-w-5xl">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl border border-cyan-400/25 bg-gradient-to-br from-cyan-500/20 to-blue-700/25">
-            <GraduationCap className="h-8 w-8 text-cyan-400" strokeWidth={1.8} />
-          </div>
+          <img
+            src={`${import.meta.env.BASE_URL}logo.jpg`}
+            alt="WG Academy"
+            className="mx-auto mb-5 h-16 w-16 rounded-2xl border border-cyan-400/25 object-cover glow-primary"
+          />
           <h1 className="text-3xl font-black tracking-tight sm:text-4xl">WG Academy</h1>
           <p className="mt-2 text-sm text-slate-400">Training, tips and guides from the Waryaa Gaming team</p>
         </div>
