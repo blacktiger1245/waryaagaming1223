@@ -13,6 +13,7 @@ import TournamentsPage from "@/pages/tournaments";
 import TournamentDetailPage from "@/pages/tournament-detail";
 import PlayersPage from "@/pages/players";
 import PlayerDetailPage from "@/pages/player-detail";
+import MessagesPage from "@/pages/messages";
 import PlayerHistoryPage from "@/pages/player-history";
 import TeamsPage from "@/pages/teams";
 import TeamDetailPage from "@/pages/team-detail";
@@ -103,6 +104,7 @@ function SiteRouter() {
         <Route path="/compare" component={ComparePage} />
         <Route path="/dashboard" component={DashboardPage} />
         <Route path="/community" component={CommunityPage} />
+        <Route path="/messages" component={MessagesPage} />
         <Route path="/support" component={SupportPage} />
         <Route path="/support/tickets/:id" component={SupportTicketPage} />
         <Route path="/referees" component={RefereesPage} />

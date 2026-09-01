@@ -1,4 +1,7 @@
 import { useState, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { social } from "@/lib/social";
+import { useAuth } from "@/hooks/use-auth";
 import { useParams, Link } from "wouter";
 import { countryNameToFlagUrl } from "@/lib/countries";
 import { motion } from "framer-motion";
@@ -6,13 +9,13 @@ import {
   ArrowLeft, Star, ScrollText, Fingerprint, Activity, Building2, Swords, BookOpen, CreditCard,
   CalendarDays, MapPin, Droplets, Gamepad2, Shield, Trophy, Share2,
   TrendingUp, Zap, Target, ShieldCheck, Award, Coins, Handshake, XCircle, Square, User, BarChart2, Presentation, Medal,
+  UserPlus, UserCheck, MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { useGetPlayer, useGetPlayerMatchHistory } from "@workspace/api-client-react";
-import { useQuery } from "@tanstack/react-query";
 import { marketValueLabel, pointsToMarketValue } from "@/lib/player-stats";
 import PlayerCard from "@/components/player-card";
 import { BallonDorIcon, TopScorerIcon } from "@/components/award-icons";
@@ -1044,6 +1047,9 @@ export default function PlayerDetailPage() {
                 </Badge>
                 <span className="text-xs text-muted-foreground">Rank #{player.rank}</span>
               </div>
+
+              {/* Follow + Message buttons */}
+              <PlayerSocialActions playerId={player.id} />
             </div>
             </div>
           </div>
@@ -1100,6 +1106,55 @@ export default function PlayerDetailPage() {
           </div>
         </div>
       </motion.div>
+    </div>
+  );
+}
+
+// ── Follow + Message actions on the player profile ────────────────────────────
+function PlayerSocialActions({ playerId }: { playerId: number }) {
+  const { user, isLoggedIn } = useAuth();
+  const qc = useQueryClient();
+  const isSelf = !!user && user.id === playerId;
+
+  const { data: status, isLoading } = useQuery({
+    queryKey: ["follow-status", playerId],
+    queryFn: () => social.followStatus(playerId),
+    enabled: isLoggedIn && !isSelf && playerId > 0,
+  });
+
+  const followMutation = useMutation({
+    mutationFn: (follow: boolean) => (follow ? social.follow(playerId) : social.unfollow(playerId)),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["follow-status", playerId] }),
+  });
+
+  if (isSelf || !isLoggedIn || playerId <= 0) return null;
+
+  const following = status?.following ?? false;
+
+  return (
+    <div className="flex items-center gap-2 mt-3">
+      <Button
+        size="sm"
+        variant={following ? "outline" : "default"}
+        className="gap-1.5 h-8"
+        disabled={isLoading || followMutation.isPending}
+        onClick={() => followMutation.mutate(!following)}
+        data-testid="button-follow"
+      >
+        {following ? <UserCheck className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
+        {following ? "Following" : "Follow"}
+      </Button>
+      <Button size="sm" variant="outline" className="gap-1.5 h-8" asChild>
+        <Link href={`/messages?to=${playerId}`}>
+          <MessageSquare className="w-4 h-4" />
+          Message
+        </Link>
+      </Button>
+      {status && (
+        <span className="text-xs text-muted-foreground ml-1">
+          {status.followerCount} follower{status.followerCount === 1 ? "" : "s"}
+        </span>
+      )}
     </div>
   );
 }

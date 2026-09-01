@@ -49,6 +49,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/news", label: "News", icon: Newspaper },
     { href: "/media-hub", label: "Media Hub", icon: Clapperboard },
     { href: "/community", label: "Community", icon: MessageSquare },
+    { href: "/messages", label: "Messages", icon: MessageCircle },
     { href: "/live", label: "Live", icon: Radio, live: true },
     { href: "/academy", label: "WG Academy", logo: true },
     { href: "/partners", label: "Partners", icon: Handshake },

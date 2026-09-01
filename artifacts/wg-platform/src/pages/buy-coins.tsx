@@ -19,20 +19,55 @@ function formatExpiry(value: string): string {
   return `${digits.slice(0, 2)}/${digits.slice(2)}`;
 }
 
-function validateCard(card: { name: string; number: string; expiry: string; cvv: string }): string | null {
+function validateCard(card: {
+  name: string;
+  number: string;
+  expiry: string;
+  cvv: string;
+}): string | null {
   if (!card.name.trim()) return "Please enter the cardholder name.";
   const digits = card.number.replace(/\s/g, "");
   if (digits.length !== 16 || !/^\d+$/.test(digits)) return "Card number must be 16 digits.";
   const m = card.expiry.match(/^(\d{2})\/(\d{2})$/);
-  if (!m) return "Expiry must be in MM/YY format.";
+  if (!m) return "Expiry must be in MM / YY format.";
   const month = Number(m[1]);
   const year = 2000 + Number(m[2]);
   if (month < 1 || month > 12) return "Expiry month must be between 01 and 12.";
   const now = new Date();
   if (year < now.getFullYear() || (year === now.getFullYear() && month < now.getMonth() + 1))
     return "This card has expired.";
-  if (!/^\d{3,4}$/.test(card.cvv)) return "CVV must be 3 or 4 digits.";
+  if (!/^\d{3,4}$/.test(card.cvv)) return "CVC must be 3 or 4 digits.";
   return null;
+}
+
+// Brand badges shown inside the card number field (Stripe-style)
+function CardBrands() {
+  return (
+    <span className="flex items-center gap-1">
+      {/* Visa */}
+      <svg viewBox="0 0 36 24" className="h-5 w-8 rounded-[3px]" aria-label="Visa">
+        <rect width="36" height="24" rx="3" fill="#1434CB" />
+        <text x="18" y="16.5" textAnchor="middle" fontSize="9" fontWeight="900" fontStyle="italic" fill="#fff" fontFamily="Arial">VISA</text>
+      </svg>
+      {/* Mastercard */}
+      <svg viewBox="0 0 36 24" className="h-5 w-8 rounded-[3px]" aria-label="Mastercard">
+        <rect width="36" height="24" rx="3" fill="#1A1F36" />
+        <circle cx="15" cy="12" r="7" fill="#EB001B" />
+        <circle cx="21" cy="12" r="7" fill="#F79E1B" fillOpacity="0.9" />
+      </svg>
+      {/* Amex */}
+      <svg viewBox="0 0 36 24" className="h-5 w-8 rounded-[3px]" aria-label="American Express">
+        <rect width="36" height="24" rx="3" fill="#2E77BC" />
+        <text x="18" y="15.5" textAnchor="middle" fontSize="6.5" fontWeight="900" fill="#fff" fontFamily="Arial">AMEX</text>
+      </svg>
+      {/* Discover */}
+      <svg viewBox="0 0 36 24" className="h-5 w-8 rounded-[3px]" aria-label="Discover">
+        <rect width="36" height="24" rx="3" fill="#fff" stroke="#D9DCE3" />
+        <circle cx="24" cy="12" r="5.5" fill="#F76B1C" />
+        <text x="11" y="15" textAnchor="middle" fontSize="6" fontWeight="900" fill="#1A1F36" fontFamily="Arial">DISC</text>
+      </svg>
+    </span>
+  );
 }
 // -- Checkout dialog ---------------------------------------------------------------
 function CheckoutDialog({

@@ -21,3 +21,4 @@ export * from "./agent_chat";
 export * from "./support";
 export * from "./ads";
 export * from "./coins";
+export * from "./social";

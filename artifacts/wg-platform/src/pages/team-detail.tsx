@@ -1,10 +1,11 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { useParams, Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Shield, Users, Trophy, ArrowLeft, UserCircle2,
   Star, Crown, TrendingUp, ChevronRight, Calendar, Clock, Swords,
   UserPlus, UserMinus, RefreshCw, Search, X, Check, AlertTriangle, ArrowLeftRight,
+  MessageCircle, Lock, Send, Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,9 +18,11 @@ import {
 } from "@/components/ui/dialog";
 import { useGetTeam } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
-import { useQuery, useQueries, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueries, useQueryClient, useMutation } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 import { useUpload } from "@workspace/object-storage-web";
 import { storageUrl } from "@/lib/api";
+import { social, type TeamChatMessage } from "@/lib/social";
 import ClubCard from "@/components/club-card";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -27,7 +30,7 @@ import {
 } from "recharts";
 
 // ── types ──────────────────────────────────────────────────────────────────────
-type TeamTab = "info" | "squad" | "fixtures" | "matches" | "stats" | "table" | "round" | "ranking" | "transfer" | "news" | "club-card";
+type TeamTab = "info" | "squad" | "fixtures" | "matches" | "stats" | "table" | "round" | "ranking" | "transfer" | "news" | "club-card" | "chat";
 
 // ── StatCard ───────────────────────────────────────────────────────────────────
 function StatCard({ label, value, accent }: { label: string; value: string | number; accent?: string }) {
@@ -692,6 +695,7 @@ export default function TeamDetailPage() {
     { id: "transfer", label: "Transfer" },
     { id: "news",     label: "News" },
     { id: "club-card", label: "Club Card" },
+    { id: "chat",     label: "Team Chat" },
   ];
 
   if (isLoading) {
@@ -998,6 +1002,9 @@ export default function TeamDetailPage() {
                 }}
               />
             )}
+
+            {/* ── TEAM CHAT (members only) ── */}
+            {activeTab === "chat" && <TeamChat teamId={id} />}
 
             {/* ── SQUAD ── */}
             {activeTab === "squad" && (() => {
@@ -1949,6 +1956,122 @@ export default function TeamDetailPage() {
           onClose={() => setSelectedMatch(null)}
         />
       )}
+    </div>
+  );
+}
+
+// ── Team chat: only team members can read/write ───────────────────────────────
+function TeamChat({ teamId }: { teamId: number }) {
+  const { isLoggedIn } = useAuth();
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [text, setText] = useState("");
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  const { data: messages = [], isLoading, error } = useQuery<TeamChatMessage[]>({
+    queryKey: ["team-chat", teamId],
+    queryFn: () => social.teamChat(teamId),
+    enabled: teamId > 0 && isLoggedIn,
+    refetchInterval: 5000, // light polling to keep the chat live
+    retry: false,
+  });
+
+  const sendMutation = useMutation({
+    mutationFn: (content: string) => social.sendTeamChat(teamId, content),
+    onSuccess: () => {
+      setText("");
+      qc.invalidateQueries({ queryKey: ["team-chat", teamId] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Could not send", description: err?.message ?? "Only team members can write in the team chat.", variant: "destructive" });
+    },
+  });
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages.length]);
+
+  const forbidden = error && /only team members/i.test((error as Error)?.message ?? "");
+
+  if (!isLoggedIn) {
+    return (
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-8 text-center">
+        <MessageCircle className="w-10 h-10 mx-auto text-zinc-600 mb-3" />
+        <p className="text-sm text-zinc-400 font-bold">Log in to see the team chat.</p>
+        <p className="text-xs text-zinc-600 mt-1">Only team members can read and write here.</p>
+      </div>
+    );
+  }
+
+  if (forbidden) {
+    return (
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-8 text-center">
+        <Lock className="w-10 h-10 mx-auto text-zinc-600 mb-3" />
+        <p className="text-sm text-zinc-400 font-bold">Team members only</p>
+        <p className="text-xs text-zinc-600 mt-1">You must be a member of this team to read or write in its chat.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-emerald-400/20 bg-zinc-900 overflow-hidden">
+      <div className="px-5 py-3 border-b border-zinc-800 flex items-center gap-2">
+        <MessageCircle className="w-4 h-4 text-emerald-400" />
+        <span className="text-sm font-black uppercase tracking-widest text-white">Team Chat</span>
+        <span className="text-xs text-zinc-500 ml-auto flex items-center gap-1">
+          <Lock className="w-3 h-3" /> members only
+        </span>
+      </div>
+
+      <div className="h-[420px] overflow-y-auto px-5 py-4 space-y-3">
+        {isLoading && (
+          <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-zinc-500" /></div>
+        )}
+        {!isLoading && messages.length === 0 && (
+          <p className="text-center text-sm text-zinc-600 py-10">No messages yet — say something to your team!</p>
+        )}
+        {messages.map((m) => (
+          <div key={m.id} className={`flex ${m.mine ? "justify-end" : "justify-start"}`}>
+            <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${m.mine ? "bg-emerald-500/20 border border-emerald-400/30 rounded-br-sm" : "bg-zinc-800 border border-zinc-700 rounded-bl-sm"}`}>
+              {!m.mine && (
+                <p className="text-xs font-black text-emerald-300 mb-0.5 flex items-center gap-1.5">
+                  {m.sender?.avatarUrl
+                    ? <img src={m.sender.avatarUrl} alt="" className="w-4 h-4 rounded-full object-cover" />
+                    : <UserCircle2 className="w-4 h-4 text-zinc-500" />}
+                  {m.sender?.displayName ?? m.sender?.username ?? "Member"}
+                </p>
+              )}
+              <p className="text-sm text-white break-words whitespace-pre-wrap">{m.content}</p>
+              <p className={`text-[10px] mt-1 ${m.mine ? "text-emerald-300/60" : "text-zinc-500"}`}>
+                {m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}
+              </p>
+            </div>
+          </div>
+        ))}
+        <div ref={bottomRef} />
+      </div>
+
+      <form
+        className="border-t border-zinc-800 px-4 py-3 flex items-center gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const content = text.trim();
+          if (content) sendMutation.mutate(content);
+        }}
+      >
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Message your team…"
+          maxLength={1000}
+          className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-emerald-400/50"
+          data-testid="input-team-chat"
+        />
+        <Button type="submit" size="sm" className="gap-1.5" disabled={sendMutation.isPending || !text.trim()}>
+          {sendMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          Send
+        </Button>
+      </form>
     </div>
   );
 }
