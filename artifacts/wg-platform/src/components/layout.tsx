@@ -29,6 +29,14 @@ import { fetchUnreadCount } from "@/lib/agent-chat";
 import { useQuery } from "@tanstack/react-query";
 import { user as supportUser } from "@/lib/support";
 import { coins as coinsApi, formatCoins } from "@/lib/coins";
+import { social, type InboxMessage } from "@/lib/social";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "./ui/dropdown-menu";
 import { AdOverlay } from "./ad-overlay";
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -92,7 +100,45 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
           {navLinks.map((link) => {
             const Icon = link.icon;
-            const active = location === link.href;
+            const active = location === link.href || location.startsWith(link.href + "/");
+
+            // Teams → dropdown with Team Inbox shortcut
+            if (link.href === "/teams") {
+              return (
+                <DropdownMenu key={link.href}>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      data-testid="link-nav-teams"
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-bold uppercase tracking-wide transition-colors ${
+                        location.startsWith("/teams")
+                          ? "bg-primary text-primary-foreground"
+                          : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                      }`}
+                    >
+                      {Icon ? <Icon className="w-4 h-4" /> : null}
+                      {link.label}
+                      <ChevronDown className="w-3.5 h-3.5 ml-auto opacity-60" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent side="right" align="start" className="w-48">
+                    <DropdownMenuItem asChild>
+                      <Link href="/teams" onClick={() => setSidebarOpen(false)}>All Teams</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/messages?tab=team" onClick={() => setSidebarOpen(false)}>
+                        <Users className="w-4 h-4 mr-2" /> Team Inbox
+                      </Link>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              );
+            }
+
+            // Messages → inbox preview dropdown (logged in only)
+            if (link.href === "/messages" && isLoggedIn) {
+              return <InboxNavDropdown key={link.href} active={active} onNavigate={() => setSidebarOpen(false)} />;
+            }
+
             return (
               <Link
                 key={link.href}
@@ -347,6 +393,72 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </footer>
       </div>
     </div>
+  );
+}
+
+// ── Messages nav dropdown: recent inbox preview ───────────────────────────────
+function InboxNavDropdown({ active, onNavigate }: { active: boolean; onNavigate: () => void }) {
+  const { data: inbox = [], isLoading } = useQuery<InboxMessage[]>({
+    queryKey: ["messages", "inbox"],
+    queryFn: social.inbox,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  });
+  const unread = inbox.filter((m) => !m.readAt).length;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          data-testid="link-nav-messages"
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-bold uppercase tracking-wide transition-colors ${
+            active
+              ? "bg-primary text-primary-foreground"
+              : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+          }`}
+        >
+          <MessageCircle className="w-4 h-4" />
+          Messages
+          {unread > 0 && (
+            <span className="ml-auto rounded-full bg-pink-accent px-1.5 py-0.5 text-[10px] font-black text-white">
+              {unread}
+            </span>
+          )}
+          {unread === 0 && <ChevronDown className="w-3.5 h-3.5 ml-auto opacity-60" />}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="right" align="start" className="w-72 p-2">
+        <p className="px-2 py-1.5 text-[11px] font-black uppercase tracking-widest text-muted-foreground">
+          Inbox
+        </p>
+        {isLoading && <p className="px-2 py-3 text-xs text-muted-foreground">Loading…</p>}
+        {!isLoading && inbox.length === 0 && (
+          <p className="px-2 py-3 text-xs text-muted-foreground">No messages yet.</p>
+        )}
+        {inbox.slice(0, 5).map((m) => (
+          <DropdownMenuItem key={m.id} asChild>
+            <Link href={`/messages?to=${m.partnerId}`} onClick={onNavigate} className="flex items-start gap-2.5 py-2">
+              {m.partner.avatarUrl
+                ? <img src={m.partner.avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                : <span className="w-8 h-8 rounded-full bg-muted flex-shrink-0" />}
+              <span className="min-w-0 flex-1">
+                <span className={`flex items-center gap-1.5 text-xs font-bold truncate ${!m.readAt ? "text-foreground" : "text-foreground/80"}`}>
+                  {m.partner.displayName ?? m.partner.username}
+                  {!m.readAt && <span className="w-1.5 h-1.5 rounded-full bg-pink-accent flex-shrink-0" />}
+                </span>
+                <span className="block text-xs text-muted-foreground truncate">{m.content}</span>
+              </span>
+            </Link>
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/messages" onClick={onNavigate} className="text-xs font-bold uppercase tracking-widest text-primary">
+            Open full inbox →
+          </Link>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { social } from "@/lib/social";
 import { useAuth } from "@/hooks/use-auth";
@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { useGetPlayer, useGetPlayerMatchHistory } from "@workspace/api-client-react";
@@ -1049,7 +1050,7 @@ export default function PlayerDetailPage() {
               </div>
 
               {/* Follow + Message buttons */}
-              <PlayerSocialActions playerId={player.id} />
+              <PlayerSocialActions playerId={player.id} playerName={displayName} />
             </div>
             </div>
           </div>
@@ -1111,9 +1112,10 @@ export default function PlayerDetailPage() {
 }
 
 // ── Follow + Message actions on the player profile ────────────────────────────
-function PlayerSocialActions({ playerId }: { playerId: number }) {
+function PlayerSocialActions({ playerId, playerName }: { playerId: number; playerName: string }) {
   const { user, isLoggedIn } = useAuth();
   const qc = useQueryClient();
+  const [messageOpen, setMessageOpen] = useState(false);
   const isSelf = !!user && user.id === playerId;
 
   const { data: status, isLoading } = useQuery({
@@ -1144,17 +1146,126 @@ function PlayerSocialActions({ playerId }: { playerId: number }) {
         {following ? <UserCheck className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
         {following ? "Following" : "Follow"}
       </Button>
-      <Button size="sm" variant="outline" className="gap-1.5 h-8" asChild>
-        <Link href={`/messages?to=${playerId}`}>
-          <MessageSquare className="w-4 h-4" />
-          Message
-        </Link>
+      <Button
+        size="sm"
+        variant="outline"
+        className="gap-1.5 h-8"
+        onClick={() => setMessageOpen(true)}
+        data-testid="button-message"
+      >
+        <MessageSquare className="w-4 h-4" />
+        Message
       </Button>
       {status && (
         <span className="text-xs text-muted-foreground ml-1">
           {status.followerCount} follower{status.followerCount === 1 ? "" : "s"}
         </span>
       )}
+      <ProfileMessageDialog
+        open={messageOpen}
+        onOpenChange={setMessageOpen}
+        playerId={playerId}
+        playerName={playerName}
+      />
     </div>
+  );
+}
+
+// ── Inline message dialog: view + send messages right from the profile ────────
+function ProfileMessageDialog({
+  open,
+  onOpenChange,
+  playerId,
+  playerName,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  playerId: number;
+  playerName: string;
+}) {
+  const qc = useQueryClient();
+  const [draft, setDraft] = useState("");
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  const { data: thread = [], isLoading } = useQuery({
+    queryKey: ["messages", "thread", playerId],
+    queryFn: () => social.thread(playerId),
+    enabled: open && playerId > 0,
+    refetchInterval: 5000,
+  });
+
+  const send = useMutation({
+    mutationFn: () => social.sendMessage(playerId, draft),
+    onSuccess: () => {
+      setDraft("");
+      qc.invalidateQueries({ queryKey: ["messages", "thread", playerId] });
+      qc.invalidateQueries({ queryKey: ["messages", "sent"] });
+    },
+  });
+
+  useEffect(() => {
+    if (open) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [thread.length, open]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md p-0 overflow-hidden gap-0">
+        <DialogHeader className="px-4 py-3 border-b border-border bg-muted/30">
+          <DialogTitle className="flex items-center gap-2 text-sm">
+            <MessageSquare className="w-4 h-4 text-primary" />
+            Chat with {playerName}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="h-80 overflow-y-auto px-4 py-3 space-y-2">
+          {isLoading && <p className="text-sm text-muted-foreground text-center py-6">Loading…</p>}
+          {!isLoading && thread.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-6">
+              No messages yet — say hello!
+            </p>
+          )}
+          {thread.map((m: any) => (
+            <div key={m.id} className={`flex ${m.mine ? "justify-end" : "justify-start"}`}>
+              <div
+                className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm ${
+                  m.mine
+                    ? "bg-primary text-primary-foreground rounded-br-sm"
+                    : "bg-muted rounded-bl-sm"
+                }`}
+              >
+                <p className="whitespace-pre-wrap break-words">{m.content}</p>
+                <p className={`text-[10px] mt-1 ${m.mine ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                  {m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}
+                </p>
+              </div>
+            </div>
+          ))}
+          <div ref={bottomRef} />
+        </div>
+
+        <form
+          className="flex gap-2 p-3 border-t border-border"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (draft.trim()) send.mutate();
+          }}
+        >
+          <input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Type a message…"
+            maxLength={2000}
+            className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+          <Button type="submit" size="sm" disabled={!draft.trim() || send.isPending} className="gap-1.5">
+            {send.isPending ? <span className="w-4 h-4 rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground animate-spin" /> : <MessageSquare className="w-4 h-4" />}
+            Send
+          </Button>
+        </form>
+        {send.isError && (
+          <p className="px-4 pb-2 text-xs text-destructive">{(send.error as Error).message}</p>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
