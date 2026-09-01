@@ -1,6 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
-import { ensureMatchBracketSchema } from "./lib/ensure-schema";
+import { ensureMatchBracketSchema, ensureAcademySchema } from "./lib/ensure-schema";
 import { activateUpcomingTournaments } from "./lib/tournament-scheduler";
 
 // Replit's API artifact workflow supplies PORT=5000. Keep the same default
@@ -17,6 +17,7 @@ async function main() {
   // Apply additive bracket schema patches (guarded, idempotent) before the
   // server accepts requests so match generation can persist stage + links.
   await ensureMatchBracketSchema();
+  await ensureAcademySchema();
 
   // Auto-activate upcoming tournaments whose start date has been reached.
   // Runs on boot and then every 5 minutes while the server is alive.

@@ -71,3 +71,32 @@ export async function ensureMatchBracketSchema(): Promise<void> {
     logger.warn({ err }, "Could not ensure matches bracket schema");
   }
 }
+
+/**
+ * Creates the WG Academy posts table if it does not exist (additive, idempotent).
+ * Replaces the old academy_sections table used by the previous Tournament Rules
+ * style academy. Safe to run on every boot.
+ */
+export async function ensureAcademySchema(): Promise<void> {
+  const statements = [
+    `CREATE TABLE IF NOT EXISTS "academy_posts" (
+       "id" serial PRIMARY KEY,
+       "category" text NOT NULL DEFAULT 'player_training',
+       "title" text NOT NULL,
+       "body" text NOT NULL DEFAULT '',
+       "image_url" text,
+       "sort_order" integer NOT NULL DEFAULT 0,
+       "is_published" boolean NOT NULL DEFAULT true,
+       "updated_by" text,
+       "updated_at" timestamp NOT NULL DEFAULT now()
+     );`,
+  ];
+
+  try {
+    for (const sql of statements) {
+      await pool.query(sql);
+    }
+  } catch (err) {
+    logger.warn({ err }, "Could not ensure academy schema");
+  }
+}
