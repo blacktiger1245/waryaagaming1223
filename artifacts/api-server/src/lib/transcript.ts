@@ -1,3 +1,4 @@
+import * as opentype from "opentype.js";
 import { WG_LOGO_PNG_BASE64 } from "./logo-asset";
 import { POPPINS_400_BASE64 } from "./poppins-regular-asset";
 import { POPPINS_700_BASE64 } from "./poppins-bold-asset";
@@ -27,20 +28,11 @@ export interface TranscriptInfo {
 
 // ─── Small helpers ──────────────────────────────────────────────────────────
 
-function xmlEscape(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
-
-/** Truncate with a typographic ellipsis so long values never overflow a column. */
+/** Truncate so long values never overflow a column. */
 function truncate(value: string, max: number): string {
   const clean = value.replace(/\s+/g, " ").trim();
   if (clean.length <= max) return clean;
-  return clean.slice(0, max - 1).trimEnd() + "\u2026";
+  return clean.slice(0, max - 1).trimEnd() + "...";
 }
 
 function statusTheme(status: string): { color: string; bg: string } {
@@ -61,14 +53,29 @@ const CW = R - M; // 1024 content width
 const LX = M + 52; // left column x (140)
 const RX = M + CW - 52 - 440; // right column x (620)
 const COLW = 440; // column width
-const FONT_REGULAR = "Poppins";
-const FONT_BOLD = "Poppins700";
 const GOLD = "#d4af37";
+
+// Real Poppins outlines converted to SVG paths — this removes any dependency on
+// fonts being installed in the runtime. librsvg on Alpine has none, which made
+// every <text> element render blank in production (only the design/logo showed).
+const regularFont = opentype.parse(Buffer.from(POPPINS_400_BASE64, "base64"));
+const boldFont = opentype.parse(Buffer.from(POPPINS_700_BASE64, "base64"));
 
 interface TextOpts {
   bold?: boolean;
   anchor?: "start" | "middle" | "end";
   spacing?: number;
+}
+
+function fontFor(bold: boolean): opentype.Font {
+  return bold ? boldFont : regularFont;
+}
+
+function measureText(font: opentype.Font, value: string, size: number, spacing: number): number {
+  let w = 0;
+  for (const ch of value) w += font.getAdvanceWidth(ch, size);
+  if (value.length > 1) w += spacing * (value.length - 1);
+  return w;
 }
 
 function text(
@@ -79,12 +86,20 @@ function text(
   fill: string,
   opts: TextOpts = {},
 ): string {
-  const font = opts.bold ? FONT_BOLD : FONT_REGULAR;
-  const weight = opts.bold ? 700 : 400;
+  const font = fontFor(opts.bold ?? false);
   const anchor = opts.anchor ?? "start";
   const spacing = opts.spacing ?? 0;
-  const ls = spacing ? ` letter-spacing="${spacing}"` : "";
-  return `<text x="${x}" y="${y}" font-family="${font}" font-size="${size}" font-weight="${weight}" fill="${fill}" text-anchor="${anchor}"${ls}>${xmlEscape(value)}</text>`;
+  const width = measureText(font, value, size, spacing);
+  let cx = x;
+  if (anchor === "middle") cx = x - width / 2;
+  else if (anchor === "end") cx = x - width;
+  let d = "";
+  for (const ch of value) {
+    d += font.getPath(ch, cx, y, size).toPathData(2);
+    cx += font.getAdvanceWidth(ch, size) + spacing;
+  }
+  if (!d) return "";
+  return `<path d="${d}" fill="${fill}"/>`;
 }
 
 function label(x: number, y: number, value: string): string {
@@ -100,14 +115,10 @@ function fieldValue(x: number, y: number, val: string, size: number, fill: strin
 function buildSvg(info: TranscriptInfo): string {
   const status = statusTheme(info.status);
   const statusLabel = info.status.toUpperCase();
-  const badgeW = Math.max(150, statusLabel.length * 19 + 64);
+  const badgeW = Math.max(150, boldFont.getAdvanceWidth(statusLabel, 26) + 64);
 
   const head = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
   <defs>
-    <style>
-      @font-face { font-family: 'Poppins'; src: url(data:font/ttf;base64,${POPPINS_400_BASE64}) format('truetype'); }
-      @font-face { font-family: 'Poppins700'; src: url(data:font/ttf;base64,${POPPINS_700_BASE64}) format('truetype'); }
-    </style>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#0a0f1c"/>
       <stop offset="0.55" stop-color="#0d1526"/>
@@ -188,7 +199,7 @@ function buildSvg(info: TranscriptInfo): string {
   <g>
     <rect x="${RX}" y="1104" width="${badgeW}" height="56" rx="28" fill="${status.bg}"/>
     <rect x="${RX + 1}" y="1105" width="${badgeW - 2}" height="54" rx="27" fill="none" stroke="${status.color}" stroke-opacity="0.6" stroke-width="1.5"/>
-    <text x="${RX + badgeW / 2}" y="1140" font-family="${FONT_BOLD}" font-size="26" font-weight="700" fill="${status.color}" text-anchor="middle">${xmlEscape(statusLabel)}</text>
+    ${text(RX + badgeW / 2, 1140, statusLabel, 26, status.color, { bold: true, anchor: "middle" })}
   </g>
 
   <!-- Footer -->
