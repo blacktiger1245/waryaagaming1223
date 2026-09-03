@@ -72,6 +72,7 @@ function ApproveDialog({
   const [aqoonsi, setAqoonsi] = useState("");
   const [tier, setTier] = useState<EfootballTier | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
 
   const approve = useMutation({
     mutationFn: () =>
@@ -83,14 +84,18 @@ function ApproveDialog({
       qc.invalidateQueries({ queryKey: ["manager-sell-logs"] });
       qc.invalidateQueries({ queryKey: ["manager-shop-products"] });
       qc.invalidateQueries({ queryKey: ["shop", "products"] });
+      // Defensive lookup — never assume the tier label exists in the response.
+      const tierMeta = product.subcategory ? EFOOTBALL_TIER_META[product.subcategory] : undefined;
       toast({
-        title: "Account approved",
-        description: `Published in ${EFOOTBALL_TIER_META[product.subcategory as EfootballTier].label}.`,
+        title: "Account Approved Successfully ✓",
+        description: tierMeta ? `Published in ${tierMeta.label}.` : "The account is now live in the shop.",
       });
       onClose();
     },
+    // NEVER crash the page: keep the dialog mounted and show a readable
+    // error with a Try Again button instead.
     onError: (err: Error) =>
-      toast({ title: "Approval failed", description: err.message, variant: "destructive" }),
+      setFailed(err.message || "The approval request failed. Please try again."),
   });
 
   const confirm = () => {
@@ -107,67 +112,97 @@ function ApproveDialog({
   };
 
   return (
-    <DialogContent className="max-w-lg" data-testid="dialog-approve-submission">
-      <DialogHeader>
-        <DialogTitle>Approve account #{submission.id}</DialogTitle>
-        <DialogDescription>
-          Enter the account's Aqoonsi (ID number) and pick the category. The account is published instantly in
-          the selected tier.
-        </DialogDescription>
-      </DialogHeader>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent className="max-w-lg" data-testid="dialog-approve-submission">
+        <DialogHeader>
+          <DialogTitle>Approve account #{submission.id}</DialogTitle>
+          <DialogDescription>
+            Enter the account's Aqoonsi (ID number) and pick the category. The account is published instantly in
+            the selected tier.
+          </DialogDescription>
+        </DialogHeader>
 
-      <div className="space-y-5">
-        <div className="space-y-1.5">
-          <Label htmlFor="aqoonsi-input">Aqoonsi / Account ID</Label>
-          <Input
-            id="aqoonsi-input"
-            value={aqoonsi}
-            onChange={(e) => setAqoonsi(e.target.value)}
-            placeholder="e.g. 12345"
-            className="h-12 text-lg font-black tracking-widest"
-            data-testid="input-aqoonsi"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label>Category</Label>
-          <div className="grid grid-cols-3 gap-2">
-            {TIERS.map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setTier(t)}
-                className={`rounded-lg border px-3 py-2.5 text-xs font-black uppercase tracking-wide transition-colors ${
-                  tier === t
-                    ? "border-green-500 bg-green-500/15 text-green-400"
-                    : "border-border bg-card text-muted-foreground hover:border-green-500/50 hover:text-green-400"
-                }`}
-                data-testid={`button-approve-tier-${t}`}
-              >
-                {EFOOTBALL_TIER_META[t].label.replace(" Accounts", "")}
-              </button>
-            ))}
+        <div className="space-y-5">
+          <div className="space-y-1.5">
+            <Label htmlFor="aqoonsi-input">Aqoonsi / Account ID</Label>
+            <Input
+              id="aqoonsi-input"
+              value={aqoonsi}
+              onChange={(e) => setAqoonsi(e.target.value)}
+              placeholder="e.g. 12345"
+              className="h-12 text-lg font-black tracking-widest"
+              data-testid="input-aqoonsi"
+            />
           </div>
+
+          <div className="space-y-2">
+            <Label>Category</Label>
+            <div className="grid grid-cols-3 gap-2">
+              {TIERS.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setTier(t)}
+                  className={`rounded-lg border px-3 py-2.5 text-xs font-black uppercase tracking-wide transition-colors ${
+                    tier === t
+                      ? "border-green-500 bg-green-500/15 text-green-400"
+                      : "border-border bg-card text-muted-foreground hover:border-green-500/50 hover:text-green-400"
+                  }`}
+                  data-testid={`button-approve-tier-${t}`}
+                >
+                  {EFOOTBALL_TIER_META[t].label.replace(" Accounts", "")}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {error ? <p className="text-sm font-bold text-destructive">{error}</p> : null}
+
+          {failed ? (
+            <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-3" data-testid="approval-error">
+              <p className="text-sm font-black uppercase tracking-wide text-red-400">Approval Failed</p>
+              <p className="mt-1 text-sm text-red-300">{failed}</p>
+              <div className="mt-2.5 flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => setFailed(null)}>
+                  Dismiss
+                </Button>
+                <Button
+                  size="sm"
+                  className="font-black uppercase tracking-wide"
+                  onClick={() => {
+                    setFailed(null);
+                    approve.mutate();
+                  }}
+                  data-testid="button-try-again"
+                >
+                  <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> Try Again
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </div>
 
-        {error ? <p className="text-sm font-bold text-destructive">{error}</p> : null}
-      </div>
-
-      <DialogFooter>
-        <Button variant="outline" onClick={onClose} disabled={approve.isPending}>
-          Cancel
-        </Button>
-        <Button
-          className="font-black uppercase tracking-wide"
-          onClick={confirm}
-          disabled={approve.isPending}
-          data-testid="button-confirm-approve"
-        >
-          {approve.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-          Approve & Publish
-        </Button>
-      </DialogFooter>
-    </DialogContent>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={approve.isPending}>
+            Cancel
+          </Button>
+          <Button
+            className="font-black uppercase tracking-wide"
+            onClick={confirm}
+            disabled={approve.isPending}
+            data-testid="button-confirm-approve"
+          >
+            {approve.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+            Approve & Publish
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -196,40 +231,47 @@ function RejectDialog({
   });
 
   return (
-    <DialogContent className="max-w-lg" data-testid="dialog-reject-submission">
-      <DialogHeader>
-        <DialogTitle>Reject account #{submission.id}</DialogTitle>
-        <DialogDescription>
-          The seller keeps their submission status visible. You can optionally tell them why.
-        </DialogDescription>
-      </DialogHeader>
-      <div className="space-y-1.5">
-        <Label htmlFor="reject-reason">Reason (optional)</Label>
-        <Textarea
-          id="reject-reason"
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          rows={3}
-          placeholder="e.g. Screenshots are unclear — please resubmit with full inventory views."
-          data-testid="input-reject-reason"
-        />
-      </div>
-      <DialogFooter>
-        <Button variant="outline" onClick={onClose} disabled={reject.isPending}>
-          Cancel
-        </Button>
-        <Button
-          variant="destructive"
-          className="font-black uppercase tracking-wide"
-          onClick={() => reject.mutate()}
-          disabled={reject.isPending}
-          data-testid="button-confirm-reject"
-        >
-          {reject.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <XCircle className="mr-2 h-4 w-4" />}
-          Reject
-        </Button>
-      </DialogFooter>
-    </DialogContent>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <DialogContent className="max-w-lg" data-testid="dialog-reject-submission">
+        <DialogHeader>
+          <DialogTitle>Reject account #{submission.id}</DialogTitle>
+          <DialogDescription>
+            The seller keeps their submission status visible. You can optionally tell them why.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-1.5">
+          <Label htmlFor="reject-reason">Reason (optional)</Label>
+          <Textarea
+            id="reject-reason"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={3}
+            placeholder="e.g. Screenshots are unclear — please resubmit with full inventory views."
+            data-testid="input-reject-reason"
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={reject.isPending}>
+            Cancel
+          </Button>
+          <Button
+            variant="destructive"
+            className="font-black uppercase tracking-wide"
+            onClick={() => reject.mutate()}
+            disabled={reject.isPending}
+            data-testid="button-confirm-reject"
+          >
+            {reject.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <XCircle className="mr-2 h-4 w-4" />}
+            Reject
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
