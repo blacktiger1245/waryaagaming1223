@@ -2,6 +2,7 @@ import * as opentype from "opentype.js";
 import { WG_LOGO_PNG_BASE64 } from "./logo-asset";
 import { POPPINS_400_BASE64 } from "./poppins-regular-asset";
 import { POPPINS_700_BASE64 } from "./poppins-bold-asset";
+import { POPPINS_600_BASE64 } from "./poppins-semibold-asset";
 
 /**
  * Server-side WG-SHOP order-transcript PNG generator.
@@ -60,15 +61,19 @@ const GOLD = "#d4af37";
 // every <text> element render blank in production (only the design/logo showed).
 const regularFont = opentype.parse(Buffer.from(POPPINS_400_BASE64, "base64"));
 const boldFont = opentype.parse(Buffer.from(POPPINS_700_BASE64, "base64"));
+const semiboldFont = opentype.parse(Buffer.from(POPPINS_600_BASE64, "base64"));
 
 interface TextOpts {
   bold?: boolean;
+  semibold?: boolean;
   anchor?: "start" | "middle" | "end";
   spacing?: number;
 }
 
-function fontFor(bold: boolean): opentype.Font {
-  return bold ? boldFont : regularFont;
+function fontFor(opts: TextOpts): opentype.Font {
+  if (opts.bold) return boldFont;
+  if (opts.semibold) return semiboldFont;
+  return regularFont;
 }
 
 function measureText(font: opentype.Font, value: string, size: number, spacing: number): number {
@@ -86,7 +91,7 @@ function text(
   fill: string,
   opts: TextOpts = {},
 ): string {
-  const font = fontFor(opts.bold ?? false);
+  const font = fontFor(opts);
   const anchor = opts.anchor ?? "start";
   const spacing = opts.spacing ?? 0;
   const width = measureText(font, value, size, spacing);
@@ -103,7 +108,7 @@ function text(
 }
 
 function label(x: number, y: number, value: string): string {
-  return text(x, y, value.toUpperCase(), 14, "#93a3bd", { spacing: 2.4 });
+  return text(x, y, value.toUpperCase(), 15, "#a6b4cc", { semibold: true, spacing: 2.2 });
 }
 
 function fieldValue(x: number, y: number, val: string, size: number, fill: string, max: number): string {
