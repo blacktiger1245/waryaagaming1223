@@ -515,7 +515,7 @@ router.post("/shop/orders/:id/chat/transcript", requireShopManager, async (req, 
       accountNo = product?.aqoonsiId ?? null;
     }
 
-    const png = renderOrderTranscriptPng({
+    const png = await renderOrderTranscriptPng({
       fullName: order.buyerName,
       phone: order.buyerPhone ?? "-",
       accountNo,
