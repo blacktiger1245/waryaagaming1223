@@ -11,7 +11,12 @@ import { Store, ShoppingBag, Menu, X } from "lucide-react";
  */
 export function ShopLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  // The sidebar starts slid in so customers arriving via the WG-SHOP link
+  // (main site nav/footer) immediately see the shop menu — on desktop it is
+  // always visible anyway (lg:translate-x-0). ShopLayout remounts on every
+  // entry into /shop/*, so it re-opens on each visit from the main site;
+  // once closed it stays closed while browsing the shop.
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const pageKey = location.split("/").filter(Boolean).slice(0, 2).join("-") || "shop";
 
   const navLinks = [
