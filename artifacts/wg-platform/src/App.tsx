@@ -63,6 +63,14 @@ import AdminSupportTicketPage from "@/pages/admin/support-ticket";
 import AdminSupportAnalyticsPage from "@/pages/admin/support-analytics";
 import AdminSupportHistoryPage from "@/pages/admin/support-history";
 import AdminAdsPage from "@/pages/admin/ads";
+import ShopStorePage from "@/pages/shop/store";
+import ShopCategoryPage from "@/pages/shop/category";
+import ShopProductPage from "@/pages/shop/product";
+import ShopOrdersPage from "@/pages/shop/orders";
+import AdminShopDashboardPage from "@/pages/admin/shop/dashboard";
+import AdminShopProductsPage from "@/pages/admin/shop/products";
+import AdminShopOrdersPage from "@/pages/admin/shop/orders";
+import { ShopLayout } from "@/components/shop/shop-layout";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -118,6 +126,20 @@ function SiteRouter() {
   );
 }
 
+function ShopRouter() {
+  return (
+    <ShopLayout>
+      <Switch>
+        <Route path="/shop" component={ShopStorePage} />
+        <Route path="/shop/orders" component={ShopOrdersPage} />
+        <Route path="/shop/category/:category" component={ShopCategoryPage} />
+        <Route path="/shop/product/:id" component={ShopProductPage} />
+        <Route component={NotFound} />
+      </Switch>
+    </ShopLayout>
+  );
+}
+
 function AdminRouter() {
   return (
     <AdminLayout>
@@ -142,6 +164,9 @@ function AdminRouter() {
         <Route path="/admin/support/availability" component={AdminSupportPage} />
         <Route path="/admin/support/history" component={AdminSupportHistoryPage} />
         <Route path="/admin/support/:id" component={AdminSupportTicketPage} />
+        <Route path="/admin/shop" component={AdminShopDashboardPage} />
+        <Route path="/admin/shop/orders" component={AdminShopOrdersPage} />
+        <Route path="/admin/shop/:category" component={AdminShopProductsPage} />
         <Route component={NotFound} />
       </Switch>
     </AdminLayout>
@@ -158,6 +183,9 @@ function Router() {
           /admin/support/history, …) is routed into AdminRouter instead of
           falling through to the site 404. Render it both ways to stay safe. */}
       <Route path="/admin/*" component={AdminRouter} />
+      <Route path="/shop" component={ShopRouter} />
+      <Route path="/shop/:rest*" component={ShopRouter} />
+      <Route path="/shop/*" component={ShopRouter} />
       <Route path="/referee" component={RefereeHome} />
       <Route path="/referee/matches" component={RefereeMatchesPage} />
       <Route>

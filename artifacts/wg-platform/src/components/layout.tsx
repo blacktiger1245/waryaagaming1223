@@ -21,6 +21,7 @@ import {
   MessageSquare,
   MessageCircle,
   Coins,
+  Store,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useAuth } from "@/hooks/use-auth";
@@ -62,6 +63,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/academy", label: "WG Academy", logo: true },
     { href: "/partners", label: "Partners", icon: Handshake },
     { href: "/marketplace", label: "Transfer Market", icon: ShoppingBag },
+    { href: "/shop", label: "WG-SHOP", icon: Store },
     { href: "/support", label: "Support", icon: LifeBuoy },
     { href: "/referees", label: "Referees", icon: ShieldCheck },
   ];
@@ -369,6 +371,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       { href: "/live",        label: "Live Streams" },
                       { href: "/academy",     label: "WG Academy" },
                       { href: "/partners",    label: "Partners" },
+                      { href: "/shop",        label: "WG-SHOP" },
                     ].map(({ href, label }) => (
                       <li key={href}>
                         <Link href={href} className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5 group">

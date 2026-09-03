@@ -19,6 +19,10 @@ import {
   LifeBuoy,
   History,
   BarChart3,
+  Gamepad2,
+  Coins,
+  Gem,
+  ShoppingBag,
 } from "lucide-react";
 import { useAdminAuth } from "@/hooks/use-admin-auth";
 import { Button } from "@/components/ui/button";
@@ -44,6 +48,15 @@ const ownerNavItems = [
   { href: "/admin/manage-admins", label: "Manage Admins", icon: UserCog },
   { href: "/admin/ads", label: "Ads Management", icon: PlaySquare },
   { href: "/admin/support/analytics", label: "Support Analytics", icon: BarChart3 },
+];
+
+// WG-SHOP Manager section — admin/owner gated (the WG-SHOP Manager role).
+const shopNavItems = [
+  { href: "/admin/shop", label: "Dashboard", icon: LayoutDashboard, section: "WG-SHOP" },
+  { href: "/admin/shop/efootball", label: "eFootball Accounts", icon: Gamepad2, section: "WG-SHOP" },
+  { href: "/admin/shop/coins", label: "Coins", icon: Coins, section: "WG-SHOP" },
+  { href: "/admin/shop/nitro", label: "Discord Nitro", icon: Gem, section: "WG-SHOP" },
+  { href: "/admin/shop/orders", label: "My Orders", icon: ShoppingBag, section: "WG-SHOP" },
 ];
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -95,6 +108,29 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
               </Link>
             );
           })}
+
+          {/* WG-SHOP Manager section */}
+          <div className="pt-4">
+            <p className="px-3 pb-1.5 text-[10px] font-black uppercase tracking-[0.2em] text-sidebar-foreground/40">
+              WG-SHOP Manager
+            </p>
+            {shopNavItems.map((item) => {
+              const Icon = item.icon;
+              const active = location === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  data-testid={`link-admin-shop-${item.href.replace("/admin/shop", "") || "dashboard"}`}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-bold uppercase tracking-wide transition-colors
+                    ${active ? "bg-primary text-primary-foreground" : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"}`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
         </nav>
 
         <div className="p-3 border-t border-sidebar-border space-y-1">

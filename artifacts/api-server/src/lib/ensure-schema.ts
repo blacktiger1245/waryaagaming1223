@@ -100,3 +100,61 @@ export async function ensureAcademySchema(): Promise<void> {
     logger.warn({ err }, "Could not ensure academy schema");
   }
 }
+
+/**
+ * Creates the WG-SHOP tables if they do not exist (additive, idempotent).
+ * Mirrors lib/db/src/schema/shop.ts and lib/db/src/migrate-shop.mjs.
+ * Safe to run on every boot so deployments without a migration step still
+ * get the storefront tables.
+ */
+export async function ensureShopSchema(): Promise<void> {
+  const statements = [
+    `CREATE TABLE IF NOT EXISTS "shop_products" (
+       "id" serial PRIMARY KEY,
+       "category" text NOT NULL,
+       "subcategory" text,
+       "title" text NOT NULL,
+       "description" text NOT NULL DEFAULT '',
+       "price_cents" integer NOT NULL,
+       "profile_image_path" text,
+       "gallery_paths" text[] NOT NULL DEFAULT '{}',
+       "team_strength" integer,
+       "coin_amount" text,
+       "nitro_plan" text,
+       "konami_id_linked" boolean NOT NULL DEFAULT false,
+       "google_play_linked" boolean NOT NULL DEFAULT false,
+       "game_center_linked" boolean NOT NULL DEFAULT false,
+       "published" boolean NOT NULL DEFAULT false,
+       "created_by" integer REFERENCES "players"("id") ON DELETE SET NULL,
+       "created_at" timestamp NOT NULL DEFAULT now(),
+       "updated_at" timestamp NOT NULL DEFAULT now()
+     );`,
+    `CREATE INDEX IF NOT EXISTS "shop_products_category_idx" ON "shop_products" ("category")`,
+    `CREATE INDEX IF NOT EXISTS "shop_products_published_idx" ON "shop_products" ("published")`,
+    `CREATE TABLE IF NOT EXISTS "shop_orders" (
+       "id" serial PRIMARY KEY,
+       "product_id" integer REFERENCES "shop_products"("id") ON DELETE SET NULL,
+       "product_title" text NOT NULL,
+       "category" text NOT NULL,
+       "price_cents" integer NOT NULL,
+       "buyer_name" text NOT NULL,
+       "buyer_contact" text NOT NULL,
+       "note" text,
+       "status" text NOT NULL DEFAULT 'pending',
+       "client_id" text NOT NULL,
+       "user_id" integer REFERENCES "players"("id") ON DELETE SET NULL,
+       "created_at" timestamp NOT NULL DEFAULT now(),
+       "updated_at" timestamp NOT NULL DEFAULT now()
+     );`,
+    `CREATE INDEX IF NOT EXISTS "shop_orders_client_idx" ON "shop_orders" ("client_id")`,
+    `CREATE INDEX IF NOT EXISTS "shop_orders_user_idx" ON "shop_orders" ("user_id")`,
+  ];
+
+  try {
+    for (const sql of statements) {
+      await pool.query(sql);
+    }
+  } catch (err) {
+    logger.warn({ err }, "Could not ensure WG-SHOP schema");
+  }
+}

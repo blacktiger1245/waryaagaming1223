@@ -22,3 +22,4 @@ export * from "./support";
 export * from "./ads";
 export * from "./coins";
 export * from "./social";
+export * from "./shop";

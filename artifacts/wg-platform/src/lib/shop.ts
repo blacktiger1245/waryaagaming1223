@@ -1,0 +1,229 @@
+import { apiFetch, apiUrl } from "@/lib/api";
+
+// ─── Types (mirror artifacts/api-server/src/routes/shop.ts) ──────────────────
+export type ShopCategory = "efootball" | "coins" | "nitro";
+export type EfootballTier = "cheap" | "medium" | "expensive";
+export type ShopOrderStatus = "pending" | "processing" | "completed" | "cancelled";
+
+export interface ShopProduct {
+  id: number;
+  category: ShopCategory;
+  subcategory: EfootballTier | null;
+  title: string;
+  description: string;
+  priceCents: number;
+  profileImagePath: string | null;
+  galleryPaths: string[];
+  teamStrength: number | null;
+  coinAmount: string | null;
+  nitroPlan: string | null;
+  konamiIdLinked: boolean;
+  googlePlayLinked: boolean;
+  gameCenterLinked: boolean;
+  published: boolean;
+  createdAt: string;
+  updatedAt: string;
+  createdByUsername?: string | null;
+}
+
+export interface ShopOrder {
+  id: number;
+  productId: number | null;
+  productTitle: string;
+  category: ShopCategory;
+  priceCents: number;
+  buyerName: string;
+  buyerContact: string;
+  note: string | null;
+  status: ShopOrderStatus;
+  clientId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NewShopProduct {
+  category: ShopCategory;
+  subcategory?: EfootballTier | null;
+  title: string;
+  description?: string;
+  priceCents: number;
+  profileImagePath?: string | null;
+  galleryPaths?: string[];
+  teamStrength?: number | null;
+  coinAmount?: string | null;
+  nitroPlan?: string | null;
+  konamiIdLinked?: boolean;
+  googlePlayLinked?: boolean;
+  gameCenterLinked?: boolean;
+  published?: boolean;
+}
+
+// ─── Category metadata (neon accent per category) ────────────────────────────
+export const SHOP_CATEGORY_META: Record<
+  ShopCategory,
+  { label: string; tagline: string; accent: string; accentSoft: string; glow: string }
+> = {
+  efootball: {
+    label: "eFootball",
+    tagline: "Ready-to-play accounts in three tiers",
+    accent: "#22c55e",
+    accentSoft: "rgba(34,197,94,0.12)",
+    glow: "0 0 24px rgba(34,197,94,0.35)",
+  },
+  coins: {
+    label: "Coins",
+    tagline: "Top up your WG balance instantly",
+    accent: "#eab308",
+    accentSoft: "rgba(234,179,8,0.12)",
+    glow: "0 0 24px rgba(234,179,8,0.35)",
+  },
+  nitro: {
+    label: "Discord Nitro",
+    tagline: "Boost your Discord with Nitro plans",
+    accent: "#5865F2",
+    accentSoft: "rgba(88,101,242,0.14)",
+    glow: "0 0 24px rgba(88,101,242,0.4)",
+  },
+};
+
+export const EFOOTBALL_TIER_META: Record<EfootballTier, { label: string; blurb: string }> = {
+  cheap: { label: "Cheap Accounts", blurb: "Budget-friendly starter accounts" },
+  medium: { label: "Medium Accounts", blurb: "Solid squads for serious play" },
+  expensive: { label: "Expensive Accounts", blurb: "Elite teams with top ratings" },
+};
+
+export const SHOP_ORDER_STATUS_META: Record<ShopOrderStatus, { label: string; className: string }> = {
+  pending: { label: "Pending", className: "bg-yellow-500/15 text-yellow-400 border-yellow-500/40" },
+  processing: { label: "Processing", className: "bg-blue-500/15 text-blue-400 border-blue-500/40" },
+  completed: { label: "Completed", className: "bg-green-500/15 text-green-400 border-green-500/40" },
+  cancelled: { label: "Cancelled", className: "bg-red-500/15 text-red-400 border-red-500/40" },
+};
+
+// ─── Formatting helpers ──────────────────────────────────────────────────────
+export function formatPrice(cents: number): string {
+  const dollars = cents / 100;
+  return Number.isInteger(dollars) ? `$${dollars}` : `$${dollars.toFixed(2)}`;
+}
+
+export function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+/** Guest identity for orders (the storefront has no login UI by design). */
+export function getShopClientId(): string {
+  const KEY = "wg_shop_client_id";
+  let id = localStorage.getItem(KEY) ?? "";
+  if (!/^[A-Za-z0-9_-]{8,64}$/.test(id)) {
+    const random =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    id = random.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
+    localStorage.setItem(KEY, id);
+  }
+  return id;
+}
+
+// ─── API calls ───────────────────────────────────────────────────────────────
+export async function fetchShopProducts(filters?: {
+  category?: ShopCategory;
+  subcategory?: EfootballTier;
+}): Promise<ShopProduct[]> {
+  const params = new URLSearchParams();
+  if (filters?.category) params.set("category", filters.category);
+  if (filters?.subcategory) params.set("subcategory", filters.subcategory);
+  const qs = params.toString();
+  const data = await apiFetch<{ products: ShopProduct[] }>(`/api/shop/products${qs ? `?${qs}` : ""}`);
+  return data.products;
+}
+
+export async function fetchShopProduct(id: number): Promise<ShopProduct> {
+  const data = await apiFetch<{ product: ShopProduct }>(`/api/shop/products/${id}`);
+  return data.product;
+}
+
+export async function fetchMyShopOrders(): Promise<ShopOrder[]> {
+  const data = await apiFetch<{ orders: ShopOrder[] }>(
+    `/api/shop/orders?clientId=${encodeURIComponent(getShopClientId())}`,
+  );
+  return data.orders;
+}
+
+export async function placeShopOrder(input: {
+  productId: number;
+  buyerName: string;
+  buyerContact: string;
+  note?: string;
+}): Promise<ShopOrder> {
+  const data = await apiFetch<{ order: ShopOrder }>("/api/shop/orders", {
+    method: "POST",
+    body: JSON.stringify({ ...input, clientId: getShopClientId() }),
+  });
+  return data.order;
+}
+
+// ─── Manager endpoints (the server enforces the WG-SHOP Manager role) ───────
+export async function fetchManagerProducts(filters?: {
+  category?: ShopCategory;
+  subcategory?: EfootballTier;
+}): Promise<ShopProduct[]> {
+  const params = new URLSearchParams();
+  if (filters?.category) params.set("category", filters.category);
+  if (filters?.subcategory) params.set("subcategory", filters.subcategory);
+  const qs = params.toString();
+  return apiFetch<ShopProduct[]>(`/api/admin/shop/products${qs ? `?${qs}` : ""}`);
+}
+
+export async function createManagerProduct(input: NewShopProduct): Promise<ShopProduct> {
+  return apiFetch<ShopProduct>("/api/admin/shop/products", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateManagerProduct(
+  id: number,
+  patch: Partial<NewShopProduct>,
+): Promise<ShopProduct> {
+  return apiFetch<ShopProduct>(`/api/admin/shop/products/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+export async function deleteManagerProduct(id: number): Promise<void> {
+  await apiFetch(`/api/admin/shop/products/${id}`, { method: "DELETE" });
+}
+
+export async function fetchManagerOrders(status?: ShopOrderStatus): Promise<ShopOrder[]> {
+  const data = await apiFetch<{ orders: ShopOrder[] }>(
+    `/api/admin/shop/orders${status ? `?status=${status}` : ""}`,
+  );
+  return data.orders;
+}
+
+export async function updateManagerOrderStatus(id: number, status: ShopOrderStatus): Promise<ShopOrder> {
+  return apiFetch<ShopOrder>(`/api/admin/shop/orders/${id}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}
+
+/**
+ * Upload a shop image through the admin-gated API endpoint (server → R2).
+ * Returns the canonical `/objects/...` path stored on products.
+ */
+export async function uploadShopImage(file: File): Promise<string> {
+  const response = await fetch(apiUrl("/api/storage/uploads/direct"), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": file.type || "image/png" },
+    body: file,
+  });
+  const data = (await response.json().catch(() => ({}))) as { objectPath?: string; error?: string };
+  if (!response.ok) throw new Error(data.error ?? "Failed to upload image");
+  if (!data.objectPath) throw new Error("The upload did not return a file path");
+  return data.objectPath;
+}
+
+

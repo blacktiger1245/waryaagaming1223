@@ -22,6 +22,7 @@ import hallOfFameRouter from "./hall-of-fame";
 import liveRouter from "./live";
 import coinsRouter from "./coins";
 import socialRouter from "./social";
+import shopRouter from "./shop";
 
 const router: IRouter = Router();
 
@@ -48,6 +49,7 @@ router.use(hallOfFameRouter);
 router.use(liveRouter);
 router.use(coinsRouter);
 router.use(socialRouter);
+router.use(shopRouter);
 // Note: auth routes are mounted directly in app.ts
 
 export default router;
