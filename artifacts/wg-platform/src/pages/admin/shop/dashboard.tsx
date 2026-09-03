@@ -1,6 +1,7 @@
+import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Gamepad2, Coins, Gem, ShoppingBag, Loader2, CheckCircle2, Clock } from "lucide-react";
-import { fetchManagerProducts, fetchManagerOrders, formatPrice, formatDate, type ShopCategory } from "@/lib/shop";
+import { Gamepad2, Coins, Gem, ShoppingBag, Loader2, CheckCircle2, Clock, ClipboardCheck } from "lucide-react";
+import { fetchManagerProducts, fetchManagerOrders, fetchSellLogs, formatPrice, formatDate, type ShopCategory } from "@/lib/shop";
 
 function useCategoryCount(category: ShopCategory) {
   return useQuery({
@@ -15,6 +16,11 @@ export default function AdminShopDashboardPage() {
   const coins = useCategoryCount("coins");
   const nitro = useCategoryCount("nitro");
   const orders = useQuery({ queryKey: ["manager-shop-orders"], queryFn: () => fetchManagerOrders() });
+  const sellLogs = useQuery({
+    queryKey: ["manager-sell-logs", "pending"],
+    queryFn: () => fetchSellLogs("pending"),
+  });
+  const pendingReviews = (sellLogs.data ?? []).length;
 
   const cards = [
     { label: "eFootball Accounts", icon: Gamepad2, data: efootball, accent: "#22c55e" },
@@ -60,6 +66,22 @@ export default function AdminShopDashboardPage() {
           );
         })}
       </div>
+
+      {/* Sell Logs — user-submitted account review queue */}
+      <Link href="/admin/shop/sell-logs" data-testid="link-manager-sell-logs">
+        <div className="flex items-center gap-4 rounded-lg border border-amber-500/40 bg-amber-500/5 p-5 transition-colors hover:border-amber-500">
+          <div className="flex size-12 flex-shrink-0 items-center justify-center rounded-md border border-amber-500/60 bg-amber-500/10">
+            <ClipboardCheck className="h-6 w-6 text-amber-400" />
+          </div>
+          <div>
+            <p className="text-2xl font-black text-amber-400">{sellLogs.isLoading ? "—" : pendingReviews}</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Accounts pending review
+            </p>
+            <p className="text-[11px] font-bold text-amber-400/80">Open Sell Logs to approve or reject →</p>
+          </div>
+        </div>
+      </Link>
 
       {/* Order stats */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

@@ -23,6 +23,7 @@ import {
   Coins,
   Gem,
   ShoppingBag,
+  ClipboardCheck,
 } from "lucide-react";
 import { useAdminAuth } from "@/hooks/use-admin-auth";
 import { Button } from "@/components/ui/button";
@@ -56,6 +57,7 @@ const shopNavItems = [
   { href: "/admin/shop/efootball", label: "eFootball Accounts", icon: Gamepad2, section: "WG-SHOP" },
   { href: "/admin/shop/coins", label: "Coins", icon: Coins, section: "WG-SHOP" },
   { href: "/admin/shop/nitro", label: "Discord Nitro", icon: Gem, section: "WG-SHOP" },
+  { href: "/admin/shop/sell-logs", label: "Sell Logs", icon: ClipboardCheck, section: "WG-SHOP" },
   { href: "/admin/shop/orders", label: "My Orders", icon: ShoppingBag, section: "WG-SHOP" },
 ];
 

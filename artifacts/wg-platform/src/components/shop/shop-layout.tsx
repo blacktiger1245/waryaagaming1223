@@ -1,113 +1,104 @@
-import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Store, ShoppingBag, Menu, X } from "lucide-react";
+import { Store, ShoppingCart, Tag, ShoppingBag, ArrowLeft } from "lucide-react";
 
 /**
- * WG-SHOP storefront layout.
+ * WG-SHOP section shell — lives INSIDE the main website layout.
  *
- * Deliberately minimal on purpose: the sidebar carries ONLY the WG-SHOP home
- * link and My Orders — no login button, no extra categories. Customers browse
- * and order as guests (their browser keeps an order lookup id).
+ * The global site sidebar (Layout) stays visible and keeps WG-SHOP highlighted
+ * as the active section. This shell only adds the shop's own secondary
+ * navigation (Buy / Sell Your Account / My Orders) plus a Back control to the
+ * main site. There is deliberately no login UI in the storefront.
  */
-export function ShopLayout({ children }: { children: React.ReactNode }) {
-  const [location] = useLocation();
-  // The sidebar starts slid in so customers arriving via the WG-SHOP link
-  // (main site nav/footer) immediately see the shop menu — on desktop it is
-  // always visible anyway (lg:translate-x-0). ShopLayout remounts on every
-  // entry into /shop/*, so it re-opens on each visit from the main site;
-  // once closed it stays closed while browsing the shop.
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const pageKey = location.split("/").filter(Boolean).slice(0, 2).join("-") || "shop";
+const SHOP_TABS = [
+  { href: "/shop", label: "Buy", icon: ShoppingCart },
+  { href: "/shop/sell", label: "Sell Your Account", icon: Tag },
+  { href: "/shop/orders", label: "My Orders", icon: ShoppingBag },
+] as const;
 
-  const navLinks = [
-    { href: "/shop", label: "WG-SHOP", icon: Store },
-    { href: "/shop/orders", label: "My Orders", icon: ShoppingBag },
-  ];
+function isTabActive(tabHref: string, location: string): boolean {
+  if (tabHref === "/shop") {
+    // "Buy" covers the storefront, category listings and product details.
+    return (
+      location === "/shop" ||
+      location.startsWith("/shop/category") ||
+      location.startsWith("/shop/product")
+    );
+  }
+  return location === tabHref || location.startsWith(`${tabHref}/`);
+}
+
+export function ShopSection({ children }: { children: React.ReactNode }) {
+  const [location] = useLocation();
 
   return (
-    <div className="min-h-screen flex bg-background wg-site wg-site-bg wg-grid-bg" data-wg-page={pageKey}>
-      <div className="wg-aurora" aria-hidden><i /><i /><i /><i /></div>
+    <div>
+      {/* Sticky shop sub-navigation under the global top bar */}
+      <div className="sticky top-16 z-30 border-b border-border bg-background/95 backdrop-blur">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
+            <Link href="/shop" className="flex items-center gap-2">
+              <span className="flex size-9 items-center justify-center rounded-lg border border-primary/50 bg-primary/10 shadow-[0_0_18px_rgba(134,239,172,0.25)]">
+                <Store className="h-5 w-5 text-primary" />
+              </span>
+              <span>
+                <span className="block text-sm font-black uppercase tracking-widest text-primary wg-brand-glow">
+                  WG-SHOP
+                </span>
+                <span className="block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                  Waryaa Gaming Marketplace
+                </span>
+              </span>
+            </Link>
 
-      {/* Top bar */}
-      <div className="fixed top-0 left-0 right-0 z-50 h-16 flex items-center gap-3 px-4 border-b border-border bg-background/95 backdrop-blur">
-        <button
-          className="text-muted-foreground hover:text-foreground p-1"
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          aria-label="Toggle menu"
-          data-testid="button-shop-menu-toggle"
-        >
-          {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </button>
-        <Link href="/shop" className="flex items-center gap-2.5">
-          <img
-            src={`${import.meta.env.BASE_URL}logo.jpg`}
-            alt="Waryaa Gaming"
-            className="size-8 rounded-sm glow-primary object-cover"
-          />
-          <span className="font-black text-lg tracking-widest text-primary uppercase wg-brand-glow">
-            WG-SHOP
-          </span>
-        </Link>
-        <span className="ml-auto text-xs uppercase tracking-widest text-muted-foreground font-bold hidden sm:block">
-          Waryaa Gaming Marketplace
-        </span>
+            <span className="ml-auto hidden sm:block">
+              <Link
+                href="/"
+                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+                data-testid="link-shop-back"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                Back to Waryaa Gaming
+              </Link>
+            </span>
+          </div>
+
+          {/* Section tabs */}
+          <nav className="flex flex-wrap items-center gap-2 pb-3">
+            {SHOP_TABS.map((tab) => {
+              const Icon = tab.icon;
+              const active = isTabActive(tab.href, location);
+              return (
+                <Link
+                  key={tab.href}
+                  href={tab.href}
+                  data-testid={`link-shop-tab-${tab.label.toLowerCase().replace(/\s+/g, "-")}`}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-xs font-black uppercase tracking-wide transition-all ${
+                    active
+                      ? "border-primary bg-primary text-primary-foreground shadow-[0_0_16px_rgba(134,239,172,0.35)]"
+                      : "border-border bg-card text-muted-foreground hover:border-primary/50 hover:text-foreground"
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {tab.label}
+                </Link>
+              );
+            })}
+            <span className="ml-auto sm:hidden">
+              <Link
+                href="/"
+                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-muted-foreground"
+                data-testid="link-shop-back-mobile"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                Main Site
+              </Link>
+            </span>
+          </nav>
+        </div>
       </div>
 
-      {/* Sidebar — WG-SHOP + My Orders only */}
-      <aside
-        className={`fixed top-0 left-0 h-[100dvh] w-64 flex-shrink-0 border-r border-sidebar-border bg-sidebar flex flex-col z-50 transition-transform duration-200 lg:translate-x-0
-          ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
-      >
-        <div className="h-16 flex-shrink-0 flex items-center gap-2.5 px-5 border-b border-sidebar-border">
-          <img
-            src={`${import.meta.env.BASE_URL}logo.jpg`}
-            alt="Waryaa Gaming"
-            className="size-8 rounded-sm glow-primary object-cover"
-          />
-          <span className="font-black text-sm tracking-widest text-sidebar-foreground uppercase">WG-SHOP</span>
-        </div>
-
-        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
-          {navLinks.map((link) => {
-            const Icon = link.icon;
-            const active = location === link.href;
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                data-testid={`link-shop-${link.label.toLowerCase().replace(/\s+/g, "-")}`}
-                onClick={() => setSidebarOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-bold uppercase tracking-wide transition-colors
-                  ${
-                    active
-                      ? "bg-primary text-primary-foreground"
-                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                  }`}
-              >
-                <Icon className="w-4 h-4" />
-                {link.label}
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div className="p-4 border-t border-sidebar-border">
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            Gaming accounts, coins & Nitro — delivered fast by the Waryaa Gaming team.
-          </p>
-        </div>
-      </aside>
-
-      {/* Backdrop for mobile drawer */}
-      {sidebarOpen ? (
-        <div
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      ) : null}
-
-      {/* Content */}
-      <main className="flex-1 pt-16 lg:pl-64 min-w-0">{children}</main>
+      {/* Section content */}
+      <div>{children}</div>
     </div>
   );
 }

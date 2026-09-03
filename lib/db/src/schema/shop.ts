@@ -41,6 +41,13 @@ export const shopProductsTable = pgTable("shop_products", {
   konamiIdLinked: boolean("konami_id_linked").notNull().default(false),
   googlePlayLinked: boolean("google_play_linked").notNull().default(false),
   gameCenterLinked: boolean("game_center_linked").notNull().default(false),
+  /**
+   * Manager-only Aqoonsi (the account's ID number, e.g. "12345"). Assigned by
+   * the WG-SHOP Manager when approving a seller submission. NEVER serialized
+   * into public API responses — the public product serializer omits it and the
+   * storefront never sees it.
+   */
+  aqoonsiId: text("aqoonsi_id"),
   published: boolean("published").notNull().default(false),
   createdBy: integer("created_by").references(() => playersTable.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -86,3 +93,44 @@ export const insertShopOrderSchema = createInsertSchema(shopOrdersTable).omit({
 });
 export type InsertShopOrder = z.infer<typeof insertShopOrderSchema>;
 export type ShopOrder = typeof shopOrdersTable.$inferSelect;
+
+/**
+ * User-submitted eFootball accounts (Sell Your Account).
+ *
+ * Normal visitors submit their account for sale; submissions always start as
+ * `pending` and are never public. The WG-SHOP Manager reviews them in Sell
+ * Logs and can Approve (assigning the Aqoonsi ID and a tier, which publishes
+ * a `shop_products` row linked via `published_product_id`) or Reject (with an
+ * optional reason). `client_id` is the seller's browser capability token —
+ * the same mechanism used for guest orders — letting the seller track their
+ * own submission status without any login UI.
+ */
+export const shopSellSubmissionsTable = pgTable("shop_sell_submissions", {
+  id: serial("id").primaryKey(),
+  profileImagePath: text("profile_image_path"),
+  /** All uploaded account screenshots (ordered). */
+  galleryPaths: text("gallery_paths").array().notNull().default([]),
+  /** Seller's asking price in US cents. */
+  priceCents: integer("price_cents").notNull(),
+  teamStrength: integer("team_strength"),
+  konamiIdLinked: boolean("konami_id_linked").notNull().default(false),
+  googlePlayLinked: boolean("google_play_linked").notNull().default(false),
+  gameCenterLinked: boolean("game_center_linked").notNull().default(false),
+  /** Seller contact details — visible to the manager only, never published. */
+  phone: text("phone").notNull(),
+  sellerName: text("seller_name").notNull(),
+  sellerDiscord: text("seller_discord").notNull(),
+  notes: text("notes"),
+  /** 'pending' | 'approved' | 'rejected' */
+  status: text("status").notNull().default("pending"),
+  rejectionReason: text("rejection_reason"),
+  /** Manager-only Aqoonsi (account ID). Assigned on approve; never public. */
+  aqoonsiId: text("aqoonsi_id"),
+  /** The shop_products row created when the submission was approved. */
+  publishedProductId: integer("published_product_id"),
+  clientId: text("client_id").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export type ShopSellSubmission = typeof shopSellSubmissionsTable.$inferSelect;

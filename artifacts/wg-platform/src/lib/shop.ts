@@ -41,6 +41,38 @@ export interface ShopOrder {
   updatedAt: string;
 }
 
+/** Manager product = public product + the manager-only Aqoonsi (never public). */
+export interface ManagerShopProduct extends ShopProduct {
+  aqoonsiId: string | null;
+}
+
+export type ShopSellStatus = "pending" | "approved" | "rejected";
+
+export interface ShopSellSubmission {
+  id: number;
+  profileImagePath: string | null;
+  galleryPaths: string[];
+  priceCents: number;
+  teamStrength: number | null;
+  konamiIdLinked: boolean;
+  googlePlayLinked: boolean;
+  gameCenterLinked: boolean;
+  phone: string;
+  sellerName: string;
+  sellerDiscord: string;
+  notes: string | null;
+  status: ShopSellStatus;
+  rejectionReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Manager Sell Logs entry = seller view + the manager-only Aqoonsi fields. */
+export interface ManagerShopSellSubmission extends ShopSellSubmission {
+  aqoonsiId: string | null;
+  publishedProductId: number | null;
+}
+
 export interface NewShopProduct {
   category: ShopCategory;
   subcategory?: EfootballTier | null;
@@ -97,6 +129,12 @@ export const SHOP_ORDER_STATUS_META: Record<ShopOrderStatus, { label: string; cl
   processing: { label: "Processing", className: "bg-blue-500/15 text-blue-400 border-blue-500/40" },
   completed: { label: "Completed", className: "bg-green-500/15 text-green-400 border-green-500/40" },
   cancelled: { label: "Cancelled", className: "bg-red-500/15 text-red-400 border-red-500/40" },
+};
+
+export const SHOP_SELL_STATUS_META: Record<ShopSellStatus, { label: string; className: string }> = {
+  pending: { label: "Pending Review", className: "bg-yellow-500/15 text-yellow-400 border-yellow-500/40" },
+  approved: { label: "Approved", className: "bg-green-500/15 text-green-400 border-green-500/40" },
+  rejected: { label: "Rejected", className: "bg-red-500/15 text-red-400 border-red-500/40" },
 };
 
 // ─── Formatting helpers ──────────────────────────────────────────────────────
@@ -166,16 +204,16 @@ export async function placeShopOrder(input: {
 export async function fetchManagerProducts(filters?: {
   category?: ShopCategory;
   subcategory?: EfootballTier;
-}): Promise<ShopProduct[]> {
+}): Promise<ManagerShopProduct[]> {
   const params = new URLSearchParams();
   if (filters?.category) params.set("category", filters.category);
   if (filters?.subcategory) params.set("subcategory", filters.subcategory);
   const qs = params.toString();
-  return apiFetch<ShopProduct[]>(`/api/admin/shop/products${qs ? `?${qs}` : ""}`);
+  return apiFetch<ManagerShopProduct[]>(`/api/admin/shop/products${qs ? `?${qs}` : ""}`);
 }
 
-export async function createManagerProduct(input: NewShopProduct): Promise<ShopProduct> {
-  return apiFetch<ShopProduct>("/api/admin/shop/products", {
+export async function createManagerProduct(input: NewShopProduct): Promise<ManagerShopProduct> {
+  return apiFetch<ManagerShopProduct>("/api/admin/shop/products", {
     method: "POST",
     body: JSON.stringify(input),
   });
@@ -184,8 +222,8 @@ export async function createManagerProduct(input: NewShopProduct): Promise<ShopP
 export async function updateManagerProduct(
   id: number,
   patch: Partial<NewShopProduct>,
-): Promise<ShopProduct> {
-  return apiFetch<ShopProduct>(`/api/admin/shop/products/${id}`, {
+): Promise<ManagerShopProduct> {
+  return apiFetch<ManagerShopProduct>(`/api/admin/shop/products/${id}`, {
     method: "PATCH",
     body: JSON.stringify(patch),
   });
@@ -224,6 +262,81 @@ export async function uploadShopImage(file: File): Promise<string> {
   if (!response.ok) throw new Error(data.error ?? "Failed to upload image");
   if (!data.objectPath) throw new Error("The upload did not return a file path");
   return data.objectPath;
+}
+
+// ═══════════════════ Sell Your Account ══════════════════════════════════════
+
+/**
+ * Upload a seller image through the public (non-admin) endpoint. Returns the
+ * canonical `/objects/...` path stored on the submission.
+ */
+export async function uploadSellImage(file: File): Promise<string> {
+  const response = await fetch(apiUrl("/api/shop/sell/uploads"), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": file.type || "image/png" },
+    body: file,
+  });
+  const data = (await response.json().catch(() => ({}))) as { objectPath?: string; error?: string };
+  if (!response.ok) throw new Error(data.error ?? "Failed to upload image");
+  if (!data.objectPath) throw new Error("The upload did not return a file path");
+  return data.objectPath;
+}
+
+export async function submitSellAccount(input: {
+  profileImagePath: string;
+  galleryPaths: string[];
+  priceCents: number;
+  teamStrength: number | null;
+  konamiIdLinked: boolean;
+  googlePlayLinked: boolean;
+  gameCenterLinked: boolean;
+  phone: string;
+  sellerName: string;
+  sellerDiscord: string;
+  notes?: string;
+}): Promise<ShopSellSubmission> {
+  const data = await apiFetch<{ submission: ShopSellSubmission }>("/api/shop/sell", {
+    method: "POST",
+    body: JSON.stringify({ ...input, clientId: getShopClientId() }),
+  });
+  return data.submission;
+}
+
+export async function fetchMySellSubmissions(): Promise<ShopSellSubmission[]> {
+  const data = await apiFetch<{ submissions: ShopSellSubmission[] }>(
+    `/api/shop/sell/mine?clientId=${encodeURIComponent(getShopClientId())}`,
+  );
+  return data.submissions;
+}
+
+// ─── Manager Sell Logs (the server enforces the WG-SHOP Manager role) ───────
+export async function fetchSellLogs(status?: ShopSellStatus): Promise<ManagerShopSellSubmission[]> {
+  const data = await apiFetch<{ submissions: ManagerShopSellSubmission[] }>(
+    `/api/admin/shop/sell-logs${status ? `?status=${status}` : ""}`,
+  );
+  return data.submissions;
+}
+
+export async function approveSellSubmission(
+  id: number,
+  input: { aqoonsiId: string; subcategory: EfootballTier },
+): Promise<{ submission: ManagerShopSellSubmission; product: ShopProduct }> {
+  return apiFetch(`/api/admin/shop/sell-logs/${id}/approve`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function rejectSellSubmission(id: number, reason?: string): Promise<ManagerShopSellSubmission> {
+  const data = await apiFetch<{ submission: ManagerShopSellSubmission }>(
+    `/api/admin/shop/sell-logs/${id}/reject`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ reason }),
+    },
+  );
+  return data.submission;
 }
 
 

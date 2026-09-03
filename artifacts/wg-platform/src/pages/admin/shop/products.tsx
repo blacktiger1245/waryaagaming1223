@@ -581,6 +581,14 @@ export default function AdminShopProductsPage() {
                   {product.published ? "Published" : "Draft"}
                 </span>
                 <span className="text-xs text-muted-foreground">{formatPrice(product.priceCents)}</span>
+                {product.aqoonsiId ? (
+                  <span
+                    className="rounded-md border border-amber-500/50 bg-amber-500/10 px-2 py-0.5 text-[11px] font-black tracking-widest text-amber-300"
+                    title="Aqoonsi (account ID) — visible to the WG-SHOP Manager only"
+                  >
+                    #{product.aqoonsiId}
+                  </span>
+                ) : null}
                 <div className="ml-auto flex gap-1">
                   <Button
                     size="icon"

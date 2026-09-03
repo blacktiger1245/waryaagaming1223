@@ -67,10 +67,12 @@ import ShopStorePage from "@/pages/shop/store";
 import ShopCategoryPage from "@/pages/shop/category";
 import ShopProductPage from "@/pages/shop/product";
 import ShopOrdersPage from "@/pages/shop/orders";
+import ShopSellPage from "@/pages/shop/sell";
 import AdminShopDashboardPage from "@/pages/admin/shop/dashboard";
 import AdminShopProductsPage from "@/pages/admin/shop/products";
 import AdminShopOrdersPage from "@/pages/admin/shop/orders";
-import { ShopLayout } from "@/components/shop/shop-layout";
+import AdminShopSellLogsPage from "@/pages/admin/shop/sell-logs";
+import { ShopSection } from "@/components/shop/shop-layout";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -127,16 +129,21 @@ function SiteRouter() {
 }
 
 function ShopRouter() {
+  // WG-SHOP is a section of the main website: it renders inside the global
+  // Layout so the site sidebar (with WG-SHOP highlighted) is always visible.
   return (
-    <ShopLayout>
-      <Switch>
-        <Route path="/shop" component={ShopStorePage} />
-        <Route path="/shop/orders" component={ShopOrdersPage} />
-        <Route path="/shop/category/:category" component={ShopCategoryPage} />
-        <Route path="/shop/product/:id" component={ShopProductPage} />
-        <Route component={NotFound} />
-      </Switch>
-    </ShopLayout>
+    <Layout>
+      <ShopSection>
+        <Switch>
+          <Route path="/shop" component={ShopStorePage} />
+          <Route path="/shop/sell" component={ShopSellPage} />
+          <Route path="/shop/orders" component={ShopOrdersPage} />
+          <Route path="/shop/category/:category" component={ShopCategoryPage} />
+          <Route path="/shop/product/:id" component={ShopProductPage} />
+          <Route component={NotFound} />
+        </Switch>
+      </ShopSection>
+    </Layout>
   );
 }
 
@@ -166,6 +173,7 @@ function AdminRouter() {
         <Route path="/admin/support/:id" component={AdminSupportTicketPage} />
         <Route path="/admin/shop" component={AdminShopDashboardPage} />
         <Route path="/admin/shop/orders" component={AdminShopOrdersPage} />
+        <Route path="/admin/shop/sell-logs" component={AdminShopSellLogsPage} />
         <Route path="/admin/shop/:category" component={AdminShopProductsPage} />
         <Route component={NotFound} />
       </Switch>

@@ -148,6 +148,32 @@ export async function ensureShopSchema(): Promise<void> {
      );`,
     `CREATE INDEX IF NOT EXISTS "shop_orders_client_idx" ON "shop_orders" ("client_id")`,
     `CREATE INDEX IF NOT EXISTS "shop_orders_user_idx" ON "shop_orders" ("user_id")`,
+    // Aqoonsi (manager-only account ID on products)
+    `ALTER TABLE "shop_products" ADD COLUMN IF NOT EXISTS "aqoonsi_id" text`,
+    // Sell Your Account (user-submitted accounts awaiting manager review)
+    `CREATE TABLE IF NOT EXISTS "shop_sell_submissions" (
+       "id" serial PRIMARY KEY,
+       "profile_image_path" text,
+       "gallery_paths" text[] NOT NULL DEFAULT '{}',
+       "price_cents" integer NOT NULL,
+       "team_strength" integer,
+       "konami_id_linked" boolean NOT NULL DEFAULT false,
+       "google_play_linked" boolean NOT NULL DEFAULT false,
+       "game_center_linked" boolean NOT NULL DEFAULT false,
+       "phone" text NOT NULL,
+       "seller_name" text NOT NULL,
+       "seller_discord" text NOT NULL,
+       "notes" text,
+       "status" text NOT NULL DEFAULT 'pending',
+       "rejection_reason" text,
+       "aqoonsi_id" text,
+       "published_product_id" integer,
+       "client_id" text NOT NULL,
+       "created_at" timestamp NOT NULL DEFAULT now(),
+       "updated_at" timestamp NOT NULL DEFAULT now()
+     );`,
+    `CREATE INDEX IF NOT EXISTS "shop_sell_submissions_status_idx" ON "shop_sell_submissions" ("status")`,
+    `CREATE INDEX IF NOT EXISTS "shop_sell_submissions_client_idx" ON "shop_sell_submissions" ("client_id")`,
   ];
 
   try {
