@@ -46,6 +46,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { user, isLoading, isLoggedIn, loginWithDiscord, logout } = useAuth();
   const pageKey = location.split("/").filter(Boolean)[0] || "home";
 
+  // Single source of truth: ANY navigation (nav links, dropdown items, admin
+  // shortcuts, redirects) immediately returns the sidebar to its collapsed
+  // state. Individual links also close it onClick for an instant feel; this
+  // effect is the safety net so the drawer can never stay open after the
+  // user navigates.
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location]);
+
   // Pressing Escape closes the slide-out sidebar.
   useEffect(() => {
     if (!sidebarOpen) return;
