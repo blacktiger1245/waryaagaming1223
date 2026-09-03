@@ -46,6 +46,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { user, isLoading, isLoggedIn, loginWithDiscord, logout } = useAuth();
   const pageKey = location.split("/").filter(Boolean)[0] || "home";
 
+  // Pressing Escape closes the slide-out sidebar.
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSidebarOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [sidebarOpen]);
+
   type NavLink = { href: string; label: string; icon?: LucideIcon; live?: boolean; logo?: boolean };
   const navLinks: NavLink[] = [
     { href: "/", label: "Home", icon: Home },
@@ -77,9 +87,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Top bar (all screen sizes) */}
       <div className="fixed top-0 left-0 right-0 z-50 h-16 flex items-center gap-3 px-4 border-b border-border bg-background/95 backdrop-blur">
         <button
-          className="text-muted-foreground hover:text-foreground p-1 lg:hidden"
+          className="text-muted-foreground hover:text-foreground p-1"
           onClick={() => setSidebarOpen(!sidebarOpen)}
           aria-label="Toggle menu"
+          aria-expanded={sidebarOpen}
           data-testid="button-menu-toggle"
         >
           {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -93,10 +104,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <AgentChatBell />
       </div>
 
-      {/* Sidebar — persistent on desktop (lg+), slide-in drawer on mobile */}
+      {/* Sidebar — collapsible slide-out drawer on ALL screen sizes.
+          Hidden by default; opened with the ☰ button and closed by selecting
+          a layout, tapping the backdrop or pressing Escape. */}
       <aside
-        className={`fixed top-0 left-0 h-[100dvh] w-64 flex-shrink-0 border-r border-sidebar-border bg-sidebar flex flex-col z-50 transition-transform duration-200
-          ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}
+        className={`fixed top-0 left-0 h-[100dvh] w-64 flex-shrink-0 border-r border-sidebar-border bg-sidebar flex flex-col z-50 shadow-2xl transition-transform duration-300 ease-out
+          ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
       >
         <div className="h-16 flex-shrink-0" />
 
@@ -242,11 +255,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* Overlay behind open sidebar */}
+      {/* Overlay behind open sidebar (click outside to close) */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/60 z-40"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 animate-in fade-in duration-200"
           onClick={() => setSidebarOpen(false)}
+          aria-hidden
         />
       )}
 
@@ -283,7 +297,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         })}
       </nav>
 
-      <div className="flex-1 flex flex-col min-w-0 pt-16 pb-16 lg:pb-0 lg:pl-64">
+      <div className="flex-1 flex flex-col min-w-0 pt-16 pb-16 lg:pb-0">
         <main className="flex-1 flex flex-col">{children}</main>
 
         <footer className="mt-20 border-t border-white/5">
