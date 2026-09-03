@@ -67,10 +67,12 @@ import ShopStorePage from "@/pages/shop/store";
 import ShopCategoryPage from "@/pages/shop/category";
 import ShopProductPage from "@/pages/shop/product";
 import ShopOrdersPage from "@/pages/shop/orders";
+import ShopOrderChatPage from "@/pages/shop/order-chat";
 import ShopSellPage from "@/pages/shop/sell";
 import AdminShopDashboardPage from "@/pages/admin/shop/dashboard";
 import AdminShopProductsPage from "@/pages/admin/shop/products";
 import AdminShopOrdersPage from "@/pages/admin/shop/orders";
+import AdminShopOrderChatPage from "@/pages/admin/shop/order-chat";
 import AdminShopSellLogsPage from "@/pages/admin/shop/sell-logs";
 import { ShopSection } from "@/components/shop/shop-layout";
 
@@ -137,6 +139,7 @@ function ShopRouter() {
         <Switch>
           <Route path="/shop" component={ShopStorePage} />
           <Route path="/shop/sell" component={ShopSellPage} />
+          <Route path="/shop/orders/:orderId/chat" component={ShopOrderChatPage} />
           <Route path="/shop/orders" component={ShopOrdersPage} />
           <Route path="/shop/category/:category" component={ShopCategoryPage} />
           <Route path="/shop/product/:id" component={ShopProductPage} />
@@ -172,6 +175,7 @@ function AdminRouter() {
         <Route path="/admin/support/history" component={AdminSupportHistoryPage} />
         <Route path="/admin/support/:id" component={AdminSupportTicketPage} />
         <Route path="/admin/shop" component={AdminShopDashboardPage} />
+        <Route path="/admin/shop/orders/:id/chat" component={AdminShopOrderChatPage} />
         <Route path="/admin/shop/orders" component={AdminShopOrdersPage} />
         <Route path="/admin/shop/sell-logs" component={AdminShopSellLogsPage} />
         <Route path="/admin/shop/:category" component={AdminShopProductsPage} />

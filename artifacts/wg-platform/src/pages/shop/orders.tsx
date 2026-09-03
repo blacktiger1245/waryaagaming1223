@@ -1,12 +1,21 @@
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, ShoppingBag, PackageOpen } from "lucide-react";
-import { fetchMyShopOrders, formatDate, formatPrice, SHOP_CATEGORY_META, SHOP_ORDER_STATUS_META } from "@/lib/shop";
+import { Loader2, ShoppingBag, PackageOpen, MessageSquare } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { storageUrl } from "@/lib/api";
+import {
+  fetchMyShopOrders,
+  formatDate,
+  formatPrice,
+  SHOP_CATEGORY_META,
+  SHOP_ORDER_STATUS_META,
+} from "@/lib/shop";
 
 /**
  * My Orders — /shop/orders
  * Lists this browser's orders (guest checkout uses a local capability id) and
- * merges any orders tied to the current platform session.
+ * merges any orders tied to the current platform session. Processing orders
+ * expose the private order chat with the WG-SHOP Manager.
  */
 export default function ShopOrdersPage() {
   const { data: orders, isLoading } = useQuery({
@@ -23,7 +32,8 @@ export default function ShopOrdersPage() {
           <ShoppingBag className="h-7 w-7 text-primary" /> My Orders
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Track every purchase you placed on this device and its delivery status.
+          Track every purchase you placed on this device and its delivery status. Orders being processed open a
+          private chat with the WG-SHOP team.
         </p>
       </div>
 
@@ -46,32 +56,56 @@ export default function ShopOrdersPage() {
           orders.map((order) => {
             const status = SHOP_ORDER_STATUS_META[order.status] ?? SHOP_ORDER_STATUS_META.pending;
             const accent = SHOP_CATEGORY_META[order.category]?.accent ?? "#22c55e";
+            const imageSrc = storageUrl(order.productImagePath);
+            const chatAvailable = order.status === "processing" || order.status === "completed";
             return (
               <div
                 key={order.id}
-                data-testid={`card-order-${order.id}`}
                 className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/40 sm:flex-row sm:items-center"
               >
                 <div className="flex min-w-0 flex-1 items-center gap-3">
-                  <div
-                    className="flex size-10 flex-shrink-0 items-center justify-center rounded-lg border text-lg font-black"
-                    style={{ borderColor: accent, color: accent, backgroundColor: `${accent}1f` }}
-                  >
-                    #{order.id}
-                  </div>
+                  {imageSrc ? (
+                    <img
+                      src={imageSrc}
+                      alt=""
+                      className="size-12 flex-shrink-0 rounded-lg border border-border object-cover"
+                    />
+                  ) : (
+                    <div
+                      className="flex size-12 flex-shrink-0 items-center justify-center rounded-lg border text-lg font-black"
+                      style={{ borderColor: accent, color: accent, backgroundColor: `${accent}1f` }}
+                    >
+                      #{order.id}
+                    </div>
+                  )}
                   <div className="min-w-0">
                     <p className="truncate font-bold">{order.productTitle}</p>
                     <p className="text-xs text-muted-foreground">
-                      {formatDate(order.createdAt)} · {SHOP_CATEGORY_META[order.category]?.label ?? order.category}
+                      #{order.id} · {formatDate(order.createdAt)} ·{" "}
+                      {SHOP_CATEGORY_META[order.category]?.label ?? order.category}
                       {order.note ? ` · “${order.note}”` : ""}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center justify-between gap-3 sm:justify-end">
+                <div className="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
                   <span className="text-lg font-black text-primary">{formatPrice(order.priceCents)}</span>
-                  <span className={`rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-wide ${status.className}`}>
+                  <span
+                    className={`rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-wide ${status.className}`}
+                  >
                     {status.label}
                   </span>
+                  {chatAvailable ? (
+                    <Button
+                      asChild
+                      size="sm"
+                      className="font-black uppercase tracking-wide"
+                      data-testid={`link-open-chat-${order.id}`}
+                    >
+                      <Link href={`/shop/orders/${order.id}/chat`}>
+                        <MessageSquare className="mr-1.5 h-3.5 w-3.5" /> Open Chat
+                      </Link>
+                    </Button>
+                  ) : null}
                 </div>
               </div>
             );

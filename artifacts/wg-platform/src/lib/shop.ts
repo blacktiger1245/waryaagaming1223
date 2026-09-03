@@ -34,11 +34,48 @@ export interface ShopOrder {
   priceCents: number;
   buyerName: string;
   buyerContact: string;
+  buyerPhone: string | null;
+  buyerDiscord: string | null;
+  productImagePath: string | null;
   note: string | null;
   status: ShopOrderStatus;
   clientId: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ShopOrderChat {
+  id: number;
+  orderId: number;
+  status: "open" | "closed";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ShopChatMessage {
+  id: number;
+  chatId: number;
+  senderRole: "customer" | "manager";
+  senderName: string;
+  body: string | null;
+  imagePath: string | null;
+  createdAt: string;
+}
+
+export interface ManagerOrderChatSummary {
+  chatId: number;
+  orderId: number;
+  orderStatus: ShopOrderStatus;
+  buyerName: string;
+  productTitle: string;
+  priceCents: number;
+  updatedAt: string;
+}
+
+/** Manager-only payload used to draw the transcript PNG. */
+export interface OrderTranscriptData {
+  order: ShopOrder;
+  product: (ShopProduct & { aqoonsiId: string | null }) | null;
 }
 
 /** Manager product = public product + the manager-only Aqoonsi (never public). */
@@ -190,7 +227,8 @@ export async function fetchMyShopOrders(): Promise<ShopOrder[]> {
 export async function placeShopOrder(input: {
   productId: number;
   buyerName: string;
-  buyerContact: string;
+  buyerPhone: string;
+  buyerDiscord: string;
   note?: string;
 }): Promise<ShopOrder> {
   const data = await apiFetch<{ order: ShopOrder }>("/api/shop/orders", {
@@ -198,6 +236,48 @@ export async function placeShopOrder(input: {
     body: JSON.stringify({ ...input, clientId: getShopClientId() }),
   });
   return data.order;
+}
+
+// ═══════════════════ Order chat (customer ↔ manager) ════════════════════════
+
+export async function fetchOrderChat(orderId: number): Promise<{
+  chat: ShopOrderChat;
+  order: ShopOrder;
+  messages: ShopChatMessage[];
+  viewer: "customer" | "manager";
+}> {
+  return apiFetch(
+    `/api/shop/orders/${orderId}/chat?clientId=${encodeURIComponent(getShopClientId())}`,
+  );
+}
+
+export async function sendChatMessage(orderId: number, body: string): Promise<ShopChatMessage> {
+  const data = await apiFetch<{ message: ShopChatMessage }>(`/api/shop/orders/${orderId}/chat/messages`, {
+    method: "POST",
+    body: JSON.stringify({ body, clientId: getShopClientId() }),
+  });
+  return data.message;
+}
+
+export async function deleteOrderChat(orderId: number): Promise<void> {
+  await apiFetch(`/api/shop/orders/${orderId}/chat`, { method: "DELETE" });
+}
+
+export async function fetchTranscriptData(orderId: number): Promise<OrderTranscriptData> {
+  return apiFetch(`/api/shop/orders/${orderId}/chat/transcript-data`);
+}
+
+export async function sendTranscriptImage(orderId: number, dataUrl: string): Promise<ShopChatMessage> {
+  const data = await apiFetch<{ message: ShopChatMessage }>(`/api/shop/orders/${orderId}/chat/transcript`, {
+    method: "POST",
+    body: JSON.stringify({ dataUrl }),
+  });
+  return data.message;
+}
+
+export async function fetchManagerChats(): Promise<ManagerOrderChatSummary[]> {
+  const data = await apiFetch<{ chats: ManagerOrderChatSummary[] }>("/api/admin/shop/chats");
+  return data.chats;
 }
 
 // ─── Manager endpoints (the server enforces the WG-SHOP Manager role) ───────

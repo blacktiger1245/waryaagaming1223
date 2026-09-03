@@ -69,6 +69,12 @@ export const shopOrdersTable = pgTable("shop_orders", {
   priceCents: integer("price_cents").notNull(),
   buyerName: text("buyer_name").notNull(),
   buyerContact: text("buyer_contact").notNull(),
+  /** Customer phone number collected in the Complete Your Order form. */
+  buyerPhone: text("buyer_phone"),
+  /** Customer Discord username collected in the Complete Your Order form. */
+  buyerDiscord: text("buyer_discord"),
+  /** Snapshot of the product's main image at purchase time. */
+  productImagePath: text("product_image_path"),
   note: text("note"),
   /** 'pending' | 'processing' | 'completed' | 'cancelled' */
   status: text("status").notNull().default("pending"),
@@ -134,3 +140,45 @@ export const shopSellSubmissionsTable = pgTable("shop_sell_submissions", {
 });
 
 export type ShopSellSubmission = typeof shopSellSubmissionsTable.$inferSelect;
+
+/**
+ * Private per-order chat between the customer and the WG-SHOP Manager.
+ * Created automatically when an order moves to `processing`. One row per order
+ * (unique order_id). `closed` chats are tombstones: messages were deleted and
+ * the conversation can no longer be opened by either side, but the order,
+ * product and customer records are untouched.
+ */
+export const shopOrderChatsTable = pgTable("shop_order_chats", {
+  id: serial("id").primaryKey(),
+  orderId: integer("order_id")
+    .notNull()
+    .unique()
+    .references(() => shopOrdersTable.id, { onDelete: "cascade" }),
+  /** 'open' | 'closed' */
+  status: text("status").notNull().default("open"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+/**
+ * Messages inside an order chat. Either plain text (`body`) or an image
+ * attachment (`image_path`, e.g. the generated transcript PNG uploaded to
+ * object storage).
+ */
+export const shopChatMessagesTable = pgTable("shop_chat_messages", {
+  id: serial("id").primaryKey(),
+  chatId: integer("chat_id")
+    .notNull()
+    .references(() => shopOrderChatsTable.id, { onDelete: "cascade" }),
+  /** 'customer' | 'manager' */
+  senderRole: text("sender_role").notNull(),
+  senderUserId: integer("sender_user_id").references(() => playersTable.id, { onDelete: "set null" }),
+  senderName: text("sender_name").notNull(),
+  body: text("body"),
+  imagePath: text("image_path"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export type ShopOrderChat = typeof shopOrderChatsTable.$inferSelect;
+export type ShopChatMessage = typeof shopChatMessagesTable.$inferSelect;
+

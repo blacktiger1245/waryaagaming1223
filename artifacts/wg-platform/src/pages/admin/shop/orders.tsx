@@ -1,10 +1,13 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, ShoppingBag, MessageCircle } from "lucide-react";
+import { Loader2, ShoppingBag, MessageCircle, MessageSquare, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { storageUrl } from "@/lib/api";
 import {
   fetchManagerOrders,
+  fetchManagerChats,
   updateManagerOrderStatus,
   formatDate,
   formatPrice,
@@ -26,6 +29,14 @@ export default function AdminShopOrdersPage() {
     queryFn: () => fetchManagerOrders(statusFilter === "all" ? undefined : statusFilter),
     refetchInterval: 30_000,
   });
+
+  // Orders with an active (open) private chat get an "Open Chat" control.
+  const { data: chats } = useQuery({
+    queryKey: ["manager-shop-chats"],
+    queryFn: fetchManagerChats,
+    refetchInterval: 15_000,
+  });
+  const chatOrderIds = new Set((chats ?? []).map((c) => c.orderId));
 
   const setStatus = useMutation({
     mutationFn: ({ id, status }: { id: number; status: ShopOrderStatus }) => updateManagerOrderStatus(id, status),
@@ -73,14 +84,16 @@ export default function AdminShopOrdersPage() {
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border bg-card">
-          <table className="w-full min-w-[820px] text-sm">
+          <table className="w-full min-w-[980px] text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase tracking-wider text-muted-foreground">
                 <th className="px-4 py-3 font-bold">Order</th>
                 <th className="px-4 py-3 font-bold">Product</th>
                 <th className="px-4 py-3 font-bold">Customer</th>
+                <th className="px-4 py-3 font-bold">Phone</th>
                 <th className="px-4 py-3 font-bold">Price</th>
                 <th className="px-4 py-3 font-bold">Status</th>
+                <th className="px-4 py-3 font-bold">Chat</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -91,20 +104,40 @@ export default function AdminShopOrdersPage() {
                     <p className="text-xs text-muted-foreground">{formatDate(order.createdAt)}</p>
                   </td>
                   <td className="px-4 py-3">
-                    <p className="max-w-[220px] truncate font-bold">{order.productTitle}</p>
-                    <p
-                      className="text-xs font-bold uppercase"
-                      style={{ color: SHOP_CATEGORY_META[order.category]?.accent }}
-                    >
-                      {SHOP_CATEGORY_META[order.category]?.label ?? order.category}
-                    </p>
+                    <div className="flex items-center gap-2.5">
+                      {order.productImagePath ? (
+                        <img
+                          src={storageUrl(order.productImagePath)}
+                          alt=""
+                          className="size-10 flex-shrink-0 rounded-lg border border-border object-cover"
+                        />
+                      ) : null}
+                      <div className="min-w-0">
+                        <p className="max-w-[200px] truncate font-bold">{order.productTitle}</p>
+                        <p
+                          className="text-xs font-bold uppercase"
+                          style={{ color: SHOP_CATEGORY_META[order.category]?.accent }}
+                        >
+                          {SHOP_CATEGORY_META[order.category]?.label ?? order.category}
+                        </p>
+                      </div>
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     <p className="font-bold">{order.buyerName}</p>
                     <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <MessageCircle className="h-3 w-3" /> {order.buyerContact}
+                      <MessageCircle className="h-3 w-3" /> {order.buyerDiscord ?? order.buyerContact}
                     </p>
                     {order.note ? <p className="mt-0.5 max-w-[200px] truncate text-xs italic text-muted-foreground">“{order.note}”</p> : null}
+                  </td>
+                  <td className="px-4 py-3">
+                    {order.buyerPhone ? (
+                      <p className="flex items-center gap-1 text-xs font-bold text-foreground">
+                        <Phone className="h-3 w-3" /> {order.buyerPhone}
+                      </p>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 font-black text-primary">{formatPrice(order.priceCents)}</td>
                   <td className="px-4 py-3">
@@ -124,6 +157,22 @@ export default function AdminShopOrdersPage() {
                         </Button>
                       ))}
                     </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    {chatOrderIds.has(order.id) || order.status === "processing" ? (
+                      <Button
+                        asChild
+                        size="sm"
+                        className="font-black uppercase tracking-wide"
+                        data-testid={`link-manager-chat-${order.id}`}
+                      >
+                        <Link href={`/admin/shop/orders/${order.id}/chat`}>
+                          <MessageSquare className="mr-1.5 h-3.5 w-3.5" /> Open Chat
+                        </Link>
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    )}
                   </td>
                 </tr>
               ))}

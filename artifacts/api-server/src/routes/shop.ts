@@ -1,7 +1,15 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
-import { db, shopProductsTable, shopOrdersTable, shopSellSubmissionsTable, playersTable } from "@workspace/db";
+import {
+  db,
+  shopProductsTable,
+  shopOrdersTable,
+  shopSellSubmissionsTable,
+  shopOrderChatsTable,
+  shopChatMessagesTable,
+  playersTable,
+} from "@workspace/db";
 import { ObjectStorageService } from "../lib/objectStorage";
-import { and, eq, desc, or } from "drizzle-orm";
+import { and, asc, eq, desc, or } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -63,10 +71,14 @@ function cleanGallery(value: unknown): string[] | null {
 // role is 'admin' | 'owner', or the legacy password-based isAdmin flag.
 // Customers (role 'player') and anonymous visitors never pass this gate, so
 // manager controls stay fully server-enforced.
-function requireShopManager(req: Request, res: Response, next: NextFunction) {
+function isShopManager(req: Request): boolean {
   const discordManager =
     !!req.session?.userId && (req.session?.role === "admin" || req.session?.role === "owner");
-  if (discordManager || req.session?.isAdmin) {
+  return discordManager || !!req.session?.isAdmin;
+}
+
+function requireShopManager(req: Request, res: Response, next: NextFunction) {
+  if (isShopManager(req)) {
     return next();
   }
   return res.status(401).json({ error: "WG-SHOP Manager authentication required" });
@@ -104,6 +116,9 @@ function toOrderJson(o: typeof shopOrdersTable.$inferSelect) {
     priceCents: o.priceCents,
     buyerName: o.buyerName,
     buyerContact: o.buyerContact,
+    buyerPhone: o.buyerPhone,
+    buyerDiscord: o.buyerDiscord,
+    productImagePath: o.productImagePath,
     note: o.note,
     status: o.status,
     clientId: o.clientId,
@@ -222,9 +237,15 @@ router.post("/shop/orders", async (req, res) => {
   if (!buyerName) {
     return res.status(400).json({ error: "Your name is required" });
   }
-  const buyerContact = cleanString(body.buyerContact, 120);
-  if (!buyerContact) {
-    return res.status(400).json({ error: "A Discord username or contact is required" });
+  // Complete Your Order form: phone + full name + Discord username.
+  const buyerPhone = cleanString(body.buyerPhone, 40);
+  if (!buyerPhone) {
+    return res.status(400).json({ error: "Your phone number is required" });
+  }
+  // buyerDiscord is the new field; buyerContact kept for legacy clients.
+  const buyerDiscord = cleanString(body.buyerDiscord, 80) ?? cleanString(body.buyerContact, 120);
+  if (!buyerDiscord) {
+    return res.status(400).json({ error: "Your Discord username is required" });
   }
   const clientId = cleanString(body.clientId, 64);
   if (!clientId || !/^[A-Za-z0-9_-]{8,64}$/.test(clientId)) {
@@ -249,7 +270,10 @@ router.post("/shop/orders", async (req, res) => {
         category: product.category,
         priceCents: product.priceCents,
         buyerName,
-        buyerContact,
+        buyerContact: buyerDiscord,
+        buyerPhone,
+        buyerDiscord,
+        productImagePath: product.profileImagePath,
         note,
         status: "pending",
         clientId,
@@ -291,6 +315,300 @@ router.get("/shop/orders", async (req, res) => {
   } catch (error: unknown) {
     req.log.error({ err: error }, "Error listing shop orders");
     return res.status(500).json({ error: "Failed to load orders" });
+  }
+});
+
+// ═══════════════════ Order chats (customer ↔ manager) ═══════════════════════
+
+function toChatMessageJson(m: typeof shopChatMessagesTable.$inferSelect) {
+  return {
+    id: m.id,
+    chatId: m.chatId,
+    senderRole: m.senderRole,
+    senderName: m.senderName,
+    body: m.body,
+    imagePath: m.imagePath,
+    createdAt: m.createdAt.toISOString(),
+  };
+}
+
+/**
+ * Load an order and authorize the requester: only the WG-SHOP Manager or the
+ * order's own customer (matching platform user id OR browser clientId) may
+ * touch its chat. Customer A can never reach Customer B's chat — this is
+ * enforced here on the server, not just in the UI.
+ */
+async function authorizeOrderAccess(
+  req: Request,
+  res: Response,
+  orderId: number,
+  clientId: string,
+): Promise<{ order: typeof shopOrdersTable.$inferSelect; isManager: boolean } | null> {
+  const [order] = await db.select().from(shopOrdersTable).where(eq(shopOrdersTable.id, orderId));
+  if (!order) {
+    res.status(404).json({ error: "Order not found" });
+    return null;
+  }
+  const isManager = isShopManager(req);
+  const isCustomer =
+    (!!order.userId && !!req.session?.userId && order.userId === req.session.userId) ||
+    (!!clientId && clientId === order.clientId);
+  if (!isManager && !isCustomer) {
+    res.status(403).json({ error: "You do not have access to this order chat" });
+    return null;
+  }
+  return { order, isManager };
+}
+
+// ─── GET /shop/orders/:id/chat ───────────────────────────────────────────────
+// Open (and lazily create) the private chat for an order. Available once the
+// order is Processing or later; Pending orders have no chat yet.
+router.get("/shop/orders/:id/chat", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: "Invalid order id" });
+  }
+  const clientId = typeof req.query.clientId === "string" ? req.query.clientId : "";
+
+  try {
+    const ctx = await authorizeOrderAccess(req, res, id, clientId);
+    if (!ctx) return;
+
+    let [chat] = await db.select().from(shopOrderChatsTable).where(eq(shopOrderChatsTable.orderId, id));
+    if (chat && chat.status === "closed") {
+      return res.status(410).json({ error: "This chat was closed and deleted by the manager" });
+    }
+    if (!chat) {
+      if (ctx.order.status !== "processing" && ctx.order.status !== "completed") {
+        return res.status(409).json({ error: "The order chat opens when the order status is Processing" });
+      }
+      [chat] = await db.insert(shopOrderChatsTable).values({ orderId: id }).returning();
+    }
+
+    const messages = await db
+      .select()
+      .from(shopChatMessagesTable)
+      .where(eq(shopChatMessagesTable.chatId, chat.id))
+      .orderBy(asc(shopChatMessagesTable.createdAt))
+      .limit(500);
+
+    return res.json({
+      chat: {
+        id: chat.id,
+        orderId: chat.orderId,
+        status: chat.status,
+        createdAt: chat.createdAt.toISOString(),
+        updatedAt: chat.updatedAt.toISOString(),
+      },
+      order: toOrderJson(ctx.order),
+      messages: messages.map(toChatMessageJson),
+      viewer: ctx.isManager ? "manager" : "customer",
+    });
+  } catch (error: unknown) {
+    req.log.error({ err: error }, "Error loading order chat");
+    return res.status(500).json({ error: "Failed to load the order chat" });
+  }
+});
+
+// ─── POST /shop/orders/:id/chat/messages ─────────────────────────────────────
+// Send a chat message. The sender role is decided by the SERVER from the
+// session — a customer can never post as the manager and vice versa.
+router.post("/shop/orders/:id/chat/messages", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: "Invalid order id" });
+  }
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const clientId = cleanString(body.clientId, 64) ?? "";
+  const text = cleanString(body.body, 2000);
+  if (!text) {
+    return res.status(400).json({ error: "Message cannot be empty" });
+  }
+
+  try {
+    const ctx = await authorizeOrderAccess(req, res, id, clientId);
+    if (!ctx) return;
+
+    const [chat] = await db.select().from(shopOrderChatsTable).where(eq(shopOrderChatsTable.orderId, id));
+    if (!chat || chat.status === "closed") {
+      return res.status(410).json({ error: "This chat was closed and deleted by the manager" });
+    }
+
+    let senderName = ctx.order.buyerName;
+    let senderUserId: number | null = null;
+    if (ctx.isManager) {
+      senderName = "WG-SHOP Manager";
+      senderUserId = req.session?.userId ?? null;
+      if (senderUserId) {
+        const [player] = await db
+          .select({ username: playersTable.username })
+          .from(playersTable)
+          .where(eq(playersTable.id, senderUserId));
+        if (player?.username) senderName = player.username;
+      }
+    }
+
+    const [message] = await db
+      .insert(shopChatMessagesTable)
+      .values({
+        chatId: chat.id,
+        senderRole: ctx.isManager ? "manager" : "customer",
+        senderUserId,
+        senderName,
+        body: text,
+      })
+      .returning();
+    await db
+      .update(shopOrderChatsTable)
+      .set({ updatedAt: new Date() })
+      .where(eq(shopOrderChatsTable.id, chat.id));
+
+    return res.status(201).json({ message: toChatMessageJson(message) });
+  } catch (error: unknown) {
+    req.log.error({ err: error }, "Error sending chat message");
+    return res.status(500).json({ error: "Failed to send the message" });
+  }
+});
+
+// ─── GET /shop/orders/:id/chat/transcript-data ───────────────────────────────
+// Manager-only. Returns everything needed to draw the transcript PNG,
+// including the product's Aqoonsi for eFootball orders (this endpoint is
+// manager-gated, so the private Account No never reaches customers here).
+router.get("/shop/orders/:id/chat/transcript-data", requireShopManager, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: "Invalid order id" });
+  }
+
+  try {
+    const [order] = await db.select().from(shopOrdersTable).where(eq(shopOrdersTable.id, id));
+    if (!order) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    let product: ReturnType<typeof toManagerProductJson> | null = null;
+    if (order.productId) {
+      const [p] = await db.select().from(shopProductsTable).where(eq(shopProductsTable.id, order.productId));
+      if (p) product = toManagerProductJson(p);
+    }
+
+    return res.json({ order: toOrderJson(order), product });
+  } catch (error: unknown) {
+    req.log.error({ err: error }, "Error loading transcript data");
+    return res.status(500).json({ error: "Failed to load transcript data" });
+  }
+});
+
+// ─── POST /shop/orders/:id/chat/transcript ───────────────────────────────────
+// Manager-only. Receives the generated transcript PNG (data URL), stores it in
+// object storage and posts it to the chat as a real image message the customer
+// can view and download. Plain-text transcripts are never sent.
+const CHAT_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
+router.post("/shop/orders/:id/chat/transcript", requireShopManager, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: "Invalid order id" });
+  }
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const dataUrl = typeof body.dataUrl === "string" ? body.dataUrl : "";
+  const match = /^data:(image\/png);base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
+  if (!match) {
+    return res.status(400).json({ error: "A PNG transcript image is required" });
+  }
+  const buffer = Buffer.from(match[2], "base64");
+  if (buffer.length === 0) {
+    return res.status(400).json({ error: "The transcript image is empty" });
+  }
+  if (buffer.length > CHAT_IMAGE_MAX_BYTES) {
+    return res.status(413).json({ error: "The transcript image is too large" });
+  }
+
+  try {
+    const [chat] = await db.select().from(shopOrderChatsTable).where(eq(shopOrderChatsTable.orderId, id));
+    if (!chat || chat.status === "closed") {
+      return res.status(409).json({ error: "This chat is no longer active" });
+    }
+
+    const objectPath = await objectStorageService.uploadObject(buffer, "image/png");
+    const [message] = await db
+      .insert(shopChatMessagesTable)
+      .values({
+        chatId: chat.id,
+        senderRole: "manager",
+        senderUserId: req.session?.userId ?? null,
+        senderName: "WG-SHOP Manager",
+        body: "WG-SHOP Order Transcript",
+        imagePath: objectPath,
+      })
+      .returning();
+    await db
+      .update(shopOrderChatsTable)
+      .set({ updatedAt: new Date() })
+      .where(eq(shopOrderChatsTable.id, chat.id));
+
+    return res.status(201).json({ message: toChatMessageJson(message) });
+  } catch (error: unknown) {
+    req.log.error({ err: error }, "Error sending transcript to order chat");
+    return res.status(500).json({ error: "Failed to send the transcript" });
+  }
+});
+
+// ─── DELETE /shop/orders/:id/chat ────────────────────────────────────────────
+// Manager-only. Permanently deletes all chat messages and tombstones the chat
+// (status 'closed') so neither side can reopen it. The order, product and
+// customer records are NOT touched.
+router.delete("/shop/orders/:id/chat", requireShopManager, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: "Invalid order id" });
+  }
+
+  try {
+    const [chat] = await db.select().from(shopOrderChatsTable).where(eq(shopOrderChatsTable.orderId, id));
+    if (!chat) {
+      return res.status(404).json({ error: "Chat not found" });
+    }
+    if (chat.status !== "closed") {
+      await db.delete(shopChatMessagesTable).where(eq(shopChatMessagesTable.chatId, chat.id));
+      await db
+        .update(shopOrderChatsTable)
+        .set({ status: "closed", updatedAt: new Date() })
+        .where(eq(shopOrderChatsTable.id, chat.id));
+    }
+    return res.json({ ok: true });
+  } catch (error: unknown) {
+    req.log.error({ err: error }, "Error closing order chat");
+    return res.status(500).json({ error: "Failed to close the chat" });
+  }
+});
+
+// ─── GET /admin/shop/chats ───────────────────────────────────────────────────
+// Manager-only. All open order chats with their order summary, so the Orders
+// page knows which orders have an active chat.
+router.get("/admin/shop/chats", requireShopManager, async (req, res) => {
+  try {
+    const rows = await db
+      .select({ chat: shopOrderChatsTable, order: shopOrdersTable })
+      .from(shopOrderChatsTable)
+      .innerJoin(shopOrdersTable, eq(shopOrderChatsTable.orderId, shopOrdersTable.id))
+      .where(eq(shopOrderChatsTable.status, "open"))
+      .orderBy(desc(shopOrderChatsTable.updatedAt))
+      .limit(200);
+
+    return res.json({
+      chats: rows.map((r) => ({
+        chatId: r.chat.id,
+        orderId: r.order.id,
+        orderStatus: r.order.status,
+        buyerName: r.order.buyerName,
+        productTitle: r.order.productTitle,
+        priceCents: r.order.priceCents,
+        updatedAt: r.chat.updatedAt.toISOString(),
+      })),
+    });
+  } catch (error: unknown) {
+    req.log.error({ err: error }, "Error listing order chats");
+    return res.status(500).json({ error: "Failed to load chats" });
   }
 });
 
@@ -660,6 +978,19 @@ router.patch("/admin/shop/orders/:id/status", requireShopManager, async (req, re
       .returning();
 
     if (!order) return res.status(404).json({ error: "Order not found" });
+
+    // Moving an order to Processing automatically opens its private chat
+    // between the customer and the WG-SHOP Manager.
+    if (status === "processing") {
+      const [existingChat] = await db
+        .select({ id: shopOrderChatsTable.id })
+        .from(shopOrderChatsTable)
+        .where(eq(shopOrderChatsTable.orderId, order.id));
+      if (!existingChat) {
+        await db.insert(shopOrderChatsTable).values({ orderId: order.id });
+      }
+    }
+
     return res.json(toOrderJson(order));
   } catch (error: unknown) {
     req.log.error({ err: error }, "Error updating shop order status");
