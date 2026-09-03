@@ -1,14 +1,17 @@
 import { deflateSync, inflateSync } from "node:zlib";
 import { WG_LOGO_PNG_BASE64 } from "./logo-asset";
+import { POPPINS_400_BASE64 } from "./poppins-regular-asset";
+import { POPPINS_700_BASE64 } from "./poppins-bold-asset";
 
 /**
  * Server-side WG-SHOP order-transcript PNG generator.
  *
- * Zero external dependencies: a minimal PNG encoder/decoder (Node's built-in
- * zlib), an anti-aliased vector stroke font (smooth, professional type — no
- * pixel look), and the REAL WG logo (embedded base64 asset decoded at
- * runtime). The manager's browser only sends the order id; the image is
- * rendered here from the database and uploaded to object storage.
+ * Professional, reliable typography: the REAL Poppins font outlines (embedded
+ * TTF assets) are parsed and rasterized to anti-aliased pixels — no hand-drawn
+ * pixel/stroke font, so glyphs never overlap or distort. The REAL WG logo is
+ * decoded from the embedded PNG asset. The manager's browser only sends the
+ * order id; the server renders the dark gold/white purchase receipt, uploads
+ * it to object storage and posts it into the order chat.
  */
 
 // ─── PNG encoding (color type 2, 8-bit RGB, filter 0) ────────────────────────
@@ -64,7 +67,7 @@ function encodePng(width: number, height: number, rgb: Uint8Array): Buffer {
   ]);
 }
 
-// ─── RGB drawing surface ─────────────────────────────────────────────────────
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 type RGB = [number, number, number];
 
@@ -98,8 +101,8 @@ class RgbCanvas {
     this.pixels[i + 2] = color[2];
   }
 
-  /** Alpha-blend a single pixel (used by the anti-aliased stroke renderer). */
-  private blendPixel(x: number, y: number, color: RGB, alpha: number) {
+  /** Alpha-blend a single pixel (used by the anti-aliased rasterizer). */
+  blendPixel(x: number, y: number, color: RGB, alpha: number) {
     if (x < 0 || y < 0 || x >= this.width || y >= this.height) return;
     const a = Math.max(0, Math.min(1, alpha));
     const i = (y * this.width + x) * 3;
@@ -133,25 +136,6 @@ class RgbCanvas {
     }
   }
 
-  /** Soft radial glow blended over the current pixels. */
-  radialGlow(cx: number, cy: number, radius: number, color: RGB, maxAlpha: number) {
-    const x1 = Math.max(0, cx - radius);
-    const x2 = Math.min(this.width, cx + radius);
-    const y1 = Math.max(0, cy - radius);
-    const y2 = Math.min(this.height, cy + radius);
-    for (let py = y1; py < y2; py++) {
-      for (let px = x1; px < x2; px++) {
-        const dist = Math.hypot(px - cx, py - cy);
-        if (dist >= radius) continue;
-        const i = (py * this.width + px) * 3;
-        const alpha = (1 - dist / radius) * maxAlpha;
-        this.pixels[i] = Math.round(this.pixels[i] * (1 - alpha) + color[0] * alpha);
-        this.pixels[i + 1] = Math.round(this.pixels[i + 1] * (1 - alpha) + color[1] * alpha);
-        this.pixels[i + 2] = Math.round(this.pixels[i + 2] * (1 - alpha) + color[2] * alpha);
-      }
-    }
-  }
-
   hLine(x: number, y: number, w: number, color: RGB) {
     this.fillRect(x, y, w, 2, color);
   }
@@ -160,46 +144,11 @@ class RgbCanvas {
     return encodePng(this.width, this.height, this.pixels);
   }
 
-  /**
-   * Anti-aliased round-cap stroke between two points. Coverage per pixel comes
-   * from its distance to the segment (~1px AA edge), which produces smooth,
-   * professional-looking type instead of the old pixel grid.
-   */
-  strokeSegment(x1: number, y1: number, x2: number, y2: number, radius: number, color: RGB) {
-    const pad = radius + 1.5;
-    const minX = Math.max(0, Math.floor(Math.min(x1, x2) - pad));
-    const maxX = Math.min(this.width - 1, Math.ceil(Math.max(x1, x2) + pad));
-    const minY = Math.max(0, Math.floor(Math.min(y1, y2) - pad));
-    const maxY = Math.min(this.height - 1, Math.ceil(Math.max(y1, y2) + pad));
-    const dx = x2 - x1;
-    const dy = y2 - y1;
-    const lenSq = dx * dx + dy * dy;
-    for (let py = minY; py <= maxY; py++) {
-      for (let px = minX; px <= maxX; px++) {
-        let t = lenSq === 0 ? 0 : ((px - x1) * dx + (py - y1) * dy) / lenSq;
-        t = Math.max(0, Math.min(1, t));
-        const cx = x1 + t * dx;
-        const cy = y1 + t * dy;
-        const dist = Math.hypot(px - cx, py - cy);
-        const alpha = radius + 0.5 - dist;
-        if (alpha <= 0) continue;
-        this.blendPixel(px, py, color, Math.min(1, alpha));
-      }
-    }
-  }
-
-  /** Draw an RGBA image scaled to dx/dy/dw/dh with bilinear sampling + rounded
-   * corner clipping (used for the WG logo). Transparent pixels blend over the
-   * target surface. */
-  drawImage(img: RgbaImage, dx: number, dy: number, dw: number, dh: number, clipRadius: number) {
+  /** Draw an RGBA image scaled to dx/dy/dw/dh with bilinear sampling + smooth
+   * alpha edge (transparent logo pixels blend over the target). */
+  drawImage(img: RgbaImage, dx: number, dy: number, dw: number, dh: number) {
     for (let py = 0; py < dh; py++) {
       for (let px = 0; px < dw; px++) {
-        if (clipRadius > 0) {
-          const ddx = px < clipRadius ? clipRadius - px : px >= dw - clipRadius ? px - (dw - clipRadius - 1) : 0;
-          const ddy = py < clipRadius ? clipRadius - py : py >= dh - clipRadius ? py - (dh - clipRadius - 1) : 0;
-          if (ddx * ddx + ddy * ddy > clipRadius * clipRadius) continue;
-        }
-
         const sx = (px + 0.5) * (img.width / dw) - 0.5;
         const sy = (py + 0.5) * (img.height / dh) - 0.5;
         const x0 = Math.min(Math.max(Math.floor(sx), 0), img.width - 1);
@@ -233,16 +182,493 @@ class RgbCanvas {
   }
 }
 
-// ─── PNG decoder (for the real WG logo) ──────────────────────────────────────
+// ─── TrueType font parsing (real Poppins outlines) ──────────────────────────
+
+interface FontMetric {
+  unitsPerEm: number;
+  ascender: number;
+  capHeight: number;
+}
+
+interface ParsedGlyph {
+  /** Contours of raw TrueType points (x,y in font units, y-up). `on` marks an
+   * on-curve point; off-curve points are quadratic control points. */
+  contours: Array<Array<{ x: number; y: number; on: boolean }>>;
+  advance: number;
+}
+
+interface ParsedFont {
+  glyphs: Map<number, ParsedGlyph>;
+  /** Unicode code point → glyph id (from the cmap table). */
+  charToGlyph: Map<number, number>;
+  metric: FontMetric;
+}
+
+/** Parse the minimum TrueType tables needed to rasterize glyphs: glyf, loca,
+ * head (unitsPerEm), hhea (ascender), hmtx, cmap, maxp, OS/2 (capHeight). */
+function parseTrueType(buf: Buffer): ParsedFont {
+  if (buf.subarray(0, 4).toString("ascii") === "OTTO") {
+    throw new Error("CFF (OpenType PostScript) fonts are not supported");
+  }
+  const numTables = buf.readUInt16BE(4);
+  const tables: Record<string, { offset: number; length: number }> = {};
+  for (let i = 0; i < numTables; i++) {
+    const rec = 12 + i * 16;
+    const tag = buf.subarray(rec, rec + 4).toString("ascii");
+    tables[tag] = { offset: buf.readUInt32BE(rec + 8), length: buf.readUInt32BE(rec + 12) };
+  }
+
+  const getTable = (tag: string) => {
+    const t = tables[tag];
+    if (!t) throw new Error(`Missing font table: ${tag}`);
+    return buf.subarray(t.offset, t.offset + t.length);
+  };
+
+  const head = getTable("head");
+  const unitsPerEm = head.readUInt16BE(18);
+  const indexToLocFormat = head.readInt16BE(50);
+  const maxp = getTable("maxp");
+  const numGlyphs = maxp.readUInt16BE(4);
+  const hhea = getTable("hhea");
+  const ascender = hhea.readInt16BE(4);
+  const numHMetrics = hhea.readUInt16BE(34);
+  const hmtx = getTable("hmtx");
+  // Store the horizontal advances (one per hMetric; subsequent glyphs reuse the
+  // final entry per the TrueType spec).
+  const advancesArr: number[] = [];
+  for (let i = 0; i < numHMetrics; i++) advancesArr.push(hmtx.readUInt16BE(i * 4));
+  const os2 = getTable("OS/2");
+  const capHeight = os2.readInt16BE(88);
+
+  const cmap = getTable("cmap");
+  const subtableCount = cmap.readUInt16BE(2);
+  let cmapOffset = -1;
+  let cmapFormat = 0;
+  for (let i = 0; i < subtableCount; i++) {
+    const platform = cmap.readUInt16BE(4 + i * 8);
+    const encoding = cmap.readUInt16BE(6 + i * 8);
+    const off = cmap.readUInt32BE(8 + i * 8);
+    if (platform === 3 && encoding === 1) {
+      cmapOffset = off;
+      cmapFormat = cmap.readUInt16BE(off);
+      break;
+    }
+    if (cmapOffset === -1 && (platform === 0 || (platform === 3 && encoding === 10))) {
+      cmapOffset = off;
+      cmapFormat = cmap.readUInt16BE(off);
+    }
+  }
+  if (cmapOffset === -1) throw new Error("No usable cmap subtable in font");
+
+  const charToGlyph = new Map<number, number>();
+  if (cmapFormat === 4) {
+    const segCountX2 = cmap.readUInt16BE(cmapOffset + 6);
+    const segCount = segCountX2 / 2;
+    const endCodesOff = cmapOffset + 14;
+    const startCodesOff = endCodesOff + segCountX2 + 2;
+    const idDeltaOff = startCodesOff + segCountX2;
+    const idRangeOff = idDeltaOff + segCountX2;
+    for (let i = 0; i < segCount; i++) {
+      const end = cmap.readUInt16BE(endCodesOff + i * 2);
+      const start = cmap.readUInt16BE(startCodesOff + i * 2);
+      const delta = cmap.readInt16BE(idDeltaOff + i * 2);
+      const rangeOff = cmap.readUInt16BE(idRangeOff + i * 2);
+      for (let c = start; c <= end && c <= 0xffff; c++) {
+        let g = 0;
+        if (rangeOff === 0) {
+          g = (c + delta) & 0xffff;
+        } else {
+          // idRangeOffset is measured from the location of this very field.
+          const addr = idRangeOff + i * 2 + rangeOff + (c - start) * 2;
+          if (addr <= cmapOffset + cmap.length - 2) {
+            const glyph = cmap.readUInt16BE(addr);
+            g = glyph === 0 ? 0 : (glyph + delta) & 0xffff;
+          }
+        }
+        if (g !== 0) charToGlyph.set(c, g);
+      }
+    }
+  } else if (cmapFormat === 12 || cmapFormat === 13) {
+    const numGroups = cmap.readUInt32BE(cmapOffset + 12);
+    for (let i = 0; i < numGroups; i++) {
+      const gOff = cmapOffset + 16 + i * 12;
+      const start = cmap.readUInt32BE(gOff);
+      const end = cmap.readUInt32BE(gOff + 4);
+      const startGlyph = cmap.readUInt32BE(gOff + 8);
+      for (let c = start; c <= end; c++) {
+        charToGlyph.set(c, cmapFormat === 12 ? startGlyph + (c - start) : startGlyph);
+      }
+    }
+  } else {
+    throw new Error(`Unsupported cmap format ${cmapFormat}`);
+  }
+
+  // Build glyph→contours from glyf/loca + the char map.
+  const glyf = getTable("glyf");
+  const loca = getTable("loca");
+  const readLoca = (idx: number): number => {
+    if (indexToLocFormat === 0) return loca.readUInt16BE(idx * 2) * 2;
+    return loca.readUInt32BE(idx * 4);
+  };
+
+  const getAdvance = (gid: number): number =>
+    gid < numHMetrics ? advancesArr[gid] : advancesArr[advancesArr.length - 1];
+
+  const glyphs: Map<number, ParsedGlyph> = new Map();
+  const loadGlyph = (gid: number): ParsedGlyph | null => {
+    if (gid >= numGlyphs) return null;
+    if (glyphs.has(gid)) return glyphs.get(gid)!;
+    const start = readLoca(gid);
+    const end = readLoca(gid + 1);
+    if (start === end) {
+      const empty: ParsedGlyph = { contours: [], advance: getAdvance(gid) };
+      glyphs.set(gid, empty);
+      return empty;
+    }
+    const g = glyf.subarray(start, end);
+    const numberOfContours = g.readInt16BE(0);
+    const advance = getAdvance(gid);
+    const contours: Array<Array<{ x: number; y: number; on: boolean }>> = [];
+
+    if (numberOfContours >= 0) {
+      const n = numberOfContours;
+      const endPts: number[] = [];
+      for (let i = 0; i < n; i++) endPts.push(g.readUInt16BE(10 + i * 2));
+      const insLen = g.readUInt16BE(10 + n * 2);
+      const flagsOff = 10 + n * 2 + 2 + insLen;
+      const numPoints = endPts.length > 0 ? endPts[endPts.length - 1] + 1 : 0;
+
+      const flags: number[] = [];
+      let f = flagsOff;
+      while (flags.length < numPoints) {
+        const fl = g[f++];
+        flags.push(fl);
+        if (fl & 0x08) {
+          const repeat = g[f++];
+          for (let r = 0; r < repeat; r++) flags.push(fl);
+        }
+      }
+
+      const xs: number[] = [];
+      let x = 0;
+      // The x-coordinate deltas begin immediately after the flag bytes, NOT after
+      // `flags.length` entries (that count includes expanded repeat flags, so it
+      // points too far into the glyph data for any glyph using flag repeats —
+      // this was corrupting glyphs like "G"/"A").
+      let fx = f;
+      for (let i = 0; i < numPoints; i++) {
+        const fl = flags[i];
+        if (fl & 0x02) {
+          if (fl & 0x10) x += g[fx++];
+          else x -= g[fx++];
+        } else if (!(fl & 0x10)) {
+          x += g.readInt16BE(fx);
+          fx += 2;
+        }
+        xs.push(x);
+      }
+
+      const ys: number[] = [];
+      let y = 0;
+      for (let i = 0; i < numPoints; i++) {
+        const fl = flags[i];
+        if (fl & 0x04) {
+          if (fl & 0x20) y += g[fx++];
+          else y -= g[fx++];
+        } else if (!(fl & 0x20)) {
+          y += g.readInt16BE(fx);
+          fx += 2;
+        }
+        ys.push(y);
+      }
+
+      let prevEndpoint = 0;
+      for (let c = 0; c < n; c++) {
+        const endpoint = endPts[c];
+        const contour: Array<{ x: number; y: number; on: boolean }> = [];
+        for (let i = prevEndpoint; i <= endpoint; i++) {
+          contour.push({ x: xs[i], y: ys[i], on: (flags[i] & 0x01) !== 0 });
+        }
+        contours.push(contour);
+        prevEndpoint = endpoint + 1;
+      }
+    }
+    // Composite glyphs (few in this ASCII range) are skipped; the outline data
+    // for letters/digits/punctuation in Poppins are simple glyphs.
+
+    const parsed: ParsedGlyph = { contours, advance };
+    glyphs.set(gid, parsed);
+    return parsed;
+  };
+
+  for (const [, gid] of charToGlyph) loadGlyph(gid);
+
+  return {
+    glyphs,
+    charToGlyph,
+    metric: { unitsPerEm, ascender, capHeight: capHeight > 0 ? capHeight : 700 },
+  };
+}
+
+// ─── Font rasterization (even-odd fill + AA via 3x3 supersampling) ──────────
+
+interface LoadedFont {
+  regular: ParsedFont;
+  bold: ParsedFont;
+}
+
+const loadedFonts: LoadedFont = {
+  regular: parseTrueType(Buffer.from(POPPINS_400_BASE64, "base64")),
+  bold: parseTrueType(Buffer.from(POPPINS_700_BASE64, "base64")),
+};
+
+type FontWeight = "regular" | "bold";
+
+interface DrawTextOptions {
+  weight?: FontWeight;
+  /** Fit-to-width cap: the string is squeezed/truncated to fit this many px. */
+  maxWidth?: number;
+  align?: "left" | "center" | "right";
+}
+
+function fontFor(weight: FontWeight): ParsedFont {
+  return weight === "bold" ? loadedFonts.bold : loadedFonts.regular;
+}
+
+function glyphFor(font: ParsedFont, ch: string): ParsedGlyph | null {
+  const code = ch.codePointAt(0);
+  if (code === undefined) return null;
+  const gid = font.charToGlyph.get(code);
+  if (gid === undefined) return null;
+  return font.glyphs.get(gid) ?? null;
+}
+
+function advanceFor(font: ParsedFont, ch: string): number {
+  const g = glyphFor(font, ch);
+  if (g) return g.advance;
+  return 0.5 * font.metric.unitsPerEm; // fallback for .notdef
+}
+
+/** Measure a string's width in font units. */
+function measureUnits(font: ParsedFont, text: string): number {
+  let w = 0;
+  for (const ch of text) w += advanceFor(font, ch);
+  return w;
+}
+
+function measurePx(font: ParsedFont, text: string, scale: number): number {
+  // `scale` is already px-per-font-unit (pxHeight / unitsPerEm), so the width in
+  // pixels is simply measureUnits * scale. The previous `… / unitsPerEm * scale`
+  // double-divided by unitsPerEm, making every measurement ~1000x too small —
+  // fitToWidth then never truncated long values and they overflowed the card.
+  return measureUnits(font, text) * scale;
+}
+
+/** Truncate a string with "…" so it fits within maxPx at the given scale. */
+function fitToWidth(text: string, font: ParsedFont, scale: number, maxPx: number): string {
+  const clean = text.replace(/\s+/g, " ").trim();
+  if (measurePx(font, clean, scale) <= maxPx) return clean;
+  const ell = "\u2026";
+  let result = clean;
+  for (let len = clean.length - 1; len > 0; len--) {
+    const candidate = `${clean.slice(0, len).replace(/\s+\S*$/, "")}${ell}`;
+    if (measurePx(font, candidate, scale) <= maxPx) return candidate;
+  }
+  return ell;
+}
+
+/**
+ * Flatten a TrueType closed contour (on/off curve points, font units) into a
+ * polyline via quadratic Bézier subdivision. Off-curve pairs get implicit
+ * on-curve midpoints per the TrueType glyph format, so letters render smooth.
+ */
+function flattenContour(raw: Array<{ x: number; y: number; on: boolean }>): Array<[number, number]> {
+  const n = raw.length;
+  if (n === 0) return [];
+  // Rotate so an on-curve point is first when available.
+  let start = raw.findIndex((p) => p.on);
+  if (start === -1) start = 0;
+  const arr: Array<{ x: number; y: number; on: boolean }> = [];
+  for (let i = 0; i < n; i++) arr.push(raw[(start + i) % n]);
+
+  const flat: Array<[number, number]> = [];
+  const last = n;
+  const seq = arr.concat(arr); // double-length for cyclic wrapping
+  const onCurve: number[] = [];
+  for (let i = 0; i < last; i++) if (seq[i].on) onCurve.push(i);
+  if (onCurve.length === 0) {
+    // All-off-curve (degenerate): just emit the polygon.
+    for (let i = 0; i < last; i++) flat.push([arr[i].x, arr[i].y]);
+    return flat;
+  }
+
+  const quad = (p0: [number, number], c: [number, number], p2: [number, number]) => {
+    for (let t = 1; t <= 10; t++) {
+      const u = t / 10;
+      const uu = 1 - u;
+      flat.push([
+        uu * uu * p0[0] + 2 * uu * u * c[0] + u * u * p2[0],
+        uu * uu * p0[1] + 2 * uu * u * c[1] + u * u * p2[1],
+      ]);
+    }
+  };
+
+  const m = onCurve.length;
+  for (let k = 0; k < m; k++) {
+    const a = onCurve[k];
+    const b = k + 1 < m ? onCurve[k + 1] : onCurve[0] + last;
+    const A = seq[a];
+    const B = seq[b];
+    const offs: Array<{ x: number; y: number }> = [];
+    for (let j = a + 1; j < b; j++) offs.push(seq[j]);
+    if (offs.length === 0) {
+      flat.push([B.x, B.y]);
+    } else {
+      const offPts = offs.map((o) => [o.x, o.y] as [number, number]);
+      if (offPts.length === 1) {
+        quad([A.x, A.y], offPts[0], [B.x, B.y]);
+      } else {
+        quad([A.x, A.y], offPts[0], [
+          (offPts[0][0] + offPts[1][0]) / 2,
+          (offPts[0][1] + offPts[1][1]) / 2,
+        ]);
+        for (let j = 1; j < offPts.length - 1; j++) {
+          const mid1: [number, number] = [(offPts[j - 1][0] + offPts[j][0]) / 2, (offPts[j - 1][1] + offPts[j][1]) / 2];
+          const mid2: [number, number] = [(offPts[j][0] + offPts[j + 1][0]) / 2, (offPts[j][1] + offPts[j + 1][1]) / 2];
+          quad(mid1, offPts[j], mid2);
+        }
+        const f2 = offPts[offPts.length - 2];
+        const lastO = offPts[offPts.length - 1];
+        quad([(f2[0] + lastO[0]) / 2, (f2[1] + lastO[1]) / 2], lastO, [B.x, B.y]);
+      }
+    }
+  }
+  return flat;
+}
+
+const AA_SUBS = [1 / 6, 0.5, 5 / 6];
+
+function upperBoundSorted(arr: number[], value: number): number {
+  let lo = 0;
+  let hi = arr.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (arr[mid] <= value) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+function drawGlyph(
+  canvas: RgbCanvas,
+  glyph: ParsedGlyph,
+  sx: number,
+  sy: number,
+  scale: number,
+  color: RGB,
+) {
+  if (glyph.contours.length === 0) return;
+  const flat = glyph.contours.map(flattenContour).filter((c) => c.length >= 3);
+  if (flat.length === 0) return;
+
+  // Glyph AABB (font units, y-up).
+  let gxMin = Infinity;
+  let gxMax = -Infinity;
+  let gyMin = Infinity;
+  let gyMax = -Infinity;
+  const edges: Array<{ x0: number; y0: number; x1: number; y1: number }> = [];
+  for (const contour of flat) {
+    const n = contour.length;
+    for (let i = 0, j = n - 1; i < n; j = i++) {
+      const e0 = contour[j];
+      const e1 = contour[i];
+      const xm = Math.min(e0[0], e1[0]);
+      const xM = Math.max(e0[0], e1[0]);
+      const ym = Math.min(e0[1], e1[1]);
+      const yM = Math.max(e0[1], e1[1]);
+      if (xm < gxMin) gxMin = xm;
+      if (xM > gxMax) gxMax = xM;
+      if (ym < gyMin) gyMin = ym;
+      if (yM > gyMax) gyMax = yM;
+      if (e0[1] !== e1[1]) edges.push({ x0: e0[0], y0: e0[1], x1: e1[0], y1: e1[1] });
+    }
+  }
+  if (edges.length === 0) return;
+
+  const x0 = Math.max(0, Math.floor(sx + gxMin * scale));
+  const x1 = Math.min(canvas.width - 1, Math.ceil(sx + gxMax * scale));
+  const y0 = Math.max(0, Math.floor(sy - gyMax * scale));
+  const y1 = Math.min(canvas.height - 1, Math.ceil(sy - gyMin * scale));
+
+  for (let py = y0; py <= y1; py++) {
+    // Compute crossing x-positions for each of 3 subpixel rows (anti-aliasing).
+    const crossings: number[][] = [[], [], []];
+    for (let s = 0; s < 3; s++) {
+      const fy = (sy - (py + AA_SUBS[s])) / scale;
+      const list = crossings[s];
+      for (const e of edges) {
+        if ((e.y0 <= fy && fy < e.y1) || (e.y1 <= fy && fy < e.y0)) {
+          list.push(e.x0 + ((fy - e.y0) * (e.x1 - e.x0)) / (e.y1 - e.y0));
+        }
+      }
+      list.sort((a, b) => a - b);
+    }
+    for (let px = x0; px <= x1; px++) {
+      const fc = (px + 0.5 - sx) / scale;
+      let hits = 0;
+      for (let s = 0; s < 3; s++) {
+        const count = upperBoundSorted(crossings[s], fc);
+        if (count & 1) hits++;
+      }
+      if (hits > 0) {
+        canvas.blendPixel(px, py, color, hits / 3);
+      }
+    }
+  }
+}
+
+/** Draw text (uppercase-normalized for emphasis) left/center/right aligned. */
+function drawText(
+  canvas: RgbCanvas,
+  x: number,
+  baselineY: number,
+  text: string,
+  pxHeight: number,
+  color: RGB,
+  options: DrawTextOptions = {},
+) {
+  const font = fontFor(options.weight ?? "bold");
+  const unitsPerEm = font.metric.unitsPerEm;
+  const scale = pxHeight / unitsPerEm;
+
+  let str = text;
+  if (options.maxWidth !== undefined) {
+    str = fitToWidth(str, font, scale, options.maxWidth);
+  }
+
+  const totalW = measureUnits(font, str) * scale;
+  let cx = x;
+  if (options.align === "center") cx = x - totalW / 2;
+  else if (options.align === "right") cx = x - totalW;
+
+  for (const ch of str) {
+    const glyph = glyphFor(font, ch);
+    const adv = advanceFor(font, ch) * scale;
+    if (glyph) {
+      drawGlyph(canvas, glyph, cx, baselineY, scale, color);
+    }
+    cx += adv;
+  }
+}
+
+// ─── Real WG logo decode + theme + layout ────────────────────────────────────
 
 function decodePngRgba(buf: Buffer): RgbaImage {
   let off = 8;
   let width = 0;
   let height = 0;
-  let bitDepth = 0;
   let colorType = 0;
-  let idat: Buffer[] = [];
-
+  const idat: Buffer[] = [];
   while (off < buf.length) {
     const len = buf.readUInt32BE(off);
     const type = buf.subarray(off + 4, off + 8).toString("ascii");
@@ -250,26 +676,18 @@ function decodePngRgba(buf: Buffer): RgbaImage {
     if (type === "IHDR") {
       width = data.readUInt32BE(0);
       height = data.readUInt32BE(4);
-      bitDepth = data[8];
       colorType = data[9];
     } else if (type === "IDAT") {
       idat.push(data);
-    } else if (type === "IEND") {
-      break;
-    }
+    } else if (type === "IEND") break;
     off += 12 + len;
   }
-
   if (!width || !height) throw new Error("Invalid PNG header");
-  if (bitDepth !== 8 || (colorType !== 6 && colorType !== 2)) {
-    throw new Error("Unsupported logo PNG format (need 8-bit RGBA or RGB)");
-  }
-
+  if (colorType !== 6 && colorType !== 2) throw new Error("Unsupported logo PNG format");
   const raw = inflateSync(Buffer.concat(idat));
   const channels = colorType === 6 ? 4 : 3;
   const stride = width * channels;
   const rgba = new Uint8Array(width * height * 4);
-
   for (let y = 0; y < height; y++) {
     const rowStart = y * (stride + 1);
     const filter = raw[rowStart];
@@ -291,25 +709,16 @@ function decodePngRgba(buf: Buffer): RgbaImage {
       }
       val &= 0xff;
       const o = (y * width + x) * 4;
-      if (channels === 4) {
-        rgba[o] = val;
-        rgba[o + 1] = raw[i + 1];
-        rgba[o + 2] = raw[i + 2];
-        rgba[o + 3] = raw[i + 3];
-      } else {
-        rgba[o] = val;
-        rgba[o + 1] = raw[i + 1];
-        rgba[o + 2] = raw[i + 2];
-        rgba[o + 3] = 255;
-      }
+      rgba[o] = val;
+      rgba[o + 1] = channels === 4 ? raw[i + 1] : raw[i + 1];
+      rgba[o + 2] = channels === 4 ? raw[i + 2] : raw[i + 2];
+      rgba[o + 3] = channels === 4 ? raw[i + 3] : 255;
     }
   }
-
   return { width, height, rgba };
 }
 
 let wgLogo: RgbaImage | null = null;
-
 function getWgLogo(): RgbaImage | null {
   if (wgLogo) return wgLogo;
   try {
@@ -321,227 +730,15 @@ function getWgLogo(): RgbaImage | null {
   return wgLogo;
 }
 
-// ─── Anti-aliased vector stroke font ─────────────────────────────────────────
-
-// Geometric sans-serif letterforms built from round-cap strokes. Coordinates
-// are fractions of a 1.0 cap-height box; thickness defaults to 0.14. This is
-// what makes text look like clean, professional typography instead of pixels.
-
-type Stroke = [number, number, number, number, number];
-
-function S(x1: number, y1: number, x2: number, y2: number, t = 0.14): Stroke {
-  return [x1, y1, x2, y2, t];
+export function __diagDraw(text: string, pxHeight: number): Buffer {
+  const c = new RgbCanvas(800, 240, [0, 0, 0]);
+  drawText(c, 20, 170, text, pxHeight, [255, 255, 255], { weight: "bold" });
+  return c.toPng();
 }
 
-const FONT_MASTERS: Record<string, Stroke[]> = {
-  A: [S(0.02, 1.05, 0.28, 0.02), S(0.28, 0.02, 0.56, 1.05), S(0.12, 0.55, 0.46, 0.55, 0.12)],
-  B: [
-    S(0.08, 1.05, 0.08, 0.02), S(0.42, 0.55, 0.08, 0.55), S(0.08, 0.02, 0.42, 0.02),
-    S(0.42, 0.02, 0.6, 0.2), S(0.6, 0.2, 0.6, 0.4), S(0.6, 0.4, 0.42, 0.55),
-    S(0.08, 1.05, 0.42, 1.05), S(0.42, 1.05, 0.6, 0.86), S(0.6, 0.86, 0.6, 0.68),
-    S(0.6, 0.68, 0.42, 0.55),
-  ],
-  C: [
-    S(0.6, 0.3, 0.48, 0.12), S(0.48, 0.12, 0.22, 0.12), S(0.22, 0.12, 0.08, 0.3),
-    S(0.08, 0.3, 0.08, 0.78), S(0.08, 0.78, 0.22, 0.95), S(0.22, 0.95, 0.48, 0.95),
-    S(0.48, 0.95, 0.6, 0.78),
-  ],
-  D: [
-    S(0.08, 1.05, 0.08, 0.02), S(0.08, 1.05, 0.42, 1.05), S(0.42, 1.05, 0.62, 0.86),
-    S(0.62, 0.86, 0.62, 0.24), S(0.62, 0.24, 0.42, 0.02), S(0.08, 0.02, 0.42, 0.02),
-  ],
-  E: [S(0.08, 1.05, 0.08, 0.02), S(0.08, 1.05, 0.6, 1.05), S(0.08, 0.55, 0.5, 0.55, 0.12), S(0.08, 0.02, 0.6, 0.02)],
-  F: [S(0.08, 1.05, 0.08, 0.02), S(0.08, 1.05, 0.6, 1.05), S(0.08, 0.55, 0.5, 0.55, 0.12)],
-  G: [
-    S(0.6, 0.3, 0.48, 0.12), S(0.48, 0.12, 0.22, 0.12), S(0.22, 0.12, 0.08, 0.3),
-    S(0.08, 0.3, 0.08, 0.78), S(0.08, 0.78, 0.22, 0.95), S(0.22, 0.95, 0.48, 0.95),
-    S(0.48, 0.95, 0.6, 0.8), S(0.34, 0.42, 0.62, 0.42), S(0.62, 0.42, 0.62, 0.55, 0.1),
-  ],
-  H: [S(0.08, 1.05, 0.08, 0.02), S(0.56, 1.05, 0.56, 0.02), S(0.08, 0.55, 0.56, 0.55, 0.12)],
-  I: [S(0.3, 1.05, 0.3, 0.02), S(0.16, 1.05, 0.44, 1.05, 0.12), S(0.16, 0.02, 0.44, 0.02, 0.12)],
-  J: [
-    S(0.5, 1.05, 0.5, 0.24), S(0.5, 0.24, 0.36, 0.06), S(0.36, 0.06, 0.18, 0.06),
-    S(0.18, 0.06, 0.08, 0.18), S(0.32, 1.05, 0.62, 1.05, 0.12),
-  ],
-  K: [S(0.08, 1.05, 0.08, 0.02), S(0.08, 0.55, 0.56, 1.05), S(0.22, 0.44, 0.56, 0.02)],
-  L: [S(0.08, 1.05, 0.08, 0.02), S(0.08, 0.02, 0.56, 0.02)],
-  M: [
-    S(0.06, 1.05, 0.06, 0.02), S(0.06, 1.05, 0.28, 0.4), S(0.28, 0.4, 0.5, 1.05),
-    S(0.5, 1.05, 0.5, 0.02),
-  ],
-  N: [S(0.06, 1.05, 0.06, 0.02), S(0.06, 1.05, 0.56, 0.02), S(0.56, 1.05, 0.56, 0.02)],
-  O: [
-    S(0.12, 1.05, 0.12, 0.02), S(0.56, 1.05, 0.56, 0.02), S(0.12, 0.02, 0.56, 0.02),
-    S(0.12, 1.05, 0.56, 1.05),
-  ],
-  P: [
-    S(0.08, 1.05, 0.08, 0.02), S(0.08, 1.05, 0.42, 1.05), S(0.42, 1.05, 0.6, 0.88),
-    S(0.6, 0.88, 0.6, 0.68), S(0.6, 0.68, 0.42, 0.55), S(0.08, 0.55, 0.42, 0.55),
-  ],
-  Q: [
-    S(0.12, 1.05, 0.12, 0.02), S(0.56, 1.05, 0.56, 0.02), S(0.12, 0.02, 0.56, 0.02),
-    S(0.12, 1.05, 0.56, 1.05), S(0.62, 0.42, 0.4, 0.2, 0.1),
-  ],
-  R: [
-    S(0.08, 1.05, 0.08, 0.02), S(0.08, 1.05, 0.42, 1.05), S(0.42, 1.05, 0.6, 0.88),
-    S(0.6, 0.88, 0.6, 0.68), S(0.6, 0.68, 0.42, 0.55), S(0.08, 0.55, 0.42, 0.55),
-    S(0.4, 0.55, 0.62, 0.02),
-  ],
-  S: [
-    S(0.58, 0.88, 0.44, 1.05), S(0.44, 1.05, 0.2, 1.05), S(0.2, 1.05, 0.08, 0.88),
-    S(0.08, 0.88, 0.08, 0.68), S(0.08, 0.68, 0.42, 0.55), S(0.42, 0.55, 0.58, 0.4),
-    S(0.58, 0.4, 0.58, 0.2), S(0.58, 0.2, 0.42, 0.04), S(0.42, 0.04, 0.18, 0.02),
-    S(0.18, 0.02, 0.08, 0.14),
-  ],
-  T: [S(0.06, 1.05, 0.6, 1.05), S(0.34, 1.05, 0.34, 0.02, 0.16)],
-  U: [
-    S(0.08, 1.05, 0.08, 0.35), S(0.08, 0.35, 0.28, 0.12), S(0.28, 0.12, 0.48, 0.12),
-    S(0.48, 0.12, 0.6, 0.32), S(0.6, 0.32, 0.6, 1.05),
-  ],
-  V: [S(0.04, 1.05, 0.32, 0.02), S(0.32, 0.02, 0.62, 1.05)],
-  W: [
-    S(0.02, 1.05, 0.19, 0.02), S(0.19, 0.02, 0.32, 0.5), S(0.32, 0.5, 0.46, 0.02),
-    S(0.46, 0.02, 0.6, 0.5), S(0.6, 0.5, 0.72, 0.02), S(0.72, 0.02, 0.96, 1.05),
-  ],
-  X: [S(0.06, 1.05, 0.58, 0.02), S(0.06, 0.02, 0.58, 1.05)],
-  Y: [S(0.04, 1.05, 0.32, 0.42), S(0.6, 1.05, 0.32, 0.42), S(0.32, 0.42, 0.32, 0.02, 0.16)],
-  Z: [S(0.06, 1.05, 0.6, 1.05), S(0.6, 1.05, 0.06, 0.02), S(0.06, 0.02, 0.6, 0.02)],
-  "0": [
-    S(0.12, 1.05, 0.12, 0.02), S(0.56, 1.05, 0.56, 0.02), S(0.12, 0.02, 0.56, 0.02),
-    S(0.12, 1.05, 0.56, 1.05), S(0.32, 0.6, 0.32, 0.5, 0.1),
-  ],
-  "1": [S(0.3, 1.05, 0.3, 0.02), S(0.16, 0.02, 0.46, 0.02, 0.12), S(0.2, 1.05, 0.42, 1.05, 0.12)],
-  "2": [
-    S(0.12, 0.3, 0.24, 0.1), S(0.24, 0.1, 0.5, 0.1), S(0.5, 0.1, 0.6, 0.26),
-    S(0.6, 0.26, 0.56, 0.5), S(0.56, 0.5, 0.1, 1.05), S(0.1, 1.05, 0.6, 1.05),
-  ],
-  "3": [
-    S(0.5, 0.3, 0.38, 0.1), S(0.38, 0.1, 0.16, 0.1), S(0.16, 0.1, 0.06, 0.26),
-    S(0.06, 0.26, 0.06, 0.44), S(0.06, 0.44, 0.42, 0.55), S(0.42, 0.55, 0.58, 0.68),
-    S(0.58, 0.68, 0.58, 0.86), S(0.58, 0.86, 0.42, 1.05), S(0.42, 1.05, 0.16, 1.05),
-    S(0.16, 1.05, 0.06, 0.9),
-  ],
-  "4": [S(0.2, 1.05, 0.2, 0.02), S(0.06, 0.45, 0.62, 0.45), S(0.52, 1.05, 0.52, 0.02)],
-  "5": [
-    S(0.56, 1.05, 0.16, 1.05), S(0.16, 1.05, 0.1, 0.7), S(0.1, 0.7, 0.42, 0.6),
-    S(0.42, 0.6, 0.58, 0.5), S(0.58, 0.5, 0.58, 0.24), S(0.58, 0.24, 0.42, 0.04),
-    S(0.42, 0.04, 0.16, 0.02), S(0.16, 0.02, 0.06, 0.12),
-  ],
-  "6": [
-    S(0.55, 0.4, 0.55, 0.9), S(0.55, 0.9, 0.42, 1.05), S(0.42, 1.05, 0.2, 1.05),
-    S(0.2, 1.05, 0.06, 0.88), S(0.06, 0.88, 0.06, 0.44), S(0.06, 0.44, 0.2, 0.26),
-    S(0.2, 0.26, 0.44, 0.26), S(0.44, 0.26, 0.55, 0.4), S(0.55, 0.4, 0.3, 0.5, 0.1),
-  ],
-  "7": [S(0.06, 1.05, 0.62, 1.05), S(0.62, 1.05, 0.26, 0.02)],
-  "8": [
-    S(0.16, 1.05, 0.16, 0.3), S(0.16, 0.3, 0.3, 0.14), S(0.3, 0.14, 0.56, 0.14),
-    S(0.56, 0.14, 0.58, 0.44), S(0.58, 0.44, 0.46, 0.56), S(0.46, 0.56, 0.58, 0.68),
-    S(0.58, 0.68, 0.56, 0.94), S(0.56, 0.94, 0.34, 1.05), S(0.34, 1.05, 0.16, 1.05),
-    S(0.16, 0.55, 0.56, 0.55, 0.1),
-  ],
-  "9": [
-    S(0.56, 0.02, 0.56, 0.6), S(0.56, 0.6, 0.4, 0.9), S(0.4, 0.9, 0.2, 0.9),
-    S(0.2, 0.9, 0.08, 0.7), S(0.08, 0.7, 0.08, 0.4), S(0.08, 0.4, 0.2, 0.24),
-    S(0.2, 0.24, 0.4, 0.24), S(0.4, 0.24, 0.56, 0.4), S(0.08, 0.4, 0.4, 0.4),
-  ],
-  "#": [S(0.16, 1.05, 0.3, 0.02), S(0.42, 1.05, 0.56, 0.02), S(0.06, 0.68, 0.66, 0.68), S(0.08, 0.4, 0.66, 0.4)],
-  ".": [S(0.18, 0.1, 0.18, 0.04, 0.14)],
-  ":": [S(0.14, 0.78, 0.14, 0.72, 0.14), S(0.14, 0.32, 0.14, 0.26, 0.14)],
-  "-": [S(0.08, 0.55, 0.6, 0.55, 0.12)],
-  "/": [S(0.58, 1.05, 0.08, 0.02)],
-  "&": [
-    S(0.5, 0.2, 0.5, 0.6), S(0.5, 0.6, 0.4, 0.72), S(0.4, 0.72, 0.28, 0.6),
-    S(0.28, 0.6, 0.34, 0.5), S(0.34, 0.5, 0.56, 0.9), S(0.56, 0.9, 0.46, 1.02),
-    S(0.46, 1.02, 0.32, 1.02), S(0.32, 1.02, 0.22, 0.9), S(0.22, 0.9, 0.24, 0.74),
-    S(0.24, 0.74, 0.5, 0.3), S(0.5, 0.3, 0.62, 0.14),
-  ],
-  ",": [S(0.16, 0.16, 0.16, 0.04, 0.14)],
-  "'": [S(0.18, 0.9, 0.18, 0.7, 0.12)],
-  "!": [S(0.2, 1.05, 0.2, 0.5, 0.14), S(0.2, 0.2, 0.2, 0.1, 0.14)],
-  "(": [S(0.44, 1.05, 0.26, 0.52), S(0.26, 0.52, 0.44, 0.02)],
-  ")": [S(0.2, 1.05, 0.38, 0.52), S(0.38, 0.52, 0.2, 0.02)],
-  "+": [S(0.06, 0.52, 0.6, 0.52, 0.12), S(0.33, 0.28, 0.33, 0.78, 0.12)],
-  "$": [
-    S(0.3, 1.12, 0.3, -0.12, 0.09), S(0.3, 1.08, 0.52, 0.94), S(0.52, 0.94, 0.52, 0.74),
-    S(0.52, 0.74, 0.3, 0.62), S(0.3, 0.4, 0.52, 0.28), S(0.52, 0.28, 0.52, 0.1),
-    S(0.52, 0.1, 0.3, -0.04),
-  ],
-  " ": [],
-};
-
-// ─── Text rendering (anti-aliased strokes) ───────────────────────────────────
-
-const GLYPH_ADVANCE = 0.62; // cap-height units per glyph (incl. spacing)
-
-function textWidth(text: string, capHeight: number): number {
-  const chars = text.toUpperCase().split("");
-  return chars.length * GLYPH_ADVANCE * capHeight;
+export function __diag() {
+  return loadedFonts;
 }
-
-function fitText(text: string, capHeight: number, maxWidth: number): string {
-  const clean = text.replace(/\s+/g, " ").trim();
-  const maxChars = Math.max(3, Math.floor(maxWidth / (GLYPH_ADVANCE * capHeight)));
-  if (clean.length <= maxChars) return clean;
-  const cut = clean.slice(0, Math.max(1, maxChars - 2));
-  return `${cut.replace(/\s+\S*$/, "")}..`;
-}
-
-/** Draw text using the vector stroke font, centered at (cx, baseline). */
-function drawTextCentered(
-  canvas: RgbCanvas,
-  cx: number,
-  baseline: number,
-  text: string,
-  capHeight: number,
-  color: RGB,
-) {
-  const w = textWidth(text, capHeight);
-  let cursor = cx - w / 2;
-  for (const ch of text.toUpperCase().split("")) {
-    const strokes = FONT_MASTERS[ch];
-    if (strokes && strokes.length > 0) {
-      for (const [sx1, sy1, sx2, sy2, t] of strokes) {
-        const x1 = cursor + sx1 * capHeight;
-        const y1 = baseline - sy1 * capHeight;
-        const x2 = cursor + sx2 * capHeight;
-        const y2 = baseline - sy2 * capHeight;
-        const radius = (t * capHeight) / 2;
-        canvas.strokeSegment(x1, y1, x2, y2, radius, color);
-      }
-    }
-    cursor += GLYPH_ADVANCE * capHeight;
-  }
-}
-
-/** Draw text left-aligned at (x, baseline). */
-function drawTextLeft(
-  canvas: RgbCanvas,
-  x: number,
-  baseline: number,
-  text: string,
-  capHeight: number,
-  color: RGB,
-) {
-  let cursor = x;
-  for (const ch of text.toUpperCase().split("")) {
-    const strokes = FONT_MASTERS[ch];
-    if (strokes && strokes.length > 0) {
-      for (const [sx1, sy1, sx2, sy2, t] of strokes) {
-        canvas.strokeSegment(
-          cursor + sx1 * capHeight,
-          baseline - sy1 * capHeight,
-          cursor + sx2 * capHeight,
-          baseline - sy2 * capHeight,
-          (t * capHeight) / 2,
-          color,
-        );
-      }
-    }
-    cursor += GLYPH_ADVANCE * capHeight;
-  }
-}
-
-// ─── White theme layout ──────────────────────────────────────────────────────
 
 export interface TranscriptInfo {
   fullName: string;
@@ -558,135 +755,152 @@ export interface TranscriptInfo {
 
 const W = 1200;
 const H = 1600;
-const M = 90; // left/right margin
-const CONTENT_W = W - M * 2;
 
 const COL: Record<string, RGB> = {
-  white: [255, 255, 255],
-  ink: [26, 31, 40], // near-black
-  muted: [110, 120, 135], // dark gray secondary
-  panel: [246, 248, 251], // light gray panel
-  border: [223, 228, 236], // light gray border
-  green: [22, 150, 92], // WG brand green (darker for white bg)
-  gold: [198, 150, 28],
+  bg: [10, 15, 28], // deep navy/black
+  bgAccent: [15, 23, 42],
+  panel: [18, 27, 48],
+  panelBorder: [34, 46, 74],
+  gold: [212, 175, 55], // metallic gold
+  goldSoft: [180, 145, 60],
+  white: [245, 247, 250],
+  muted: [158, 170, 190], // soft gray-blue
+  ink: [222, 226, 235],
 };
 
 function statusColor(status: string): RGB {
   const s = status.toLowerCase();
-  if (s === "completed") return [20, 120, 62];
-  if (s === "processing") return [28, 76, 205];
-  if (s === "cancelled") return [183, 30, 34];
-  return [172, 118, 10]; // pending → amber
+  if (s === "completed") return [34, 197, 94]; // green
+  if (s === "processing") return [59, 130, 246]; // blue
+  if (s === "cancelled") return [239, 68, 68]; // red
+  return [245, 158, 11]; // pending → gold/orange
 }
 
-function statusTint(status: string): RGB {
+function statusBg(status: string): RGB {
   const s = status.toLowerCase();
-  if (s === "completed") return [228, 244, 234];
-  if (s === "processing") return [230, 237, 252];
-  if (s === "cancelled") return [250, 229, 230];
-  return [252, 244, 226];
+  if (s === "completed") return [20, 60, 35];
+  if (s === "processing") return [23, 40, 70];
+  if (s === "cancelled") return [60, 22, 24];
+  return [58, 44, 18];
 }
 
-/** Rounded panel with a light-gray border ring (professional card). */
-function drawPanel(canvas: RgbCanvas, x: number, y: number, w: number, h: number, r: number) {
-  canvas.fillRoundRect(x, y, w, h, r, COL.border);
+/** Elegant card (dark panel + gold border ring + subtle inner tint). */
+function drawCard(canvas: RgbCanvas, x: number, y: number, w: number, h: number, r: number) {
+  canvas.fillRoundRect(x, y, w, h, r, COL.gold);
   canvas.fillRoundRect(x + 2, y + 2, w - 4, h - 4, Math.max(2, r - 2), COL.panel);
+  canvas.fillRoundRect(x + 16, y + 14, w - 32, h - 28, Math.max(2, r - 4), COL.panel);
 }
 
-/** Small uppercase label + large value row. Returns the next baseline. */
-function drawField(
+function drawSectionTitle(canvas: RgbCanvas, x: number, baseline: number, text: string) {
+  drawText(canvas, x, baseline, text, 26, COL.gold, { weight: "bold" });
+  // Small gold accent tick under the title
+  canvas.fillRoundRect(x + 2, baseline + 16, 64, 4, 2, COL.goldSoft);
+}
+
+function drawFieldLabelValue(
   canvas: RgbCanvas,
   x: number,
   labelBaseline: number,
   label: string,
   value: string,
-  maxValueWidth: number,
-  valueColor: RGB = COL.ink,
-  valueCap = 40,
-): number {
-  drawTextLeft(canvas, x, labelBaseline, label, 16, COL.muted);
-  drawTextLeft(canvas, x, labelBaseline + 48, fitText(value, valueCap, maxValueWidth), valueCap, valueColor);
-  return labelBaseline + 118;
+  maxValuePx: number,
+  valueColor: RGB = COL.white,
+  valueHeight = 40,
+) {
+  drawText(canvas, x, labelBaseline, label, 16, COL.muted, { weight: "regular", maxWidth: maxValuePx });
+  drawText(canvas, x, labelBaseline + 44, value, valueHeight, valueColor, {
+    weight: "bold",
+    maxWidth: maxValuePx,
+  });
 }
 
-function drawStatusPill(canvas: RgbCanvas, rightEdge: number, centerY: number, status: string) {
-  const cap = 34;
-  const textW = textWidth(status, cap);
-  const pw = textW + 56;
-  const px = rightEdge - pw;
-  const ph = 64;
-  const py = centerY - ph / 2;
-  const tint = statusTint(status);
+function drawStatusBadge(canvas: RgbCanvas, x: number, centerY: number, status: string) {
+  const label = status.toUpperCase();
+  const textPx = 30;
+  const width = Math.min(360, measurePx(loadedFonts.bold, label, textPx / loadedFonts.bold.metric.unitsPerEm) + 64);
+  const height = 62;
+  const bg = statusBg(status);
   const color = statusColor(status);
-  canvas.fillRoundRect(px, py, pw, ph, 32, tint);
-  drawTextCentered(canvas, px + pw / 2, py + ph / 2 + cap / 3, status, cap, color);
+  canvas.fillRoundRect(x, centerY - height / 2, width, height, 31, bg);
+  canvas.fillRoundRect(x + 2, centerY - height / 2 + 2, width - 4, height - 4, 29, [Math.min(255, bg[0] + 14), Math.min(255, bg[1] + 14), Math.min(255, bg[2] + 14)]);
+  drawText(canvas, x + width / 2, centerY + 10, label, textPx, color, { weight: "bold", align: "center" });
 }
+
+const MARGIN = 88;
 
 export function renderOrderTranscriptPng(info: TranscriptInfo): Buffer {
-  const canvas = new RgbCanvas(W, H, COL.white);
+  const canvas = new RgbCanvas(W, H, COL.bg);
   const logo = getWgLogo();
+  const contentW = W - MARGIN * 2;
 
-  // ── Header ─────────────────────────────────────────────────────────────
+  // Subtle background glow accents
+  canvas.fillRoundRect(0, 0, W, H, 0, COL.bgAccent);
+  canvas.fillRoundRect(MARGIN - 8, 36, contentW + 16, H - 72, 24, COL.bg);
+
+  // ── HEADER ──────────────────────────────────────────────────────────────
   if (logo) {
-    canvas.drawImage(logo, M, 74, 128, 128, 0);
-  } else {
-    canvas.fillRoundRect(M, 74, 128, 128, 30, COL.green);
-    drawTextCentered(canvas, M + 64, 74 + 64 + 22, "WG", 52, COL.white);
+    const logoSize = 132;
+    canvas.drawImage(logo, MARGIN, 78, logoSize, logoSize);
   }
-  drawTextLeft(canvas, M + 164, 138, "WG-SHOP", 60, COL.green);
-  drawTextLeft(canvas, M + 166, 176, "WARYAA GAMING", 22, COL.ink);
+  const brandX = MARGIN + (logo ? 160 : 0);
+  drawText(canvas, brandX, 150, "WG-SHOP", 64, COL.gold, { weight: "bold", maxWidth: 500 });
+  drawText(canvas, brandX + 2, 190, "WARYAA GAMING OFFICIAL MARKETPLACE", 20, COL.muted, {
+    weight: "regular",
+    maxWidth: 520,
+  });
 
-  const tRight = "TRANSCRIPT";
-  drawTextLeft(canvas, W - M - textWidth("ORDER", 44), 118, "ORDER", 44, COL.ink);
-  drawTextLeft(canvas, W - M - textWidth(tRight, 40), 162, tRight, 40, COL.green);
+  // Right: ORDER / TRANSCRIPT
+  drawText(canvas, W - MARGIN, 128, "ORDER", 44, COL.white, { weight: "bold", align: "right" });
+  drawText(canvas, W - MARGIN, 176, "TRANSCRIPT", 44, COL.gold, { weight: "bold", align: "right" });
+  drawText(canvas, W - MARGIN, 208, "OFFICIAL PURCHASE RECEIPT", 16, COL.muted, {
+    weight: "regular",
+    align: "right",
+  });
 
-  canvas.hLine(M, 232, CONTENT_W, COL.border);
+  // Gold divider
+  canvas.fillRoundRect(MARGIN, 248, contentW, 4, 2, COL.goldSoft);
 
-  // ── Customer information ────────────────────────────────────────────────
-  drawTextLeft(canvas, M, 292, "CUSTOMER INFORMATION", 20, COL.muted);
-  drawPanel(canvas, M, 316, CONTENT_W, 380, 16);
+  // ── CUSTOMER INFORMATION ────────────────────────────────────────────────
+  drawSectionTitle(canvas, MARGIN, 316, "CUSTOMER INFORMATION");
+  drawCard(canvas, MARGIN, 336, contentW, 400, 20);
 
-  const colL = M + 26;
-  const colR = M + 26 + (CONTENT_W - 52) / 2 + 34;
-  const fieldW = (CONTENT_W - 52) / 2 - 40;
-  const rowDividerW = colR + fieldW - colL;
+  const labelW = 460;
+  const lx = MARGIN + 48;
+  const rx = MARGIN + contentW - 48 - labelW;
 
-  let y = 372;
-  drawField(canvas, colL, y, "FULL NAME", info.fullName, fieldW);
-  drawField(canvas, colR, y, "NUMBER", info.phone, fieldW);
-  canvas.hLine(colL, 458, rowDividerW, COL.border);
-  y = 490;
-  drawField(canvas, colL, y, "ACCOUNT NO", info.accountNo ?? "-", fieldW);
-  drawField(canvas, colR, y, "DISCORD USERNAME", info.discord, fieldW);
-  y = 608;
-  canvas.hLine(colL, y - 30, rowDividerW, COL.border);
-  drawField(canvas, colL, y, "PRICE", info.price, fieldW, COL.green, 46);
+  drawFieldLabelValue(canvas, lx, 400, "FULL NAME", info.fullName, labelW);
+  drawFieldLabelValue(canvas, rx, 400, "NUMBER", info.phone, labelW);
+  canvas.hLine(lx, 500, rx + labelW - lx, COL.panelBorder);
+  drawFieldLabelValue(canvas, lx, 560, "ACCOUNT NO", info.accountNo ?? "-", labelW);
+  drawFieldLabelValue(canvas, rx, 560, "DISCORD USERNAME", info.discord, labelW);
+  canvas.hLine(lx, 660, rx + labelW - lx, COL.panelBorder);
+  drawFieldLabelValue(canvas, lx, 700, "PRICE", info.price, labelW, COL.gold, 46);
 
-  // ── Order information panel ─────────────────────────────────────────────
-  drawTextLeft(canvas, M, 742, "ORDER INFORMATION", 20, COL.muted);
-  drawPanel(canvas, M, 766, CONTENT_W, 336, 16);
+  // ── ORDER INFORMATION ───────────────────────────────────────────────────
+  drawSectionTitle(canvas, MARGIN, 812, "ORDER INFORMATION");
+  drawCard(canvas, MARGIN, 832, contentW, 340, 20);
 
-  let oy = 834;
-  drawField(canvas, colL, oy, "ORDER ID", info.orderId, fieldW, COL.green, 46);
-  drawField(canvas, colR, oy, "PRODUCT", info.productName, fieldW);
-  oy = 954;
-  drawField(canvas, colL, oy, "DATE", info.date, fieldW);
-  drawTextLeft(canvas, colR, oy, "STATUS", 16, COL.muted);
-  drawStatusPill(canvas, W - M - 26, oy + 40, info.status);
+  drawFieldLabelValue(canvas, lx, 900, "ORDER ID", info.orderId, labelW);
+  drawFieldLabelValue(canvas, rx, 900, "PRODUCT", info.productName, labelW);
+  canvas.hLine(lx, 1000, rx + labelW - lx, COL.panelBorder);
+  drawFieldLabelValue(canvas, lx, 1060, "DATE", info.date, labelW);
+  drawText(canvas, rx, 1060, "STATUS", 16, COL.muted, { weight: "regular" });
+  drawStatusBadge(canvas, rx, 1096, info.status);
 
-  // ── Footer ──────────────────────────────────────────────────────────────
-  canvas.hLine(M, 1436, CONTENT_W, COL.border);
-  drawTextCentered(canvas, W / 2, 1490, "WG-SHOP", 40, COL.green);
-  drawTextCentered(canvas, W / 2, 1528, "WARYAA GAMING", 18, COL.ink);
-  drawTextCentered(canvas, W / 2, 1558, "OFFICIAL MARKETPLACE  -  SECURE TRANSACTION", 14, COL.muted);
-  drawTextCentered(
-    canvas,
-    W / 2,
-    1584,
-    "THANK YOU FOR CHOOSING WG-SHOP  -  YOUR TRUST IS OUR PRIORITY",
-    12,
-    COL.muted,
-  );
+  // ── FOOTER ──────────────────────────────────────────────────────────────
+  canvas.fillRoundRect(MARGIN, 1290, contentW, 3, 1, COL.goldSoft);
+  drawText(canvas, W / 2, 1380, "THANK YOU FOR CHOOSING WG-SHOP", 36, COL.white, {
+    weight: "bold",
+    align: "center",
+  });
+  drawText(canvas, W / 2, 1430, "WARYAA GAMING OFFICIAL MARKETPLACE", 20, COL.gold, {
+    weight: "bold",
+    align: "center",
+  });
+  drawText(canvas, W / 2, 1472, "Your trust is our priority.", 16, COL.muted, {
+    weight: "regular",
+    align: "center",
+  });
 
   return canvas.toPng();
 }
