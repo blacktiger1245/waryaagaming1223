@@ -9,6 +9,7 @@ import {
   playersTable,
 } from "@workspace/db";
 import { ObjectStorageService } from "../lib/objectStorage";
+import { renderOrderTranscriptPng } from "../lib/transcript";
 import { and, asc, eq, desc, or } from "drizzle-orm";
 
 const router: IRouter = Router();
@@ -46,6 +47,17 @@ function cleanString(value: unknown, maxLen: number): string | null {
 
 function isPositiveInt(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value > 0;
+}
+
+/** Server-side formatting for generated transcripts. */
+function formatUsd(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
+function formatTranscriptDate(date: Date): string {
+  const dd = String(date.getUTCDate()).padStart(2, "0");
+  const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
+  return `${dd}/${mm}/${date.getUTCFullYear()}`;
 }
 
 /**
@@ -470,11 +482,12 @@ router.post("/shop/orders/:id/chat/messages", async (req, res) => {
   }
 });
 
-// ─── GET /shop/orders/:id/chat/transcript-data ───────────────────────────────
-// Manager-only. Returns everything needed to draw the transcript PNG,
-// including the product's Aqoonsi for eFootball orders (this endpoint is
-// manager-gated, so the private Account No never reaches customers here).
-router.get("/shop/orders/:id/chat/transcript-data", requireShopManager, async (req, res) => {
+// ─── POST /shop/orders/:id/chat/transcript ───────────────────────────────────
+// Manager-only. The SERVER renders the transcript PNG from the live order
+// data (the browser only sends the order id — no huge base64 payloads cross
+// the API), stores it in object storage and posts it to the chat as a real
+// image message the customer can view and download.
+router.post("/shop/orders/:id/chat/transcript", requireShopManager, async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) {
     return res.status(400).json({ error: "Invalid order id" });
@@ -486,50 +499,35 @@ router.get("/shop/orders/:id/chat/transcript-data", requireShopManager, async (r
       return res.status(404).json({ error: "Order not found" });
     }
 
-    let product: ReturnType<typeof toManagerProductJson> | null = null;
-    if (order.productId) {
-      const [p] = await db.select().from(shopProductsTable).where(eq(shopProductsTable.id, order.productId));
-      if (p) product = toManagerProductJson(p);
-    }
-
-    return res.json({ order: toOrderJson(order), product });
-  } catch (error: unknown) {
-    req.log.error({ err: error }, "Error loading transcript data");
-    return res.status(500).json({ error: "Failed to load transcript data" });
-  }
-});
-
-// ─── POST /shop/orders/:id/chat/transcript ───────────────────────────────────
-// Manager-only. Receives the generated transcript PNG (data URL), stores it in
-// object storage and posts it to the chat as a real image message the customer
-// can view and download. Plain-text transcripts are never sent.
-const CHAT_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
-router.post("/shop/orders/:id/chat/transcript", requireShopManager, async (req, res) => {
-  const id = Number(req.params.id);
-  if (!Number.isInteger(id) || id <= 0) {
-    return res.status(400).json({ error: "Invalid order id" });
-  }
-  const body = (req.body ?? {}) as Record<string, unknown>;
-  const dataUrl = typeof body.dataUrl === "string" ? body.dataUrl : "";
-  const match = /^data:(image\/png);base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
-  if (!match) {
-    return res.status(400).json({ error: "A PNG transcript image is required" });
-  }
-  const buffer = Buffer.from(match[2], "base64");
-  if (buffer.length === 0) {
-    return res.status(400).json({ error: "The transcript image is empty" });
-  }
-  if (buffer.length > CHAT_IMAGE_MAX_BYTES) {
-    return res.status(413).json({ error: "The transcript image is too large" });
-  }
-
-  try {
     const [chat] = await db.select().from(shopOrderChatsTable).where(eq(shopOrderChatsTable.orderId, id));
     if (!chat || chat.status === "closed") {
       return res.status(409).json({ error: "This chat is no longer active" });
     }
 
-    const objectPath = await objectStorageService.uploadObject(buffer, "image/png");
+    // Account No (Aqoonsi) is included only for eFootball orders and only on
+    // this manager-gated generation path — customers never receive it via API.
+    let accountNo: string | null = null;
+    if (order.category === "efootball" && order.productId) {
+      const [product] = await db
+        .select({ aqoonsiId: shopProductsTable.aqoonsiId })
+        .from(shopProductsTable)
+        .where(eq(shopProductsTable.id, order.productId));
+      accountNo = product?.aqoonsiId ?? null;
+    }
+
+    const png = renderOrderTranscriptPng({
+      fullName: order.buyerName,
+      phone: order.buyerPhone ?? "-",
+      accountNo,
+      discord: order.buyerDiscord ?? order.buyerContact,
+      price: formatUsd(order.priceCents),
+      orderId: `#WG-${order.id}`,
+      productName: order.productTitle,
+      date: formatTranscriptDate(order.createdAt),
+      status: order.status,
+    });
+
+    const objectPath = await objectStorageService.uploadObject(png, "image/png");
     const [message] = await db
       .insert(shopChatMessagesTable)
       .values({
@@ -546,10 +544,11 @@ router.post("/shop/orders/:id/chat/transcript", requireShopManager, async (req, 
       .set({ updatedAt: new Date() })
       .where(eq(shopOrderChatsTable.id, chat.id));
 
+    req.log.info({ orderId: id, chatId: chat.id, bytes: png.length }, "Order transcript generated");
     return res.status(201).json({ message: toChatMessageJson(message) });
   } catch (error: unknown) {
-    req.log.error({ err: error }, "Error sending transcript to order chat");
-    return res.status(500).json({ error: "Failed to send the transcript" });
+    req.log.error({ err: error }, "Error generating order transcript");
+    return res.status(500).json({ error: "Failed to generate the transcript" });
   }
 });
 

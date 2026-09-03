@@ -26,14 +26,12 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { storageUrl } from "@/lib/api";
-import { generateTranscriptPng } from "@/lib/transcript";
 import {
   deleteOrderChat,
   fetchOrderChat,
-  fetchTranscriptData,
   formatPrice,
+  generateOrderTranscript,
   sendChatMessage,
-  sendTranscriptImage,
   SHOP_ORDER_STATUS_META,
   type ShopChatMessage,
 } from "@/lib/shop";
@@ -159,25 +157,13 @@ export function OrderChat({ orderId, viewer }: { orderId: number; viewer: "custo
       toast({ title: "Message not sent", description: err.message, variant: "destructive" }),
   });
 
-  // Generate the transcript PNG from real order data and post it to the chat
-  // as an image message. The Aqoonsi (Account No) is only included for
-  // eFootball orders and only inside the generated image.
+  // Ask the server to generate the transcript PNG from the live order data.
+  // The request stays tiny (order id only) — the PNG is rendered server-side,
+  // uploaded to object storage there, and posted to the chat as an image
+  // message. The Aqoonsi (Account No) is only included for eFootball orders
+  // and only inside the generated image.
   const transcript = useMutation({
-    mutationFn: async () => {
-      const info = await fetchTranscriptData(orderId);
-      const dataUrl = await generateTranscriptPng({
-        fullName: info.order.buyerName,
-        phone: info.order.buyerPhone ?? "—",
-        accountNo: info.order.category === "efootball" ? (info.product?.aqoonsiId ?? null) : null,
-        discord: info.order.buyerDiscord ?? info.order.buyerContact,
-        price: formatPrice(info.order.priceCents),
-        orderId: `#WG-${info.order.id}`,
-        productName: info.order.productTitle,
-        date: new Date(info.order.createdAt).toLocaleDateString(),
-        status: info.order.status,
-      });
-      return sendTranscriptImage(orderId, dataUrl);
-    },
+    mutationFn: () => generateOrderTranscript(orderId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey });
       toast({ title: "Transcript sent to the customer ✓" });

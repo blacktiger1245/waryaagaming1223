@@ -72,12 +72,6 @@ export interface ManagerOrderChatSummary {
   updatedAt: string;
 }
 
-/** Manager-only payload used to draw the transcript PNG. */
-export interface OrderTranscriptData {
-  order: ShopOrder;
-  product: (ShopProduct & { aqoonsiId: string | null }) | null;
-}
-
 /** Manager product = public product + the manager-only Aqoonsi (never public). */
 export interface ManagerShopProduct extends ShopProduct {
   aqoonsiId: string | null;
@@ -263,14 +257,16 @@ export async function deleteOrderChat(orderId: number): Promise<void> {
   await apiFetch(`/api/shop/orders/${orderId}/chat`, { method: "DELETE" });
 }
 
-export async function fetchTranscriptData(orderId: number): Promise<OrderTranscriptData> {
-  return apiFetch(`/api/shop/orders/${orderId}/chat/transcript-data`);
-}
-
-export async function sendTranscriptImage(orderId: number, dataUrl: string): Promise<ShopChatMessage> {
+/**
+ * Ask the server to generate the transcript PNG for this order and post it to
+ * the order chat. The request payload stays tiny (just the URL order id) — the
+ * PNG is rendered SERVER-SIDE from the database and uploaded to object
+ * storage there, so no large base64 image ever travels through the API.
+ */
+export async function generateOrderTranscript(orderId: number): Promise<ShopChatMessage> {
   const data = await apiFetch<{ message: ShopChatMessage }>(`/api/shop/orders/${orderId}/chat/transcript`, {
     method: "POST",
-    body: JSON.stringify({ dataUrl }),
+    body: JSON.stringify({}),
   });
   return data.message;
 }
