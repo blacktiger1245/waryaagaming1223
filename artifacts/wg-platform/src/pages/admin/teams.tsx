@@ -16,6 +16,7 @@ interface Team {
   name: string;
   tag: string | null;
   logoUrl: string | null;
+  division: string;
   captainId: number | null;
   coachId: number | null;
   wins: number;
@@ -42,6 +43,25 @@ export default function AdminTeamsPage() {
     queryKey: ["admin-all-players"],
     queryFn: () => apiFetch("/api/admin/players"),
   });
+
+  const { data: clanSettings } = useQuery<{ serieARegistrationOpen: boolean; serieBRegistrationOpen: boolean }>({
+    queryKey: ["clan-settings"],
+    queryFn: () => apiFetch("/api/teams/clan-settings"),
+  });
+
+  async function toggleRegistration(update: { serieARegistrationOpen?: boolean; serieBRegistrationOpen?: boolean }) {
+    setError("");
+    try {
+      await apiFetch("/api/teams/clan-settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(update),
+      });
+      qc.invalidateQueries({ queryKey: ["clan-settings"] });
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }
 
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
@@ -85,12 +105,44 @@ export default function AdminTeamsPage() {
     <div className="p-6 max-w-4xl mx-auto space-y-4">
       <div className="flex items-center justify-between mb-2">
         <div>
-          <h1 className="text-2xl font-black">Teams</h1>
-          <p className="text-sm text-zinc-400 mt-0.5">Manage team rosters and delete teams</p>
+          <h1 className="text-2xl font-black">Clans</h1>
+          <p className="text-sm text-zinc-400 mt-0.5">Manage clan rosters, divisions and registration</p>
         </div>
         <span className="text-xs text-zinc-500 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 font-bold">
-          {teams.length} teams
+          {teams.length} clans
         </span>
+      </div>
+
+      {/* Serie A / Serie B registration windows */}
+      <div className="rounded-xl border border-zinc-700 bg-zinc-900/40 p-4">
+        <h2 className="text-xs font-black uppercase tracking-wider text-zinc-400 mb-3">Clan Registration</h2>
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={() => toggleRegistration({ serieARegistrationOpen: !clanSettings?.serieARegistrationOpen })}
+            className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-bold uppercase tracking-wide transition-colors ${
+              clanSettings?.serieARegistrationOpen
+                ? "border-green-500/40 bg-green-500/10 text-green-400"
+                : "border-zinc-700 bg-zinc-800 text-zinc-400"
+            }`}
+          >
+            <span className="size-2 rounded-full" style={{ background: clanSettings?.serieARegistrationOpen ? "#22c55e" : "#71717a" }} />
+            Serie A registration {clanSettings?.serieARegistrationOpen ? "open" : "closed"}
+          </button>
+          <button
+            onClick={() => toggleRegistration({ serieBRegistrationOpen: !clanSettings?.serieBRegistrationOpen })}
+            className={`flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-bold uppercase tracking-wide transition-colors ${
+              clanSettings?.serieBRegistrationOpen
+                ? "border-green-500/40 bg-green-500/10 text-green-400"
+                : "border-zinc-700 bg-zinc-800 text-zinc-400"
+            }`}
+          >
+            <span className="size-2 rounded-full" style={{ background: clanSettings?.serieBRegistrationOpen ? "#22c55e" : "#71717a" }} />
+            Serie B registration {clanSettings?.serieBRegistrationOpen ? "open" : "closed"}
+          </button>
+        </div>
+        <p className="mt-3 text-xs text-zinc-500">
+          New clans join Serie A while it's open; closing Serie A automatically opens Serie B.
+        </p>
       </div>
 
       {error && (
@@ -110,7 +162,7 @@ export default function AdminTeamsPage() {
       ) : teams.length === 0 ? (
         <div className="text-center py-20 border border-zinc-800 rounded-2xl">
           <Shield className="w-12 h-12 mx-auto opacity-20 mb-3" />
-          <p className="font-bold text-zinc-400">No teams yet</p>
+          <p className="font-bold text-zinc-400">No clans yet</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -137,6 +189,15 @@ export default function AdminTeamsPage() {
                       {team.tag && (
                         <span className="text-[11px] font-bold text-zinc-400 bg-zinc-800 border border-zinc-700 px-1.5 py-0.5 rounded-md">{team.tag}</span>
                       )}
+                      <span
+                        className={`text-[10px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-md border ${
+                          team.division === "serie_b"
+                            ? "text-amber-300 border-amber-400/30 bg-amber-400/10"
+                            : "text-emerald-300 border-emerald-400/30 bg-emerald-400/10"
+                        }`}
+                      >
+                        {team.division === "serie_b" ? "Serie B" : "Serie A"}
+                      </span>
                     </div>
                     <p className="text-xs text-zinc-500 mt-0.5">
                       <span className="text-green-400 font-bold">{team.wins}W</span>

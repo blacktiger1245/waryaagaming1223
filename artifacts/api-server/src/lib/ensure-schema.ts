@@ -223,3 +223,30 @@ export async function ensureShopSchema(): Promise<void> {
     logger.warn({ err }, "Could not ensure WG-SHOP schema");
   }
 }
+
+/**
+ * Clan league divisions (Serie A / Serie B) + registration windows.
+ * Existing teams keep their current registration and default to Serie A.
+ */
+export async function ensureClanSchema(): Promise<void> {
+  const statements = [
+    `ALTER TABLE "teams" ADD COLUMN IF NOT EXISTS "division" text NOT NULL DEFAULT 'serie_a'`,
+    `UPDATE "teams" SET "division" = 'serie_a' WHERE "division" IS NULL OR "division" = ''`,
+    `CREATE TABLE IF NOT EXISTS "clan_settings" (
+       "id" serial PRIMARY KEY,
+       "serie_a_registration_open" boolean NOT NULL DEFAULT true,
+       "serie_b_registration_open" boolean NOT NULL DEFAULT false
+     );`,
+    `INSERT INTO "clan_settings" ("id", "serie_a_registration_open", "serie_b_registration_open")
+     VALUES (1, true, false)
+     ON CONFLICT ("id") DO NOTHING;`,
+  ];
+
+  try {
+    for (const sql of statements) {
+      await pool.query(sql);
+    }
+  } catch (err) {
+    logger.warn({ err }, "Could not ensure clan schema");
+  }
+}

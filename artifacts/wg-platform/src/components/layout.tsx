@@ -70,7 +70,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/", label: "Home", icon: Home },
     { href: "/tournaments", label: "Tournaments", icon: Trophy },
     { href: "/players", label: "Players", icon: Users },
-    { href: "/teams", label: "Teams", icon: Shield },
+    { href: "/teams", label: "Clans", icon: Shield },
     { href: "/fixtures", label: "Fixtures", icon: CalendarDays },
     { href: "/rankings", label: "Rankings", icon: Trophy },
     { href: "/hall-of-fame", label: "Hall of Fame", icon: Star },
@@ -372,7 +372,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       { href: "/tournaments", label: "Tournaments" },
                       { href: "/fixtures",    label: "Fixtures" },
                       { href: "/rankings",    label: "Rankings" },
-                      { href: "/teams",       label: "Teams" },
+                      { href: "/teams",       label: "Clans" },
                       { href: "/players",     label: "Players" },
                     ].map(({ href, label }) => (
                       <li key={href}>

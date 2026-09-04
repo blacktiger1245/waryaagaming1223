@@ -59,7 +59,7 @@ export default function MessagesPage() {
   const tabs: { id: Tab; label: string; icon: typeof Inbox }[] = [
     { id: "inbox", label: "Inbox", icon: Inbox },
     { id: "sent", label: "Sent", icon: Send },
-    { id: "team", label: "Team Chat", icon: Users },
+    { id: "team", label: "Clan Chat", icon: Users },
   ];
 
   return (

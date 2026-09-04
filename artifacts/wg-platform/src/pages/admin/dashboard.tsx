@@ -22,7 +22,7 @@ export default function AdminDashboardPage() {
 
   const cards = [
     { label: "Players", value: stats?.players, icon: Users },
-    { label: "Teams", value: stats?.teams, icon: Shield },
+    { label: "Clans", value: stats?.teams, icon: Shield },
     { label: "Tournaments", value: stats?.tournaments, icon: Trophy },
     { label: "Matches", value: stats?.matches, icon: Swords },
     { label: "News Articles", value: stats?.news, icon: Newspaper },

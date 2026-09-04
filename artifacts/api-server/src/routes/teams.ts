@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { teamsTable, playersTable, newsTable, matchesTable, tournamentsTable, playerTransfersTable } from "@workspace/db";
+import { teamsTable, playersTable, newsTable, matchesTable, tournamentsTable, playerTransfersTable, clanSettingsTable } from "@workspace/db";
 import { eq, ilike, isNotNull, inArray, desc, sql, or, aliasedTable } from "drizzle-orm";
 import {
   ListTeamsQueryParams,
@@ -18,6 +18,31 @@ function isPlatformStaff(req: import("express").Request) {
   if (req.session?.isAdmin) return true;
   const username = (req.session?.username ?? "").toLowerCase();
   return username === "black_tiger" || req.session?.role === "admin" || req.session?.role === "owner";
+}
+
+/** Read the single clan registration settings row (id = 1). */
+async function getClanSettings() {
+  const [settings] = await db.select().from(clanSettingsTable).where(eq(clanSettingsTable.id, 1));
+  if (settings) return settings;
+  // Row should exist via ensureClanSchema(); fall back to defaults if missing.
+  const [created] = await db
+    .insert(clanSettingsTable)
+    .values({ id: 1, serieARegistrationOpen: true, serieBRegistrationOpen: false })
+    .onConflictDoNothing()
+    .returning();
+  return created ?? {
+    id: 1,
+    serieARegistrationOpen: true,
+    serieBRegistrationOpen: false,
+  } as typeof clanSettingsTable.$inferSelect;
+}
+
+/** Which division a newly registering clan should join, or null when closed. */
+async function resolveRegistrationDivision(): Promise<"serie_a" | "serie_b" | null> {
+  const settings = await getClanSettings();
+  if (settings.serieARegistrationOpen) return "serie_a";
+  if (settings.serieBRegistrationOpen) return "serie_b";
+  return null;
 }
 
 // Resolve the authenticated user's actual role in a team entirely from the DB.
@@ -182,6 +207,12 @@ router.post("/teams/register", async (req, res) => {
   const allPlayerIds = Array.from(new Set([userId, coachId, captainId, ...extraIds]));
 
   try {
+    // New clans join the currently open division (Serie A first, then Serie B).
+    const division = await resolveRegistrationDivision();
+    if (!division) {
+      return res.status(403).json({ error: "Clan registration is currently closed" });
+    }
+
     const team = await db.transaction(async (tx) => {
       const [existing] = await tx.select({ id: teamsTable.id }).from(teamsTable).where(eq(teamsTable.name, name.trim()));
       if (existing) {
@@ -220,6 +251,7 @@ router.post("/teams/register", async (req, res) => {
         tag: tag ?? null,
         description: description ?? null,
         logoUrl: logoUrl ?? null,
+        division,
         presidentId: userId,
         captainId,
         coachId,
@@ -257,6 +289,50 @@ router.post("/teams", async (req, res) => {
     coachId: req.session?.userId ?? null,
   }).returning();
   return res.status(201).json(await enrichTeam(team));
+});
+
+// ── GET /teams/clan-settings ──────────────────────────────────────────────────
+// Public: the Clans page needs to know whether registration is open.
+router.get("/teams/clan-settings", async (_req, res) => {
+  try {
+    const settings = await getClanSettings();
+    return res.json({
+      serieARegistrationOpen: settings.serieARegistrationOpen,
+      serieBRegistrationOpen: settings.serieBRegistrationOpen,
+    });
+  } catch {
+    return res.status(500).json({ error: "Failed to load clan settings" });
+  }
+});
+
+// ── PATCH /teams/clan-settings (admin/owner) ──────────────────────────────────
+// Toggle each division's registration window.
+router.patch("/teams/clan-settings", async (req, res) => {
+  if (!isPlatformStaff(req)) return res.status(403).json({ error: "Admin access required" });
+
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  await getClanSettings(); // ensure the single row exists before updating
+
+  const updates: Partial<typeof clanSettingsTable.$inferInsert> = {};
+  if (typeof body.serieARegistrationOpen === "boolean") {
+    updates.serieARegistrationOpen = body.serieARegistrationOpen;
+    // Closing Serie A automatically opens Serie B so clans keep registering.
+    if (!body.serieARegistrationOpen) updates.serieBRegistrationOpen = true;
+  }
+  if (typeof body.serieBRegistrationOpen === "boolean") {
+    updates.serieBRegistrationOpen = body.serieBRegistrationOpen;
+  }
+
+  const [settings] = await db
+    .update(clanSettingsTable)
+    .set(updates)
+    .where(eq(clanSettingsTable.id, 1))
+    .returning();
+
+  return res.json({
+    serieARegistrationOpen: settings?.serieARegistrationOpen ?? true,
+    serieBRegistrationOpen: settings?.serieBRegistrationOpen ?? false,
+  });
 });
 
 router.get("/teams/:id", async (req, res) => {

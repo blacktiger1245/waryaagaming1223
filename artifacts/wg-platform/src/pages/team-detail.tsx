@@ -695,7 +695,7 @@ export default function TeamDetailPage() {
     { id: "transfer", label: "Transfer" },
     { id: "news",     label: "News" },
     { id: "club-card", label: "Club Card" },
-    { id: "chat",     label: "Team Chat" },
+    { id: "chat",     label: "Clan Chat" },
   ];
 
   if (isLoading) {

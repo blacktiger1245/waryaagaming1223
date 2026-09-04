@@ -330,10 +330,10 @@ export default function RegisterTeamPage() {
       <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }}>
         {/* Header */}
         <div className="mb-10">
-          <p className="text-primary text-xs font-bold uppercase tracking-widest mb-2">Teams</p>
-          <h1 className="text-4xl font-black uppercase tracking-tight">Register Your Team</h1>
+          <p className="text-primary text-xs font-bold uppercase tracking-widest mb-2">Clans</p>
+          <h1 className="text-4xl font-black uppercase tracking-tight">Register Your Clan</h1>
           <p className="text-muted-foreground mt-2 text-sm">
-            Fill in your team details below. You will automatically become the team President.
+            Fill in your clan details below. You will automatically become the clan President.
           </p>
         </div>
 

@@ -276,7 +276,7 @@ export default function TeamManagePage() {
   }
 
   async function leaveTeam() {
-    if (!window.confirm("Are you sure you want to leave this team?")) return;
+    if (!window.confirm("Are you sure you want to leave this clan?")) return;
     setBusy(true);
     setError("");
     try {
@@ -352,8 +352,8 @@ export default function TeamManagePage() {
       <div className="container mx-auto px-4 py-20 text-center">
         <Shield className="mx-auto mb-4 h-14 w-14 text-zinc-700" />
         <h1 className="text-2xl font-black text-white">Manager access required</h1>
-        <p className="mt-2 text-sm text-zinc-500">Only the President or Coach can manage team settings and the roster.</p>
-        <Button className="mt-5 gap-2" asChild><Link href={`/teams/${id}`}><ArrowLeft className="h-4 w-4" /> View team profile</Link></Button>
+        <p className="mt-2 text-sm text-zinc-500">Only the President or Coach can manage clan settings and the roster.</p>
+        <Button className="mt-5 gap-2" asChild><Link href={`/teams/${id}`}><ArrowLeft className="h-4 w-4" /> View clan profile</Link></Button>
       </div>
     );
   }
@@ -362,9 +362,9 @@ export default function TeamManagePage() {
     <div className="min-h-screen bg-background">
       <div className="container mx-auto max-w-5xl px-4 py-8 sm:py-10">
         <div className="mb-5">
-          <p className="text-xs font-bold uppercase tracking-widest text-zinc-500">Dashboard <span className="px-1 text-zinc-700">›</span> Teams <span className="px-1 text-zinc-700">›</span> <span className="text-yellow-400">Manage Team</span></p>
+          <p className="text-xs font-bold uppercase tracking-widest text-zinc-500">Dashboard <span className="px-1 text-zinc-700">›</span> Clans <span className="px-1 text-zinc-700">›</span> <span className="text-yellow-400">Manage Clan</span></p>
           <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-            <h1 className="text-3xl font-black tracking-tight text-white">Manage Team</h1>
+            <h1 className="text-3xl font-black tracking-tight text-white">Manage Clan</h1>
             <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
@@ -373,7 +373,7 @@ export default function TeamManagePage() {
                 onClick={leaveTeam}
                 disabled={busy}
               >
-                <UserMinus className="h-4 w-4" /> {busy ? "Leaving…" : "Leave Team"}
+                <UserMinus className="h-4 w-4" /> {busy ? "Leaving…" : "Leave Clan"}
               </Button>
               <Button variant="ghost" size="sm" className="gap-2 text-zinc-400 hover:text-white" asChild>
                 <Link href={`/teams/${id}`}><ArrowLeft className="h-4 w-4" /> View public profile</Link>

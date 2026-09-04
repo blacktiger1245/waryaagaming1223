@@ -240,7 +240,7 @@ export default function HomePage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
             {[
               { label: "Players", value: stats?.totalPlayers ?? 0, icon: Users },
-              { label: "Teams", value: stats?.totalTeams ?? 0, icon: Shield },
+              { label: "Clans", value: stats?.totalTeams ?? 0, icon: Shield },
               { label: "Tournaments", value: stats?.totalTournaments ?? 0, icon: Trophy },
               { label: "Live Matches", value: stats?.liveMatches ?? 0, icon: Radio },
             ].map(({ label, value, icon: Icon }) => (
