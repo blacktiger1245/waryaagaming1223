@@ -14,15 +14,22 @@ import {
   SHOP_CATEGORY_META,
   SHOP_ORDER_STATUS_META,
   type ShopOrderStatus,
+  type ShopCategory,
 } from "@/lib/shop";
 
 const STATUS_FILTERS: Array<ShopOrderStatus | "all"> = ["all", "pending", "processing", "completed", "cancelled"];
+const ORDER_CATEGORIES: Array<ShopCategory | "all"> = ["all", "efootball", "coins", "nitro"];
+
+function categoryLabel(category: ShopCategory | "all"): string {
+  return category === "all" ? "All" : (SHOP_CATEGORY_META[category]?.label ?? category);
+}
 
 /** WG-SHOP Manager — customer orders with status control. */
 export default function AdminShopOrdersPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<ShopOrderStatus | "all">("all");
+  const [categoryFilter, setCategoryFilter] = useState<ShopCategory | "all">("all");
 
   const { data: orders, isLoading } = useQuery({
     queryKey: ["manager-shop-orders", statusFilter],
@@ -37,6 +44,8 @@ export default function AdminShopOrdersPage() {
     refetchInterval: 15_000,
   });
   const chatOrderIds = new Set((chats ?? []).map((c) => c.orderId));
+
+  const visibleOrders = (orders ?? []).filter((o) => categoryFilter === "all" || o.category === categoryFilter);
 
   const setStatus = useMutation({
     mutationFn: ({ id, status }: { id: number; status: ShopOrderStatus }) => updateManagerOrderStatus(id, status),
@@ -56,6 +65,23 @@ export default function AdminShopOrdersPage() {
         <p className="mt-1 text-sm text-muted-foreground">
           Every customer order from the storefront. Update the status as you fulfil deliveries.
         </p>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {ORDER_CATEGORIES.map((category) => (
+          <button
+            key={category}
+            onClick={() => setCategoryFilter(category)}
+            data-testid={`tab-admin-order-category-${category}`}
+            className={`rounded-lg border px-3 py-1.5 text-xs font-bold uppercase tracking-wide transition-colors ${
+              categoryFilter === category
+                ? "border-primary bg-primary/15 text-primary"
+                : "border-border bg-card text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {categoryLabel(category)}
+          </button>
+        ))}
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -82,6 +108,11 @@ export default function AdminShopOrdersPage() {
         <div className="rounded-xl border border-dashed border-border bg-card/50 p-12 text-center text-sm text-muted-foreground">
           {statusFilter === "all" ? "No customer orders yet." : `No ${statusFilter} orders.`}
         </div>
+      ) : visibleOrders.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border bg-card/50 p-12 text-center text-sm text-muted-foreground">
+          No {categoryLabel(categoryFilter).toLowerCase()} orders
+          {statusFilter === "all" ? "." : ` with status ${statusFilter}.`}
+        </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-border bg-card">
           <table className="w-full min-w-[980px] text-sm">
@@ -97,7 +128,7 @@ export default function AdminShopOrdersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {orders.map((order) => (
+              {visibleOrders.map((order) => (
                 <tr key={order.id} className="hover:bg-sidebar-accent/40" data-testid={`row-order-${order.id}`}>
                   <td className="px-4 py-3">
                     <p className="font-black">#{order.id}</p>
@@ -139,7 +170,14 @@ export default function AdminShopOrdersPage() {
                       <span className="text-xs text-muted-foreground">—</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 font-black text-primary">{formatPrice(order.totalPriceCents)}</td>
+                  <td className="px-4 py-3">
+                    <p className="font-black text-primary">{formatPrice(order.totalPriceCents)}</p>
+                    {order.webFeeCents > 0 ? (
+                      <p className="text-[11px] text-muted-foreground">
+                        {formatPrice(order.priceCents)} + {formatPrice(order.webFeeCents)} web fee
+                      </p>
+                    ) : null}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
                       {(["pending", "processing", "completed", "cancelled"] as ShopOrderStatus[]).map((status) => (

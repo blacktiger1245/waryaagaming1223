@@ -165,14 +165,20 @@ export function PurchaseDialog({ product, onClose }: { product: ShopProduct; onC
                   value={buyerDiscord}
                   onChange={(e) => setBuyerDiscord(e.target.value)}
                   placeholder={user ? user.username : "e.g. Black_Tiger"}
+                  readOnly={!!user?.username}
+                  aria-readonly={!!user?.username}
                   data-testid="input-checkout-discord"
                 />
               </div>
-              {user ? (
+              {user?.username ? (
                 <p className="text-xs text-muted-foreground">
-                  Auto-filled from your Discord profile — you can still edit it.
+                  Automatically retrieved from your connected Discord account.
                 </p>
-              ) : null}
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  We couldn't retrieve a connected Discord account — please enter your Discord username.
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="checkout-note">Additional Note (optional)</Label>

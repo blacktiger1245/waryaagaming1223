@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, ShoppingBag, PackageOpen, MessageSquare } from "lucide-react";
@@ -9,7 +10,14 @@ import {
   formatPrice,
   SHOP_CATEGORY_META,
   SHOP_ORDER_STATUS_META,
+  type ShopCategory,
 } from "@/lib/shop";
+
+const ORDER_CATEGORIES: Array<ShopCategory | "all"> = ["all", "efootball", "coins", "nitro"];
+
+function categoryLabel(category: ShopCategory | "all"): string {
+  return category === "all" ? "All" : (SHOP_CATEGORY_META[category]?.label ?? category);
+}
 
 /**
  * My Orders — /shop/orders
@@ -18,11 +26,15 @@ import {
  * expose the private order chat with the WG-SHOP Manager.
  */
 export default function ShopOrdersPage() {
+  const [categoryFilter, setCategoryFilter] = useState<ShopCategory | "all">("all");
+
   const { data: orders, isLoading } = useQuery({
     queryKey: ["shop", "orders"],
     queryFn: fetchMyShopOrders,
     refetchInterval: 30_000,
   });
+
+  const visibleOrders = (orders ?? []).filter((o) => categoryFilter === "all" || o.category === categoryFilter);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
@@ -35,6 +47,23 @@ export default function ShopOrdersPage() {
           Track every purchase you placed on this device and its delivery status. Orders being processed open a
           private chat with the WG-SHOP team.
         </p>
+      </div>
+
+      <div className="mt-6 flex flex-wrap gap-2">
+        {ORDER_CATEGORIES.map((category) => (
+          <button
+            key={category}
+            onClick={() => setCategoryFilter(category)}
+            data-testid={`tab-order-category-${category}`}
+            className={`rounded-lg border px-3 py-1.5 text-xs font-bold uppercase tracking-wide transition-colors ${
+              categoryFilter === category
+                ? "border-primary bg-primary/15 text-primary"
+                : "border-border bg-card text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {categoryLabel(category)}
+          </button>
+        ))}
       </div>
 
       <div className="mt-6 space-y-3">
@@ -52,8 +81,15 @@ export default function ShopOrdersPage() {
               </Link>
             </p>
           </div>
+        ) : visibleOrders.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border bg-card/50 p-12 text-center">
+            <PackageOpen className="mx-auto h-10 w-10 text-muted-foreground/60" />
+            <p className="mt-3 text-sm text-muted-foreground">
+              No {categoryLabel(categoryFilter).toLowerCase()} orders yet.
+            </p>
+          </div>
         ) : (
-          orders.map((order) => {
+          visibleOrders.map((order) => {
             const status = SHOP_ORDER_STATUS_META[order.status] ?? SHOP_ORDER_STATUS_META.pending;
             const accent = SHOP_CATEGORY_META[order.category]?.accent ?? "#22c55e";
             const imageSrc = storageUrl(order.productImagePath);
