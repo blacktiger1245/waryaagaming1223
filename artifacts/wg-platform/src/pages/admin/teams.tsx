@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Shield, Trash2, UserMinus, ChevronDown, ChevronUp, AlertTriangle, Users, X } from "lucide-react";
+import { Shield, Trash2, UserMinus, ChevronDown, ChevronUp, AlertTriangle, Users, X, Ban, CheckCircle } from "lucide-react";
 import { storageUrl } from "@/lib/api";
 
 interface TeamMember {
@@ -17,6 +17,9 @@ interface Team {
   tag: string | null;
   logoUrl: string | null;
   division: string;
+  bannedUntil: string | null;
+  banReason: string | null;
+  bannedBy: string | null;
   captainId: number | null;
   coachId: number | null;
   wins: number;
@@ -68,6 +71,47 @@ export default function AdminTeamsPage() {
   const [kickConfirm, setKickConfirm] = useState<{ teamId: number; playerId: number } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const [banMenuId, setBanMenuId] = useState<number | null>(null);
+  const [unbanConfirmId, setUnbanConfirmId] = useState<number | null>(null);
+  const [selectedDuration, setSelectedDuration] = useState("1d");
+  const [banReason, setBanReason] = useState("");
+
+  function isBanned(team: Team): boolean {
+    if (!team.bannedUntil) return false;
+    return new Date(team.bannedUntil) > new Date();
+  }
+
+  async function banTeam(teamId: number) {
+    setLoading(true); setError("");
+    try {
+      await apiFetch(`/api/admin/teams/${teamId}/ban`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ duration: selectedDuration, reason: banReason }),
+      });
+      setBanMenuId(null);
+      setBanReason("");
+      qc.invalidateQueries({ queryKey: ["admin-teams"] });
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function unbanTeam(teamId: number) {
+    setLoading(true); setError("");
+    try {
+      await apiFetch(`/api/admin/teams/${teamId}/ban`, { method: "DELETE" });
+      setUnbanConfirmId(null);
+      qc.invalidateQueries({ queryKey: ["admin-teams"] });
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   function membersOf(teamId: number) {
     return allPlayers.filter((p) => p.teamId === teamId);
@@ -198,6 +242,11 @@ export default function AdminTeamsPage() {
                       >
                         {team.division === "serie_b" ? "Serie B" : "Serie A"}
                       </span>
+                      {isBanned(team) && (
+                        <span className="text-[10px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-md border text-red-300 border-red-500/40 bg-red-500/10">
+                          Banned
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs text-zinc-500 mt-0.5">
                       <span className="text-green-400 font-bold">{team.wins}W</span>
@@ -229,6 +278,22 @@ export default function AdminTeamsPage() {
                     >
                       <Trash2 className="w-3.5 h-3.5" /> Delete
                     </button>
+                    {/* Ban / Unban */}
+                    {isBanned(team) ? (
+                      <button
+                        onClick={() => setUnbanConfirmId(unbanConfirmId === team.id ? null : team.id)}
+                        className="text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors flex items-center gap-1.5 text-green-400 hover:bg-green-500/10 bg-zinc-800 border-zinc-700 hover:border-green-400/30"
+                      >
+                        <CheckCircle className="w-3.5 h-3.5" /> Unban
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => { setBanMenuId(banMenuId === team.id ? null : team.id); setSelectedDuration("1d"); setBanReason(""); }}
+                        className="text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors flex items-center gap-1.5 text-red-400 hover:bg-red-500/10 bg-zinc-800 border-zinc-700 hover:border-red-400/30"
+                      >
+                        <Ban className="w-3.5 h-3.5" /> Ban
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -252,6 +317,72 @@ export default function AdminTeamsPage() {
                         className="text-xs font-black text-white bg-red-500 hover:bg-red-600 px-4 py-1.5 rounded-lg transition-colors disabled:opacity-50"
                       >
                         {loading ? "Deleting…" : "Yes, delete"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Ban menu */}
+                {banMenuId === team.id && (
+                  <div className="mx-4 mb-4 bg-red-500/5 border border-red-500/20 rounded-xl px-4 py-4">
+                    <p className="text-sm font-black text-red-400">Ban "{team.name}"</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {["1d", "5d", "1w", "1m"].map((d) => (
+                        <button
+                          key={d}
+                          onClick={() => setSelectedDuration(d)}
+                          className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors ${
+                            selectedDuration === d
+                              ? "bg-red-500/20 border-red-500/40 text-red-400"
+                              : "text-zinc-400 hover:text-white bg-zinc-800 border-zinc-700"
+                          }`}
+                        >
+                          {d}
+                        </button>
+                      ))}
+                    </div>
+                    <textarea
+                      value={banReason}
+                      onChange={(e) => setBanReason(e.target.value)}
+                      placeholder="Enter the reason for this ban…"
+                      rows={2}
+                      className="mt-3 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-red-400/50"
+                    />
+                    <div className="mt-3 flex justify-end gap-2">
+                      <button
+                        onClick={() => setBanMenuId(null)}
+                        className="text-xs font-black text-zinc-400 hover:text-white px-3 py-1.5 rounded-lg border border-zinc-700 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => banTeam(team.id)}
+                        disabled={loading || !banReason.trim()}
+                        className="text-xs font-black text-white bg-red-600 hover:bg-red-700 px-4 py-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {loading ? "Banning…" : "Confirm ban"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Unban confirmation */}
+                {unbanConfirmId === team.id && (
+                  <div className="mx-4 mb-4 bg-green-500/5 border border-green-500/20 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+                    <p className="text-sm font-black text-green-400">Unban "{team.name}"?</p>
+                    <div className="flex gap-2 shrink-0">
+                      <button
+                        onClick={() => setUnbanConfirmId(null)}
+                        className="text-xs font-black text-zinc-400 hover:text-white px-3 py-1.5 rounded-lg border border-zinc-700 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => unbanTeam(team.id)}
+                        disabled={loading}
+                        className="text-xs font-black text-white bg-green-600 hover:bg-green-700 px-4 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        {loading ? "…" : "Yes, unban"}
                       </button>
                     </div>
                   </div>

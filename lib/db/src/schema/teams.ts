@@ -16,6 +16,10 @@ export const teamsTable = pgTable("teams", {
   wins: integer("wins").notNull().default(0),
   losses: integer("losses").notNull().default(0),
   points: integer("points").notNull().default(0),
+  /** Team (clan) ban — same mechanism as player bans. */
+  bannedUntil: timestamp("banned_until"),
+  banReason: text("ban_reason"),
+  bannedBy: text("banned_by"),
   description: text("description"),
   achievements: text("achievements").array().notNull().default([]),
   createdAt: timestamp("created_at").notNull().defaultNow(),

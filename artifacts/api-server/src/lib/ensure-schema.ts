@@ -232,6 +232,9 @@ export async function ensureClanSchema(): Promise<void> {
   const statements = [
     `ALTER TABLE "teams" ADD COLUMN IF NOT EXISTS "division" text NOT NULL DEFAULT 'serie_a'`,
     `UPDATE "teams" SET "division" = 'serie_a' WHERE "division" IS NULL OR "division" = ''`,
+    `ALTER TABLE "teams" ADD COLUMN IF NOT EXISTS "banned_until" timestamp`,
+    `ALTER TABLE "teams" ADD COLUMN IF NOT EXISTS "ban_reason" text`,
+    `ALTER TABLE "teams" ADD COLUMN IF NOT EXISTS "banned_by" text`,
     `CREATE TABLE IF NOT EXISTS "clan_settings" (
        "id" serial PRIMARY KEY,
        "serie_a_registration_open" boolean NOT NULL DEFAULT true,

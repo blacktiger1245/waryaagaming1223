@@ -707,6 +707,62 @@ router.delete("/admin/players/:id/ban", async (req, res) => {
   return res.json(updated);
 });
 
+// ── Admin: ban a team (clan) — same mechanism as player bans ─────────────────
+router.post("/admin/teams/:id/ban", async (req, res) => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+
+  const { duration, reason } = req.body as { duration?: string; reason?: string };
+  const allowed = ["1d", "5d", "1w", "1m"];
+  if (!duration || !allowed.includes(duration)) {
+    return res.status(400).json({ error: "duration must be one of: 1d, 5d, 1w, 1m" });
+  }
+  if (!reason || !reason.trim()) {
+    return res.status(400).json({ error: "A ban reason is required" });
+  }
+
+  const durationMs: Record<string, number> = {
+    "1d": 1 * 24 * 60 * 60 * 1000,
+    "5d": 5 * 24 * 60 * 60 * 1000,
+    "1w": 7 * 24 * 60 * 60 * 1000,
+    "1m": 30 * 24 * 60 * 60 * 1000,
+  };
+  const bannedUntil = new Date(Date.now() + durationMs[duration]);
+
+  const bannedBy =
+    req.session.displayName ?? req.session.username ?? req.session.adminUsername ?? "Admin";
+
+  const [updated] = await db
+    .update(teamsTable)
+    .set({ bannedUntil, banReason: reason.trim(), bannedBy })
+    .where(eq(teamsTable.id, id))
+    .returning({
+      id: teamsTable.id,
+      name: teamsTable.name,
+      bannedUntil: teamsTable.bannedUntil,
+      banReason: teamsTable.banReason,
+      bannedBy: teamsTable.bannedBy,
+    });
+
+  if (!updated) return res.status(404).json({ error: "Team not found" });
+  return res.json(updated);
+});
+
+// ── Admin: unban a team (clan) ────────────────────────────────────────────────
+router.delete("/admin/teams/:id/ban", async (req, res) => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
+
+  const [updated] = await db
+    .update(teamsTable)
+    .set({ bannedUntil: null, banReason: null, bannedBy: null })
+    .where(eq(teamsTable.id, id))
+    .returning({ id: teamsTable.id, name: teamsTable.name, bannedUntil: teamsTable.bannedUntil });
+
+  if (!updated) return res.status(404).json({ error: "Team not found" });
+  return res.json(updated);
+});
+
 registerEntityRoutes("teams", teamsTable);
 
 // ── Seasons CRUD ──────────────────────────────────────────────────────────────
