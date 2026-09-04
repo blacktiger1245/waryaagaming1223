@@ -5,6 +5,7 @@ import { Loader2, Send, Image as ImageIcon, ArrowLeft, CheckCheck, X, Users } fr
 import { useAdminAuth } from "@/hooks/use-admin-auth";
 import { supportAdmin, type SupportMessage, type Attachment } from "@/lib/support";
 import { storageUrl } from "@/lib/api";
+import { ImageLightbox } from "@/components/image-lightbox";
 
 function clock(iso: string | null) {
   if (!iso) return "";
@@ -12,17 +13,24 @@ function clock(iso: string | null) {
 }
 
 function Bubble({ m, mine }: { m: SupportMessage; mine: boolean }) {
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   return (
     <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
       <div className={`max-w-[78%] rounded-2xl px-3.5 py-2.5 ${mine ? "rounded-br-sm bg-primary text-primary-foreground" : "rounded-bl-sm bg-[#16223d] text-white"}`}>
         {m.attachmentPath && (
-          <a href={storageUrl(m.attachmentPath)} target="_blank" rel="noreferrer" className="mb-1.5 block">
+          <button
+            type="button"
+            onClick={() => setLightboxSrc(storageUrl(m.attachmentPath) ?? null)}
+            className="mb-1.5 block w-full cursor-zoom-in"
+            aria-label="Open attachment"
+          >
             <img src={storageUrl(m.attachmentPath)} alt={m.attachmentName ?? "attachment"} className="max-h-56 w-full rounded-lg object-cover" />
-          </a>
+          </button>
         )}
         {m.text && m.text !== "•  File" && <p className="whitespace-pre-wrap text-sm leading-relaxed break-words">{m.text}</p>}
         {m.attachmentPath && m.text === "•  File" && <p className="text-xs font-bold opacity-80">{m.attachmentName ?? "Attachment"}</p>}
         <p className={`mt-1 text-right text-[10px] ${mine ? "text-primary-foreground/70" : "text-white/40"}`}>{clock(m.createdAt)} <span className="ml-1 uppercase">{m.senderRole}</span></p>
+        <ImageLightbox src={lightboxSrc} alt={m.attachmentName ?? "attachment"} onClose={() => setLightboxSrc(null)} />
       </div>
     </div>
   );

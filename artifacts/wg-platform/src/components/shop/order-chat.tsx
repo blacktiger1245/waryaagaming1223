@@ -14,6 +14,7 @@ import {
   Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ImageLightbox } from "@/components/image-lightbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -42,6 +43,7 @@ function formatTime(iso: string): string {
 
 /** One chat bubble — own messages sit on the right with the neon accent. */
 function MessageBubble({ message, own }: { message: ShopChatMessage; own: boolean }) {
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   return (
     <div className={`flex flex-col ${own ? "items-end" : "items-start"}`}>
       <div className="mb-0.5 flex items-center gap-1.5 px-1">
@@ -69,13 +71,18 @@ function MessageBubble({ message, own }: { message: ShopChatMessage; own: boolea
       >
         {message.imagePath ? (
           <div className="space-y-2">
-            <a href={storageUrl(message.imagePath)} target="_blank" rel="noreferrer">
+            <button
+              type="button"
+              onClick={() => setLightboxSrc(storageUrl(message.imagePath) ?? null)}
+              className="block w-full cursor-zoom-in"
+              aria-label="Open transcript image"
+            >
               <img
                 src={storageUrl(message.imagePath)}
                 alt="Order transcript"
                 className="max-h-72 w-full rounded-lg border border-border object-contain"
               />
-            </a>
+            </button>
             <a
               href={storageUrl(message.imagePath)}
               download={`wg-shop-transcript-order-${message.chatId}.png`}
@@ -88,6 +95,7 @@ function MessageBubble({ message, own }: { message: ShopChatMessage; own: boolea
         ) : (
           <p className="whitespace-pre-wrap break-words">{message.body}</p>
         )}
+        <ImageLightbox src={lightboxSrc} alt="Order transcript" onClose={() => setLightboxSrc(null)} />
       </div>
     </div>
   );

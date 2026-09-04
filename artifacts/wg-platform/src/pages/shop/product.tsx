@@ -3,6 +3,7 @@ import { Link, useRoute } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, ArrowLeft, Gauge, ShoppingCart, ImageOff, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ImageLightbox } from "@/components/image-lightbox";
 import { PurchaseDialog } from "@/components/shop/purchase-dialog";
 import { StatusChip } from "@/components/shop/product-card";
 import { storageUrl } from "@/lib/api";
@@ -24,6 +25,7 @@ export default function ShopProductPage() {
 
   const [activeImage, setActiveImage] = useState(0);
   const [buying, setBuying] = useState(false);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   const { data: product, isLoading, isError } = useQuery({
     queryKey: ["shop", "product", id],
@@ -96,11 +98,18 @@ export default function ShopProductPage() {
             style={{ boxShadow: `inset 0 0 120px ${meta.accentSoft}` }}
           >
             {activeSrc ? (
-              <img
-                src={activeSrc}
-                alt={`${product.title} screenshot ${activeImage + 1}`}
-                className="h-full w-full object-contain"
-              />
+              <button
+                type="button"
+                onClick={() => setLightboxSrc(activeSrc)}
+                className="h-full w-full cursor-zoom-in"
+                aria-label="Open full image"
+              >
+                <img
+                  src={activeSrc}
+                  alt={`${product.title} screenshot ${activeImage + 1}`}
+                  className="h-full w-full object-contain"
+                />
+              </button>
             ) : (
               <div className="flex flex-col items-center gap-2 text-muted-foreground">
                 <ImageOff className="h-10 w-10" />
@@ -215,6 +224,7 @@ export default function ShopProductPage() {
       </div>
 
       {buying ? <PurchaseDialog product={product} onClose={() => setBuying(false)} /> : null}
+      <ImageLightbox src={lightboxSrc} alt={product.title} onClose={() => setLightboxSrc(null)} />
     </div>
   );
 }

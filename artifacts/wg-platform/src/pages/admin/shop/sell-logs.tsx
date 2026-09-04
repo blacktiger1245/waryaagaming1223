@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { storageUrl } from "@/lib/api";
+import { ImageLightbox } from "@/components/image-lightbox";
 import { StatusChip } from "@/components/shop/product-card";
 import {
   approveSellSubmission,
@@ -286,6 +287,7 @@ function SubmissionCard({
   onReject: () => void;
 }) {
   const status = SHOP_SELL_STATUS_META[submission.status];
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const StatusIcon =
     submission.status === "approved" ? CheckCircle2 : submission.status === "rejected" ? XCircle : Clock;
 
@@ -369,12 +371,11 @@ function SubmissionCard({
           </p>
           <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
             {submission.galleryPaths.map((path, idx) => (
-              <a
+              <button
                 key={`${path}-${idx}`}
-                href={storageUrl(path)}
-                target="_blank"
-                rel="noreferrer"
-                className="flex-shrink-0"
+                type="button"
+                onClick={() => setLightboxSrc(storageUrl(path) ?? null)}
+                className="flex-shrink-0 cursor-zoom-in"
                 title="Open full image"
               >
                 <img
@@ -382,7 +383,7 @@ function SubmissionCard({
                   alt=""
                   className="h-20 w-20 rounded-lg border border-border object-cover transition-transform hover:scale-105"
                 />
-              </a>
+              </button>
             ))}
           </div>
         </div>
@@ -420,6 +421,7 @@ function SubmissionCard({
           </a>
         </p>
       ) : null}
+      <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
     </div>
   );
 }

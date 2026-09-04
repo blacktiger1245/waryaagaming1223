@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ClipboardList, Eye, Pencil, Trash2, RefreshCw, LoaderCircle, ExternalLink, Image as ImageIcon } from "lucide-react";
 import { storageUrl } from "@/lib/api";
+import { ImageLightbox } from "@/components/image-lightbox";
 
 interface RegLog {
   id: number;
@@ -41,6 +42,7 @@ export default function AdminRegistrationLogsPage() {
 
   const [viewLog, setViewLog] = useState<RegLog | null>(null);
   const [editLog, setEditLog] = useState<RegLog | null>(null);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [form, setForm] = useState({ status: "pending", serialNumber: "", deviceName: "" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -157,9 +159,14 @@ export default function AdminRegistrationLogsPage() {
                     <td className="px-4 py-3 font-mono text-xs">{log.serialNumber}</td>
                     <td className="px-4 py-3">
                       {shotUrl ? (
-                        <a href={shotUrl} target="_blank" rel="noopener noreferrer" className="inline-block">
+                        <button
+                          type="button"
+                          onClick={() => setLightboxSrc(shotUrl)}
+                          className="inline-block cursor-zoom-in"
+                          aria-label="Open screenshot"
+                        >
                           <img src={shotUrl} alt="screenshot" className="h-10 w-10 rounded-md object-cover border border-border" />
-                        </a>
+                        </button>
                       ) : (
                         <ImageIcon className="w-5 h-5 text-muted-foreground" />
                       )}
@@ -237,12 +244,14 @@ export default function AdminRegistrationLogsPage() {
           </div>
         </div>
       )}
+      <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
     </div>
   );
 }
 
 function ViewModal({ log, onClose }: { log: RegLog; onClose: () => void }) {
   const shotUrl = storageUrl(log.screenshotPath);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
       <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -257,9 +266,14 @@ function ViewModal({ log, onClose }: { log: RegLog; onClose: () => void }) {
         </div>
 
         {shotUrl && (
-          <a href={shotUrl} target="_blank" rel="noopener noreferrer" className="mt-4 block">
+          <button
+            type="button"
+            onClick={() => setLightboxSrc(shotUrl)}
+            className="mt-4 block w-full cursor-zoom-in"
+            aria-label="Open screenshot"
+          >
             <img src={shotUrl} alt="Serial number screenshot" className="w-full max-h-72 rounded-xl border border-border object-cover" />
-          </a>
+          </button>
         )}
 
         <dl className="mt-5 space-y-3 text-sm">
@@ -281,6 +295,7 @@ function ViewModal({ log, onClose }: { log: RegLog; onClose: () => void }) {
           </button>
         </div>
       </div>
+      <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
     </div>
   );
 }
