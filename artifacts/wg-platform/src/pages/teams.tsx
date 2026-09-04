@@ -196,26 +196,45 @@ export default function TeamsPage() {
             <p className="font-bold">No clans found</p>
           </div>
         ) : (
-          <>
-            <div className="mb-10">
-              <h2 className="mb-4 flex items-center gap-2 text-xl font-black uppercase tracking-wide">
-                Serie A
-                <span className="text-xs font-bold normal-case text-muted-foreground">({serieA.length} clans)</span>
-              </h2>
-              <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {serieA.map((team, i) => <ClanCard key={team.id} team={team} index={i} />)}
+          <div className="space-y-10">
+            {/* Serie A category */}
+            <section>
+              <div className="mb-4 flex items-center gap-3">
+                <span className="rounded-md border border-emerald-500/40 bg-emerald-500/15 px-3 py-1 text-sm font-black uppercase tracking-wide text-emerald-400">
+                  Serie A
+                </span>
+                <span className="text-xs font-bold text-muted-foreground">{serieA.length} clans</span>
               </div>
-            </div>
-            <div className="mb-10">
-              <h2 className="mb-4 flex items-center gap-2 text-xl font-black uppercase tracking-wide">
-                Serie B
-                <span className="text-xs font-bold normal-case text-muted-foreground">({serieB.length} clans)</span>
-              </h2>
-              <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {serieB.map((team, i) => <ClanCard key={team.id} team={team} index={i} />)}
+              {serieA.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border bg-card/40 p-10 text-center text-sm text-muted-foreground">
+                  No clans in Serie A yet.
+                </div>
+              ) : (
+                <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {serieA.map((team, i) => <ClanCard key={team.id} team={team} index={i} />)}
+                </div>
+              )}
+            </section>
+
+            {/* Serie B category */}
+            <section>
+              <div className="mb-4 flex items-center gap-3">
+                <span className="rounded-md border border-amber-500/40 bg-amber-500/15 px-3 py-1 text-sm font-black uppercase tracking-wide text-amber-400">
+                  Serie B
+                </span>
+                <span className="text-xs font-bold text-muted-foreground">{serieB.length} clans</span>
               </div>
-            </div>
-          </>
+              {serieB.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border bg-card/40 p-10 text-center text-sm text-muted-foreground">
+                  No clans in Serie B yet.
+                </div>
+              ) : (
+                <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {serieB.map((team, i) => <ClanCard key={team.id} team={team} index={i} />)}
+                </div>
+              )}
+            </section>
+          </div>
         )}
       </motion.div>
 
