@@ -196,7 +196,7 @@ export default function TeamsPage() {
             <p className="font-bold">No clans found</p>
           </div>
         ) : (
-          <div className="space-y-10">
+          <div className="grid gap-8 lg:grid-cols-2 items-start">
             {/* Serie A category */}
             <section>
               <div className="mb-4 flex items-center gap-3">
@@ -210,7 +210,7 @@ export default function TeamsPage() {
                   No clans in Serie A yet.
                 </div>
               ) : (
-                <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {serieA.map((team, i) => <ClanCard key={team.id} team={team} index={i} />)}
                 </div>
               )}
@@ -229,7 +229,7 @@ export default function TeamsPage() {
                   No clans in Serie B yet.
                 </div>
               ) : (
-                <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {serieB.map((team, i) => <ClanCard key={team.id} team={team} index={i} />)}
                 </div>
               )}
