@@ -54,6 +54,23 @@ function formatUsd(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
+/**
+ * Web Fee in US cents, always derived from the original product price:
+ *   Web Fee = ceil(Product Price / $20) × $2
+ * In cents that's ceil(priceCents / 2000) × 200.
+ * This is the single source of truth — the frontend mirrors it only for live
+ * preview, and every product/order write recomputes it server-side.
+ */
+export function calculateWebFeeCents(priceCents: number): number {
+  return Math.ceil(priceCents / 2000) * 200;
+}
+
+/** Resolve the (webFee, total) pair for a given original price in cents. */
+function webFeeAndTotal(priceCents: number): { webFeeCents: number; totalPriceCents: number } {
+  const webFeeCents = calculateWebFeeCents(priceCents);
+  return { webFeeCents, totalPriceCents: priceCents + webFeeCents };
+}
+
 function formatTranscriptDate(date: Date): string {
   const dd = String(date.getUTCDate()).padStart(2, "0");
   const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
@@ -98,6 +115,8 @@ function requireShopManager(req: Request, res: Response, next: NextFunction) {
 
 // ─── Serialization ────────────────────────────────────────────────────────────
 function toProductJson(p: typeof shopProductsTable.$inferSelect) {
+  const webFeeCents = p.webFeeCents ?? 0;
+  const totalPriceCents = p.totalPriceCents && p.totalPriceCents > 0 ? p.totalPriceCents : p.priceCents + webFeeCents;
   return {
     id: p.id,
     category: p.category,
@@ -105,6 +124,8 @@ function toProductJson(p: typeof shopProductsTable.$inferSelect) {
     title: p.title,
     description: p.description,
     priceCents: p.priceCents,
+    webFeeCents,
+    totalPriceCents,
     profileImagePath: p.profileImagePath,
     galleryPaths: p.galleryPaths ?? [],
     teamStrength: p.teamStrength,
@@ -120,12 +141,16 @@ function toProductJson(p: typeof shopProductsTable.$inferSelect) {
 }
 
 function toOrderJson(o: typeof shopOrdersTable.$inferSelect) {
+  const webFeeCents = o.webFeeCents ?? 0;
+  const totalPriceCents = o.totalPriceCents && o.totalPriceCents > 0 ? o.totalPriceCents : o.priceCents + webFeeCents;
   return {
     id: o.id,
     productId: o.productId,
     productTitle: o.productTitle,
     category: o.category,
     priceCents: o.priceCents,
+    webFeeCents,
+    totalPriceCents,
     buyerName: o.buyerName,
     buyerContact: o.buyerContact,
     buyerPhone: o.buyerPhone,
@@ -274,6 +299,10 @@ router.post("/shop/orders", async (req, res) => {
       return res.status(404).json({ error: "This product is no longer available" });
     }
 
+    // Server-side pricing: the Web Fee is recomputed from the product price on
+    // every order so a tampered client can never underpay the fee.
+    const pricing = webFeeAndTotal(product.priceCents);
+
     const [order] = await db
       .insert(shopOrdersTable)
       .values({
@@ -281,6 +310,8 @@ router.post("/shop/orders", async (req, res) => {
         productTitle: product.title,
         category: product.category,
         priceCents: product.priceCents,
+        webFeeCents: pricing.webFeeCents,
+        totalPriceCents: pricing.totalPriceCents,
         buyerName,
         buyerContact: buyerDiscord,
         buyerPhone,
@@ -520,7 +551,7 @@ router.post("/shop/orders/:id/chat/transcript", requireShopManager, async (req, 
       phone: order.buyerPhone ?? "-",
       accountNo,
       discord: order.buyerDiscord ?? order.buyerContact,
-      price: formatUsd(order.priceCents),
+      price: formatUsd(order.totalPriceCents && order.totalPriceCents > 0 ? order.totalPriceCents : order.priceCents),
       orderId: `#WG-${order.id}`,
       productName: order.productTitle,
       date: formatTranscriptDate(order.createdAt),
@@ -803,6 +834,7 @@ router.post("/admin/shop/products", requireShopManager, async (req, res) => {
   const nitroPlan = body.category === "nitro" ? cleanString(body.nitroPlan, 60) : null;
 
   try {
+    const pricing = webFeeAndTotal(body.priceCents);
     const [product] = await db
       .insert(shopProductsTable)
       .values({
@@ -811,6 +843,8 @@ router.post("/admin/shop/products", requireShopManager, async (req, res) => {
         title,
         description,
         priceCents: body.priceCents,
+        webFeeCents: pricing.webFeeCents,
+        totalPriceCents: pricing.totalPriceCents,
         profileImagePath,
         galleryPaths,
         teamStrength,
@@ -860,6 +894,11 @@ router.patch("/admin/shop/products/:id", requireShopManager, async (req, res) =>
         return res.status(400).json({ error: "A price greater than zero is required" });
       }
       updates.priceCents = body.priceCents;
+      // The Web Fee is always derived server-side from the original price so
+      // the browser can never manipulate it.
+      const pricing = webFeeAndTotal(body.priceCents);
+      updates.webFeeCents = pricing.webFeeCents;
+      updates.totalPriceCents = pricing.totalPriceCents;
     }
     if (body.galleryPaths !== undefined) {
       const galleryPaths = cleanGallery(body.galleryPaths);
@@ -1067,6 +1106,8 @@ router.patch("/admin/shop/sell-logs/:id/approve", requireShopManager, async (req
       .filter(Boolean)
       .join("\n");
 
+    const pricing = webFeeAndTotal(submission.priceCents);
+
     const [product] = await db
       .insert(shopProductsTable)
       .values({
@@ -1075,6 +1116,8 @@ router.patch("/admin/shop/sell-logs/:id/approve", requireShopManager, async (req
         title,
         description,
         priceCents: submission.priceCents,
+        webFeeCents: pricing.webFeeCents,
+        totalPriceCents: pricing.totalPriceCents,
         profileImagePath: submission.profileImagePath,
         galleryPaths: submission.galleryPaths ?? [],
         teamStrength: submission.teamStrength,

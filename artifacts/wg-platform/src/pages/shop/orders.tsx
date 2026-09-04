@@ -88,7 +88,7 @@ export default function ShopOrdersPage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
-                  <span className="text-lg font-black text-primary">{formatPrice(order.priceCents)}</span>
+                  <span className="text-lg font-black text-primary">{formatPrice(order.totalPriceCents)}</span>
                   <span
                     className={`rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-wide ${status.className}`}
                   >

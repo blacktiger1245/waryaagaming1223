@@ -148,9 +148,23 @@ export default function ShopProductPage() {
 
           <div className="rounded-xl border border-border bg-card p-5">
             <div className="flex flex-wrap items-end justify-between gap-4">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Price</p>
-                <p className="text-3xl font-black text-primary">{formatPrice(product.priceCents)}</p>
+              <div className="min-w-[240px] space-y-1.5">
+                <div className="flex items-center justify-between gap-6">
+                  <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                    Product Price
+                  </span>
+                  <span className="text-sm font-bold text-foreground">{formatPrice(product.priceCents)}</span>
+                </div>
+                <div className="flex items-center justify-between gap-6">
+                  <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Web Fee</span>
+                  <span className="text-sm font-bold text-amber-400">{formatPrice(product.webFeeCents)}</span>
+                </div>
+                <div className="mt-1 flex items-center justify-between gap-6 border-t border-border pt-2">
+                  <span className="text-xs font-black uppercase tracking-widest text-foreground">Total Price</span>
+                  <span className="text-2xl font-black text-primary" data-testid="product-total-price">
+                    {formatPrice(product.totalPriceCents)}
+                  </span>
+                </div>
               </div>
               {product.teamStrength !== null ? (
                 <div className="text-right">
@@ -205,7 +219,7 @@ export default function ShopProductPage() {
             data-testid="button-buy-now"
           >
             <ShoppingCart className="mr-2 h-4 w-4" />
-            Buy Now — {formatPrice(product.priceCents)}
+            Buy Now — {formatPrice(product.totalPriceCents)}
           </Button>
         </div>
       </div>

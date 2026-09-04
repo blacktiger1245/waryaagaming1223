@@ -29,6 +29,10 @@ export const shopProductsTable = pgTable("shop_products", {
   description: text("description").notNull().default(""),
   /** Price in US cents so no floating point money ever touches the DB. */
   priceCents: integer("price_cents").notNull(),
+  /** Automatically calculated Web Fee in US cents = ceil(price_cents / 2000) * 200. */
+  webFeeCents: integer("web_fee_cents").notNull().default(0),
+  /** Final customer price in US cents = price_cents + web_fee_cents. */
+  totalPriceCents: integer("total_price_cents").notNull().default(0),
   profileImagePath: text("profile_image_path"),
   /** Ordered screenshot gallery (profile picture is appended first). */
   galleryPaths: text("gallery_paths").array().notNull().default([]),
@@ -67,6 +71,10 @@ export const shopOrdersTable = pgTable("shop_orders", {
   /** 'efootball' | 'coins' | 'nitro' */
   category: text("category").notNull(),
   priceCents: integer("price_cents").notNull(),
+  /** Snapshot of the automatically calculated Web Fee at purchase time. */
+  webFeeCents: integer("web_fee_cents").notNull().default(0),
+  /** Snapshot of the final customer price (price + web fee) at purchase time. */
+  totalPriceCents: integer("total_price_cents").notNull().default(0),
   buyerName: text("buyer_name").notNull(),
   buyerContact: text("buyer_contact").notNull(),
   /** Customer phone number collected in the Complete Your Order form. */

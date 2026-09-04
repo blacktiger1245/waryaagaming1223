@@ -31,6 +31,7 @@ import {
   SHOP_CATEGORY_META,
   EFOOTBALL_TIER_META,
   formatPrice,
+  calculateWebFeeCents,
   type ShopCategory,
   type EfootballTier,
   type ShopProduct,
@@ -190,6 +191,13 @@ function ProductForm({
     editing ? editing.galleryPaths.filter((p) => p !== editing.profileImagePath) : [],
   );
   const [error, setError] = useState<string | null>(null);
+
+  // Live Web Fee preview — updates instantly as the admin types a price.
+  const parsedPriceCents = Math.round(parseFloat(priceDollars) * 100);
+  const liveWebFeeCents =
+    Number.isFinite(parsedPriceCents) && parsedPriceCents > 0 ? calculateWebFeeCents(parsedPriceCents) : 0;
+  const liveTotalCents =
+    Number.isFinite(parsedPriceCents) && parsedPriceCents > 0 ? parsedPriceCents + liveWebFeeCents : 0;
 
   const save = useMutation({
     mutationFn: async () => {
@@ -367,6 +375,24 @@ function ProductForm({
                 placeholder="e.g. 12.99"
                 data-testid="input-product-price"
               />
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <div className="rounded-lg border border-border bg-muted/40 px-3 py-2">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                    Web Fee (Automatic)
+                  </p>
+                  <p className="text-sm font-black text-amber-400" data-testid="product-web-fee">
+                    {liveWebFeeCents > 0 ? formatPrice(liveWebFeeCents) : "—"}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-primary/40 bg-primary/10 px-3 py-2">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                    Customer Total
+                  </p>
+                  <p className="text-sm font-black text-primary" data-testid="product-total-price">
+                    {liveTotalCents > 0 ? formatPrice(liveTotalCents) : "—"}
+                  </p>
+                </div>
+              </div>
             </div>
             {isEfootball ? (
               <div className="space-y-1.5">
@@ -580,7 +606,11 @@ export default function AdminShopProductsPage() {
                 >
                   {product.published ? "Published" : "Draft"}
                 </span>
-                <span className="text-xs text-muted-foreground">{formatPrice(product.priceCents)}</span>
+                <span className="text-xs text-muted-foreground">
+                  {formatPrice(product.priceCents)}
+                  {product.webFeeCents > 0 ? ` + ${formatPrice(product.webFeeCents)} fee` : ""} ·{" "}
+                  <span className="font-bold text-foreground">{formatPrice(product.totalPriceCents)}</span>
+                </span>
                 {product.aqoonsiId ? (
                   <span
                     className="rounded-md border border-amber-500/50 bg-amber-500/10 px-2 py-0.5 text-[11px] font-black tracking-widest text-amber-300"

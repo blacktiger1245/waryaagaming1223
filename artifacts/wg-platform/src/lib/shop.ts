@@ -12,6 +12,8 @@ export interface ShopProduct {
   title: string;
   description: string;
   priceCents: number;
+  webFeeCents: number;
+  totalPriceCents: number;
   profileImagePath: string | null;
   galleryPaths: string[];
   teamStrength: number | null;
@@ -32,6 +34,8 @@ export interface ShopOrder {
   productTitle: string;
   category: ShopCategory;
   priceCents: number;
+  webFeeCents: number;
+  totalPriceCents: number;
   buyerName: string;
   buyerContact: string;
   buyerPhone: string | null;
@@ -172,6 +176,17 @@ export const SHOP_SELL_STATUS_META: Record<ShopSellStatus, { label: string; clas
 export function formatPrice(cents: number): string {
   const dollars = cents / 100;
   return Number.isInteger(dollars) ? `$${dollars}` : `$${dollars.toFixed(2)}`;
+}
+
+/**
+ * Client-side mirror of the server's Web Fee formula, used only for live
+ * preview in the admin form. The server always recomputes the real fee before
+ * saving, so this value can never be trusted for pricing.
+ *
+ *   Web Fee = ceil(Product Price / $20) × $2   →   ceil(priceCents / 2000) × 200
+ */
+export function calculateWebFeeCents(priceCents: number): number {
+  return Math.ceil(priceCents / 2000) * 200;
 }
 
 export function formatDate(iso: string): string {

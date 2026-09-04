@@ -31,7 +31,7 @@ export default function AdminShopDashboardPage() {
   const allOrders = orders.data ?? [];
   const pending = allOrders.filter((o) => o.status === "pending").length;
   const completed = allOrders.filter((o) => o.status === "completed").length;
-  const revenue = allOrders.filter((o) => o.status !== "cancelled").reduce((sum, o) => sum + o.priceCents, 0);
+  const revenue = allOrders.filter((o) => o.status !== "cancelled").reduce((sum, o) => sum + o.totalPriceCents, 0);
 
   return (
     <div className="space-y-8">
@@ -133,7 +133,7 @@ export default function AdminShopDashboardPage() {
                   </p>
                 </div>
                 <div className="flex flex-shrink-0 items-center gap-3">
-                  <span className="font-black text-primary">{formatPrice(order.priceCents)}</span>
+                  <span className="font-black text-primary">{formatPrice(order.totalPriceCents)}</span>
                   <span className="text-xs font-bold uppercase text-muted-foreground">{order.status}</span>
                 </div>
               </li>

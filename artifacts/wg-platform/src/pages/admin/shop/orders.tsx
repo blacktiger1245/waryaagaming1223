@@ -139,7 +139,7 @@ export default function AdminShopOrdersPage() {
                       <span className="text-xs text-muted-foreground">—</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 font-black text-primary">{formatPrice(order.priceCents)}</td>
+                  <td className="px-4 py-3 font-black text-primary">{formatPrice(order.totalPriceCents)}</td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
                       {(["pending", "processing", "completed", "cancelled"] as ShopOrderStatus[]).map((status) => (

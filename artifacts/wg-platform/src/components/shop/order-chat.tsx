@@ -286,7 +286,7 @@ export function OrderChat({ orderId, viewer }: { orderId: number; viewer: "custo
             </span>
           ) : null}
           <span>
-            Price: <span className="font-black text-primary">{formatPrice(order.priceCents)}</span>
+            Price: <span className="font-black text-primary">{formatPrice(order.totalPriceCents)}</span>
           </span>
           <span>
             Discord:{" "}

@@ -101,7 +101,12 @@ export function ProductCard({
         <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-2 p-3">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-widest text-white/60">Price</p>
-            <p className="text-xl font-black text-white drop-shadow">{formatPrice(product.priceCents)}</p>
+            <p className="text-xl font-black text-white drop-shadow">{formatPrice(product.totalPriceCents)}</p>
+            {product.webFeeCents > 0 ? (
+              <p className="text-[10px] font-semibold text-white/60">
+                {formatPrice(product.priceCents)} + {formatPrice(product.webFeeCents)} web fee
+              </p>
+            ) : null}
           </div>
           {product.teamStrength !== null ? (
             <span className="inline-flex items-center gap-1 rounded-md border border-white/20 bg-black/50 px-2 py-1 text-[11px] font-bold text-white backdrop-blur">
