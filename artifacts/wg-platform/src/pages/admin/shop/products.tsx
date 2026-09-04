@@ -174,6 +174,7 @@ function ProductForm({
   const { toast } = useToast();
   const qc = useQueryClient();
   const isEfootball = category === "efootball";
+  const isCoins = category === "coins";
 
   const [title, setTitle] = useState(editing?.title ?? "");
   const [description, setDescription] = useState(editing?.description ?? "");
@@ -202,15 +203,17 @@ function ProductForm({
   const save = useMutation({
     mutationFn: async () => {
       const priceCents = Math.round(parseFloat(priceDollars) * 100);
-      if (!title.trim()) throw new Error("Title is required");
+      // Coins products only need an image + price, so we auto-generate the title.
+      const effectiveTitle = isCoins ? (title.trim() || "Coins Package") : title.trim();
+      if (!effectiveTitle) throw new Error("Title is required");
       if (!Number.isFinite(priceCents) || priceCents <= 0) throw new Error("Enter a valid price");
-      if (isEfootball && !editing && !profilePath && extras.length === 0)
-        throw new Error("Upload a profile picture first");
+      if ((isEfootball || isCoins) && !editing && !profilePath && extras.length === 0)
+        throw new Error("Upload a product image first");
 
       const dedupedExtras = extras.filter((p) => p !== profilePath);
       const galleryPaths = [profilePath, ...dedupedExtras].filter((p): p is string => !!p);
       const payload = {
-        title: title.trim(),
+        title: effectiveTitle,
         description: description.trim(),
         priceCents,
         profileImagePath: profilePath ?? galleryPaths[0] ?? null,
@@ -276,18 +279,18 @@ function ProductForm({
         </div>
 
         <div className="space-y-5 px-5 py-5">
-          {/* 1 — Account profile picture (single, becomes the card main image) */}
+          {/* 1 — Product image (single, becomes the card main image) */}
           <div className="space-y-2">
-            <Label>1 · Account Profile Picture</Label>
+            <Label>{isCoins ? "1 · Coins Product Image" : "1 · Account Profile Picture"}</Label>
             {profilePath ? (
               <div className="flex items-center gap-3 rounded-xl border border-green-500/40 bg-green-500/5 p-3">
                 <img
                   src={storageUrl(profilePath)}
-                  alt="Profile"
+                  alt="Product"
                   className="h-16 w-16 rounded-lg border border-border object-cover"
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-bold text-green-400">Profile picture set</p>
+                  <p className="text-sm font-bold text-green-400">{isCoins ? "Image set" : "Profile picture set"}</p>
                   <p className="text-xs text-muted-foreground">Used as the main image on the storefront card.</p>
                 </div>
                 <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setProfilePath(null)}>
@@ -297,74 +300,80 @@ function ProductForm({
             ) : (
               <DropZone
                 multiple={false}
-                label="Account profile picture"
+                label={isCoins ? "Coins product image" : "Account profile picture"}
                 onUploaded={(paths) => setProfilePath(paths[0] ?? null)}
               />
             )}
           </div>
 
-          {/* 2 — Full account pictures (multi, reorderable) */}
-          <div className="space-y-2">
-            <Label>2 · Full Account Pictures (gallery)</Label>
-            <DropZone multiple label="Full account pictures" onUploaded={(paths) => setExtras((prev) => [...prev, ...paths])} />
-            {extras.length > 0 ? (
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {extras.map((path, idx) => (
-                  <div key={`${path}-${idx}`} className="group relative overflow-hidden rounded-lg border border-border">
-                    <img src={storageUrl(path)} alt="" className="aspect-square w-full object-cover" />
-                    <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-black/70 px-1 py-1 opacity-0 transition-opacity group-hover:opacity-100">
-                      <div className="flex gap-0.5">
-                        <button
-                          type="button"
-                          className="rounded p-1 text-white hover:bg-white/20 disabled:opacity-30"
-                          onClick={() => moveExtra(idx, -1)}
-                          disabled={idx === 0}
-                          aria-label="Move earlier"
-                        >
-                          <ArrowUp className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded p-1 text-white hover:bg-white/20 disabled:opacity-30"
-                          onClick={() => moveExtra(idx, 1)}
-                          disabled={idx === extras.length - 1}
-                          aria-label="Move later"
-                        >
-                          <ArrowDown className="h-3.5 w-3.5" />
-                        </button>
+          {!isCoins ? (
+            <>
+              {/* 2 — Full account pictures (multi, reorderable) */}
+              <div className="space-y-2">
+                <Label>2 · Full Account Pictures (gallery)</Label>
+                <DropZone multiple label="Full account pictures" onUploaded={(paths) => setExtras((prev) => [...prev, ...paths])} />
+                {extras.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {extras.map((path, idx) => (
+                      <div key={`${path}-${idx}`} className="group relative overflow-hidden rounded-lg border border-border">
+                        <img src={storageUrl(path)} alt="" className="aspect-square w-full object-cover" />
+                        <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-black/70 px-1 py-1 opacity-0 transition-opacity group-hover:opacity-100">
+                          <div className="flex gap-0.5">
+                            <button
+                              type="button"
+                              className="rounded p-1 text-white hover:bg-white/20 disabled:opacity-30"
+                              onClick={() => moveExtra(idx, -1)}
+                              disabled={idx === 0}
+                              aria-label="Move earlier"
+                            >
+                              <ArrowUp className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              className="rounded p-1 text-white hover:bg-white/20 disabled:opacity-30"
+                              onClick={() => moveExtra(idx, 1)}
+                              disabled={idx === extras.length - 1}
+                              aria-label="Move later"
+                            >
+                              <ArrowDown className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            className="rounded p-1 text-red-400 hover:bg-red-500/30"
+                            onClick={() => setExtras((prev) => prev.filter((_, i) => i !== idx))}
+                            aria-label="Remove image"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                        <span className="absolute left-1 top-1 rounded bg-black/70 px-1.5 text-[10px] font-bold text-white">
+                          {idx + 1}
+                        </span>
                       </div>
-                      <button
-                        type="button"
-                        className="rounded p-1 text-red-400 hover:bg-red-500/30"
-                        onClick={() => setExtras((prev) => prev.filter((_, i) => i !== idx))}
-                        aria-label="Remove image"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                    <span className="absolute left-1 top-1 rounded bg-black/70 px-1.5 text-[10px] font-bold text-white">
-                      {idx + 1}
-                    </span>
+                    ))}
                   </div>
-                ))}
+                ) : null}
               </div>
-            ) : null}
-          </div>
+            </>
+          ) : null}
 
           {/* 3+ — Product fields */}
           <div className="grid gap-4 sm:grid-cols-2">
+            {!isCoins ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="product-title">3 · Title</Label>
+                <Input
+                  id="product-title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder={isEfootball ? "e.g. Elite Div 1 Account" : category === "nitro" ? "e.g. Nitro 1 Month" : ""}
+                  data-testid="input-product-title"
+                />
+              </div>
+            ) : null}
             <div className="space-y-1.5">
-              <Label htmlFor="product-title">3 · Title</Label>
-              <Input
-                id="product-title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder={isEfootball ? "e.g. Elite Div 1 Account" : category === "coins" ? "e.g. 30M Coins Pack" : "e.g. Nitro 1 Month"}
-                data-testid="input-product-title"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="product-price">4 · Price (USD)</Label>
+              <Label htmlFor="product-price">{isCoins ? "2 · Price (USD)" : "4 · Price (USD)"}</Label>
               <Input
                 id="product-price"
                 type="number"
@@ -408,17 +417,6 @@ function ProductForm({
                 />
               </div>
             ) : null}
-            {category === "coins" ? (
-              <div className="space-y-1.5">
-                <Label htmlFor="product-amount">Coin amount</Label>
-                <Input
-                  id="product-amount"
-                  value={coinAmount}
-                  onChange={(e) => setCoinAmount(e.target.value)}
-                  placeholder="e.g. 30M Coins"
-                />
-              </div>
-            ) : null}
             {category === "nitro" ? (
               <div className="space-y-1.5">
                 <Label htmlFor="product-plan">Plan / duration</Label>
@@ -432,16 +430,18 @@ function ProductForm({
             ) : null}
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="product-description">Description</Label>
-            <Textarea
-              id="product-description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-              placeholder="Describe what the buyer gets…"
-            />
-          </div>
+          {!isCoins ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="product-description">Description</Label>
+              <Textarea
+                id="product-description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={3}
+                placeholder="Describe what the buyer gets…"
+              />
+            </div>
+          ) : null}
 
           {isEfootball ? (
             <div className="space-y-2">
