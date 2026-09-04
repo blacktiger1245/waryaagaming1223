@@ -121,12 +121,7 @@ export function PurchaseDialog({ product, onClose }: { product: ShopProduct; onC
                   {categoryMeta.label}
                 </p>
               </div>
-              <div className="text-right">
-                <p className="text-xl font-black text-primary">{formatPrice(product.totalPriceCents)}</p>
-                <p className="text-[10px] font-semibold text-muted-foreground">
-                  {formatPrice(product.priceCents)} + {formatPrice(product.webFeeCents)} web fee
-                </p>
-              </div>
+              <p className="text-xl font-black text-primary">{formatPrice(product.totalPriceCents)}</p>
             </div>
 
             {/* Customer details */}
