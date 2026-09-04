@@ -65,6 +65,23 @@ export function calculateWebFeeCents(priceCents: number): number {
   return Math.ceil(priceCents / 2000) * 200;
 }
 
+/**
+ * Coins-only Web Fee in US cents, derived from the number of coins:
+ *   ≤550 coins → $0.00
+ *   551–1040 coins → $0.50
+ *   1041–3250 coins → $1.50
+ *   3251–5700 coins → $2.00
+ *   5701+ coins → $2.50
+ */
+export function calculateCoinsWebFeeCents(coinCount: number): number {
+  if (!Number.isFinite(coinCount) || coinCount <= 0) return 0;
+  if (coinCount <= 550) return 0;
+  if (coinCount <= 1040) return 50;
+  if (coinCount <= 3250) return 150;
+  if (coinCount <= 5700) return 200;
+  return 250;
+}
+
 /** Resolve the (webFee, total) pair for a given original price in cents. */
 function webFeeAndTotal(priceCents: number): { webFeeCents: number; totalPriceCents: number } {
   const webFeeCents = calculateWebFeeCents(priceCents);
@@ -130,6 +147,7 @@ function toProductJson(p: typeof shopProductsTable.$inferSelect) {
     galleryPaths: p.galleryPaths ?? [],
     teamStrength: p.teamStrength,
     coinAmount: p.coinAmount,
+    coinCount: p.coinCount,
     nitroPlan: p.nitroPlan,
     konamiIdLinked: p.konamiIdLinked,
     googlePlayLinked: p.googlePlayLinked,
@@ -299,9 +317,14 @@ router.post("/shop/orders", async (req, res) => {
       return res.status(404).json({ error: "This product is no longer available" });
     }
 
-    // Server-side pricing: the Web Fee is recomputed from the product price on
-    // every order so a tampered client can never underpay the fee.
-    const pricing = webFeeAndTotal(product.priceCents);
+    // Server-side pricing: use the product's stored Web Fee / total (computed
+    // server-side at creation), falling back to price-based for legacy rows.
+    // The client can never inject a fee — it always comes from the DB.
+    const webFeeCents = product.webFeeCents ?? calculateWebFeeCents(product.priceCents);
+    const totalPriceCents =
+      product.totalPriceCents && product.totalPriceCents > 0
+        ? product.totalPriceCents
+        : product.priceCents + webFeeCents;
 
     const [order] = await db
       .insert(shopOrdersTable)
@@ -310,8 +333,8 @@ router.post("/shop/orders", async (req, res) => {
         productTitle: product.title,
         category: product.category,
         priceCents: product.priceCents,
-        webFeeCents: pricing.webFeeCents,
-        totalPriceCents: pricing.totalPriceCents,
+        webFeeCents,
+        totalPriceCents,
         buyerName,
         buyerContact: buyerDiscord,
         buyerPhone,
@@ -833,8 +856,24 @@ router.post("/admin/shop/products", requireShopManager, async (req, res) => {
   const coinAmount = body.category === "coins" ? cleanString(body.coinAmount, 60) : null;
   const nitroPlan = body.category === "nitro" ? cleanString(body.nitroPlan, 60) : null;
 
+  // Coins products: the Web Fee is driven by the number of coins, not the price.
+  let coinCount: number | null = null;
+  if (body.category === "coins" && body.coinCount !== undefined && body.coinCount !== null && body.coinCount !== "") {
+    if (!isPositiveInt(body.coinCount)) {
+      return res.status(400).json({ error: "Number of coins must be a positive whole number" });
+    }
+    coinCount = body.coinCount;
+  }
+  if (body.category === "coins" && coinCount === null) {
+    return res.status(400).json({ error: "Number of coins is required for coins products" });
+  }
+
   try {
-    const pricing = webFeeAndTotal(body.priceCents);
+    const webFeeCents =
+      body.category === "coins" && coinCount !== null
+        ? calculateCoinsWebFeeCents(coinCount)
+        : calculateWebFeeCents(body.priceCents);
+    const pricing = { webFeeCents, totalPriceCents: body.priceCents + webFeeCents };
     const [product] = await db
       .insert(shopProductsTable)
       .values({
@@ -849,6 +888,7 @@ router.post("/admin/shop/products", requireShopManager, async (req, res) => {
         galleryPaths,
         teamStrength,
         coinAmount,
+        coinCount,
         nitroPlan,
         konamiIdLinked: Boolean(body.konamiIdLinked),
         googlePlayLinked: Boolean(body.googlePlayLinked),
@@ -894,11 +934,6 @@ router.patch("/admin/shop/products/:id", requireShopManager, async (req, res) =>
         return res.status(400).json({ error: "A price greater than zero is required" });
       }
       updates.priceCents = body.priceCents;
-      // The Web Fee is always derived server-side from the original price so
-      // the browser can never manipulate it.
-      const pricing = webFeeAndTotal(body.priceCents);
-      updates.webFeeCents = pricing.webFeeCents;
-      updates.totalPriceCents = pricing.totalPriceCents;
     }
     if (body.galleryPaths !== undefined) {
       const galleryPaths = cleanGallery(body.galleryPaths);
@@ -930,6 +965,15 @@ router.patch("/admin/shop/products/:id", requireShopManager, async (req, res) =>
     if (body.coinAmount !== undefined) {
       updates.coinAmount = cleanString(body.coinAmount, 60);
     }
+    if (body.coinCount !== undefined) {
+      if (body.coinCount === null || body.coinCount === "") {
+        updates.coinCount = null;
+      } else if (!isPositiveInt(body.coinCount)) {
+        return res.status(400).json({ error: "Number of coins must be a positive whole number" });
+      } else {
+        updates.coinCount = body.coinCount;
+      }
+    }
     if (body.nitroPlan !== undefined) {
       updates.nitroPlan = cleanString(body.nitroPlan, 60);
     }
@@ -937,6 +981,19 @@ router.patch("/admin/shop/products/:id", requireShopManager, async (req, res) =>
     if (body.googlePlayLinked !== undefined) updates.googlePlayLinked = Boolean(body.googlePlayLinked);
     if (body.gameCenterLinked !== undefined) updates.gameCenterLinked = Boolean(body.gameCenterLinked);
     if (body.published !== undefined) updates.published = Boolean(body.published);
+
+    // Recompute the Web Fee whenever the price or coin count changes. Coins
+    // products fee on the number of coins; every other category fees on price.
+    if (body.priceCents !== undefined || body.coinCount !== undefined) {
+      const finalPrice = updates.priceCents ?? existing.priceCents;
+      const finalCoinCount = updates.coinCount !== undefined ? updates.coinCount : existing.coinCount;
+      const webFeeCents =
+        existing.category === "coins" && finalCoinCount !== null
+          ? calculateCoinsWebFeeCents(finalCoinCount)
+          : calculateWebFeeCents(finalPrice);
+      updates.webFeeCents = webFeeCents;
+      updates.totalPriceCents = finalPrice + webFeeCents;
+    }
 
     const [product] = await db
       .update(shopProductsTable)

@@ -40,6 +40,8 @@ export const shopProductsTable = pgTable("shop_products", {
   teamStrength: integer("team_strength"),
   /** Coins product amount label, e.g. "30M Coins". */
   coinAmount: text("coin_amount"),
+  /** Exact number of coins for coins products (drives the coins Web Fee). */
+  coinCount: integer("coin_count"),
   /** Nitro plan/duration label, e.g. "1 Month". */
   nitroPlan: text("nitro_plan"),
   konamiIdLinked: boolean("konami_id_linked").notNull().default(false),

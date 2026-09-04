@@ -122,6 +122,7 @@ export async function ensureShopSchema(): Promise<void> {
        "gallery_paths" text[] NOT NULL DEFAULT '{}',
        "team_strength" integer,
        "coin_amount" text,
+       "coin_count" integer,
        "nitro_plan" text,
        "konami_id_linked" boolean NOT NULL DEFAULT false,
        "google_play_linked" boolean NOT NULL DEFAULT false,
@@ -204,6 +205,7 @@ export async function ensureShopSchema(): Promise<void> {
     // ── Web Fee system: automatically calculated fee + final customer price ──
     `ALTER TABLE "shop_products" ADD COLUMN IF NOT EXISTS "web_fee_cents" integer NOT NULL DEFAULT 0`,
     `ALTER TABLE "shop_products" ADD COLUMN IF NOT EXISTS "total_price_cents" integer NOT NULL DEFAULT 0`,
+    `ALTER TABLE "shop_products" ADD COLUMN IF NOT EXISTS "coin_count" integer`,
     `ALTER TABLE "shop_orders" ADD COLUMN IF NOT EXISTS "web_fee_cents" integer NOT NULL DEFAULT 0`,
     `ALTER TABLE "shop_orders" ADD COLUMN IF NOT EXISTS "total_price_cents" integer NOT NULL DEFAULT 0`,
     // Backfill existing rows safely: legacy products/orders keep their current

@@ -18,6 +18,7 @@ export interface ShopProduct {
   galleryPaths: string[];
   teamStrength: number | null;
   coinAmount: string | null;
+  coinCount: number | null;
   nitroPlan: string | null;
   konamiIdLinked: boolean;
   googlePlayLinked: boolean;
@@ -118,6 +119,7 @@ export interface NewShopProduct {
   galleryPaths?: string[];
   teamStrength?: number | null;
   coinAmount?: string | null;
+  coinCount?: number | null;
   nitroPlan?: string | null;
   konamiIdLinked?: boolean;
   googlePlayLinked?: boolean;
@@ -187,6 +189,22 @@ export function formatPrice(cents: number): string {
  */
 export function calculateWebFeeCents(priceCents: number): number {
   return Math.ceil(priceCents / 2000) * 200;
+}
+
+/**
+ * Client-side mirror of the server's coins-only Web Fee formula, used for the
+ * live preview in the admin Coins form.
+ *
+ *   ≤550 coins → $0.00 · 551–1040 → $0.50 · 1041–3250 → $1.50
+ *   3251–5700 → $2.00 · 5701+ → $2.50
+ */
+export function calculateCoinsWebFeeCents(coinCount: number): number {
+  if (!Number.isFinite(coinCount) || coinCount <= 0) return 0;
+  if (coinCount <= 550) return 0;
+  if (coinCount <= 1040) return 50;
+  if (coinCount <= 3250) return 150;
+  if (coinCount <= 5700) return 200;
+  return 250;
 }
 
 export function formatDate(iso: string): string {

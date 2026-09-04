@@ -32,6 +32,7 @@ import {
   EFOOTBALL_TIER_META,
   formatPrice,
   calculateWebFeeCents,
+  calculateCoinsWebFeeCents,
   type ShopCategory,
   type EfootballTier,
   type ShopProduct,
@@ -183,6 +184,7 @@ function ProductForm({
     editing?.teamStrength != null ? String(editing.teamStrength) : "",
   );
   const [coinAmount, setCoinAmount] = useState(editing?.coinAmount ?? "");
+  const [coinCount, setCoinCount] = useState(editing?.coinCount != null ? String(editing.coinCount) : "");
   const [nitroPlan, setNitroPlan] = useState(editing?.nitroPlan ?? "");
   const [konami, setKonami] = useState(editing?.konamiIdLinked ?? false);
   const [gplay, setGplay] = useState(editing?.googlePlayLinked ?? false);
@@ -193,18 +195,29 @@ function ProductForm({
   );
   const [error, setError] = useState<string | null>(null);
 
-  // Live Web Fee preview — updates instantly as the admin types a price.
+  // Live Web Fee preview — updates instantly as the admin types a price / coins.
   const parsedPriceCents = Math.round(parseFloat(priceDollars) * 100);
-  const liveWebFeeCents =
-    Number.isFinite(parsedPriceCents) && parsedPriceCents > 0 ? calculateWebFeeCents(parsedPriceCents) : 0;
+  const parsedCoinCount = Math.round(parseFloat(coinCount));
+  const liveWebFeeCents = isCoins
+    ? calculateCoinsWebFeeCents(parsedCoinCount)
+    : Number.isFinite(parsedPriceCents) && parsedPriceCents > 0
+      ? calculateWebFeeCents(parsedPriceCents)
+      : 0;
   const liveTotalCents =
     Number.isFinite(parsedPriceCents) && parsedPriceCents > 0 ? parsedPriceCents + liveWebFeeCents : 0;
 
   const save = useMutation({
     mutationFn: async () => {
       const priceCents = Math.round(parseFloat(priceDollars) * 100);
-      // Coins products only need an image + price, so we auto-generate the title.
-      const effectiveTitle = isCoins ? (title.trim() || "Coins Package") : title.trim();
+      const parsedCoinCount = isCoins && coinCount.trim() ? parseInt(coinCount, 10) : null;
+      if (isCoins && (!coinCount.trim() || !Number.isInteger(parsedCoinCount) || (parsedCoinCount ?? 0) <= 0))
+        throw new Error("Enter a valid number of coins");
+      // Coins products only need an image + price + coin count, so we auto-generate the title from the coin count.
+      const effectiveTitle = isCoins
+        ? parsedCoinCount
+          ? `${parsedCoinCount.toLocaleString()} Coins`
+          : title.trim() || "Coins Package"
+        : title.trim();
       if (!effectiveTitle) throw new Error("Title is required");
       if (!Number.isFinite(priceCents) || priceCents <= 0) throw new Error("Enter a valid price");
       if ((isEfootball || isCoins) && !editing && !profilePath && extras.length === 0)
@@ -220,6 +233,7 @@ function ProductForm({
         galleryPaths,
         teamStrength: isEfootball && teamStrength.trim() ? parseInt(teamStrength, 10) : null,
         coinAmount: category === "coins" ? coinAmount.trim() || null : null,
+        coinCount: category === "coins" ? parsedCoinCount : null,
         nitroPlan: category === "nitro" ? nitroPlan.trim() || null : null,
         konamiIdLinked: isEfootball ? konami : false,
         googlePlayLinked: isEfootball ? gplay : false,
@@ -372,8 +386,23 @@ function ProductForm({
                 />
               </div>
             ) : null}
+            {isCoins ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="product-coins">2 · Number of Coins</Label>
+                <Input
+                  id="product-coins"
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={coinCount}
+                  onChange={(e) => setCoinCount(e.target.value)}
+                  placeholder="e.g. 550"
+                  data-testid="input-product-coins"
+                />
+              </div>
+            ) : null}
             <div className="space-y-1.5">
-              <Label htmlFor="product-price">{isCoins ? "2 · Price (USD)" : "4 · Price (USD)"}</Label>
+              <Label htmlFor="product-price">{isCoins ? "3 · Price (USD)" : "4 · Price (USD)"}</Label>
               <Input
                 id="product-price"
                 type="number"

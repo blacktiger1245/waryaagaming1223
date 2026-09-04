@@ -162,10 +162,12 @@ export default function ShopProductPage() {
                   <p className="text-2xl font-black text-green-400">{product.teamStrength.toLocaleString()}</p>
                 </div>
               ) : null}
-              {product.coinAmount ? (
+              {product.coinAmount || product.coinCount != null ? (
                 <div className="text-right">
                   <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Amount</p>
-                  <p className="text-xl font-black text-yellow-400">{product.coinAmount}</p>
+                  <p className="text-xl font-black text-yellow-400">
+                    {product.coinAmount ?? `${product.coinCount!.toLocaleString()} Coins`}
+                  </p>
                 </div>
               ) : null}
               {product.nitroPlan ? (
