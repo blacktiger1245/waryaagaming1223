@@ -74,6 +74,7 @@ export default function TeamsPage() {
   const qc = useQueryClient();
   const [leaveError, setLeaveError] = useState<string | null>(null);
   const [deviceModalOpen, setDeviceModalOpen] = useState(false);
+  const [activeDivision, setActiveDivision] = useState<"serie_a" | "serie_b">("serie_a");
   const { data: myTeam, isLoading: myTeamLoading } = useQuery<any | null>({
     queryKey: ["my-team"],
     queryFn: async () => {
@@ -196,44 +197,50 @@ export default function TeamsPage() {
             <p className="font-bold">No clans found</p>
           </div>
         ) : (
-          <div className="grid gap-8 lg:grid-cols-2 items-start">
-            {/* Serie A category */}
-            <section>
-              <div className="mb-4 flex items-center gap-3">
-                <span className="rounded-md border border-emerald-500/40 bg-emerald-500/15 px-3 py-1 text-sm font-black uppercase tracking-wide text-emerald-400">
-                  Serie A
-                </span>
-                <span className="text-xs font-bold text-muted-foreground">{serieA.length} clans</span>
-              </div>
-              {serieA.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-border bg-card/40 p-10 text-center text-sm text-muted-foreground">
+          <div>
+            {/* Division tabs */}
+            <div className="mb-6 flex flex-wrap gap-2">
+              <button
+                onClick={() => setActiveDivision("serie_a")}
+                className={`rounded-lg border px-4 py-2 text-sm font-black uppercase tracking-wide transition-colors ${
+                  activeDivision === "serie_a"
+                    ? "border-emerald-500 bg-emerald-500/15 text-emerald-400"
+                    : "border-border bg-card text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Serie A ({serieA.length})
+              </button>
+              <button
+                onClick={() => setActiveDivision("serie_b")}
+                className={`rounded-lg border px-4 py-2 text-sm font-black uppercase tracking-wide transition-colors ${
+                  activeDivision === "serie_b"
+                    ? "border-amber-500 bg-amber-500/15 text-amber-400"
+                    : "border-border bg-card text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Serie B ({serieB.length})
+              </button>
+            </div>
+
+            {activeDivision === "serie_a" ? (
+              serieA.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border bg-card/40 p-12 text-center text-sm text-muted-foreground">
                   No clans in Serie A yet.
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {serieA.map((team, i) => <ClanCard key={team.id} team={team} index={i} />)}
                 </div>
-              )}
-            </section>
-
-            {/* Serie B category */}
-            <section>
-              <div className="mb-4 flex items-center gap-3">
-                <span className="rounded-md border border-amber-500/40 bg-amber-500/15 px-3 py-1 text-sm font-black uppercase tracking-wide text-amber-400">
-                  Serie B
-                </span>
-                <span className="text-xs font-bold text-muted-foreground">{serieB.length} clans</span>
+              )
+            ) : serieB.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border bg-card/40 p-12 text-center text-sm text-muted-foreground">
+                No clans in Serie B yet.
               </div>
-              {serieB.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-border bg-card/40 p-10 text-center text-sm text-muted-foreground">
-                  No clans in Serie B yet.
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {serieB.map((team, i) => <ClanCard key={team.id} team={team} index={i} />)}
-                </div>
-              )}
-            </section>
+            ) : (
+              <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {serieB.map((team, i) => <ClanCard key={team.id} team={team} index={i} />)}
+              </div>
+            )}
           </div>
         )}
       </motion.div>
