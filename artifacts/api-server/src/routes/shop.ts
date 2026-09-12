@@ -82,10 +82,35 @@ export function calculateCoinsWebFeeCents(coinCount: number): number {
   return 250;
 }
 
-/** Resolve the (webFee, total) pair for a given original price in cents. */
-function webFeeAndTotal(priceCents: number): { webFeeCents: number; totalPriceCents: number } {
-  const webFeeCents = calculateWebFeeCents(priceCents);
-  return { webFeeCents, totalPriceCents: priceCents + webFeeCents };
+/**
+ * Account Web Fee in US cents, derived from the account's asking price:
+ *   $0–50   → $0.50   $50–100  → $0.60   $100–150 → $1.00
+ *   $150–200 → $1.20  $200–250 → $1.40   $250–300 → $1.60
+ *   $300–350 → $1.80  $350–400 → $2.00   $400+    → $2.50 (flat, incl. $500+)
+ */
+export function calculateAccountWebFeeCents(priceCents: number): number {
+  if (!Number.isFinite(priceCents) || priceCents <= 0) return 0;
+  const price = priceCents / 100; // dollars
+  if (price < 50) return 50;
+  if (price < 100) return 60;
+  if (price < 150) return 100;
+  if (price < 200) return 120;
+  if (price < 250) return 140;
+  if (price < 300) return 160;
+  if (price < 350) return 180;
+  if (price < 400) return 200;
+  return 250; // $400+ → $2.50
+}
+
+/**
+ * Resolve the Web Fee for a product given its category. Coins fee on coin count,
+ * eFootball (accounts) fee on the tiered account schedule, and every other
+ * category (e.g. nitro) fees on the flat price formula.
+ */
+function webFeeForCategory(category: string, priceCents: number, coinCount: number | null): number {
+  if (category === "coins" && coinCount !== null) return calculateCoinsWebFeeCents(coinCount);
+  if (category === "efootball") return calculateAccountWebFeeCents(priceCents);
+  return calculateWebFeeCents(priceCents);
 }
 
 function formatTranscriptDate(date: Date): string {
@@ -318,9 +343,12 @@ router.post("/shop/orders", async (req, res) => {
     }
 
     // Server-side pricing: use the product's stored Web Fee / total (computed
-    // server-side at creation), falling back to price-based for legacy rows.
-    // The client can never inject a fee — it always comes from the DB.
-    const webFeeCents = product.webFeeCents ?? calculateWebFeeCents(product.priceCents);
+    // server-side at creation), falling back to a category-aware fee for legacy
+    // rows. The client can never inject a fee — it always comes from the DB.
+    const webFeeCents =
+      product.webFeeCents && product.webFeeCents > 0
+        ? product.webFeeCents
+        : webFeeForCategory(product.category, product.priceCents, product.coinCount);
     const totalPriceCents =
       product.totalPriceCents && product.totalPriceCents > 0
         ? product.totalPriceCents
@@ -869,10 +897,7 @@ router.post("/admin/shop/products", requireShopManager, async (req, res) => {
   }
 
   try {
-    const webFeeCents =
-      body.category === "coins" && coinCount !== null
-        ? calculateCoinsWebFeeCents(coinCount)
-        : calculateWebFeeCents(body.priceCents);
+    const webFeeCents = webFeeForCategory(body.category, body.priceCents, coinCount);
     const pricing = { webFeeCents, totalPriceCents: body.priceCents + webFeeCents };
     const [product] = await db
       .insert(shopProductsTable)
@@ -987,10 +1012,7 @@ router.patch("/admin/shop/products/:id", requireShopManager, async (req, res) =>
     if (body.priceCents !== undefined || body.coinCount !== undefined) {
       const finalPrice = updates.priceCents ?? existing.priceCents;
       const finalCoinCount = updates.coinCount !== undefined ? updates.coinCount : existing.coinCount;
-      const webFeeCents =
-        existing.category === "coins" && finalCoinCount !== null
-          ? calculateCoinsWebFeeCents(finalCoinCount)
-          : calculateWebFeeCents(finalPrice);
+      const webFeeCents = webFeeForCategory(existing.category, finalPrice, finalCoinCount);
       updates.webFeeCents = webFeeCents;
       updates.totalPriceCents = finalPrice + webFeeCents;
     }
@@ -1163,7 +1185,10 @@ router.patch("/admin/shop/sell-logs/:id/approve", requireShopManager, async (req
       .filter(Boolean)
       .join("\n");
 
-    const pricing = webFeeAndTotal(submission.priceCents);
+    // Approved submissions always become eFootball accounts, so the account
+    // Web Fee schedule applies (tiered by the seller's asking price).
+    const webFeeCents = calculateAccountWebFeeCents(submission.priceCents);
+    const pricing = { webFeeCents, totalPriceCents: submission.priceCents + webFeeCents };
 
     const [product] = await db
       .insert(shopProductsTable)

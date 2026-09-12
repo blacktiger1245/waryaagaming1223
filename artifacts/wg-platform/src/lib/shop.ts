@@ -207,6 +207,29 @@ export function calculateCoinsWebFeeCents(coinCount: number): number {
   return 250;
 }
 
+/**
+ * Client-side mirror of the server's eFootball account Web Fee formula, used for
+ * the live preview in the admin form. The server always recomputes the real fee
+ * before saving, so this value can never be trusted for pricing.
+ *
+ *   $0–50 → $0.50 · $50–100 → $0.60 · $100–150 → $1.00 · $150–200 → $1.20
+ *   $200–250 → $1.40 · $250–300 → $1.60 · $300–350 → $1.80
+ *   $350–400 → $2.00 · $400+ → $2.50 (flat)
+ */
+export function calculateAccountWebFeeCents(priceCents: number): number {
+  if (!Number.isFinite(priceCents) || priceCents <= 0) return 0;
+  const price = priceCents / 100; // dollars
+  if (price < 50) return 50;
+  if (price < 100) return 60;
+  if (price < 150) return 100;
+  if (price < 200) return 120;
+  if (price < 250) return 140;
+  if (price < 300) return 160;
+  if (price < 350) return 180;
+  if (price < 400) return 200;
+  return 250; // $400+ → $2.50
+}
+
 export function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }

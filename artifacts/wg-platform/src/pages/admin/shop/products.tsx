@@ -33,6 +33,7 @@ import {
   formatPrice,
   calculateWebFeeCents,
   calculateCoinsWebFeeCents,
+  calculateAccountWebFeeCents,
   type ShopCategory,
   type EfootballTier,
   type ShopProduct,
@@ -200,9 +201,11 @@ function ProductForm({
   const parsedCoinCount = Math.round(parseFloat(coinCount));
   const liveWebFeeCents = isCoins
     ? calculateCoinsWebFeeCents(parsedCoinCount)
-    : Number.isFinite(parsedPriceCents) && parsedPriceCents > 0
-      ? calculateWebFeeCents(parsedPriceCents)
-      : 0;
+    : isEfootball
+      ? calculateAccountWebFeeCents(parsedPriceCents)
+      : Number.isFinite(parsedPriceCents) && parsedPriceCents > 0
+        ? calculateWebFeeCents(parsedPriceCents)
+        : 0;
   const liveTotalCents =
     Number.isFinite(parsedPriceCents) && parsedPriceCents > 0 ? parsedPriceCents + liveWebFeeCents : 0;
 
