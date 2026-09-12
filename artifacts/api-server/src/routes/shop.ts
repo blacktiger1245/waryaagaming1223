@@ -75,10 +75,10 @@ export function calculateWebFeeCents(priceCents: number): number {
  */
 export function calculateCoinsWebFeeCents(coinCount: number): number {
   if (!Number.isFinite(coinCount) || coinCount <= 0) return 0;
-  if (coinCount <= 550) return 0;
-  if (coinCount <= 1040) return 50;
-  if (coinCount <= 3250) return 150;
-  if (coinCount <= 5700) return 200;
+  if (coinCount <= 1000) return 0;
+  if (coinCount <= 2000) return 50;
+  if (coinCount <= 4000) return 150;
+  if (coinCount <= 6000) return 200;
   return 250;
 }
 
@@ -103,6 +103,20 @@ export function calculateAccountWebFeeCents(priceCents: number): number {
 }
 
 /**
+ * Nitro Web Fee in US cents, derived from the Nitro product's price:
+ *   $0–10  → $0.00
+ *   $10–50 → $1.50
+ *   $50+   → $2.50 (flat, covers $50–110 and above)
+ */
+export function calculateNitroWebFeeCents(priceCents: number): number {
+  if (!Number.isFinite(priceCents) || priceCents <= 0) return 0;
+  const price = priceCents / 100; // dollars
+  if (price < 10) return 0;
+  if (price < 50) return 150;
+  return 250;
+}
+
+/**
  * Resolve the Web Fee for a product given its category. Coins fee on coin count,
  * eFootball (accounts) fee on the tiered account schedule, and every other
  * category (e.g. nitro) fees on the flat price formula.
@@ -110,6 +124,7 @@ export function calculateAccountWebFeeCents(priceCents: number): number {
 function webFeeForCategory(category: string, priceCents: number, coinCount: number | null): number {
   if (category === "coins" && coinCount !== null) return calculateCoinsWebFeeCents(coinCount);
   if (category === "efootball") return calculateAccountWebFeeCents(priceCents);
+  if (category === "nitro") return calculateNitroWebFeeCents(priceCents);
   return calculateWebFeeCents(priceCents);
 }
 

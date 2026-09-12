@@ -200,10 +200,25 @@ export function calculateWebFeeCents(priceCents: number): number {
  */
 export function calculateCoinsWebFeeCents(coinCount: number): number {
   if (!Number.isFinite(coinCount) || coinCount <= 0) return 0;
-  if (coinCount <= 550) return 0;
-  if (coinCount <= 1040) return 50;
-  if (coinCount <= 3250) return 150;
-  if (coinCount <= 5700) return 200;
+  if (coinCount <= 1000) return 0;
+  if (coinCount <= 2000) return 50;
+  if (coinCount <= 4000) return 150;
+  if (coinCount <= 6000) return 200;
+  return 250;
+}
+
+/**
+ * Client-side mirror of the server's Nitro Web Fee formula, used for the live
+ * preview in the admin form. The server always recomputes the real fee before
+ * saving, so this value can never be trusted for pricing.
+ *
+ *   $0–10 → $0.00 · $10–50 → $1.50 · $50+ → $2.50 (flat)
+ */
+export function calculateNitroWebFeeCents(priceCents: number): number {
+  if (!Number.isFinite(priceCents) || priceCents <= 0) return 0;
+  const price = priceCents / 100; // dollars
+  if (price < 10) return 0;
+  if (price < 50) return 150;
   return 250;
 }
 

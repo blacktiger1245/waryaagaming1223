@@ -34,6 +34,7 @@ import {
   calculateWebFeeCents,
   calculateCoinsWebFeeCents,
   calculateAccountWebFeeCents,
+  calculateNitroWebFeeCents,
   type ShopCategory,
   type EfootballTier,
   type ShopProduct,
@@ -177,6 +178,7 @@ function ProductForm({
   const qc = useQueryClient();
   const isEfootball = category === "efootball";
   const isCoins = category === "coins";
+  const isNitro = category === "nitro";
 
   const [title, setTitle] = useState(editing?.title ?? "");
   const [description, setDescription] = useState(editing?.description ?? "");
@@ -203,9 +205,11 @@ function ProductForm({
     ? calculateCoinsWebFeeCents(parsedCoinCount)
     : isEfootball
       ? calculateAccountWebFeeCents(parsedPriceCents)
-      : Number.isFinite(parsedPriceCents) && parsedPriceCents > 0
-        ? calculateWebFeeCents(parsedPriceCents)
-        : 0;
+      : isNitro
+        ? calculateNitroWebFeeCents(parsedPriceCents)
+        : Number.isFinite(parsedPriceCents) && parsedPriceCents > 0
+          ? calculateWebFeeCents(parsedPriceCents)
+          : 0;
   const liveTotalCents =
     Number.isFinite(parsedPriceCents) && parsedPriceCents > 0 ? parsedPriceCents + liveWebFeeCents : 0;
 
