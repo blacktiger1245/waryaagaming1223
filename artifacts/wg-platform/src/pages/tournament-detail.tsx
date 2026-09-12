@@ -438,7 +438,7 @@ function MatchDetailDialog({
 
 // â”€â”€â”€ Register Button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-function RegisterButton({ tournamentId, status, isFull, isClanTournament }: { tournamentId: number; status: string; isFull: boolean; isClanTournament?: boolean }) {
+function RegisterButton({ tournamentId, status, isFull, isClanTournament, playersPerTeam }: { tournamentId: number; status: string; isFull: boolean; isClanTournament?: boolean; playersPerTeam?: number | null }) {
   const { user, isLoading: authLoading, loginWithDiscord } = useAuth();
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -466,6 +466,8 @@ function RegisterButton({ tournamentId, status, isFull, isClanTournament }: { to
   });
   const myRole = isClanTournament ? ((myTeam as any)?.selfRole ?? null) : null;
   const isTeamManager = myRole === "president" || myRole === "coach";
+  const [rosterOpen, setRosterOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
   const { mutate: register, isPending } = useMutation({
     mutationFn: async () => {
@@ -475,6 +477,8 @@ function RegisterButton({ tournamentId, status, isFull, isClanTournament }: { to
       const res = await fetch(url, {
         method: "POST",
         credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(isClanTournament ? { playerIds: selectedIds } : {}),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null) as { error?: string } | null;
@@ -487,6 +491,8 @@ function RegisterButton({ tournamentId, status, isFull, isClanTournament }: { to
         title: isClanTournament ? "Your team is registered! 🏆" : "You're registered! 🎮",
         description: isClanTournament ? `${data.teamName ?? "Your team"} is in the tournament!` : `Welcome, ${data.displayName ?? data.playerName}`,
       });
+      setRosterOpen(false);
+      setSelectedIds([]);
       qc.invalidateQueries({ queryKey: ["tournament-registration", tournamentId] });
       qc.invalidateQueries({ queryKey: ["tournament", tournamentId] });
     },
@@ -548,13 +554,58 @@ function RegisterButton({ tournamentId, status, isFull, isClanTournament }: { to
   }
 
   return (
+    <>
     <Button
-      onClick={() => register()}
+      onClick={() => { if (isClanTournament && playersPerTeam) setRosterOpen(true); else register(); }}
       disabled={isPending}
       className="gap-2 h-12 px-8 text-base font-bold bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-500 hover:to-pink-500 border-0"
     >
       {isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Registering…</> : <><Trophy className="w-4 h-4" /> {isClanTournament ? "Register My Team" : "Register Now"}</>}
     </Button>
+    {rosterOpen && (
+      <Dialog open onOpenChange={(v) => !v && setRosterOpen(false)}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base font-black">Choose Your Line-up</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 mt-2">
+            <p className="text-xs text-muted-foreground">Select which players from your team will play in this tournament (player vs player). Maximum {playersPerTeam}.</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-black">Selected: {selectedIds.length} / {playersPerTeam}</span>
+              {selectedIds.length >= (playersPerTeam ?? 0) ? <span className="ml-1 text-red-400 text-xs font-bold">You reached the maximum of {playersPerTeam} players.</span> : null}
+            </div>
+            <div className="space-y-1 max-h-[40vh] overflow-y-auto">
+              {(myTeam?.members ?? []).map((m: any) => {
+                const selected = selectedIds.includes(m.id);
+                const reached = !selected && (playersPerTeam ?? 0) > 0 && selectedIds.length >= (playersPerTeam ?? 0);
+                return (
+                  <button key={m.id} type="button" disabled={reached} onClick={() => {
+                    if (selected) setSelectedIds(selectedIds.filter((x) => x !== m.id));
+                    else setSelectedIds([...selectedIds, m.id]);
+                  }} className={`w-full flex items-center gap-2.5 rounded-lg border px-3 py-2 text-left transition-colors ${selected ? "bg-primary/10 border-primary" : reached ? "opacity-40 border-border" : "border-border hover:border-border/70"}`}>
+                    {m.avatarUrl ? (
+                      <img src={m.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover ring-1 ring-border" />
+                    ) : (
+                      <div className="w-7 h-7 rounded-full bg-muted border border-border flex items-center justify-center text-[10px] font-black">{m.displayName?.charAt(0) || m.username?.charAt(0) || "?"}</div>
+                    )}
+                    <span className="font-bold text-sm truncate">{m.displayName || m.username}</span>
+                    <span className="ml-auto text-[10px] uppercase text-muted-foreground truncate">{m.teamRole}</span>
+                    {selected ? <CheckCircle2 className="w-4 h-4 text-primary shrink-0" /> : <UserPlus className="w-4 h-4 text-muted-foreground/70 shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-3">
+            <Button type="button" variant="outline" onClick={() => setRosterOpen(false)}>Cancel</Button>
+            <Button type="button" disabled={selectedIds.length === 0 || isPending} onClick={() => register()}>
+              {isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Registering…</> : <>Register {selectedIds.length} Player{selectedIds.length === 1 ? "" : "s"}</>}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    )}
+    </>
   );
 }
 
@@ -1019,6 +1070,7 @@ export default function TournamentDetailPage() {
                   status={tournament.status}
                   isFull={tournament.maxParticipants < 9999 && tournament.currentParticipants >= tournament.maxParticipants}
                   isClanTournament={Boolean((tournament as unknown as { isClanTournament?: boolean }).isClanTournament)}
+                  playersPerTeam={(tournament as unknown as { playersPerTeam?: number | null }).playersPerTeam}
                 />
               </div>
             )}

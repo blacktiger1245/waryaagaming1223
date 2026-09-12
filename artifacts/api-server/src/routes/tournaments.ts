@@ -232,6 +232,28 @@ async function registerTeamForTournament(
     );
   if (existing) return res.status(409).json({ error: "Your team is already registered" });
 
+  // Per-team player limit set by the admin: the coach must pick which players
+  // from the team will play (player vs player), up to that maximum.
+  const body = (req.body ?? {}) as { playerIds?: unknown };
+  const playersPerTeam = tournament.playersPerTeam != null ? tournament.playersPerTeam : null;
+  let playerIds: number[] = [];
+  if (playersPerTeam != null && playersPerTeam > 0) {
+    const raw = Array.isArray(body.playerIds) ? body.playerIds : [];
+    playerIds = raw.filter((x): x is number => typeof x === "number" && Number.isInteger(x) && x > 0);
+    if (playerIds.length === 0) {
+      return res.status(400).json({ error: `Select at least one player from your team to play (up to ${playersPerTeam} player vs player).` });
+    }
+    if (playerIds.length > playersPerTeam) {
+      return res.status(400).json({ error: `You reached the maximum of ${playersPerTeam} players (player vs player). You selected ${playerIds.length}.` });
+    }
+    const teamMembers = await db
+      .select({ id: playersTable.id })
+      .from(playersTable)
+      .where(and(eq(playersTable.teamId, team.id), inArray(playersTable.id, playerIds)));
+    if (teamMembers.length !== playerIds.length) {
+      return res.status(403).json({ error: "Some selected players are not on your team." });
+    }
+  }
   const [participant] = await db
     .insert(tournamentParticipantsTable)
     .values({ tournamentId: id, type: "team", playerId: null, teamId: team.id })
@@ -242,7 +264,24 @@ async function registerTeamForTournament(
     .set({ currentParticipants: tournament.currentParticipants + 1 })
     .where(eq(tournamentsTable.id, id));
 
-  return res.status(201).json({ ...participant, teamName: team.name, seed: null });
+  // Store the coach's chosen playing roster (player vs player) for this team.
+  if (playerIds.length > 0) {
+    for (const pid of playerIds) {
+      await db.execute(
+        sql`INSERT INTO "tournament_team_rosters" ("tournament_id", "team_id", "player_id")
+            VALUES (${id}, ${team.id}, ${pid})
+            ON CONFLICT ("tournament_id", "team_id", "player_id") DO NOTHING`
+      );
+    }
+  }
+
+  return res.status(201).json({
+    ...participant,
+    teamName: team.name,
+    seed: null,
+    playersSelected: playerIds.length,
+    playersPerTeam: playersPerTeam ?? null,
+  });
 }
 
 /**

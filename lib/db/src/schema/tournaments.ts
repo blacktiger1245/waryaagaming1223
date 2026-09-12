@@ -28,6 +28,8 @@ export const tournamentsTable = pgTable("tournaments", {
   thirdPlaceMatch: boolean("third_place_match").notNull().default(false),
   teamCount: integer("team_count"),
   isClanTournament: boolean("is_clan_tournament").notNull().default(false),
+  /** Max players a clan may register per team (null = no limit). */
+  playersPerTeam: integer("players_per_team"),
   createdBy: integer("created_by"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });

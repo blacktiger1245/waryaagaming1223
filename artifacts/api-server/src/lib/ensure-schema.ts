@@ -253,3 +253,28 @@ export async function ensureClanSchema(): Promise<void> {
     logger.warn({ err }, "Could not ensure clan schema");
   }
 }
+
+/**
+ * Clan tournament roster system: per-team player limits on tournaments plus
+ * the roster table that stores which players each registered clan selected.
+ */
+export async function ensureClanTournamentSchema(): Promise<void> {
+  const statements = [
+    `ALTER TABLE "tournaments" ADD COLUMN IF NOT EXISTS "players_per_team" integer;`,
+    `CREATE TABLE IF NOT EXISTS "tournament_team_rosters" (
+       "id" serial PRIMARY KEY,
+       "tournament_id" integer NOT NULL,
+       "team_id" integer NOT NULL,
+       "player_id" integer NOT NULL,
+       "created_at" timestamp NOT NULL DEFAULT now(),
+       CONSTRAINT "ttr_unique" UNIQUE ("tournament_id", "team_id", "player_id")
+     );`,
+  ];
+  try {
+    for (const sql of statements) {
+      await pool.query(sql);
+    }
+  } catch (err) {
+    logger.warn({ err }, "Could not ensure clan tournament schema");
+  }
+}

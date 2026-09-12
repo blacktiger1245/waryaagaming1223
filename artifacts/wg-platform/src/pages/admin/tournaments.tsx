@@ -520,6 +520,7 @@ function CreateTournamentDialog({
   const [qualifyCount, setQualifyCount] = useState(2);
   const [thirdPlaceMatch, setThirdPlaceMatch] = useState(false);
   const [teamCount, setTeamCount] = useState<number | "">("");
+  const [playersPerTeam, setPlayersPerTeam] = useState<number | "">("");
   const [isClanTournament, setIsClanTournament] = useState(false);
   const [status, setStatus] = useState<"upcoming" | "active">("upcoming");
   const [saving, setSaving] = useState(false);
@@ -543,6 +544,7 @@ function CreateTournamentDialog({
     setGroupCount(4);
     setQualifyCount(2);
     setTeamCount("");
+    setPlayersPerTeam("");
     setIsClanTournament(false);
     setStatus("upcoming");
     setSaving(false);
@@ -625,6 +627,7 @@ function CreateTournamentDialog({
           qualifyCount: stage === "group-stage-knockout" ? qualifyCount : undefined,
           thirdPlaceMatch: stage !== "round-robin" ? thirdPlaceMatch : undefined,
           teamCount: tc,
+          playersPerTeam: playersPerTeam !== "" ? Number(playersPerTeam) : undefined,
           isClanTournament,
         }),
       });
@@ -760,6 +763,14 @@ function CreateTournamentDialog({
                 <Input type="number" min={2} max={128} value={teamCount} onChange={(e) => setTeamCount(e.target.value === "" ? "" : Number(e.target.value))} placeholder="Enter number of players (2-128)" />
                 <p className="text-xs text-muted-foreground">This determines the bracket size and group structure.</p>
               </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <Users className="w-3.5 h-3.5" />
+                  Players allowed per team (player vs player)?
+                </label>
+                <Input type="number" min={1} max={99} value={playersPerTeam} onChange={(e) => setPlayersPerTeam(e.target.value === "" ? "" : Number(e.target.value))} placeholder="Enter players allowed per team (optional)" />
+                <p className="text-xs text-muted-foreground">For clan tournaments: the coach must choose this many of his players (player vs player) when registering. Leave empty for no limit.</p>
+              </div>
             </div>
           )}
           {step === 3 && (
@@ -821,6 +832,7 @@ function CreateTournamentDialog({
                   <span className="text-muted-foreground">Stage:</span> <span className="font-bold text-foreground">{STAGE_OPTIONS.find(s => s.value === stage)?.title}</span>
                   <span className="text-muted-foreground">Status:</span> <span className="font-bold text-foreground capitalize">{status}</span>
                   <span className="text-muted-foreground">Clan:</span> <span className="font-bold text-foreground">{isClanTournament ? "Yes" : "No"}</span>
+                  <span className="text-muted-foreground">Players/Team:</span> <span className="font-bold text-foreground">{playersPerTeam !== "" ? playersPerTeam : "No limit"}</span>
                 </div>
               </div>
             </div>
