@@ -57,6 +57,13 @@ interface TournamentParticipant {
   teamLogoUrl?: string | null;
   displayName?: string | null;
   avatarUrl?: string | null;
+  members?: Array<{
+    id: number;
+    username: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+    role: string;
+  }>;
 }
 
 function buildStandings(matches: Match[]): Standing[] {
@@ -842,6 +849,7 @@ export default function TournamentDetailPage() {
   const { data: bracket } = useGetTournamentBracket(id);
   const { data: matches } = useGetTournamentMatches(id);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
+  const [expandedTeam, setExpandedTeam] = useState<number | null>(null);
   const { data: participants = [] } = useQuery<TournamentParticipant[]>({
     queryKey: ["tournament-participants", id],
     queryFn: async () => {
@@ -1010,19 +1018,67 @@ export default function TournamentDetailPage() {
                     <p className="text-sm">No participants registered yet.</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                    {participants.map((p) => (
-                      <div key={p.id} className="flex items-center gap-2.5 rounded-lg border border-border bg-card p-3">
-                        {p.teamLogoUrl || p.avatarUrl ? (
-                          <img src={p.teamLogoUrl || p.avatarUrl || ""} alt="" className="w-8 h-8 rounded-full object-cover shrink-0 ring-1 ring-border" />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-muted border border-border shrink-0 flex items-center justify-center text-[10px] font-black text-muted-foreground">
-                            {(p.teamName || p.displayName || "?").charAt(0)}
-                          </div>
-                        )}
-                        <span className="text-sm font-bold truncate">{p.teamName || p.displayName || "Unknown"}</span>
-                      </div>
-                    ))}
+                  <div className="space-y-2">
+                    {participants.map((p) => {
+                      const isOpen = expandedTeam === p.id;
+                      const members = p.members ?? [];
+                      return (
+                        <div key={p.id} className="rounded-xl border border-border bg-card overflow-hidden">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedTeam(isOpen ? null : p.id)}
+                            className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors"
+                            aria-expanded={isOpen}
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              {p.teamLogoUrl || p.avatarUrl ? (
+                                <img src={p.teamLogoUrl || p.avatarUrl || ""} alt="" className="w-9 h-9 rounded-full object-cover shrink-0 ring-1 ring-border" />
+                              ) : (
+                                <div className="w-9 h-9 rounded-full bg-muted border border-border shrink-0 flex items-center justify-center text-xs font-black text-muted-foreground">
+                                  {(p.teamName || p.displayName || "?").charAt(0)}
+                                </div>
+                              )}
+                              <span className="font-bold truncate">{p.teamName || p.displayName || "Unknown"}</span>
+                              {members.length > 0 && (
+                                <span className="hidden sm:inline-flex items-center gap-1.5 text-xs text-muted-foreground ml-1">
+                                  <Users className="w-3.5 h-3.5" />
+                                  {members.length}
+                                </span>
+                              )}
+                            </div>
+                            <ChevronRight className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${isOpen ? "rotate-90" : ""}`} />
+                          </button>
+
+                          {isOpen && (
+                            <div className="border-t border-border px-4 py-4">
+                              {members.length === 0 ? (
+                                <p className="text-sm text-muted-foreground">No players on this team yet.</p>
+                              ) : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                                  {members.map((m) => (
+                                    <div key={m.id} className="flex items-center gap-2.5 rounded-lg bg-muted/40 border border-border px-2.5 py-2">
+                                      {m.avatarUrl ? (
+                                        <img src={m.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover shrink-0 ring-1 ring-border" />
+                                      ) : (
+                                        <div className="w-7 h-7 rounded-full bg-muted border border-border shrink-0 flex items-center justify-center text-[10px] font-black text-muted-foreground">
+                                          {(m.displayName || m.username || "?").charAt(0)}
+                                        </div>
+                                      )}
+                                      <div className="min-w-0">
+                                        <p className="text-sm font-bold truncate">{m.displayName || m.username}</p>
+                                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground capitalize">
+                                          {m.role && m.role !== "player" ? m.role : "Player"}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

@@ -8,7 +8,7 @@ import {
   teamsTable,
   tournamentAdminsTable,
 } from "@workspace/db";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import {
   ListTournamentsQueryParams,
   CreateTournamentBody,
@@ -495,7 +495,50 @@ router.get("/tournaments/:id/participants", async (req, res) => {
     .where(eq(tournamentParticipantsTable.tournamentId, id))
     .orderBy(tournamentParticipantsTable.id);
 
-  return res.json(rows);
+  // For team participants attach the clan's roster (the players on that team).
+  const teamIds = [...new Set(rows.map((r) => r.teamId).filter((x): x is number => x != null))];
+  const membersByTeam = new Map<number, Array<{
+    id: number;
+    username: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+    role: string;
+  }>>();
+  if (teamIds.length > 0) {
+    const members = await db
+      .select({
+        teamId: playersTable.teamId,
+        id: playersTable.id,
+        username: playersTable.username,
+        displayName: playersTable.displayName,
+        avatarUrl: playersTable.avatarUrl,
+        role: playersTable.role,
+      })
+      .from(playersTable)
+      .where(inArray(playersTable.teamId, teamIds))
+      .orderBy(playersTable.id);
+    for (const m of members) {
+      if (m.teamId == null) continue;
+      const list = membersByTeam.get(m.teamId) ?? [];
+      list.push({ id: m.id, username: m.username, displayName: m.displayName, avatarUrl: m.avatarUrl, role: m.role });
+      membersByTeam.set(m.teamId, list);
+    }
+  }
+
+  return res.json(
+    rows.map((r) => ({
+      id: r.id,
+      playerId: r.playerId,
+      teamId: r.teamId,
+      seed: r.seed,
+      username: r.username,
+      displayName: r.displayName,
+      avatarUrl: r.avatarUrl,
+      teamName: r.teamName,
+      teamLogoUrl: r.teamLogoUrl,
+      members: r.teamId != null ? (membersByTeam.get(r.teamId) ?? []) : [],
+    })),
+  );
 });
 
 // Public tournament stats — calculated from match results scoped to this tournament
