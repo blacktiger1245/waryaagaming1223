@@ -230,10 +230,14 @@ function MatchDetailDialog({
   match,
   onClose,
   logoMap,
+  isTeamTournament,
+  teamRosters = {},
 }: {
   match: Match;
   onClose: () => void;
   logoMap: Record<string, string | null>;
+  isTeamTournament?: boolean;
+  teamRosters: Record<number, TournamentParticipant["members"]>;
 }) {
   const { data: games = [], isLoading } = useQuery<PublicPlayerGame[]>({
     queryKey: ["public-player-games", match.id],
@@ -247,6 +251,8 @@ function MatchDetailDialog({
   const logo2 = logoMap[match.participant2Name ?? ""];
   const done = match.status === "completed";
   const live = match.status === "live";
+  const rosters = teamRosters ?? ({} as Record<number, TournamentParticipant["members"]>);
+
 
   const homeWins = games.filter((g) => g.homeScore != null && g.awayScore != null && g.homeScore > g.awayScore).length;
   const awayWins = games.filter((g) => g.homeScore != null && g.awayScore != null && g.awayScore > g.homeScore).length;
@@ -307,6 +313,54 @@ function MatchDetailDialog({
 
         {/* Player matchups */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
+          {isTeamTournament && ((rosters[match.participant1Id ?? 0] ?? []).length > 0 || (rosters[match.participant2Id ?? 0] ?? []).length > 0) && (
+            <div className="mb-5">
+              <DialogHeader className="mb-3">
+                <DialogTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground">
+                  Team Rosters · Players vs Players
+                </DialogTitle>
+              </DialogHeader>
+              <div className="grid grid-cols-2 gap-3">
+                {[match.participant1Id, match.participant2Id].map((teamId, side) => {
+                  const roster = (rosters[teamId ?? 0] ?? []).filter(Boolean);
+                  const name = side === 0 ? match.participant1Name : match.participant2Name;
+                  const logo = side === 0 ? logo1 : logo2;
+                  return (
+                    <div key={teamId ?? side} className="rounded-xl border border-border bg-muted/20 p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        {logo ? (
+                          <img src={logo} alt="" className="w-6 h-6 rounded-full object-cover ring-1 ring-border" />
+                        ) : (
+                          <div className="w-6 h-6 rounded-full bg-muted border border-border flex items-center justify-center text-[9px] font-black">
+                            {(name ?? "?").charAt(0)}
+                          </div>
+                        )}
+                        <span className="text-xs font-black uppercase tracking-wider truncate">{name ?? "TBD"}</span>
+                      </div>
+                      {roster.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">No roster</p>
+                      ) : (
+                        <ul className="space-y-1">
+                          {roster.map((m) => (
+                            <li key={m.id} className="flex items-center gap-2">
+                              {m.avatarUrl ? (
+                                <img src={m.avatarUrl} alt="" className="w-5 h-5 rounded-full object-cover ring-1 ring-border" />
+                              ) : (
+                                <div className="w-5 h-5 rounded-full bg-background border border-border flex items-center justify-center text-[8px] font-black">
+                                  {(m.displayName || m.username || "?").charAt(0)}
+                                </div>
+                              )}
+                              <span className="text-xs font-semibold truncate">{m.displayName || m.username}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <DialogHeader className="mb-3">
             <DialogTitle className="text-xs font-black uppercase tracking-widest text-muted-foreground">
               Player Matchups
@@ -882,6 +936,14 @@ export default function TournamentDetailPage() {
     return m;
   }, [participants]);
 
+  const teamRosterMap = useMemo<Record<number, TournamentParticipant["members"]>>(() => {
+    const m: Record<number, TournamentParticipant["members"]> = {};
+    (participants ?? []).forEach((p) => {
+      if (p.teamId != null) m[p.teamId] = (p.members ?? []).filter((x) => x != null);
+    });
+    return m;
+  }, [participants]);
+
   if (isLoading) {
     return (
       <div className="container mx-auto px-4 py-16">
@@ -1221,7 +1283,7 @@ export default function TournamentDetailPage() {
 
         {/* Match detail dialog */}
         {selectedMatch && (
-          <MatchDetailDialog match={selectedMatch} onClose={() => setSelectedMatch(null)} logoMap={teamLogoMap} />
+          <MatchDetailDialog match={selectedMatch} onClose={() => setSelectedMatch(null)} logoMap={teamLogoMap} isTeamTournament={isTeamTournament} teamRosters={teamRosterMap} />
         )}
       </motion.div>
     </div>
