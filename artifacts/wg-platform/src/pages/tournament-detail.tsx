@@ -435,6 +435,115 @@ function MatchDetailDialog({
     </Dialog>
   );
 }
+// ── Inline Player-vs-Player panel (expanded team match row) ─────────────────────
+function PlayerGamesInline({
+  match,
+  onOpenDetails,
+}: {
+  match: Match;
+  onOpenDetails: () => void;
+}) {
+  const { data: games = [], isLoading } = useQuery<PublicPlayerGame[]>({
+    queryKey: ["public-player-games", match.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/matches/${match.id}/player-games`);
+      return res.json();
+    },
+  });
+
+  const homeWins = games.filter((g) => g.homeScore != null && g.awayScore != null && g.homeScore > g.awayScore).length;
+  const awayWins = games.filter((g) => g.homeScore != null && g.awayScore != null && g.awayScore > g.homeScore).length;
+  const played = games.filter((g) => g.homeScore != null && g.awayScore != null).length;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 4 }}
+      className="w-full basis-full"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="border border-border rounded-xl bg-muted/20 p-4 mt-2 space-y-3">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+            <Swords className="w-3 h-3 text-primary" /> Player vs Player
+          </p>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={onOpenDetails}
+            className="gap-1 text-xs font-bold text-muted-foreground hover:text-primary"
+          >
+            Full match details <ChevronRight className="w-3 h-3" />
+          </Button>
+        </div>
+
+        {isLoading ? (
+          <div className="space-y-1.5">
+            {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-9 rounded-xl" />)}
+          </div>
+        ) : games.length === 0 ? (
+          <p className="text-muted-foreground text-sm text-center py-3">No player matchups yet for this match.</p>
+        ) : (
+          <div className="space-y-1">
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-2 pb-1">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground text-right truncate">
+                {match.participant1Name ?? ""}
+              </span>
+              <span className="w-16" />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground truncate">
+                {match.participant2Name ?? ""}
+              </span>
+            </div>
+            {games.map((game) => {
+              const gDone = game.homeScore != null && game.awayScore != null;
+              const hWin = gDone && game.homeScore! > game.awayScore!;
+              const aWin = gDone && game.awayScore! > game.homeScore!;
+              return (
+                <div
+                  key={game.id}
+                  className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-2 py-2 rounded-xl hover:bg-muted/10 transition-colors"
+                >
+                  <span className={`text-sm font-bold text-right truncate ${hWin ? "text-emerald-400" : ""}`}>
+                    {game.homePlayerName || "—"}
+                  </span>
+                  <div className="text-center min-w-[64px]">
+                    {gDone ? (
+                      <span className={`font-mono font-black text-base tabular-nums ${hWin || aWin ? "" : "text-muted-foreground"}`}>
+                        {game.homeScore} – {game.awayScore}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground text-xs font-bold">vs</span>
+                    )}
+                  </div>
+                  <span className={`text-sm font-bold text-left truncate ${aWin ? "text-emerald-400" : ""}`}>
+                    {game.awayPlayerName || "—"}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {played > 0 && (
+          <p className="text-sm text-center border-t border-border pt-2">
+            {homeWins > awayWins ? (
+              <span className="font-black text-emerald-400">
+                {match.participant1Name} leads {homeWins}–{awayWins}
+              </span>
+            ) : awayWins > homeWins ? (
+              <span className="font-black text-emerald-400">
+                {match.participant2Name} leads {awayWins}–{homeWins}
+              </span>
+            ) : (
+              <span className="font-bold text-muted-foreground">Tied {homeWins}–{awayWins}</span>
+            )}
+          </p>
+        )}
+      </div>
+    </motion.div>
+  );
+}
 
 // â”€â”€â”€ Register Button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -954,6 +1063,7 @@ export default function TournamentDetailPage() {
   const { data: bracket } = useGetTournamentBracket(id);
   const { data: matches } = useGetTournamentMatches(id);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
+  const [expandedMatch, setExpandedMatch] = useState<number | null>(null);
   const [expandedTeam, setExpandedTeam] = useState<number | null>(null);
   const { data: participants = [] } = useQuery<TournamentParticipant[]>({
     queryKey: ["tournament-participants", id],
@@ -1265,8 +1375,8 @@ export default function TournamentDetailPage() {
                           return (
                             <div
                               key={match.id}
-                              className="flex items-center gap-3 px-4 py-3 border-b border-border last:border-0 hover:bg-muted/10 transition-colors cursor-pointer group"
-                              onClick={() => setSelectedMatch(match)}
+                              className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-border last:border-0 hover:bg-muted/10 transition-colors cursor-pointer group"
+                              onClick={() => (isTeamTournament ? setExpandedMatch(expandedMatch === match.id ? null : match.id) : setSelectedMatch(match))}
                             >
                               <div className="flex-1 flex items-center justify-end gap-2.5">
                                 <span className={`font-bold text-sm truncate text-right ${p1Win ? "text-emerald-400" : ""}`}>
@@ -1305,7 +1415,25 @@ export default function TournamentDetailPage() {
                                   {match.participant2Name ?? "TBD"}
                                 </span>
                               </div>
-                              <ChevronRight className="w-4 h-4 text-muted-foreground/40 shrink-0 group-hover:text-muted-foreground transition-colors" />
+                              {isTeamTournament ? (
+                                <div
+                                  className="shrink-0 flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-3 py-1.5 group-hover:border-primary/40 group-hover:bg-primary/10 transition-colors"
+                                  aria-expanded={expandedMatch === match.id}
+                                >
+                                  <Swords className="w-3.5 h-3.5 text-primary" />
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-primary whitespace-nowrap">
+                                    Player vs Player
+                                  </span>
+                                  <ChevronRight
+                                    className={`w-4 h-4 text-primary transition-transform ${expandedMatch === match.id ? "rotate-90" : ""}`}
+                                  />
+                                </div>
+                              ) : (
+                                <ChevronRight className="w-4 h-4 text-muted-foreground/40 shrink-0 group-hover:text-muted-foreground transition-colors" />
+                              )}
+                              {isTeamTournament && expandedMatch === match.id && (
+                                <PlayerGamesInline match={match} onOpenDetails={() => setSelectedMatch(match)} />
+                              )}
                             </div>
                           );
                         })}
