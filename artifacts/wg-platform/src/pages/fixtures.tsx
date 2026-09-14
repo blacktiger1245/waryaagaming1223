@@ -120,6 +120,63 @@ function Av({ name, size = "md", url }: { name: string; size?: "sm" | "md" | "lg
 }
 
 // ── Match card ─────────────────────────────────────────────────────────────────
+function PlayerGameDetail({ g }: { g: Record<string, any> }) {
+  const hasStats =
+    g.homePossession != null || g.homeShots != null || g.homeShotsOnTarget != null || g.homeCorners != null || g.homeYellowCards != null || g.homeRedCards != null ||
+    g.awayPossession != null || g.awayShots != null || g.awayShotsOnTarget != null || g.awayCorners != null || g.awayYellowCards != null || g.awayRedCards != null;
+
+  const rows = [
+    { label: "Possession", home: g.homePossession, away: g.awayPossession, pct: true },
+    { label: "Shots", home: g.homeShots, away: g.awayShots },
+    { label: "Shots on Target", home: g.homeShotsOnTarget, away: g.awayShotsOnTarget },
+    { label: "Corners", home: g.homeCorners, away: g.awayCorners },
+    { label: "Yellow Cards", home: g.homeYellowCards, away: g.awayYellowCards, yellow: true },
+    { label: "Red Cards", home: g.homeRedCards, away: g.awayRedCards, red: true },
+  ] as { label: string; home?: number | null; away?: number | null; pct?: boolean; yellow?: boolean; red?: boolean }[];
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2 text-[11px] font-bold text-zinc-300">
+        <span className="min-w-0 flex-1 truncate">{g.homePlayerName || "Home"}</span>
+        <span className="shrink-0 font-black text-sm tabular-nums">
+          {g.homeScore != null ? (g.homeScore ?? 0) : "–"}
+          <span className="text-zinc-500 font-bold"> - </span>
+          {(g.awayScore ?? 0)}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-right">{g.awayPlayerName || "Away"}</span>
+      </div>
+
+      {hasStats ? (
+        <div className="rounded-lg border border-[#29406e]/40 bg-[#0b1424]/40 px-3 py-2">
+          <div className="mb-1 flex items-center justify-between text-[9px] font-black uppercase tracking-widest text-zinc-600">
+            <span>{g.homePlayerName || "Home"}</span>
+            <span>Stat</span>
+            <span>{g.awayPlayerName || "Away"}</span>
+          </div>
+          {rows.map((r) => {
+            const hv = r.home != null ? (r.pct ? `${r.home}%` : String(r.home)) : null;
+            const av = r.away != null ? (r.pct ? `${r.away}%` : String(r.away)) : null;
+            if (hv == null && av == null) return null;
+            return (
+              <div key={r.label} className="flex items-center justify-between gap-3 border-t border-[#29406e]/25 py-1 text-[11px]">
+                <span className="w-14 text-right font-semibold text-zinc-100 tabular-nums">{hv ?? "–"}</span>
+                <span className={`flex-1 text-center text-[9px] font-black uppercase tracking-wider ${r.red ? "text-red-500" : r.yellow ? "text-yellow-500" : "text-zinc-500"}`}>
+                  {r.label}
+                </span>
+                <span className="w-14 font-semibold text-zinc-100 tabular-nums">{av ?? "–"}</span>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="rounded-lg border border-dashed border-[#29406e]/40 px-3 py-2 text-[11px] text-zinc-500">
+          No match stats recorded for this player game yet.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLive }: {
   m: FlatMatch;
   logoMap: Map<number, string | null>;
@@ -167,6 +224,7 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
   const [games, setGames] = useState<Array<Record<string, any>> | null>(null);
   const [gamesLoading, setGamesLoading] = useState(false);
   const [gamesError, setGamesError] = useState(false);
+  const [openGameId, setOpenGameId] = useState<number | null>(null);
 
   async function toggleGames() {
     if (gamesOpen) { setGamesOpen(false); return; }
@@ -349,9 +407,16 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
                 <div className="text-[11px] text-zinc-500">No player matchups recorded for this match.</div>
               ) : (
                 <div className="space-y-1.5">
-                  {(games ?? []).map((g) => (
-                    <div key={String(g.id)} className="rounded-lg border border-[#29406e]/60 bg-[#13223f]/30 px-3 py-2">
-                      <div className="flex items-center justify-between gap-2">
+                  {(games ?? []).map((g) => {
+                  const gid = Number(g.id);
+                  const open = openGameId === gid;
+                  return (
+                    <div key={String(g.id)} className="overflow-hidden rounded-lg border border-[#29406e]/60 bg-[#13223f]/30">
+                      <button
+                        onClick={() => setOpenGameId(open ? null : gid)}
+                        className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left transition-colors ${open ? "bg-[#13223f]/60" : "hover:bg-[#13223f]/40"}`}
+                        data-testid="button-toggle-pvp-game"
+                      >
                         <span className="min-w-0 flex-1 truncate text-sm font-bold">{g.homePlayerName || "—"}</span>
                         <span className="shrink-0 font-black text-base tabular-nums">
                           {g.homeScore != null ? (g.homeScore ?? 0) : "–"}
@@ -359,28 +424,16 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
                           {(g.awayScore ?? 0)}
                         </span>
                         <span className="min-w-0 flex-1 truncate text-right text-sm font-bold">{g.awayPlayerName || "—"}</span>
-                      </div>
-                      {(g.homePossession != null || g.homeShots != null || g.homeShotsOnTarget != null || g.homeCorners != null || g.homeYellowCards != null || g.homeRedCards != null ||
-                        g.awayPossession != null || g.awayShots != null || g.awayShotsOnTarget != null || g.awayCorners != null || g.awayYellowCards != null || g.awayRedCards != null) && (
-                        <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5 text-[10px] text-zinc-400">
-                          <span className="text-[9px] font-black uppercase text-zinc-500">{g.homePlayerName || "Home"}:</span>
-                          {g.homePossession != null && <span>Poss {g.homePossession}%</span>}
-                          {g.homeShots != null && <span>Shots {g.homeShots}</span>}
-                          {g.homeShotsOnTarget != null && <span>OT {g.homeShotsOnTarget}</span>}
-                          {g.homeCorners != null && <span>Cor {g.homeCorners}</span>}
-                          {g.homeYellowCards != null && <span className="text-yellow-500">Y {g.homeYellowCards}</span>}
-                          {g.homeRedCards != null && <span className="text-red-500">R {g.homeRedCards}</span>}
-                          <span className="text-[9px] font-black uppercase text-zinc-500">{g.awayPlayerName || "Away"}:</span>
-                          {g.awayPossession != null && <span>Poss {g.awayPossession}%</span>}
-                          {g.awayShots != null && <span>Shots {g.awayShots}</span>}
-                          {g.awayShotsOnTarget != null && <span>OT {g.awayShotsOnTarget}</span>}
-                          {g.awayCorners != null && <span>Cor {g.awayCorners}</span>}
-                          {g.awayYellowCards != null && <span className="text-yellow-500">Y {g.awayYellowCards}</span>}
-                          {g.awayRedCards != null && <span className="text-red-500">R {g.awayRedCards}</span>}
+                        <ChevronDown className={`w-3.5 h-3.5 shrink-0 text-[#00E0FF] transition-transform ${open ? "rotate-180" : ""}`} />
+                      </button>
+                      {open && (
+                        <div className="border-t border-[#29406e]/40 px-3 py-2">
+                          <PlayerGameDetail g={g} />
                         </div>
                       )}
                     </div>
-                  ))}
+                  );
+                })}
                 </div>
               )}
             </div>
