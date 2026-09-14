@@ -177,6 +177,15 @@ function PlayerGameDetail({ g }: { g: Record<string, any> }) {
   );
 }
 
+function TournamentBadge({ name }: { name: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 truncate text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md text-[#00E0FF] bg-[#00F0FF]/10 border border-[#00F0FF]/30">
+      <Trophy className="w-3 h-3 shrink-0" />
+      <span className="truncate">{name || "Tournament"}</span>
+    </span>
+  );
+}
+
 function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLive }: {
   m: FlatMatch;
   logoMap: Map<number, string | null>;
@@ -187,13 +196,19 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
 }) {
   const done = m.status === "completed";
   const live = m.status === "live";
+  const isTeamMatch = m.tournamentType === "team";
+  const [gamesOpen, setGamesOpen] = useState(false);
+  const [games, setGames] = useState<Array<Record<string, any>> | null>(null);
+  const [gamesLoading, setGamesLoading] = useState(false);
+  const [gamesError, setGamesError] = useState(false);
+  const [openGameId, setOpenGameId] = useState<number | null>(null);
 
   const goLiveButton = (() => {
     if (!canShare || done) return null;
     if (broadcasting) {
       return (
         <button
-          onClick={onCloseLive}
+          onClick={(e) => { e.stopPropagation(); onCloseLive(); }}
           className="shrink-0 inline-flex items-center gap-1.5 text-xs font-black px-3 py-1.5 rounded-full bg-red-500 text-white hover:bg-red-600 transition-colors"
           data-testid="button-close-live"
         >
@@ -203,7 +218,7 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
     }
     return (
       <button
-        onClick={() => onStartLive(m.id)}
+        onClick={(e) => { e.stopPropagation(); onStartLive(m.id); }}
         className="shrink-0 inline-flex items-center gap-1.5 text-xs font-black px-3 py-1.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 hover:border-amber-400 transition-colors"
         data-testid="button-go-live"
       >
@@ -217,14 +232,6 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
   const p2wins = done && m.winnerId === m.participant2Id;
   const logo1 = m.participant1Id ? logoMap.get(m.participant1Id) ?? null : null;
   const logo2 = m.participant2Id ? logoMap.get(m.participant2Id) ?? null : null;
-
-  // Player vs Player breakdown for team-vs-team matches.
-  const isTeamMatch = m.tournamentType === "team";
-  const [gamesOpen, setGamesOpen] = useState(false);
-  const [games, setGames] = useState<Array<Record<string, any>> | null>(null);
-  const [gamesLoading, setGamesLoading] = useState(false);
-  const [gamesError, setGamesError] = useState(false);
-  const [openGameId, setOpenGameId] = useState<number | null>(null);
 
   async function toggleGames() {
     if (gamesOpen) { setGamesOpen(false); return; }
@@ -244,203 +251,121 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
   }
 
   return (
-    <>
-      {/* ── Mobile layout ────────────────────────────────────────────────── */}
-      <div className={`lg:hidden px-4 py-4 border-b border-[#1d2c4e]/60 last:border-0 transition-colors ${live ? "bg-red-950/10" : "hover:bg-[#13223f]/20"}`}>
-        {/* Main row: name · avatar · score · avatar · name */}
-        <div className="flex items-center gap-2">
-
-          {/* Home: name right-aligned, then avatar */}
-          <div className="flex items-center gap-2.5 flex-1 min-w-0 justify-end">
-            <span className={`font-black text-sm leading-tight text-right truncate
-              ${p1wins ? "text-white" : done ? "text-zinc-500" : "text-zinc-100"}`}>
-              {m.participant1Name ?? "TBD"}
-            </span>
-            <Av name={m.participant1Name ?? "?"} size="md" url={logo1} />
-          </div>
-
-          {/* Score / VS */}
-          <div className="flex flex-col items-center shrink-0 px-1 min-w-[72px]">
-            {hasScore ? (
-              <span className="font-black text-2xl text-white tabular-nums leading-none tracking-tight">
-                {m.participant1Score}
-                <span className="text-zinc-500 font-normal mx-1.5 text-xl">-</span>
-                {m.participant2Score}
-              </span>
-            ) : (
-              <span className="font-black text-base text-zinc-400">VS</span>
-            )}
-            <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-wide mt-0.5 text-center max-w-[110px] truncate">
-              {stageLabel(m)}
-            </span>
-          </div>
-
-          {/* Away: avatar, then name left-aligned */}
-          <div className="flex items-center gap-2.5 flex-1 min-w-0">
-            <Av name={m.participant2Name ?? "?"} size="md" url={logo2} />
-            <span className={`font-black text-sm leading-tight truncate
-              ${p2wins ? "text-white" : done ? "text-zinc-500" : "text-zinc-100"}`}>
-              {m.participant2Name ?? "TBD"}
-            </span>
-          </div>
-        </div>
-
-        {/* Status / time row */}
-        <div className="flex items-center justify-between mt-2.5">
-          <span className="text-[10px] text-zinc-600">
-            {time ? `${time} GMT+3` : "TBD"}
-          </span>
-          <div className="flex items-center gap-2">
-            {goLiveButton}
-            {live && (
-              <span className="flex items-center gap-1 text-[10px] font-black bg-red-500 text-white px-2 py-0.5 rounded-full animate-pulse">
-                <Radio className="w-2.5 h-2.5" /> LIVE
-              </span>
-            )}
-            {!live && !done && (
-              <span className="text-[10px] font-bold bg-orange-500/10 text-orange-400 border border-orange-500/20 px-2 py-0.5 rounded-full">
-                UPCOMING
-              </span>
-            )}
-            {done && (
-              <span className="text-[10px] font-bold bg-[#13223f] text-zinc-400 border border-[#29406e] px-2 py-0.5 rounded-full">
-                FT
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Desktop layout ─────────────────────────────────────────────────── */}
-      <div className={`hidden lg:flex items-center gap-2 px-5 py-3.5 border-b border-[#1d2c4e]/60 last:border-0 transition-colors ${live ? "bg-[#1a1020] wg-live-row" : "hover:bg-[#13223f]/20"}`}>
-        {/* Time */}
-        <div className="w-14 shrink-0">
-          {time ? (
-            <>
-              <div className={`text-sm font-bold tabular-nums leading-none ${live ? "text-red-400" : "text-zinc-300"}`}>{time}</div>
-              <div className="text-[10px] text-zinc-600 mt-0.5">GMT+3</div>
-            </>
-          ) : (
-            <span className="text-[11px] text-zinc-600">TBD</span>
-          )}
-        </div>
-
-        {/* Home team */}
-        <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
-          {p1wins && <Trophy className="w-3.5 h-3.5 text-amber-400 shrink-0" strokeWidth={2} />}
-          <span className={`text-sm font-black truncate text-right leading-tight ${p1wins ? "text-white" : done ? "text-zinc-500" : "text-zinc-100"}`}>
-            {m.participant1Name ?? "TBD"}
-          </span>
-          <Av name={m.participant1Name ?? "?"} size="sm" url={logo1} />
-        </div>
-
-        {/* Score */}
-        <div className="w-[96px] shrink-0 flex flex-col items-center gap-1">
-          {hasScore ? (
-            <span className={`font-mono font-black text-lg text-white tabular-nums leading-none px-3 py-1 rounded-lg ${live ? "bg-[#00F0FF]/15 border border-[#00F0FF]/30" : ""}`}>
-              {m.participant1Score} <span className="text-zinc-500 font-normal text-base">·</span> {m.participant2Score}
-            </span>
-          ) : (
-            <span className="font-black text-sm text-zinc-400">VS</span>
-          )}
-          <span className="text-[9px] font-bold text-[#00E0FF]/70 truncate max-w-[110px] text-center uppercase tracking-wide">
-            {stageLabel(m)}
-          </span>
-        </div>
-
-        {/* Away team */}
-        <div className="flex-1 flex items-center gap-2 min-w-0">
-          <Av name={m.participant2Name ?? "?"} size="sm" url={logo2} />
-          <span className={`text-sm font-black truncate leading-tight ${p2wins ? "text-white" : done ? "text-zinc-500" : "text-zinc-100"}`}>
-            {m.participant2Name ?? "TBD"}
-          </span>
-          {p2wins && <Trophy className="w-3.5 h-3.5 text-amber-400 shrink-0" strokeWidth={2} />}
-        </div>
-
-        {/* Status + action */}
-        <div className="w-24 shrink-0 flex flex-col items-end gap-1.5">
+    <div
+      onClick={isTeamMatch ? toggleGames : undefined}
+      className={`group overflow-hidden rounded-2xl border transition-all ${
+        live
+          ? "border-[#FF2A5F]/50 bg-gradient-to-r from-[#1a1220] to-[#0d1424] shadow-[0_0_20px_rgba(255,42,95,0.2)]"
+          : "border-[#1b2a4a]/80 bg-[#0f1628] hover:border-[#00F0FF]/40 hover:shadow-[0_0_22px_rgba(0,240,255,0.12)]"
+      } ${isTeamMatch ? "cursor-pointer" : ""}`}
+    >
+      <div className="flex items-center justify-between gap-3 px-4 pt-2.5">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="min-w-0"><TournamentBadge name={m.tournamentName} /></div>
           {live && (
-            <span className="flex items-center gap-1 text-[10px] font-black bg-red-500 text-white px-2 py-0.5 rounded-full animate-pulse">
+            <span className="shrink-0 flex items-center gap-1 text-[10px] font-black bg-[#FF2A5F] text-white px-2 py-0.5 rounded-full animate-pulse">
               <Radio className="w-2.5 h-2.5" /> LIVE
             </span>
           )}
-          {!live && !done && (
-            <span className="text-[10px] font-bold bg-[#00c8ff]/10 text-[#00E0FF] border border-[#00F0FF]/25 px-2 py-0.5 rounded-full">
-              UPCOMING
+        </div>
+        <span className="shrink-0 text-[10px] text-zinc-500">{time ? `${time} GMT+3` : "TBD"}</span>
+      </div>
+<div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3 justify-end">
+          {p1wins && <Trophy className="w-3.5 h-3.5 text-[#FFB800] shrink-0" strokeWidth={2} />}
+          <div className="min-w-0 text-right">
+            <div className={`truncate text-sm font-black leading-tight ${p1wins ? "text-white" : done ? "text-zinc-500" : "text-zinc-100"}`}>
+              {m.participant1Name ?? "TBD"}
+            </div>
+            <div className="mt-0.5 truncate text-[9px] font-bold uppercase tracking-wide text-cyan-300/60">{stageLabel(m)}</div>
+          </div>
+          <Av name={m.participant1Name ?? "?"} size="sm" url={logo1} />
+        </div>
+
+        <div className="shrink-0 px-2 text-center">
+          {hasScore ? (
+            <span className={`rounded-lg border px-3 py-1 font-mono text-lg font-black leading-none tabular-nums text-white ${live ? "border-[#FF2A5F]/30 bg-[#FF2A5F]/10" : "border-white/10 bg-white/5"}`}>
+              {m.participant1Score} <span className="text-base font-normal text-cyan-300/60">·</span> {m.participant2Score}
             </span>
+          ) : (
+            <span className="text-base font-black text-zinc-400">VS</span>
           )}
-          {done && (
-            <span className="text-[10px] font-bold bg-[#13223f] text-zinc-400 border border-[#29406e] px-2 py-0.5 rounded-full">
-              FT
-            </span>
-          )}
-          <Link href={`/tournaments`}>
-            <span className="text-[10px] font-bold text-zinc-600 hover:text-[#00E0FF] transition-colors cursor-pointer whitespace-nowrap">
-              View Details →
-            </span>
+        </div>
+
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <Av name={m.participant2Name ?? "?"} size="sm" url={logo2} />
+          <div className="min-w-0">
+            <div className={`truncate text-sm font-black leading-tight ${p2wins ? "text-white" : done ? "text-zinc-500" : "text-zinc-100"}`}>
+              {m.participant2Name ?? "TBD"}
+            </div>
+            <div className="mt-0.5 truncate text-[9px] font-bold uppercase tracking-wide text-cyan-300/60">
+              {done ? "FT" : live ? "LIVE" : "UPCOMING"}
+            </div>
+          </div>
+          {p2wins && <Trophy className="w-3.5 h-3.5 text-[#FFB800] shrink-0" strokeWidth={2} />}
+        </div>
+      </div>
+<div className="flex items-center justify-between gap-2 border-t border-[#1d2c4e]/60 px-4 pb-2.5 pt-2">
+        <span onClick={(e) => e.stopPropagation()}>
+          <Link href={`/tournaments`} className="text-[10px] font-bold text-zinc-500 transition-colors hover:text-[#00E0FF]">
+            View Details →
           </Link>
+        </span>
+        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
           {goLiveButton}
+          {isTeamMatch && (
+            <>
+              <span className="hidden items-center gap-1 text-[10px] font-black uppercase tracking-wider text-[#00E0FF] sm:inline-flex">
+                <Swords className="w-3 h-3" /> Player vs Player
+              </span>
+              <ChevronDown className={`w-4 h-4 text-[#00E0FF] transition-transform ${gamesOpen ? "rotate-180" : ""}`} />
+            </>
+          )}
         </div>
       </div>
 
-      {/* Player vs Player breakdown (team-vs-team matches) — click to expand */}
-      {isTeamMatch && (
-        <div className="border-t border-[#1d2c4e]/40">
-          <button
-            onClick={toggleGames}
-            className="flex w-full items-center justify-between px-3 py-2 text-[11px] font-black uppercase tracking-wider text-[#00E0FF] hover:text-[#00F0FF] transition-colors"
-            data-testid="button-toggle-pvp"
-          >
-            <span className="flex items-center gap-1.5"><Swords className="w-3.5 h-3.5" /> Player vs Player</span>
-            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${gamesOpen ? "rotate-180" : ""}`} />
-          </button>
-
-          {gamesOpen && (
-            <div className="px-3 py-2">
-              {gamesLoading ? (
-                <div className="flex items-center gap-2 text-[11px] text-zinc-500">
-                  <Loader2 className="w-3 h-3 animate-spin" /> Loading player matchups…
-                </div>
-              ) : gamesError ? (
-                <div className="text-[11px] text-red-400">Could not load player games.</div>
-              ) : games && games.length === 0 ? (
-                <div className="text-[11px] text-zinc-500">No player matchups recorded for this match.</div>
-              ) : (
-                <div className="space-y-1.5">
-                  {(games ?? []).map((g) => {
-                  const gid = Number(g.id);
-                  const open = openGameId === gid;
-                  return (
-                    <div key={String(g.id)} className="overflow-hidden rounded-lg border border-[#29406e]/60 bg-[#13223f]/30">
-                      <button
-                        onClick={() => setOpenGameId(open ? null : gid)}
-                        className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left transition-colors ${open ? "bg-[#13223f]/60" : "hover:bg-[#13223f]/40"}`}
-                        data-testid="button-toggle-pvp-game"
-                      >
-                        <span className="min-w-0 flex-1 truncate text-sm font-bold">{g.homePlayerName || "—"}</span>
-                        <span className="shrink-0 font-black text-base tabular-nums">
-                          {g.homeScore != null ? (g.homeScore ?? 0) : "–"}
-                          <span className="text-zinc-500 font-bold"> - </span>
-                          {(g.awayScore ?? 0)}
-                        </span>
-                        <span className="min-w-0 flex-1 truncate text-right text-sm font-bold">{g.awayPlayerName || "—"}</span>
-                        <ChevronDown className={`w-3.5 h-3.5 shrink-0 text-[#00E0FF] transition-transform ${open ? "rotate-180" : ""}`} />
-                      </button>
-                      {open && (
-                        <div className="border-t border-[#29406e]/40 px-3 py-2">
-                          <PlayerGameDetail g={g} />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-                </div>
-              )}
+      {isTeamMatch && gamesOpen && (
+        <div className="border-t border-[#1d2c4e]/40 px-4 py-3">
+          {gamesLoading ? (
+            <div className="flex items-center gap-2 text-[11px] text-zinc-500"><Loader2 className="w-3 h-3 animate-spin" /> Loading player matchups…</div>
+          ) : gamesError ? (
+            <div className="text-[11px] text-red-400">Could not load player games.</div>
+          ) : games && games.length === 0 ? (
+            <div className="text-[11px] text-zinc-500">No player matchups recorded for this match.</div>
+          ) : (
+            <div className="space-y-1.5">
+              {(games ?? []).map((g) => {
+                const gid = Number(g.id);
+                const open = openGameId === gid;
+                return (
+                  <div key={String(g.id)} className="overflow-hidden rounded-lg border border-[#29406e]/60 bg-[#13223f]/30">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setOpenGameId(open ? null : gid); }}
+                      className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left transition-colors ${open ? "bg-[#13223f]/60" : "hover:bg-[#13223f]/40"}`}
+                      data-testid="button-toggle-pvp-game"
+                    >
+                      <span className="min-w-0 flex-1 truncate text-sm font-bold">{g.homePlayerName || "—"}</span>
+                      <span className="shrink-0 font-black text-base tabular-nums">
+                        {g.homeScore != null ? (g.homeScore ?? 0) : "–"}
+                        <span className="text-zinc-500 font-bold"> - </span>
+                        {(g.awayScore ?? 0)}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-right text-sm font-bold">{g.awayPlayerName || "—"}</span>
+                      <ChevronDown className={`w-3.5 h-3.5 shrink-0 text-[#00E0FF] transition-transform ${open ? "rotate-180" : ""}`} />
+                    </button>
+                    {open && (
+                      <div className="border-t border-[#29406e]/40 px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                        <PlayerGameDetail g={g} />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
       )}
-    </>
+    </div>
   );
 }
 
