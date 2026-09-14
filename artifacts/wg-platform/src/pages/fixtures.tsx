@@ -1,10 +1,11 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { toPng } from "html-to-image";
 import { Link } from "wouter";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CalendarDays, Circle, Radio, Shield, Trophy, Star,
   RefreshCw, ChevronRight, LayoutList, Clock, CheckCircle2, BarChart2,
-  ChevronDown, Check, Layers, Loader2, X, MonitorPlay, Swords,
+  ChevronDown, Check, Layers, Loader2, X, MonitorPlay, Swords, Download,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { storageUrl } from "@/lib/api";
@@ -198,6 +199,99 @@ function TournamentBadge({ name }: { name: string }) {
   );
 }
 
+function SpanBadge({ text, color }: { text: string; color: string }) {
+  return (
+    <div className="flex h-14 w-14 items-center justify-center rounded-xl border-2 text-xl font-black text-white"
+      style={{ borderColor: color, background: `${color}22`, boxShadow: `0 0 14px ${color}44` }}>
+      {(text || "?").trim().charAt(0).toUpperCase()}
+    </div>
+  );
+}
+
+function PvpShareCard({ m, games, motmId, motmName }: {
+  m: FlatMatch;
+  games: Array<Record<string, any>>;
+  motmId?: number | null;
+  motmName?: string | null;
+}) {
+  const done = m.status === "completed";
+  const isMotm = (id?: number | null) => motmId != null && id != null && Number(id) === motmId;
+  return (
+    <div>
+      <div className="flex items-center justify-between border-b border-[#1d2c4e] pb-3">
+        <div className="flex items-center gap-2">
+          <Trophy className="w-4 h-4 text-[#FFB800]" />
+          <span className="text-[11px] font-black uppercase tracking-widest text-[#00E0FF]">{m.tournamentName}</span>
+        </div>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Match Report</span>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 py-4">
+        <div className="flex flex-1 flex-col items-center gap-1.5">
+          <SpanBadge text={m.participant1Name ?? "?"} color="#00E676" />
+          <span className="max-w-[140px] truncate text-center text-sm font-black text-white">{m.participant1Name ?? "?"}</span>
+        </div>
+        <div className="text-center">
+          <div className="font-mono text-2xl font-black text-white">{m.participant1Score ?? 0} - {m.participant2Score ?? 0}</div>
+          <div className="mt-0.5 text-[9px] font-bold uppercase tracking-widest text-zinc-500">{done ? "Full Time" : m.status}</div>
+        </div>
+        <div className="flex flex-1 flex-col items-center gap-1.5">
+          <SpanBadge text={m.participant2Name ?? "?"} color="#FF2A5F" />
+          <span className="max-w-[140px] truncate text-center text-sm font-black text-white">{m.participant2Name ?? "?"}</span>
+        </div>
+      </div>
+
+      {motmId != null && motmName && (
+        <div className="mb-3 flex items-center gap-2 rounded-lg border border-[#FFB800]/40 bg-[#FFB800]/10 px-3 py-2">
+          <Star className="h-4 w-4 fill-[#FFB800] text-[#FFB800]" />
+          <span className="text-xs font-bold text-[#FFB800]">Man of the Match: {motmName}</span>
+        </div>
+      )}
+
+      {games.length === 0 ? (
+        <p className="py-6 text-center text-xs text-zinc-500">No player matchups recorded.</p>
+      ) : (
+        <div className="space-y-1.5">
+          {games.map((g) => (
+            <div key={String(g.id)} className="rounded-lg border border-[#29406e]/50 px-3 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex min-w-0 flex-1 items-center gap-1 truncate text-sm font-bold">
+                  {isMotm(g.homePlayerId) && <Star className="h-3 w-3 shrink-0 fill-[#FFB800] text-[#FFB800]" />}
+                  <span className="truncate">{g.homePlayerName || "—"}</span>
+                </span>
+                <span className="shrink-0 font-black text-base tabular-nums">{g.homeScore ?? 0} - {g.awayScore ?? 0}</span>
+                <span className="flex min-w-0 flex-1 items-center justify-end gap-1 truncate text-sm font-bold">
+                  <span className="truncate">{g.awayPlayerName || "—"}</span>
+                  {isMotm(g.awayPlayerId) && <Star className="h-3 w-3 shrink-0 fill-[#FFB800] text-[#FFB800]" />}
+                </span>
+              </div>
+              {(g.homePossession != null || g.homeShots != null || g.homeShotsOnTarget != null || g.homeCorners != null || g.homeYellowCards != null || g.homeRedCards != null ||
+                g.awayPossession != null || g.awayShots != null || g.awayShotsOnTarget != null || g.awayCorners != null || g.awayYellowCards != null || g.awayRedCards != null) && (
+                <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-zinc-400">
+                  <span className="text-[9px] font-black uppercase text-zinc-500">{g.homePlayerName || "Home"}:</span>
+                  {g.homePossession != null && <span>Poss {g.homePossession}%</span>}
+                  {g.homeShots != null && <span>Shots {g.homeShots}</span>}
+                  {g.homeShotsOnTarget != null && <span>OT {g.homeShotsOnTarget}</span>}
+                  {g.homeCorners != null && <span>Cor {g.homeCorners}</span>}
+                  {g.homeYellowCards != null && <span className="text-yellow-500">Y {g.homeYellowCards}</span>}
+                  {g.homeRedCards != null && <span className="text-red-500">R {g.homeRedCards}</span>}
+                  <span className="text-[9px] font-black uppercase text-zinc-500">{g.awayPlayerName || "Away"}:</span>
+                  {g.awayPossession != null && <span>Poss {g.awayPossession}%</span>}
+                  {g.awayShots != null && <span>Shots {g.awayShots}</span>}
+                  {g.awayShotsOnTarget != null && <span>OT {g.awayShotsOnTarget}</span>}
+                  {g.awayCorners != null && <span>Cor {g.awayCorners}</span>}
+                  {g.awayYellowCards != null && <span className="text-yellow-500">Y {g.awayYellowCards}</span>}
+                  {g.awayRedCards != null && <span className="text-red-500">R {g.awayRedCards}</span>}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLive }: {
   m: FlatMatch;
   logoMap: Map<number, string | null>;
@@ -261,6 +355,26 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
       setGamesError(true);
     } finally {
       setGamesLoading(false);
+    }
+  }
+
+  const captureRef = useRef<HTMLDivElement>(null);
+  const [downloading, setDownloading] = useState(false);
+
+  async function downloadPng() {
+    const node = captureRef.current;
+    if (!node) return;
+    setDownloading(true);
+    try {
+      const dataUrl = await toPng(node, { pixelRatio: 2, cacheBust: true });
+      const link = document.createElement("a");
+      link.download = `match-${m.id}-player-vs-player.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch {
+      /* ignore export errors */
+    } finally {
+      setDownloading(false);
     }
   }
 
@@ -340,6 +454,18 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
 
       {isTeamMatch && gamesOpen && (
         <div className="border-t border-[#1d2c4e]/40 px-4 py-3">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-[#00E0FF]">
+              <Swords className="w-3 h-3" /> Player vs Player
+            </span>
+            <button
+              onClick={(e) => { e.stopPropagation(); downloadPng(); }}
+              className="inline-flex items-center gap-1.5 rounded-md border border-[#00F0FF]/40 bg-[#00F0FF]/10 px-2.5 py-1 text-[10px] font-black text-[#00E0FF] transition-colors hover:bg-[#00F0FF]/20"
+            >
+              {downloading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+              {downloading ? "Preparing…" : "Download PNG"}
+            </button>
+          </div>
           {gamesLoading ? (
             <div className="flex items-center gap-2 text-[11px] text-zinc-500"><Loader2 className="w-3 h-3 animate-spin" /> Loading player matchups…</div>
           ) : gamesError ? (
@@ -379,6 +505,13 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
           )}
         </div>
       )}
+    
+      {/* Hidden export node for PNG download */}
+      <div style={{ position: "fixed", left: -100000, top: 0, pointerEvents: "none" }} aria-hidden>
+        <div ref={captureRef} style={{ width: 760, background: "#0b1424", color: "#e7ecf5", padding: 20 }}>
+          <PvpShareCard m={m} games={games ?? []} motmId={motmId} motmName={motmName} />
+        </div>
+      </div>
     </div>
   );
 }
