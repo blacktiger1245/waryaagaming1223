@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  CalendarDays, Circle, Radio, Shield, Trophy,
+  CalendarDays, Circle, Radio, Shield, Trophy, Star,
   RefreshCw, ChevronRight, LayoutList, Clock, CheckCircle2, BarChart2,
   ChevronDown, Check, Layers, Loader2, X, MonitorPlay, Swords,
 } from "lucide-react";
@@ -34,6 +34,8 @@ interface RawMatch {
   participant2Score: number | null;
   winnerId: number | null;
   scheduledAt: string | null;
+manOfTheMatchId: number | null;
+  manOfTheMatchName: string | null;
 }
 
 interface FlatMatch extends RawMatch {
@@ -120,10 +122,13 @@ function Av({ name, size = "md", url }: { name: string; size?: "sm" | "md" | "lg
 }
 
 // ── Match card ─────────────────────────────────────────────────────────────────
-function PlayerGameDetail({ g }: { g: Record<string, any> }) {
+function PlayerGameDetail({ g, motmId, motmName }: { g: Record<string, any>; motmId?: number | null; motmName?: string | null }) {
   const hasStats =
     g.homePossession != null || g.homeShots != null || g.homeShotsOnTarget != null || g.homeCorners != null || g.homeYellowCards != null || g.homeRedCards != null ||
     g.awayPossession != null || g.awayShots != null || g.awayShotsOnTarget != null || g.awayCorners != null || g.awayYellowCards != null || g.awayRedCards != null;
+
+  const homeIsMotm = motmId != null && g.homePlayerId != null && Number(g.homePlayerId) === motmId;
+  const awayIsMotm = motmId != null && g.awayPlayerId != null && Number(g.awayPlayerId) === motmId;
 
   const rows = [
     { label: "Possession", home: g.homePossession, away: g.awayPossession, pct: true },
@@ -137,14 +142,21 @@ function PlayerGameDetail({ g }: { g: Record<string, any> }) {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2 text-[11px] font-bold text-zinc-300">
-        <span className="min-w-0 flex-1 truncate">{g.homePlayerName || "Home"}</span>
+        <span className="flex min-w-0 flex-1 items-center gap-1 truncate">{homeIsMotm && <Star className="h-3 w-3 shrink-0 fill-[#FFB800] text-[#FFB800]" />}<span className="truncate">{g.homePlayerName || "Home"}</span></span>
         <span className="shrink-0 font-black text-sm tabular-nums">
           {g.homeScore != null ? (g.homeScore ?? 0) : "–"}
           <span className="text-zinc-500 font-bold"> - </span>
           {(g.awayScore ?? 0)}
         </span>
-        <span className="min-w-0 flex-1 truncate text-right">{g.awayPlayerName || "Away"}</span>
+        <span className="flex min-w-0 flex-1 items-center justify-end gap-1 truncate"><span className="truncate">{g.awayPlayerName || "Away"}</span>{awayIsMotm && <Star className="h-3 w-3 shrink-0 fill-[#FFB800] text-[#FFB800]" />}</span>
       </div>
+
+      {(homeIsMotm || awayIsMotm) && (
+        <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-[#FFB800]">
+          <Star className="h-3.5 w-3.5 fill-[#FFB800] text-[#FFB800]" />
+          Man of the Match: {motmName || (homeIsMotm ? g.homePlayerName : g.awayPlayerName)}
+        </div>
+      )}
 
       {hasStats ? (
         <div className="rounded-lg border border-[#29406e]/40 bg-[#0b1424]/40 px-3 py-2">
@@ -232,6 +244,8 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
   const p2wins = done && m.winnerId === m.participant2Id;
   const logo1 = m.participant1Id ? logoMap.get(m.participant1Id) ?? null : null;
   const logo2 = m.participant2Id ? logoMap.get(m.participant2Id) ?? null : null;
+  const motmId = m.manOfTheMatchId ?? null;
+  const motmName = m.manOfTheMatchName ?? null;
 
   async function toggleGames() {
     if (gamesOpen) { setGamesOpen(false); return; }
@@ -355,7 +369,7 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
                     </button>
                     {open && (
                       <div className="border-t border-[#29406e]/40 px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                        <PlayerGameDetail g={g} />
+                        <PlayerGameDetail g={g} motmId={motmId} motmName={motmName} />
                       </div>
                     )}
                   </div>
