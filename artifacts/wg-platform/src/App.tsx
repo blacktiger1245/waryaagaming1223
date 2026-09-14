@@ -38,6 +38,7 @@ import RegisterTeamPage from "@/pages/register-team";
 import ComparePage from "@/pages/compare";
 import DashboardPage from "@/pages/dashboard";
 import FixturesPage from "@/pages/fixtures";
+import FixturesDashboardPage from "@/pages/fixtures-dashboard";
 import HallOfFamePage from "@/pages/hall-of-fame";
 import CommunityPage from "@/pages/community";
 import SupportPage from "@/pages/support";
@@ -200,6 +201,8 @@ function Router() {
       <Route path="/shop/*" component={ShopRouter} />
       <Route path="/referee" component={RefereeHome} />
       <Route path="/referee/matches" component={RefereeMatchesPage} />
+      {/* Standalone modular tournament & fixtures dashboard (design preview). */}
+      <Route path="/fixtures/dashboard" component={FixturesDashboardPage} />
       <Route>
         <SiteRouter />
       </Route>
