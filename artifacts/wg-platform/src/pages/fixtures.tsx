@@ -111,9 +111,9 @@ function stageLabel(m: { roundName?: string | null; tournamentName?: string }): 
 function Av({ name, size = "md", url }: { name: string; size?: "sm" | "md" | "lg"; url?: string | null }) {
   const sz = size === "sm" ? "w-9 h-9 text-sm" : size === "lg" ? "w-14 h-14 text-xl" : "w-11 h-11 text-base";
   return url
-    ? <img src={url} alt={name} className={`${sz} rounded-full object-cover border border-[#243050] flex-shrink-0`} />
+    ? <img src={url} alt={name} className={`${sz} rounded-full object-cover border border-[#29406e] flex-shrink-0`} />
     : (
-      <div className={`${sz} rounded-full bg-gradient-to-br from-zinc-700 to-zinc-800 border border-[#2e3d60] flex items-center justify-center font-black text-zinc-300 flex-shrink-0`}>
+      <div className={`${sz} rounded-full bg-gradient-to-br from-zinc-700 to-zinc-800 border border-[#2c477a] flex items-center justify-center font-black text-zinc-300 flex-shrink-0`}>
         {name.charAt(0).toUpperCase()}
       </div>
     );
@@ -164,7 +164,7 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
   return (
     <>
       {/* ── Mobile layout ────────────────────────────────────────────────── */}
-      <div className={`lg:hidden px-4 py-4 border-b border-[#1e2a45]/60 last:border-0 transition-colors ${live ? "bg-red-950/10" : "hover:bg-[#162038]/20"}`}>
+      <div className={`lg:hidden px-4 py-4 border-b border-[#1d2c4e]/60 last:border-0 transition-colors ${live ? "bg-red-950/10" : "hover:bg-[#13223f]/20"}`}>
         {/* Main row: name · avatar · score · avatar · name */}
         <div className="flex items-center gap-2">
 
@@ -221,7 +221,7 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
               </span>
             )}
             {done && (
-              <span className="text-[10px] font-bold bg-[#162038] text-zinc-400 border border-[#243050] px-2 py-0.5 rounded-full">
+              <span className="text-[10px] font-bold bg-[#13223f] text-zinc-400 border border-[#29406e] px-2 py-0.5 rounded-full">
                 FT
               </span>
             )}
@@ -230,7 +230,7 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
       </div>
 
       {/* ── Desktop layout ─────────────────────────────────────────────────── */}
-      <div className={`hidden lg:flex items-center gap-2 px-5 py-3.5 border-b border-[#1e2a45]/60 last:border-0 transition-colors ${live ? "bg-[#1a1020] wg-live-row" : "hover:bg-[#162038]/20"}`}>
+      <div className={`hidden lg:flex items-center gap-2 px-5 py-3.5 border-b border-[#1d2c4e]/60 last:border-0 transition-colors ${live ? "bg-[#1a1020] wg-live-row" : "hover:bg-[#13223f]/20"}`}>
         {/* Time */}
         <div className="w-14 shrink-0">
           {time ? (
@@ -255,13 +255,13 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
         {/* Score */}
         <div className="w-[96px] shrink-0 flex flex-col items-center gap-1">
           {hasScore ? (
-            <span className={`font-mono font-black text-lg text-white tabular-nums leading-none px-3 py-1 rounded-lg ${live ? "bg-sky-500/15 border border-sky-400/30" : ""}`}>
+            <span className={`font-mono font-black text-lg text-white tabular-nums leading-none px-3 py-1 rounded-lg ${live ? "bg-[#00F0FF]/15 border border-[#00F0FF]/30" : ""}`}>
               {m.participant1Score} <span className="text-zinc-500 font-normal text-base">·</span> {m.participant2Score}
             </span>
           ) : (
             <span className="font-black text-sm text-zinc-400">VS</span>
           )}
-          <span className="text-[9px] font-bold text-sky-300/70 truncate max-w-[110px] text-center uppercase tracking-wide">
+          <span className="text-[9px] font-bold text-[#00E0FF]/70 truncate max-w-[110px] text-center uppercase tracking-wide">
             {stageLabel(m)}
           </span>
         </div>
@@ -283,17 +283,17 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
             </span>
           )}
           {!live && !done && (
-            <span className="text-[10px] font-bold bg-sky-500/10 text-sky-300 border border-sky-400/20 px-2 py-0.5 rounded-full">
+            <span className="text-[10px] font-bold bg-[#00c8ff]/10 text-[#00E0FF] border border-[#00F0FF]/25 px-2 py-0.5 rounded-full">
               UPCOMING
             </span>
           )}
           {done && (
-            <span className="text-[10px] font-bold bg-[#162038] text-zinc-400 border border-[#243050] px-2 py-0.5 rounded-full">
+            <span className="text-[10px] font-bold bg-[#13223f] text-zinc-400 border border-[#29406e] px-2 py-0.5 rounded-full">
               FT
             </span>
           )}
           <Link href={`/tournaments`}>
-            <span className="text-[10px] font-bold text-zinc-600 hover:text-sky-300 transition-colors cursor-pointer whitespace-nowrap">
+            <span className="text-[10px] font-bold text-zinc-600 hover:text-[#00E0FF] transition-colors cursor-pointer whitespace-nowrap">
               View Details →
             </span>
           </Link>
@@ -309,8 +309,8 @@ function LiveSpotlight({ m, logoMap, broadcast }: { m: FlatMatch; logoMap: Map<n
   const logo1 = m.participant1Id ? logoMap.get(m.participant1Id) ?? null : null;
   const logo2 = m.participant2Id ? logoMap.get(m.participant2Id) ?? null : null;
   return (
-    <div className="rounded-2xl overflow-hidden border border-[#1e2a45] bg-[#0f1628]">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#1e2a45]">
+    <div className="rounded-2xl overflow-hidden border border-[#1d2c4e] bg-[#101c33]">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[#1d2c4e]">
         <div className="flex items-center gap-2">
           <Circle className="w-2.5 h-2.5 fill-red-500 text-red-500 animate-pulse" />
           <span className="text-[11px] font-black uppercase tracking-widest text-zinc-300">Live Match</span>
@@ -328,10 +328,10 @@ function LiveSpotlight({ m, logoMap, broadcast }: { m: FlatMatch; logoMap: Map<n
           <div className="flex flex-col items-center gap-1 shrink-0">
             <div className="font-black text-3xl text-white tabular-nums leading-none">
               {m.participant1Score ?? 0}
-              <span className="text-blue-400 mx-1.5 font-bold text-2xl">-</span>
+              <span className="text-[#00E0FF] mx-1.5 font-bold text-2xl">-</span>
               {m.participant2Score ?? 0}
             </div>
-            <span className="text-[10px] text-blue-400 font-bold mt-1 text-center max-w-[90px] truncate">{m.tournamentName}</span>
+            <span className="text-[10px] text-[#00E0FF] font-bold mt-1 text-center max-w-[90px] truncate">{m.tournamentName}</span>
           </div>
           <div className="flex flex-col items-center gap-2 flex-1 min-w-0">
             <Av name={m.participant2Name ?? "?"} size="lg" url={logo2} />
@@ -342,7 +342,7 @@ function LiveSpotlight({ m, logoMap, broadcast }: { m: FlatMatch; logoMap: Map<n
         </div>
         <Link
           href={broadcast ? `/live/${broadcast.id}` : "/live"}
-          className="mt-5 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-blue-500 hover:from-sky-400 hover:to-blue-400 shadow-[0_6px_20px_-6px_rgba(56,189,248,0.7)] transition-all text-sm font-black text-white"
+          className="mt-5 w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-[#00c8ff] to-[#0468d8] hover:from-[#00e0ff] hover:to-[#0a78e0] shadow-[0_6px_20px_-6px_rgba(0,240,255,0.7)] transition-all text-sm font-black text-white"
         >
           <Radio className="w-4 h-4" /> Watch Live Now
         </Link>
@@ -356,16 +356,16 @@ function MiniStandings({ matches, name }: { matches: FlatMatch[]; name: string }
   const rows = buildStandings(matches).slice(0, 6);
   if (!rows.length) return null;
   return (
-    <div className="rounded-2xl bg-[#0f1628] border border-[#1e2a45] overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#1e2a45]">
+    <div className="rounded-2xl bg-[#101c33] border border-[#1d2c4e] overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[#1d2c4e]">
         <span className="text-[11px] font-black uppercase tracking-widest text-zinc-300 truncate flex-1 mr-2">{name}</span>
         <Link href="/tournaments">
-          <span className="text-[10px] font-bold text-blue-400 hover:underline cursor-pointer whitespace-nowrap">View All</span>
+          <span className="text-[10px] font-bold text-[#00E0FF] hover:underline cursor-pointer whitespace-nowrap">View All</span>
         </Link>
       </div>
       <table className="w-full text-xs">
         <thead>
-          <tr className="border-b border-[#1e2a45]">
+          <tr className="border-b border-[#1d2c4e]">
             {["POS", "TEAM", "P", "W", "D", "L", "GD", "PTS"].map(h => (
               <th key={h} className={`py-2 text-[9px] font-bold text-zinc-600 uppercase ${h === "TEAM" ? "text-left px-2" : "text-center px-1"} ${h === "POS" ? "pl-3" : ""} ${h === "PTS" ? "pr-3" : ""}`}>
                 {h}
@@ -375,7 +375,7 @@ function MiniStandings({ matches, name }: { matches: FlatMatch[]; name: string }
         </thead>
         <tbody>
           {rows.map((s, i) => (
-            <tr key={s.id} className="border-b border-[#1e2a45]/40 last:border-0 hover:bg-[#162038]/30 transition-colors">
+            <tr key={s.id} className="border-b border-[#1d2c4e]/40 last:border-0 hover:bg-[#13223f]/30 transition-colors">
               <td className="pl-3 pr-1 py-2.5 text-center text-zinc-500 font-mono">{i + 1}</td>
               <td className="px-2 py-2.5 font-bold text-zinc-200 truncate max-w-[90px]">{s.name}</td>
               <td className="px-1 py-2.5 text-center text-zinc-400 tabular-nums">{s.mp}</td>
@@ -396,16 +396,16 @@ function MiniStandings({ matches, name }: { matches: FlatMatch[]; name: string }
 function TopPlayers({ players, teamLogoMap }: { players: any[]; teamLogoMap: Map<string, string | null> }) {
   if (!players.length) return null;
   return (
-    <div className="rounded-2xl bg-[#0f1628] border border-[#1e2a45] overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#1e2a45]">
+    <div className="rounded-2xl bg-[#101c33] border border-[#1d2c4e] overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[#1d2c4e]">
         <span className="text-[11px] font-black uppercase tracking-widest text-zinc-300">Top Score Players</span>
         <Link href="/rankings">
-          <span className="text-[10px] font-bold text-blue-400 hover:underline cursor-pointer">View All</span>
+          <span className="text-[10px] font-bold text-[#00E0FF] hover:underline cursor-pointer">View All</span>
         </Link>
       </div>
       <table className="w-full text-xs">
         <thead>
-          <tr className="border-b border-[#1e2a45]">
+          <tr className="border-b border-[#1d2c4e]">
             <th className="pl-3 pr-1 py-2 text-[9px] font-bold text-zinc-600 uppercase text-center w-6">#</th>
             <th className="px-2 py-2 text-[9px] font-bold text-zinc-600 uppercase text-left">Player</th>
             <th className="px-2 py-2 text-[9px] font-bold text-zinc-600 uppercase text-left">Team</th>
@@ -416,13 +416,13 @@ function TopPlayers({ players, teamLogoMap }: { players: any[]; teamLogoMap: Map
           {players.slice(0, 10).map((p, i) => {
             const teamLogo = p.teamName ? teamLogoMap.get(p.teamName) ?? null : null;
             return (
-              <tr key={p.playerId} className="border-b border-[#1e2a45]/40 last:border-0 hover:bg-[#162038]/30 transition-colors">
+              <tr key={p.playerId} className="border-b border-[#1d2c4e]/40 last:border-0 hover:bg-[#13223f]/30 transition-colors">
                 <td className="pl-3 pr-1 py-2.5 text-center text-zinc-500 font-mono">{i + 1}</td>
                 <td className="px-2 py-2.5">
                   <div className="flex items-center gap-2">
                     {p.avatarUrl
-                      ? <img src={p.avatarUrl} alt="" className="w-6 h-6 rounded-full object-cover border border-[#243050]" />
-                      : <div className="w-6 h-6 rounded-full bg-[#162038] border border-[#243050] flex items-center justify-center text-[9px] font-black text-zinc-500">{(p.displayName ?? p.username ?? "?").charAt(0).toUpperCase()}</div>
+                      ? <img src={p.avatarUrl} alt="" className="w-6 h-6 rounded-full object-cover border border-[#29406e]" />
+                      : <div className="w-6 h-6 rounded-full bg-[#13223f] border border-[#29406e] flex items-center justify-center text-[9px] font-black text-zinc-500">{(p.displayName ?? p.username ?? "?").charAt(0).toUpperCase()}</div>
                     }
                     <span className="font-bold text-zinc-200 truncate max-w-[65px]">{p.displayName ?? p.username}</span>
                   </div>
@@ -430,15 +430,15 @@ function TopPlayers({ players, teamLogoMap }: { players: any[]; teamLogoMap: Map
                 <td className="px-2 py-2.5">
                   <div className="flex items-center gap-1.5">
                     {teamLogo
-                      ? <img src={teamLogo} alt="" className="w-5 h-5 rounded-full object-cover border border-[#243050] shrink-0" />
+                      ? <img src={teamLogo} alt="" className="w-5 h-5 rounded-full object-cover border border-[#29406e] shrink-0" />
                       : p.teamName
-                        ? <div className="w-5 h-5 rounded-full bg-[#162038] border border-[#243050] flex items-center justify-center text-[8px] font-black text-zinc-500 shrink-0">{p.teamName.charAt(0).toUpperCase()}</div>
+                        ? <div className="w-5 h-5 rounded-full bg-[#13223f] border border-[#29406e] flex items-center justify-center text-[8px] font-black text-zinc-500 shrink-0">{p.teamName.charAt(0).toUpperCase()}</div>
                         : null
                     }
                     <span className="text-zinc-500 truncate max-w-[55px]">{p.teamName ?? "—"}</span>
                   </div>
                 </td>
-                <td className="pl-1 pr-3 py-2.5 text-center font-black text-blue-400 tabular-nums">{p.points}</td>
+                <td className="pl-1 pr-3 py-2.5 text-center font-black text-[#00E0FF] tabular-nums">{p.points}</td>
               </tr>
             );
           })}
@@ -452,16 +452,16 @@ function TopPlayers({ players, teamLogoMap }: { players: any[]; teamLogoMap: Map
 function TopTeams({ teams }: { teams: any[] }) {
   if (!teams.length) return null;
   return (
-    <div className="rounded-2xl bg-[#0f1628] border border-[#1e2a45] overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#1e2a45]">
+    <div className="rounded-2xl bg-[#101c33] border border-[#1d2c4e] overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[#1d2c4e]">
         <span className="text-[11px] font-black uppercase tracking-widest text-zinc-300">Top Team Winners</span>
         <Link href="/rankings">
-          <span className="text-[10px] font-bold text-blue-400 hover:underline cursor-pointer">View All</span>
+          <span className="text-[10px] font-bold text-[#00E0FF] hover:underline cursor-pointer">View All</span>
         </Link>
       </div>
       <table className="w-full text-xs">
         <thead>
-          <tr className="border-b border-[#1e2a45]">
+          <tr className="border-b border-[#1d2c4e]">
             <th className="pl-3 pr-1 py-2 text-[9px] font-bold text-zinc-600 uppercase text-center w-6">#</th>
             <th className="px-2 py-2 text-[9px] font-bold text-zinc-600 uppercase text-left">Team</th>
             <th className="px-1 py-2 text-[9px] font-bold text-zinc-600 uppercase text-center">Trophies</th>
@@ -473,13 +473,13 @@ function TopTeams({ teams }: { teams: any[] }) {
           {teams.slice(0, 10).map((t, i) => {
             const winPct = t.matchesPlayed > 0 ? Math.round((t.wins / t.matchesPlayed) * 100) : 0;
             return (
-              <tr key={t.teamId} className="border-b border-[#1e2a45]/40 last:border-0 hover:bg-[#162038]/30 transition-colors">
+              <tr key={t.teamId} className="border-b border-[#1d2c4e]/40 last:border-0 hover:bg-[#13223f]/30 transition-colors">
                 <td className="pl-3 pr-1 py-2.5 text-center text-zinc-500 font-mono">{i + 1}</td>
                 <td className="px-2 py-2.5">
                   <div className="flex items-center gap-2">
                     {storageUrl(t.logoUrl)
-                      ? <img src={storageUrl(t.logoUrl)} alt="" className="w-6 h-6 rounded-full object-cover border border-[#243050]" />
-                      : <div className="w-6 h-6 rounded-full bg-[#162038] border border-[#243050] flex items-center justify-center text-[9px] font-black text-zinc-500">{(t.name ?? "?").charAt(0).toUpperCase()}</div>
+                      ? <img src={storageUrl(t.logoUrl)} alt="" className="w-6 h-6 rounded-full object-cover border border-[#29406e]" />
+                      : <div className="w-6 h-6 rounded-full bg-[#13223f] border border-[#29406e] flex items-center justify-center text-[9px] font-black text-zinc-500">{(t.name ?? "?").charAt(0).toUpperCase()}</div>
                     }
                     <span className="font-bold text-zinc-200 truncate max-w-[65px]">{t.name}</span>
                   </div>
@@ -511,7 +511,7 @@ function NavItem({
     <button
       onClick={onClick}
       className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all text-left
-        ${active ? "bg-sky-500 text-white shadow-[0_4px_16px_-6px_rgba(56,189,248,0.7)]" : "text-zinc-400 hover:text-zinc-200 hover:bg-[#162038]/50"}`}
+        ${active ? "bg-[#00c8ff] text-white shadow-[0_4px_16px_-6px_rgba(0,240,255,0.7)]" : "text-zinc-400 hover:text-zinc-200 hover:bg-[#13223f]/50"}`}
     >
       <Icon className={`w-4 h-4 shrink-0 ${active ? "text-white" : "text-zinc-500"}`} />
       <span className="flex-1 truncate">{label}</span>
@@ -821,17 +821,17 @@ export default function FixturesPage() {
   const visibleGroups = grouped.slice(0, visibleDates);
 
   return (
-    <div className="min-h-screen bg-[#080c18] pb-20 lg:pb-6 wg-fixtures">
+    <div className="min-h-screen bg-[#060b18] pb-20 lg:pb-6 wg-fixtures">
 
       {/* ── Live broadcast control bar ─────────────────────────────────────── */}
       {liveStatus === "starting" && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-[#0f1628]/95 backdrop-blur border border-amber-500/40 rounded-full px-5 py-2.5 shadow-[0_0_24px_rgba(245,158,11,0.25)]">
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-[#101c33]/95 backdrop-blur border border-amber-500/40 rounded-full px-5 py-2.5 shadow-[0_0_24px_rgba(245,158,11,0.25)]">
           <Loader2 className="w-4 h-4 text-amber-400 animate-spin" />
           <span className="text-xs font-bold text-amber-300">Allow screen sharing in your browser to go live…</span>
         </div>
       )}
       {liveStatus === "live" && liveHandle && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-[#0f1628]/95 backdrop-blur border border-red-500/50 rounded-full pl-4 pr-1.5 py-1.5 shadow-[0_0_24px_rgba(239,68,68,0.35)]">
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-[#101c33]/95 backdrop-blur border border-red-500/50 rounded-full pl-4 pr-1.5 py-1.5 shadow-[0_0_24px_rgba(239,68,68,0.35)]">
           <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
           <span className="text-xs font-black tracking-widest text-red-400">LIVE</span>
           <span className="text-xs text-zinc-400 flex items-center gap-1">
@@ -847,7 +847,7 @@ export default function FixturesPage() {
         </div>
       )}
       {liveStatus === "error" && liveError && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-[#0f1628]/95 backdrop-blur border border-red-500/40 rounded-full pl-5 pr-2 py-2 shadow-lg max-w-[90vw]">
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-[#101c33]/95 backdrop-blur border border-red-500/40 rounded-full pl-5 pr-2 py-2 shadow-lg max-w-[90vw]">
           <span className="text-xs text-red-300">{liveError}</span>
           <button
             onClick={() => setLiveStatus("idle")}
@@ -893,7 +893,7 @@ export default function FixturesPage() {
         <aside className="hidden lg:block w-52 shrink-0 mr-4 space-y-5">
           {/* Header */}
           <div className="flex items-center gap-2 px-1">
-            <CalendarDays className="w-4 h-4 text-blue-400" />
+            <CalendarDays className="w-4 h-4 text-[#00E0FF]" />
             <span className="text-xs font-black uppercase tracking-widest text-zinc-300">Fixtures</span>
           </div>
 
@@ -939,7 +939,7 @@ export default function FixturesPage() {
             <div className="space-y-0.5">
               {tournamentsLoading ? (
                 Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="h-9 bg-[#0f1628] rounded-xl animate-pulse" />
+                  <div key={i} className="h-9 bg-[#101c33] rounded-xl animate-pulse" />
                 ))
               ) : (
                 <>
@@ -967,7 +967,7 @@ export default function FixturesPage() {
           {(statusFilter !== "all" || tournamentFilter !== "all") && (
             <button
               onClick={() => { setStatusFilter("all"); setTournamentFilter("all"); }}
-              className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-[#1e2a45] text-xs font-bold text-zinc-500 hover:text-zinc-300 hover:border-[#2e3d60] transition-colors"
+              className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-[#1d2c4e] text-xs font-bold text-zinc-500 hover:text-zinc-300 hover:border-[#2c477a] transition-colors"
             >
               <RefreshCw className="w-3 h-3" /> Reset Filters
             </button>
@@ -978,13 +978,13 @@ export default function FixturesPage() {
         {/* ── Mobile filter bar — shown only on small screens ──────────────── */}
         <div className="lg:hidden mb-4 space-y-3">
           {/* View toggle */}
-          <div className="flex items-center gap-1 bg-[#0f1628] border border-[#1e2a45] rounded-xl p-1">
+          <div className="flex items-center gap-1 bg-[#101c33] border border-[#1d2c4e] rounded-xl p-1">
             {(["matches", "table", "groups"] as const).map(view => (
               <button
                 key={view}
                 onClick={() => setMainView(view as any)}
                 className={`flex-1 py-2 rounded-lg text-xs font-bold transition-colors capitalize
-                  ${mainView === view ? "bg-blue-600 text-white" : "text-zinc-400"}`}
+                  ${mainView === view ? "bg-[#0488d0] text-white" : "text-zinc-400"}`}
               >
                 {view === "matches" ? "Fixtures" : view === "table" ? "Table" : "Groups"}
               </button>
@@ -1008,8 +1008,8 @@ export default function FixturesPage() {
                       ? v === "live"      ? "bg-red-500 text-white border-red-500"
                       : v === "upcoming"  ? "bg-orange-500 text-white border-orange-500"
                       : v === "completed" ? "bg-emerald-600 text-white border-emerald-600"
-                      :                    "bg-blue-600 text-white border-blue-600"
-                      : "text-zinc-400 border-[#1e2a45] bg-[#0f1628]"}`}
+                      :                    "bg-[#0488d0] text-white border-[#0488d0]"
+                      : "text-zinc-400 border-[#1d2c4e] bg-[#101c33]"}`}
                 >
                   {v === "live" && liveCount > 0 ? `🔴 ${label} ${liveCount}` : label}
                 </button>
@@ -1022,7 +1022,7 @@ export default function FixturesPage() {
             <button
               onClick={() => setTournamentFilter("all")}
               className={`shrink-0 px-4 py-1.5 rounded-full text-xs font-bold border transition-colors whitespace-nowrap
-                ${tournamentFilter === "all" ? "bg-blue-600 text-white border-blue-600" : "text-zinc-400 border-[#1e2a45] bg-[#0f1628]"}`}
+                ${tournamentFilter === "all" ? "bg-[#0488d0] text-white border-[#0488d0]" : "text-zinc-400 border-[#1d2c4e] bg-[#101c33]"}`}
             >
               All Tournaments
             </button>
@@ -1031,7 +1031,7 @@ export default function FixturesPage() {
                 key={t.id}
                 onClick={() => setTournamentFilter(t.id)}
                 className={`shrink-0 px-4 py-1.5 rounded-full text-xs font-bold border transition-colors whitespace-nowrap
-                  ${tournamentFilter === t.id ? "bg-blue-600 text-white border-blue-600" : "text-zinc-400 border-[#1e2a45] bg-[#0f1628]"}`}
+                  ${tournamentFilter === t.id ? "bg-[#0488d0] text-white border-[#0488d0]" : "text-zinc-400 border-[#1d2c4e] bg-[#101c33]"}`}
               >
                 {t.name}
               </button>
@@ -1044,25 +1044,25 @@ export default function FixturesPage() {
           {/* Panel header — desktop only (mobile uses the filter bar above) */}
           <div className="hidden lg:flex items-center justify-between mb-4 gap-3">
             {/* Matches / Table toggle */}
-            <div className="flex items-center gap-1 p-1 rounded-xl bg-[#0f1628] border border-sky-400/20 shadow-[0_6px_20px_-12px_rgba(56,189,248,0.4)] shrink-0">
+            <div className="flex items-center gap-1 p-1 rounded-xl bg-[#101c33] border border-[#00F0FF]/25 shadow-[0_6px_20px_-12px_rgba(0,240,255,0.4)] shrink-0">
               <button
                 onClick={() => setMainView("matches")}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all
-                  ${mainView === "matches" ? "bg-sky-500 text-white shadow-[0_4px_14px_-4px_rgba(56,189,248,0.7)]" : "text-zinc-400 hover:text-zinc-200 hover:bg-[#162038]/60"}`}
+                  ${mainView === "matches" ? "bg-[#00c8ff] text-white shadow-[0_4px_14px_-4px_rgba(0,240,255,0.7)]" : "text-zinc-400 hover:text-zinc-200 hover:bg-[#13223f]/60"}`}
               >
                 <LayoutList className="w-3.5 h-3.5" /> Fixtures
               </button>
               <button
                 onClick={() => setMainView("table")}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all
-                  ${mainView === "table" ? "bg-sky-500 text-white shadow-[0_4px_14px_-4px_rgba(56,189,248,0.7)]" : "text-zinc-400 hover:text-zinc-200 hover:bg-[#162038]/60"}`}
+                  ${mainView === "table" ? "bg-[#00c8ff] text-white shadow-[0_4px_14px_-4px_rgba(0,240,255,0.7)]" : "text-zinc-400 hover:text-zinc-200 hover:bg-[#13223f]/60"}`}
               >
                 <BarChart2 className="w-3.5 h-3.5" /> Table
               </button>
               <button
                 onClick={() => setMainView("groups" as any)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all
-                  ${mainView === ("groups" as any) ? "bg-sky-500 text-white shadow-[0_4px_14px_-4px_rgba(56,189,248,0.7)]" : "text-zinc-400 hover:text-zinc-200 hover:bg-[#162038]/60"}`}
+                  ${mainView === ("groups" as any) ? "bg-[#00c8ff] text-white shadow-[0_4px_14px_-4px_rgba(0,240,255,0.7)]" : "text-zinc-400 hover:text-zinc-200 hover:bg-[#13223f]/60"}`}
               >
                 <Layers className="w-3.5 h-3.5" /> Groups
               </button>
@@ -1070,7 +1070,7 @@ export default function FixturesPage() {
 
             {/* Status pills — only shown in Fixtures view */}
             {mainView === "matches" && (
-              <div className="flex items-center gap-1 bg-[#0f1628] border border-[#1e2a45] rounded-xl p-1 flex-wrap">
+              <div className="flex items-center gap-1 bg-[#101c33] border border-[#1d2c4e] rounded-xl p-1 flex-wrap">
                 {([
                   ["all", "All"],
                   ["live", "Live"],
@@ -1085,7 +1085,7 @@ export default function FixturesPage() {
                         ? v === "live"      ? "bg-red-500 text-white"
                         : v === "upcoming"  ? "bg-orange-500 text-white"
                         : v === "completed" ? "bg-emerald-600 text-white"
-                        :                    "bg-blue-600 text-white"
+                        :                    "bg-[#0488d0] text-white"
                         : "text-zinc-400 hover:text-zinc-200"}`}
                   >
                     {v === "live" && liveCount > 0
@@ -1116,17 +1116,17 @@ export default function FixturesPage() {
                 <div className="space-y-3">
                   <div className="flex gap-2">
                     {Array.from({ length: 3 }).map((_, i) => (
-                      <div key={i} className="h-10 w-28 bg-[#0f1628] border border-[#1e2a45] rounded-xl animate-pulse" />
+                      <div key={i} className="h-10 w-28 bg-[#101c33] border border-[#1d2c4e] rounded-xl animate-pulse" />
                     ))}
                   </div>
-                  <div className="bg-[#0f1628] border border-[#1e2a45] rounded-2xl h-72 animate-pulse" />
+                  <div className="bg-[#101c33] border border-[#1d2c4e] rounded-2xl h-72 animate-pulse" />
                 </div>
               );
             }
 
             if (teamTournaments.length === 0) {
               return (
-                <div className="rounded-2xl border border-[#1e2a45] bg-[#0f1628] py-20 text-center">
+                <div className="rounded-2xl border border-[#1d2c4e] bg-[#101c33] py-20 text-center">
                   <BarChart2 className="w-12 h-12 mx-auto text-[#2e3d60] mb-3" />
                   <p className="font-bold text-zinc-400">No team tournaments found</p>
                 </div>
@@ -1139,7 +1139,7 @@ export default function FixturesPage() {
                 <div className="relative w-64">
                   <button
                     onClick={() => setTableDropdownOpen(o => !o)}
-                    className="w-full flex items-center justify-between gap-3 px-4 py-2.5 bg-[#0f1628] border border-[#243050] rounded-xl text-sm font-bold text-zinc-200 hover:border-zinc-500 transition-colors"
+                    className="w-full flex items-center justify-between gap-3 px-4 py-2.5 bg-[#101c33] border border-[#29406e] rounded-xl text-sm font-bold text-zinc-200 hover:border-zinc-500 transition-colors"
                   >
                     <span className="truncate">{activeTour?.name ?? "Select tournament"}</span>
                     <ChevronDown className={`w-4 h-4 text-zinc-500 shrink-0 transition-transform ${tableDropdownOpen ? "rotate-180" : ""}`} />
@@ -1150,7 +1150,7 @@ export default function FixturesPage() {
                       {/* backdrop */}
                       <div className="fixed inset-0 z-10" onClick={() => setTableDropdownOpen(false)} />
                       {/* menu */}
-                      <div className="absolute left-0 top-full mt-1 w-full z-20 bg-[#0f1628] border border-[#243050] rounded-xl shadow-2xl overflow-hidden">
+                      <div className="absolute left-0 top-full mt-1 w-full z-20 bg-[#101c33] border border-[#29406e] rounded-xl shadow-2xl overflow-hidden">
                         {teamTournaments.map(t => {
                           const isActive = t.id === activeId;
                           return (
@@ -1158,7 +1158,7 @@ export default function FixturesPage() {
                               key={t.id}
                               onClick={() => { setSelectedTableTournamentId(t.id); setTableDropdownOpen(false); }}
                               className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-bold transition-colors text-left
-                                ${isActive ? "bg-blue-600 text-white" : "text-zinc-300 hover:bg-[#162038]"}`}
+                                ${isActive ? "bg-[#0488d0] text-white" : "text-zinc-300 hover:bg-[#13223f]"}`}
                             >
                               {isActive
                                 ? <Check className="w-4 h-4 shrink-0" />
@@ -1179,11 +1179,11 @@ export default function FixturesPage() {
 
                 {/* Selected tournament table */}
                 {activeTour && (
-                  <div className="bg-[#0f1628] border border-[#1e2a45] rounded-2xl overflow-hidden">
+                  <div className="bg-[#101c33] border border-[#1d2c4e] rounded-2xl overflow-hidden">
                     {/* Header */}
-                    <div className="flex items-center gap-3 px-5 py-4 border-b border-[#1e2a45] bg-[#162038]/40">
-                      <div className="w-9 h-9 rounded-xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center shrink-0">
-                        <Trophy className="w-4.5 h-4.5 text-blue-400" />
+                    <div className="flex items-center gap-3 px-5 py-4 border-b border-[#1d2c4e] bg-[#13223f]/40">
+                      <div className="w-9 h-9 rounded-xl bg-[#00F0FF]/10 border border-[#00F0FF]/25 flex items-center justify-center shrink-0">
+                        <Trophy className="w-4.5 h-4.5 text-[#00E0FF]" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <h2 className="font-black text-white truncate text-base">{activeTour.name}</h2>
@@ -1193,8 +1193,8 @@ export default function FixturesPage() {
                       </div>
                       <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full border
                         ${activeTour.status === "active"   ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                        : activeTour.status === "upcoming" ? "bg-blue-600/10 text-blue-400 border-blue-500/20"
-                        : "bg-[#162038] text-zinc-500 border-[#243050]"}`}>
+                        : activeTour.status === "upcoming" ? "bg-[#00F0FF]/10 text-[#00E0FF] border-[#00F0FF]/25"
+                        : "bg-[#13223f] text-zinc-500 border-[#29406e]"}`}>
                         {activeTour.status}
                       </span>
                     </div>
@@ -1208,7 +1208,7 @@ export default function FixturesPage() {
                         <div className="overflow-x-auto">
                           <table className="w-full text-sm min-w-[560px]">
                             <thead>
-                              <tr className="border-b border-[#1e2a45]">
+                              <tr className="border-b border-[#1d2c4e]">
                                 {["#", "Club", "MP", "W", "D", "L", "GF", "GA", "GD", "Pts"].map(h => (
                                   <th key={h} className={`py-3 text-[10px] font-bold uppercase tracking-widest text-zinc-500
                                     ${h === "Club" ? "text-left px-3" : "text-center px-2"}
@@ -1227,15 +1227,15 @@ export default function FixturesPage() {
                                 else if (pos <= europaEnd)  stripe = "border-l-orange-500";
                                 else if (pos >= relegStart) stripe = "border-l-red-500";
                                 return (
-                                  <tr key={s.id} className={`border-b border-[#1e2a45]/50 last:border-0 border-l-2 ${stripe} hover:bg-[#162038]/30 transition-colors`}>
+                                  <tr key={s.id} className={`border-b border-[#1d2c4e]/50 last:border-0 border-l-2 ${stripe} hover:bg-[#13223f]/30 transition-colors`}>
                                     <td className="pl-5 pr-2 py-3.5 text-center">
                                       <span className="text-xs font-black tabular-nums text-zinc-500">{pos}</span>
                                     </td>
                                     <td className="px-3 py-3.5">
                                       <div className="flex items-center gap-2.5">
                                         {logoMap.get(s.id)
-                                          ? <img src={logoMap.get(s.id)!} alt={s.name} className="w-7 h-7 rounded-full object-cover border border-[#243050] shrink-0" />
-                                          : <div className="w-7 h-7 rounded-full bg-[#162038] border border-[#243050] flex items-center justify-center text-[10px] font-black text-zinc-400 shrink-0">{s.name.charAt(0).toUpperCase()}</div>
+                                          ? <img src={logoMap.get(s.id)!} alt={s.name} className="w-7 h-7 rounded-full object-cover border border-[#29406e] shrink-0" />
+                                          : <div className="w-7 h-7 rounded-full bg-[#13223f] border border-[#29406e] flex items-center justify-center text-[10px] font-black text-zinc-400 shrink-0">{s.name.charAt(0).toUpperCase()}</div>
                                         }
                                         <span className="font-black text-zinc-100 truncate">{s.name}</span>
                                       </div>
@@ -1259,7 +1259,7 @@ export default function FixturesPage() {
                           </table>
                         </div>
                         {/* Legend */}
-                        <div className="flex flex-wrap gap-4 px-5 py-3 border-t border-[#1e2a45] bg-[#080c18]/40 text-[10px] text-zinc-500">
+                        <div className="flex flex-wrap gap-4 px-5 py-3 border-t border-[#1d2c4e] bg-[#060b18]/40 text-[10px] text-zinc-500">
                           <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500" />Promotion</span>
                           <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-orange-500" />Europa</span>
                           <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-500" />Relegation</span>
@@ -1294,7 +1294,7 @@ export default function FixturesPage() {
                 <div className="relative w-64">
                   <button
                     onClick={() => setGroupsDropdownOpen(o => !o)}
-                    className="w-full flex items-center justify-between gap-3 px-4 py-2.5 bg-[#0f1628] border border-[#243050] rounded-xl text-sm font-bold text-zinc-200 hover:border-zinc-500 transition-colors"
+                    className="w-full flex items-center justify-between gap-3 px-4 py-2.5 bg-[#101c33] border border-[#29406e] rounded-xl text-sm font-bold text-zinc-200 hover:border-zinc-500 transition-colors"
                   >
                     <span className="truncate">{activeTour?.name ?? "Select tournament"}</span>
                     <ChevronDown className={`w-4 h-4 text-zinc-500 shrink-0 transition-transform ${groupsDropdownOpen ? "rotate-180" : ""}`} />
@@ -1302,7 +1302,7 @@ export default function FixturesPage() {
                   {groupsDropdownOpen && (
                     <>
                       <div className="fixed inset-0 z-10" onClick={() => setGroupsDropdownOpen(false)} />
-                      <div className="absolute left-0 top-full mt-1 w-full z-20 bg-[#0f1628] border border-[#243050] rounded-xl shadow-2xl overflow-hidden">
+                      <div className="absolute left-0 top-full mt-1 w-full z-20 bg-[#101c33] border border-[#29406e] rounded-xl shadow-2xl overflow-hidden">
                         {teamTournaments.map(t => {
                           const isSel = t.id === activeId;
                           return (
@@ -1310,7 +1310,7 @@ export default function FixturesPage() {
                               key={t.id}
                               onClick={() => { setSelectedGroupsTournamentId(t.id); setGroupsDropdownOpen(false); }}
                               className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-bold transition-colors text-left
-                                ${isSel ? "bg-blue-600 text-white" : "text-zinc-300 hover:bg-[#162038]"}`}
+                                ${isSel ? "bg-[#0488d0] text-white" : "text-zinc-300 hover:bg-[#13223f]"}`}
                             >
                               {isSel ? <Check className="w-4 h-4 shrink-0" /> : <span className="w-4 shrink-0" />}
                               <span className="truncate flex-1">{t.name}</span>
@@ -1330,10 +1330,10 @@ export default function FixturesPage() {
             if (matchesLoading) {
               return (
                 <div className="space-y-3">
-                  <div className="h-11 w-64 bg-[#0f1628] border border-[#1e2a45] rounded-xl animate-pulse" />
+                  <div className="h-11 w-64 bg-[#101c33] border border-[#1d2c4e] rounded-xl animate-pulse" />
                   <div className="grid grid-cols-2 gap-4">
                     {Array.from({ length: 4 }).map((_, i) => (
-                      <div key={i} className="bg-[#0f1628] border border-[#1e2a45] rounded-2xl h-52 animate-pulse" />
+                      <div key={i} className="bg-[#101c33] border border-[#1d2c4e] rounded-2xl h-52 animate-pulse" />
                     ))}
                   </div>
                 </div>
@@ -1342,7 +1342,7 @@ export default function FixturesPage() {
 
             if (teamTournaments.length === 0) {
               return (
-                <div className="rounded-2xl border border-[#1e2a45] bg-[#0f1628] py-20 text-center">
+                <div className="rounded-2xl border border-[#1d2c4e] bg-[#101c33] py-20 text-center">
                   <Layers className="w-12 h-12 mx-auto text-[#2e3d60] mb-3" />
                   <p className="font-bold text-zinc-400">No team tournaments found</p>
                 </div>
@@ -1354,7 +1354,7 @@ export default function FixturesPage() {
                 <GroupsDropdown />
 
                 {groups.length === 0 ? (
-                  <div className="rounded-2xl border border-[#1e2a45] bg-[#0f1628] py-16 text-center">
+                  <div className="rounded-2xl border border-[#1d2c4e] bg-[#101c33] py-16 text-center">
                     <Layers className="w-12 h-12 mx-auto text-[#2e3d60] mb-3" />
                     <p className="font-bold text-zinc-400">No group data yet</p>
                     <p className="text-xs text-zinc-600 mt-1">Groups appear once matches are scheduled with group names</p>
@@ -1364,11 +1364,11 @@ export default function FixturesPage() {
                     {groups.map(([groupName, gMatches]) => {
                       const rows = buildStandings(gMatches);
                       return (
-                        <div key={groupName} className="bg-[#0f1628] border border-[#1e2a45] rounded-2xl overflow-hidden">
+                        <div key={groupName} className="bg-[#101c33] border border-[#1d2c4e] rounded-2xl overflow-hidden">
                           {/* Group header */}
-                          <div className="flex items-center gap-3 px-4 py-3 border-b border-[#1e2a45] bg-[#162038]/50">
-                            <div className="w-7 h-7 rounded-lg bg-blue-600/10 border border-blue-500/20 flex items-center justify-center shrink-0">
-                              <Layers className="w-3.5 h-3.5 text-blue-400" />
+                          <div className="flex items-center gap-3 px-4 py-3 border-b border-[#1d2c4e] bg-[#13223f]/50">
+                            <div className="w-7 h-7 rounded-lg bg-[#00F0FF]/10 border border-[#00F0FF]/25 flex items-center justify-center shrink-0">
+                              <Layers className="w-3.5 h-3.5 text-[#00E0FF]" />
                             </div>
                             <span className="font-black text-white text-sm truncate">{groupName}</span>
                             <span className="ml-auto text-[10px] text-zinc-500 shrink-0">{rows.length} teams</span>
@@ -1379,7 +1379,7 @@ export default function FixturesPage() {
                           ) : (
                             <table className="w-full text-xs">
                               <thead>
-                                <tr className="border-b border-[#1e2a45]">
+                                <tr className="border-b border-[#1d2c4e]">
                                   {["#", "Team", "P", "W", "D", "L", "GD", "Pts"].map(h => (
                                     <th key={h} className={`py-2.5 text-[9px] font-bold uppercase tracking-widest text-zinc-600
                                       ${h === "Team" ? "text-left px-2" : "text-center px-1.5"}
@@ -1400,13 +1400,13 @@ export default function FixturesPage() {
                                   else stripe = "border-l-red-500";
 
                                   return (
-                                    <tr key={s.id} className={`border-b border-[#1e2a45]/40 last:border-0 border-l-2 ${stripe} hover:bg-[#162038]/30 transition-colors`}>
+                                    <tr key={s.id} className={`border-b border-[#1d2c4e]/40 last:border-0 border-l-2 ${stripe} hover:bg-[#13223f]/30 transition-colors`}>
                                       <td className="pl-4 pr-1 py-2.5 text-center text-zinc-500 font-mono">{pos}</td>
                                       <td className="px-2 py-2.5">
                                         <div className="flex items-center gap-1.5">
                                           {logoMap.get(s.id)
-                                            ? <img src={logoMap.get(s.id)!} alt={s.name} className="w-5 h-5 rounded-full object-cover border border-[#243050] shrink-0" />
-                                            : <div className="w-5 h-5 rounded-full bg-[#162038] border border-[#243050] flex items-center justify-center text-[8px] font-black text-zinc-500 shrink-0">{s.name.charAt(0).toUpperCase()}</div>
+                                            ? <img src={logoMap.get(s.id)!} alt={s.name} className="w-5 h-5 rounded-full object-cover border border-[#29406e] shrink-0" />
+                                            : <div className="w-5 h-5 rounded-full bg-[#13223f] border border-[#29406e] flex items-center justify-center text-[8px] font-black text-zinc-500 shrink-0">{s.name.charAt(0).toUpperCase()}</div>
                                           }
                                           <span className="font-bold text-zinc-200 truncate max-w-[80px]">{s.name}</span>
                                         </div>
@@ -1439,20 +1439,20 @@ export default function FixturesPage() {
             <div className="space-y-4">
               {matchesLoading ? (
                 Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="bg-[#0f1628] border border-[#1e2a45] rounded-2xl overflow-hidden">
-                    <div className="px-5 py-2 bg-[#162038]/50 h-8 animate-pulse" />
+                  <div key={i} className="bg-[#101c33] border border-[#1d2c4e] rounded-2xl overflow-hidden">
+                    <div className="px-5 py-2 bg-[#13223f]/50 h-8 animate-pulse" />
                     {Array.from({ length: 2 }).map((__, j) => (
-                      <div key={j} className="h-16 px-5 border-b border-[#1e2a45]/60 flex items-center gap-4">
-                        <div className="w-14 h-4 bg-[#162038] rounded animate-pulse" />
-                        <div className="flex-1 h-4 bg-[#162038] rounded animate-pulse" />
-                        <div className="w-16 h-6 bg-[#162038] rounded animate-pulse" />
-                        <div className="flex-1 h-4 bg-[#162038] rounded animate-pulse" />
+                      <div key={j} className="h-16 px-5 border-b border-[#1d2c4e]/60 flex items-center gap-4">
+                        <div className="w-14 h-4 bg-[#13223f] rounded animate-pulse" />
+                        <div className="flex-1 h-4 bg-[#13223f] rounded animate-pulse" />
+                        <div className="w-16 h-6 bg-[#13223f] rounded animate-pulse" />
+                        <div className="flex-1 h-4 bg-[#13223f] rounded animate-pulse" />
                       </div>
                     ))}
                   </div>
                 ))
               ) : filtered.length === 0 ? (
-                <div className="rounded-2xl border border-[#1e2a45] bg-[#0f1628] py-20 text-center">
+                <div className="rounded-2xl border border-[#1d2c4e] bg-[#101c33] py-20 text-center">
                   <CalendarDays className="w-12 h-12 mx-auto text-[#2e3d60] mb-3" />
                   <p className="font-bold text-zinc-400">No matches found</p>
                   <p className="text-xs text-zinc-600 mt-1">Try adjusting your filters</p>
@@ -1469,9 +1469,10 @@ export default function FixturesPage() {
                     </div>
                   )}
                   {visibleGroups.map(([key, matches]) => (
-                    <div key={key} className="bg-[#0f1628] border border-[#1e2a45] rounded-2xl overflow-hidden">
-                      <div className="px-5 py-2.5 bg-[#162038]/60 border-b border-[#1e2a45]">
-                        <span className="text-[11px] font-black uppercase tracking-widest text-zinc-400">
+                    <div key={key} className="bg-[#101c33] border border-[#1d2c4e] rounded-2xl overflow-hidden">
+                      <div className="px-5 py-2.5 bg-[#13223f]/70 border-b border-[#1d2c4e] flex items-center gap-2.5 relative overflow-hidden">
+                        <span className="absolute left-0 top-0 bottom-0 w-[3px] bg-gradient-to-b from-[#00F0FF] to-transparent" />
+                        <span className="text-[11px] font-black uppercase tracking-widest text-[#00E0FF]">
                           {groupLabel(key)}
                         </span>
                       </div>
@@ -1491,7 +1492,7 @@ export default function FixturesPage() {
                   {grouped.length > visibleDates && (
                     <button
                       onClick={() => setVisibleDates(d => d + 5)}
-                      className="w-full py-3.5 rounded-2xl border border-[#1e2a45] bg-[#0f1628] hover:bg-[#162038] transition-colors text-sm font-bold text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-2"
+                      className="w-full py-3.5 rounded-2xl border border-[#1d2c4e] bg-[#101c33] hover:bg-[#13223f] transition-colors text-sm font-bold text-zinc-400 hover:text-zinc-200 flex items-center justify-center gap-2"
                     >
                       Load More Matches <ChevronRight className="w-4 h-4 rotate-90" />
                     </button>
@@ -1521,7 +1522,7 @@ export default function FixturesPage() {
 
           {/* Fallback when right sidebar is empty */}
           {!firstLive && standingsMatches.length === 0 && soloGroupMap.size === 0 && topPlayers.length === 0 && topTeams.length === 0 && !matchesLoading && (
-            <div className="rounded-2xl border border-[#1e2a45] bg-[#0f1628] p-6 text-center">
+            <div className="rounded-2xl border border-[#1d2c4e] bg-[#101c33] p-6 text-center">
               <Trophy className="w-10 h-10 mx-auto text-[#2e3d60] mb-3" />
               <p className="text-xs font-bold text-zinc-500">Stats will appear once matches are played</p>
             </div>

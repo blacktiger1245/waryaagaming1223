@@ -1019,3 +1019,53 @@ html { scroll-behavior: smooth; }
   --btn-a: #f472b6; --btn-b: #d946ef; --btn-glow: rgba(236, 72, 153, .55);
   --card-border: rgba(244, 114, 182, .45); --card-glow: rgba(236, 72, 153, .5); --acc: #f472b6;
 }
+/* ---- Fixtures page: cinematic esports shell (scoped, does not affect other pages) ---- */
+.wg-fixtures { position: relative; }
+.wg-fixtures::before {
+  content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(900px 460px at 6% -6%, rgba(0,240,255,0.10), transparent 60%),
+    radial-gradient(760px 380px at 94% 4%, rgba(0,240,255,0.07), transparent 60%),
+    radial-gradient(640px 460px at 50% 110%, rgba(0,240,255,0.06), transparent 65%);
+}
+.wg-fixtures > * { position: relative; z-index: 1; }
+
+/* Premium hero panel */
+.wg-fixtures .wg-hero {
+  border: 1px solid rgba(0,240,255,0.16);
+  box-shadow: 0 0 0 1px rgba(0,240,255,0.05), 0 28px 70px -34px rgba(0,240,255,0.35),
+              inset 0 1px 0 rgba(255,255,255,0.05);
+  backdrop-filter: blur(12px);
+}
+.wg-fixtures .wg-eyebrow { letter-spacing: 0.28em; }
+.wg-fixtures .wg-hero-title {
+  background: linear-gradient(96deg, #fff 20%, #7cf6ff 55%, #00c8ff 80%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+
+/* Refined stat tiles inside the hero */
+.wg-fixtures .wg-stat {
+  border: 1px solid rgba(0,240,240,0.20);
+  background: linear-gradient(160deg, rgba(0,240,255,0.10), transparent 70%);
+  box-shadow: inset 0 0 18px rgba(0,240,255,0.10), 0 0 18px rgba(0,240,255,0.08);
+}
+.wg-fixtures .wg-stat .wg-val { color: #fff; text-shadow: 0 0 14px rgba(0,240,255,0.35); }
+
+/* Polished gradient dividers + section titles */
+.wg-fixtures .wg-divider {
+  background: linear-gradient(90deg, transparent, rgba(0,240,255,0.45), transparent);
+}
+.wg-fixtures thead th {
+  letter-spacing: 0.12em; text-transform: uppercase;
+  border-bottom: 1px solid rgba(0,240,255,0.18);
+  color: #65708c;
+}
+.wg-fixtures .no-scrollbar::-webkit-scrollbar { display: none; }
+.wg-fixtures .no-scrollbar { scrollbar-width: none; }
+/* Glass treatment for flu round panels (match groups, tables, sidebar widgets) */
+.wg-fixtures [class*="rounded-2xl"] {
+  background-image: linear-gradient(180deg, rgba(0,240,255,0.045), rgba(0,240,255,0) 45%);
+  border-color: rgba(0,240,255,0.14);
+  box-shadow: 0 0 0 1px rgba(0,240,255,0.04), 0 20px 46px -34px rgba(0,240,255,0.28);
+}
+.wg-fixtures [class*="rounded-2xl"] > [class*="border-b"] { border-color: rgba(0,240,255,0.12); }
