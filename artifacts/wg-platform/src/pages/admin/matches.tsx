@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { Trophy, ArrowLeft, Plus, Pencil, Trash2, Loader2, Swords, Sparkles, Users, RefreshCw, CheckSquare, Square, X, Star, AlertTriangle, ClipboardList } from "lucide-react";
+import { Trophy, ArrowLeft, Plus, Pencil, Trash2, Loader2, Swords, Sparkles, Users, RefreshCw, CheckSquare, Square, X, Star, AlertTriangle, ClipboardList, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -80,6 +80,119 @@ interface MatchPlayerGame {
   homeScore?: number | null;
   awayScore?: number | null;
   status: string;
+  // Per-player match stats
+  homePossession?: number | null;
+  awayPossession?: number | null;
+  homeShots?: number | null;
+  awayShots?: number | null;
+  homeShotsOnTarget?: number | null;
+  awayShotsOnTarget?: number | null;
+  homeCorners?: number | null;
+  awayCorners?: number | null;
+  homeYellowCards?: number | null;
+  awayYellowCards?: number | null;
+  homeRedCards?: number | null;
+  awayRedCards?: number | null;
+}
+
+// Local editable draft for a player game: score + per-player match stats.
+interface GameStatsDraft {
+  home: string;
+  away: string;
+  possessionHome: string;
+  possessionAway: string;
+  shotsHome: string;
+  shotsAway: string;
+  shotsOnTargetHome: string;
+  shotsOnTargetAway: string;
+  cornersHome: string;
+  cornersAway: string;
+  yellowHome: string;
+  yellowAway: string;
+  redHome: string;
+  redAway: string;
+}
+
+function makeLocal(): GameStatsDraft {
+  return {
+    home: "", away: "",
+    possessionHome: "", possessionAway: "",
+    shotsHome: "", shotsAway: "",
+    shotsOnTargetHome: "", shotsOnTargetAway: "",
+    cornersHome: "", cornersAway: "",
+    yellowHome: "", yellowAway: "",
+    redHome: "", redAway: "",
+  };
+}
+
+// Small numeric stat input row.
+function StatField({
+  label, value, onChange, min = 0, max,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  min?: number;
+  max?: number;
+}) {
+  return (
+    <div className="space-y-1">
+      <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</label>
+      <Input type="number" min={min} max={max} value={value} onChange={(e) => onChange(e.target.value)} className="h-8 text-center font-bold tabular-nums" />
+    </div>
+  );
+}
+
+// Editable per-player match stats (home vs away) for one player pairing.
+function PlayerStatsEditor({
+  game, local, setStat, saving, onSave,
+}: {
+  game: MatchPlayerGame;
+  local: GameStatsDraft;
+  setStat: (field: keyof GameStatsDraft, value: string) => void;
+  saving: boolean;
+  onSave: () => void;
+}) {
+  const sides: { side: "home" | "away"; name: string }[] = [
+    { side: "home", name: game.homePlayerName || "Home" },
+    { side: "away", name: game.awayPlayerName || "Away" },
+  ];
+  return (
+    <div className="mt-1.5 rounded-xl border border-border bg-muted/10 p-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+          <ClipboardList className="w-3 h-3" /> Match Stats
+        </span>
+        <Button size="sm" variant="outline" className="h-7 gap-1 text-[11px] font-bold" onClick={onSave} disabled={saving}>
+          {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />} Save Stats
+        </Button>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        {sides.map(({ side, name }) => {
+          const k = (homeKey: keyof GameStatsDraft, awayKey: keyof GameStatsDraft): keyof GameStatsDraft =>
+            side === "home" ? homeKey : awayKey;
+          const F: { h: keyof GameStatsDraft; a: keyof GameStatsDraft; label: string; max?: number }[] = [
+            { h: "possessionHome", a: "possessionAway", label: "Poss %", max: 100 },
+            { h: "shotsHome", a: "shotsAway", label: "Shots" },
+            { h: "shotsOnTargetHome", a: "shotsOnTargetAway", label: "On Target" },
+            { h: "cornersHome", a: "cornersAway", label: "Corners" },
+            { h: "yellowHome", a: "yellowAway", label: "Yellow" },
+            { h: "redHome", a: "redAway", label: "Red" },
+          ];
+          return (
+            <div key={side} className="space-y-1.5">
+              <p className="truncate text-[10px] font-black uppercase tracking-widest text-muted-foreground">{name}</p>
+              <div className="grid grid-cols-3 gap-2">
+                {F.map(({ h, a, label, max }) => (
+                  <StatField key={label} label={label} max={max} value={local[k(h, a)]} onChange={(v) => setStat(k(h, a), v)} />
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 // ── Status helpers ─────────────────────────────────────────────────────────────
@@ -584,7 +697,7 @@ function PlayerGamesDialog({
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [localScores, setLocalScores] = useState<Record<number, { home: string; away: string }>>({});
+  const [localScores, setLocalScores] = useState<Record<number, GameStatsDraft>>({});
   const [savingId, setSavingId] = useState<number | null>(null);
   const [addRow, setAddRow] = useState(false);
   const [newHome, setNewHome] = useState("");
@@ -618,10 +731,22 @@ function PlayerGamesDialog({
       let changed = false;
       games.forEach((g) => {
         if (!(g.id in next)) {
-          next[g.id] = {
-            home: g.homeScore != null ? String(g.homeScore) : "",
-            away: g.awayScore != null ? String(g.awayScore) : "",
-          };
+          const d = makeLocal();
+          d.home = g.homeScore != null ? String(g.homeScore) : "";
+          d.away = g.awayScore != null ? String(g.awayScore) : "";
+          d.possessionHome = g.homePossession != null ? String(g.homePossession) : "";
+          d.possessionAway = g.awayPossession != null ? String(g.awayPossession) : "";
+          d.shotsHome = g.homeShots != null ? String(g.homeShots) : "";
+          d.shotsAway = g.awayShots != null ? String(g.awayShots) : "";
+          d.shotsOnTargetHome = g.homeShotsOnTarget != null ? String(g.homeShotsOnTarget) : "";
+          d.shotsOnTargetAway = g.awayShotsOnTarget != null ? String(g.awayShotsOnTarget) : "";
+          d.cornersHome = g.homeCorners != null ? String(g.homeCorners) : "";
+          d.cornersAway = g.awayCorners != null ? String(g.awayCorners) : "";
+          d.yellowHome = g.homeYellowCards != null ? String(g.homeYellowCards) : "";
+          d.yellowAway = g.awayYellowCards != null ? String(g.awayYellowCards) : "";
+          d.redHome = g.homeRedCards != null ? String(g.homeRedCards) : "";
+          d.redAway = g.awayRedCards != null ? String(g.awayRedCards) : "";
+          next[g.id] = d;
           changed = true;
         }
       });
@@ -655,6 +780,18 @@ function PlayerGamesDialog({
         body: JSON.stringify({
           homeScore: local.home === "" ? null : Number(local.home),
           awayScore: local.away === "" ? null : Number(local.away),
+          homePossession: local.possessionHome === "" ? null : Number(local.possessionHome),
+          awayPossession: local.possessionAway === "" ? null : Number(local.possessionAway),
+          homeShots: local.shotsHome === "" ? null : Number(local.shotsHome),
+          awayShots: local.shotsAway === "" ? null : Number(local.shotsAway),
+          homeShotsOnTarget: local.shotsOnTargetHome === "" ? null : Number(local.shotsOnTargetHome),
+          awayShotsOnTarget: local.shotsOnTargetAway === "" ? null : Number(local.shotsOnTargetAway),
+          homeCorners: local.cornersHome === "" ? null : Number(local.cornersHome),
+          awayCorners: local.cornersAway === "" ? null : Number(local.cornersAway),
+          homeYellowCards: local.yellowHome === "" ? null : Number(local.yellowHome),
+          awayYellowCards: local.yellowAway === "" ? null : Number(local.yellowAway),
+          homeRedCards: local.redHome === "" ? null : Number(local.redHome),
+          awayRedCards: local.redAway === "" ? null : Number(local.redAway),
         }),
       });
       await Promise.all([
@@ -793,52 +930,56 @@ function PlayerGamesDialog({
               )}
 
               {games.map((game, idx) => {
-                const local = localScores[game.id] ?? { home: "", away: "" };
+                const local = localScores[game.id] ?? makeLocal();
                 const saving = savingId === game.id;
                 const h = local.home !== "" ? Number(local.home) : null;
                 const a = local.away !== "" ? Number(local.away) : null;
                 const homeWin = h != null && a != null && h > a;
                 const awayWin = h != null && a != null && a > h;
+                const setStat = (field: keyof GameStatsDraft, value: string) =>
+                  setLocalScores((p) => ({ ...p, [game.id]: { ...(p[game.id] ?? makeLocal()), [field]: value } }));
                 return (
-                  <motion.div
-                    key={game.id}
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.02 }}
-                    className="grid grid-cols-[1fr_72px_16px_72px_1fr_28px] items-center gap-2 px-2 py-2 rounded-xl hover:bg-muted/10 transition-colors"
-                  >
-                    <div className="text-right">
-                      <span className={`text-sm font-bold truncate block ${homeWin ? "text-emerald-400" : ""}`}>
-                        {game.homePlayerName || "—"}
-                      </span>
-                    </div>
-                    <Input
-                      type="number" min={0}
-                      value={local.home}
-                      onChange={(e) => setLocalScores((p) => ({ ...p, [game.id]: { ...p[game.id] ?? { away: "" }, home: e.target.value } }))}
-                      onBlur={() => saveScore(game.id)}
-                      className={`text-center font-black text-base h-9 tabular-nums px-1 ${homeWin ? "border-emerald-500" : ""} ${saving ? "opacity-50" : ""}`}
-                      placeholder="–"
-                    />
-                    <span className="text-muted-foreground font-bold text-center text-sm">–</span>
-                    <Input
-                      type="number" min={0}
-                      value={local.away}
-                      onChange={(e) => setLocalScores((p) => ({ ...p, [game.id]: { ...p[game.id] ?? { home: "" }, away: e.target.value } }))}
-                      onBlur={() => saveScore(game.id)}
-                      className={`text-center font-black text-base h-9 tabular-nums px-1 ${awayWin ? "border-emerald-500" : ""} ${saving ? "opacity-50" : ""}`}
-                      placeholder="–"
-                    />
-                    <div>
-                      <span className={`text-sm font-bold truncate block ${awayWin ? "text-emerald-400" : ""}`}>
-                        {game.awayPlayerName || "—"}
-                      </span>
-                    </div>
-                    <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
-                      onClick={() => { if (confirm("Remove this pairing?")) deleteGame(game.id); }}>
-                      <X className="w-3.5 h-3.5" />
-                    </Button>
-                  </motion.div>
+                  <div key={game.id} className="mt-1">
+                    <motion.div
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.02 }}
+                      className="grid grid-cols-[1fr_72px_16px_72px_1fr_28px] items-center gap-2 px-2 py-2 rounded-xl hover:bg-muted/10 transition-colors"
+                    >
+                      <div className="text-right">
+                        <span className={`text-sm font-bold truncate block ${homeWin ? "text-emerald-400" : ""}`}>
+                          {game.homePlayerName || "—"}
+                        </span>
+                      </div>
+                      <Input
+                        type="number" min={0}
+                        value={local.home}
+                        onChange={(e) => setLocalScores((p) => ({ ...p, [game.id]: { ...(p[game.id] ?? makeLocal()), home: e.target.value } }))}
+                        onBlur={() => saveScore(game.id)}
+                        className={`text-center font-black text-base h-9 tabular-nums px-1 ${homeWin ? "border-emerald-500" : ""} ${saving ? "opacity-50" : ""}`}
+                        placeholder="–"
+                      />
+                      <span className="text-muted-foreground font-bold text-center text-sm">–</span>
+                      <Input
+                        type="number" min={0}
+                        value={local.away}
+                        onChange={(e) => setLocalScores((p) => ({ ...p, [game.id]: { ...(p[game.id] ?? makeLocal()), away: e.target.value } }))}
+                        onBlur={() => saveScore(game.id)}
+                        className={`text-center font-black text-base h-9 tabular-nums px-1 ${awayWin ? "border-emerald-500" : ""} ${saving ? "opacity-50" : ""}`}
+                        placeholder="–"
+                      />
+                      <div>
+                        <span className={`text-sm font-bold truncate block ${awayWin ? "text-emerald-400" : ""}`}>
+                          {game.awayPlayerName || "—"}
+                        </span>
+                      </div>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
+                        onClick={() => { if (confirm("Remove this pairing?")) deleteGame(game.id); }}>
+                        <X className="w-3.5 h-3.5" />
+                      </Button>
+                    </motion.div>
+                    <PlayerStatsEditor game={game} local={local} setStat={setStat} saving={saving} onSave={() => saveScore(game.id)} />
+                  </div>
                 );
               })}
 

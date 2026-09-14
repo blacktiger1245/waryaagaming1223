@@ -278,3 +278,32 @@ export async function ensureClanTournamentSchema(): Promise<void> {
     logger.warn({ err }, "Could not ensure clan tournament schema");
   }
 }
+
+/**
+ * Per-player match stats for team-vs-team player games: possession %, shots,
+ * shots on target, corners, yellow cards and red cards per player. Additive and
+ * idempotent so it is safe to run on every boot.
+ */
+export async function ensurePlayerGameStatsSchema(): Promise<void> {
+  const statements = [
+    `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "home_possession" integer;`,
+    `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "away_possession" integer;`,
+    `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "home_shots" integer;`,
+    `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "away_shots" integer;`,
+    `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "home_shots_on_target" integer;`,
+    `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "away_shots_on_target" integer;`,
+    `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "home_corners" integer;`,
+    `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "away_corners" integer;`,
+    `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "home_yellow_cards" integer;`,
+    `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "away_yellow_cards" integer;`,
+    `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "home_red_cards" integer;`,
+    `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "away_red_cards" integer;`,
+  ];
+  try {
+    for (const sql of statements) {
+      await pool.query(sql);
+    }
+  } catch (err) {
+    logger.warn({ err }, "Could not ensure player-game match-stats schema");
+  }
+}

@@ -2167,11 +2167,23 @@ router.post("/admin/matches/:id/player-games", requireAdmin, async (req, res) =>
   return res.json(inserted);
 });
 
-// PATCH update a player game result
+// PATCH update a player game result + per-player match stats
+const GAME_STAT_FIELDS = [
+  "homePossession", "awayPossession",
+  "homeShots", "awayShots",
+  "homeShotsOnTarget", "awayShotsOnTarget",
+  "homeCorners", "awayCorners",
+  "homeYellowCards", "awayYellowCards",
+  "homeRedCards", "awayRedCards",
+] as const;
+
 router.patch("/admin/player-games/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
   const { homeScore, awayScore, homePlayerName, awayPlayerName, status } = req.body as Record<string, unknown>;
+
+  const intOrNull = (v: unknown): number | null =>
+    v === "" || v === null || v === undefined ? null : Number(v);
 
   const updateData: Record<string, unknown> = {};
   if (homeScore !== undefined) updateData.homeScore = homeScore === "" || homeScore === null ? null : Number(homeScore);
@@ -2179,6 +2191,9 @@ router.patch("/admin/player-games/:id", requireAdmin, async (req, res) => {
   if (homePlayerName !== undefined) updateData.homePlayerName = String(homePlayerName);
   if (awayPlayerName !== undefined) updateData.awayPlayerName = String(awayPlayerName);
   if (status !== undefined) updateData.status = String(status);
+  for (const field of GAME_STAT_FIELDS) {
+    if (req.body[field] !== undefined) updateData[field] = intOrNull(req.body[field]);
+  }
 
   const [updated] = await db
     .update(matchPlayerGamesTable)
