@@ -477,6 +477,8 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
               {(games ?? []).map((g) => {
                 const gid = Number(g.id);
                 const open = openGameId === gid;
+                const homeAvatar = g.homePlayerId ? logoMap.get(g.homePlayerId) : null;
+                const awayAvatar = g.awayPlayerId ? logoMap.get(g.awayPlayerId) : null;
                 return (
                   <div key={String(g.id)} className="overflow-hidden rounded-lg border border-[#29406e]/60 bg-[#13223f]/30">
                     <button
@@ -484,13 +486,13 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
                       className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left transition-colors ${open ? "bg-[#13223f]/60" : "hover:bg-[#13223f]/40"}`}
                       data-testid="button-toggle-pvp-game"
                     >
-                      <span className="min-w-0 flex-1 truncate text-sm font-bold">{g.homePlayerName || "—"}</span>
+                      <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-sm font-bold">{logo1 && <img src={logo1} alt="" className="h-6 w-6 shrink-0 rounded-md object-cover border border-[#29406e]" />}{homeAvatar ? <img src={homeAvatar} alt="" className="h-6 w-6 shrink-0 rounded-full object-cover border border-[#00F0FF]/40" /> : <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#29406e] bg-[#13223f] text-[9px] font-black text-white">{(g.homePlayerName || "?").charAt(0).toUpperCase()}</div>}<span className="truncate">{g.homePlayerName || "—"}</span></span>
                       <span className="shrink-0 font-black text-base tabular-nums">
                         {g.homeScore != null ? (g.homeScore ?? 0) : "–"}
                         <span className="text-zinc-500 font-bold"> - </span>
                         {(g.awayScore ?? 0)}
                       </span>
-                      <span className="min-w-0 flex-1 truncate text-right text-sm font-bold">{g.awayPlayerName || "—"}</span>
+                      <span className="flex min-w-0 flex-1 items-center justify-end gap-1.5 truncate text-sm font-bold"><span className="truncate">{g.awayPlayerName || "—"}</span>{awayAvatar ? <img src={awayAvatar} alt="" className="h-6 w-6 shrink-0 rounded-full object-cover border border-[#00F0FF]/40" /> : <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#29406e] bg-[#13223f] text-[9px] font-black text-white">{(g.awayPlayerName || "?").charAt(0).toUpperCase()}</div>}{logo2 && <img src={logo2} alt="" className="h-6 w-6 shrink-0 rounded-md object-cover border border-[#29406e]" />}</span>
                       <ChevronDown className={`w-3.5 h-3.5 shrink-0 text-[#00E0FF] transition-transform ${open ? "rotate-180" : ""}`} />
                     </button>
                     {open && (
