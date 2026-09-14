@@ -4,7 +4,7 @@ import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CalendarDays, Circle, Radio, Shield, Trophy,
   RefreshCw, ChevronRight, LayoutList, Clock, CheckCircle2, BarChart2,
-  ChevronDown, Check, Layers, Loader2, X, MonitorPlay,
+  ChevronDown, Check, Layers, Loader2, X, MonitorPlay, Swords,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { storageUrl } from "@/lib/api";
@@ -161,6 +161,30 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
   const logo1 = m.participant1Id ? logoMap.get(m.participant1Id) ?? null : null;
   const logo2 = m.participant2Id ? logoMap.get(m.participant2Id) ?? null : null;
 
+  // Player vs Player breakdown for team-vs-team matches.
+  const isTeamMatch = m.tournamentType === "team";
+  const [gamesOpen, setGamesOpen] = useState(false);
+  const [games, setGames] = useState<Array<Record<string, any>> | null>(null);
+  const [gamesLoading, setGamesLoading] = useState(false);
+  const [gamesError, setGamesError] = useState(false);
+
+  async function toggleGames() {
+    if (gamesOpen) { setGamesOpen(false); return; }
+    setGamesOpen(true);
+    if (games !== null || gamesLoading) return;
+    setGamesLoading(true);
+    setGamesError(false);
+    try {
+      const r = await fetch(`/api/matches/${m.id}/player-games`);
+      if (!r.ok) throw new Error("fetch failed");
+      setGames(await r.json());
+    } catch {
+      setGamesError(true);
+    } finally {
+      setGamesLoading(false);
+    }
+  }
+
   return (
     <>
       {/* ── Mobile layout ────────────────────────────────────────────────── */}
@@ -300,6 +324,69 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
           {goLiveButton}
         </div>
       </div>
+
+      {/* Player vs Player breakdown (team-vs-team matches) — click to expand */}
+      {isTeamMatch && (
+        <div className="border-t border-[#1d2c4e]/40">
+          <button
+            onClick={toggleGames}
+            className="flex w-full items-center justify-between px-3 py-2 text-[11px] font-black uppercase tracking-wider text-[#00E0FF] hover:text-[#00F0FF] transition-colors"
+            data-testid="button-toggle-pvp"
+          >
+            <span className="flex items-center gap-1.5"><Swords className="w-3.5 h-3.5" /> Player vs Player</span>
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${gamesOpen ? "rotate-180" : ""}`} />
+          </button>
+
+          {gamesOpen && (
+            <div className="px-3 py-2">
+              {gamesLoading ? (
+                <div className="flex items-center gap-2 text-[11px] text-zinc-500">
+                  <Loader2 className="w-3 h-3 animate-spin" /> Loading player matchups…
+                </div>
+              ) : gamesError ? (
+                <div className="text-[11px] text-red-400">Could not load player games.</div>
+              ) : games && games.length === 0 ? (
+                <div className="text-[11px] text-zinc-500">No player matchups recorded for this match.</div>
+              ) : (
+                <div className="space-y-1.5">
+                  {(games ?? []).map((g) => (
+                    <div key={String(g.id)} className="rounded-lg border border-[#29406e]/60 bg-[#13223f]/30 px-3 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="min-w-0 flex-1 truncate text-sm font-bold">{g.homePlayerName || "—"}</span>
+                        <span className="shrink-0 font-black text-base tabular-nums">
+                          {g.homeScore != null ? (g.homeScore ?? 0) : "–"}
+                          <span className="text-zinc-500 font-bold"> - </span>
+                          {(g.awayScore ?? 0)}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-right text-sm font-bold">{g.awayPlayerName || "—"}</span>
+                      </div>
+                      {(g.homePossession != null || g.homeShots != null || g.homeShotsOnTarget != null || g.homeCorners != null || g.homeYellowCards != null || g.homeRedCards != null ||
+                        g.awayPossession != null || g.awayShots != null || g.awayShotsOnTarget != null || g.awayCorners != null || g.awayYellowCards != null || g.awayRedCards != null) && (
+                        <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5 text-[10px] text-zinc-400">
+                          <span className="text-[9px] font-black uppercase text-zinc-500">{g.homePlayerName || "Home"}:</span>
+                          {g.homePossession != null && <span>Poss {g.homePossession}%</span>}
+                          {g.homeShots != null && <span>Shots {g.homeShots}</span>}
+                          {g.homeShotsOnTarget != null && <span>OT {g.homeShotsOnTarget}</span>}
+                          {g.homeCorners != null && <span>Cor {g.homeCorners}</span>}
+                          {g.homeYellowCards != null && <span className="text-yellow-500">Y {g.homeYellowCards}</span>}
+                          {g.homeRedCards != null && <span className="text-red-500">R {g.homeRedCards}</span>}
+                          <span className="text-[9px] font-black uppercase text-zinc-500">{g.awayPlayerName || "Away"}:</span>
+                          {g.awayPossession != null && <span>Poss {g.awayPossession}%</span>}
+                          {g.awayShots != null && <span>Shots {g.awayShots}</span>}
+                          {g.awayShotsOnTarget != null && <span>OT {g.awayShotsOnTarget}</span>}
+                          {g.awayCorners != null && <span>Cor {g.awayCorners}</span>}
+                          {g.awayYellowCards != null && <span className="text-yellow-500">Y {g.awayYellowCards}</span>}
+                          {g.awayRedCards != null && <span className="text-red-500">R {g.awayRedCards}</span>}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </>
   );
 }
