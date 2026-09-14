@@ -723,8 +723,10 @@ export default function FixturesPage() {
 
   const filtered = useMemo(() => {
     let ms = allMatches;
-    // Only show matches that have a date/time set by the admin (or are currently live)
-    ms = ms.filter(m => m.status === "live" || m.scheduledAt != null);
+    // Show matches that have a date/time set by the admin, plus any live or
+    // completed match — so finished results always show (completed matches
+    // without a date land in the "Unscheduled" group).
+    ms = ms.filter(m => m.status === "live" || m.status === "completed" || m.scheduledAt != null);
     if (tournamentFilter !== "all") ms = ms.filter(m => m.tournamentId === tournamentFilter);
     if (statusFilter === "live")      ms = ms.filter(m => m.status === "live");
     if (statusFilter === "upcoming")  ms = ms.filter(m => m.status !== "completed" && m.status !== "live");
@@ -744,6 +746,11 @@ export default function FixturesPage() {
       return { activeRound: null as number | null, roundFiltered: filtered };
     }
 
+    // Completed view: show every round's finished results, not just one round.
+    if (statusFilter === "completed") {
+      return { activeRound: null as number | null, roundFiltered: filtered };
+    }
+
     const rounds = [...new Set(withRound.map(m => m.round as number))].sort((a, b) => a - b);
     // Active round = lowest round with any non-completed match; fall back to last round
     const active =
@@ -754,7 +761,7 @@ export default function FixturesPage() {
       activeRound: active,
       roundFiltered: [...withRound.filter(m => m.round === active), ...withoutRound],
     };
-  }, [filtered]);
+  }, [filtered, statusFilter]);
 
   // Group by date key, sorted chronologically (live/upcoming first, then completed most-recent)
   const grouped = useMemo(() => {
