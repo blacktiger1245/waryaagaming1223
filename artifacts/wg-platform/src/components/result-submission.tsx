@@ -198,7 +198,7 @@ function UploadButton({ label, onClick }: { label: string; onClick: () => void }
   );
 }
 // ── Main component ───────────────────────────────────────────────────────────
-export function ResultSubmission({ match, userId }: { match: SubmissionMatch; userId: number | null }) {
+export function ResultSubmission({ match, userId, isAdmin = false }: { match: SubmissionMatch; userId: number | null; isAdmin?: boolean }) {
   const qc = useQueryClient();
 
   const { data: submission, isLoading, refetch } = useQuery<ResultSubmission | null>({
@@ -266,8 +266,9 @@ export function ResultSubmission({ match, userId }: { match: SubmissionMatch; us
 
   // Only the players/teams assigned to this fixture ever see this panel. For team
   // fixtures any authenticated member may open it — the server enforces exact team
-  // membership again when a result is submitted.
-  if (!isParticipant && !isTeamMatch) return null;
+  // membership again when a result is submitted. Admins/owners always see it so
+  // they can upload a screenshot on a player's behalf (the server allows it too).
+  if (!isParticipant && !isTeamMatch && !isAdmin) return null;
   // A finished fixture with no submission of my own has nothing left to show.
   if (!isLoading && !submission && completed) return null;
 

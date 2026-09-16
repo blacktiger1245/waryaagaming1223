@@ -213,8 +213,11 @@ router.post("/matches/:id/result-submission", requireAuth, async (req: Request, 
   const [match] = await db.select().from(matchesTable).where(eq(matchesTable.id, fixtureId));
   if (!match) return res.status(404).json({ error: "Fixture not found" });
 
-  // Only players/teams assigned to this fixture may submit a result.
-  if (!(await isFixtureParticipant(match, userId))) {
+  // Only players/teams assigned to this fixture may submit a result — admins and
+  // owners are exempt so they can upload a screenshot on a player's behalf.
+  const role = req.session?.role;
+  const isAdmin = role === "admin" || role === "owner" || !!req.session?.isAdmin;
+  if (!isAdmin && !(await isFixtureParticipant(match, userId))) {
     return res.status(403).json({ error: "You are not a participant in this fixture" });
   }
 

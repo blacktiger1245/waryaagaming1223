@@ -556,6 +556,36 @@ async function reopenTests(approvedId: number): Promise<void> {
   }
 }
 
+async function adminUploadTests(): Promise<void> {
+  console.log("\n=== I. ADMIN UPLOAD ON BEHALF OF PLAYERS ===");
+
+  // The admin is NOT a participant in fixture two (Player A 2 vs Player B 2).
+  // Admins/owners are exempt from the participant rule so they can upload a
+  // screenshot on a player's behalf.
+  as(admin);
+  const upload = await call("POST", `/api/matches/${fixtureTwoId}/result-submission`, screenshot, "image/png");
+  eq_("I1 admin can upload for a fixture they are not in", upload.status, 201);
+  eq_("I2 admin submission starts pending", upload.body?.status, "pending");
+  const adminSubmissionId = upload.body?.id;
+
+  const mine = await call("GET", `/api/matches/${fixtureTwoId}/result-submission`);
+  eq_("I3 admin can read their own upload back", mine.status, 200);
+  eq_("I4 admin sees their pending submission", mine.body?.status, "pending");
+
+  const list = await call("GET", "/api/admin/match-result-submissions");
+  const rows = (list.body as Array<{ id: number; fixtureId: number; submittedByName: string | null }> | null) ?? [];
+  const row = rows.find((r) => r.id === adminSubmissionId);
+  check("I5 admin upload appears in the verification queue", !!row, `id=${adminSubmissionId}`);
+  if (row) {
+    eq_("I6 queue row is for fixture two", row.fixtureId, fixtureTwoId);
+    check("I7 queue row names the admin as submitter", String(row.submittedByName ?? "").length > 0, String(row.submittedByName));
+  }
+
+  // The duplicate-pending guard applies to admins exactly as it does to players.
+  const dupe = await call("POST", `/api/matches/${fixtureTwoId}/result-submission`, screenshot, "image/png");
+  eq_("I8 admin duplicate pending submission blocked", dupe.status, 409);
+}
+
 //  Server bootstrap ─────────────────────────────────────────────────────────
 // The real router is mounted exactly as production mounts it, behind a
 // middleware that injects the acting user's session. Every guard in the route
@@ -600,6 +630,7 @@ async function main(): Promise<void> {
     const { rejectedId } = await rejectionTests();
     await auditLogTests(submissionId, rejectedId);
     await reopenTests(submissionId);
+    await adminUploadTests();
   } finally {
     await teardown();
     await new Promise((resolve) => server.close(resolve));

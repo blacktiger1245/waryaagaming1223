@@ -314,7 +314,7 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
   const [gamesLoading, setGamesLoading] = useState(false);
   const [gamesError, setGamesError] = useState(false);
   const [openGameId, setOpenGameId] = useState<number | null>(null);
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
 
   const goLiveButton = (() => {
     if (!canShare || done) return null;
@@ -533,6 +533,7 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
           tournamentType: m.tournamentType,
         }}
         userId={user?.id ?? null}
+        isAdmin={isAdmin}
       />
     </div>
   );
