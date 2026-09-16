@@ -40,8 +40,25 @@ interface SubmissionMatch {
   tournamentType?: string | null;
 }
 
+/** A player-vs-player matchup inside a team fixture (match_player_games row). */
+interface SubmissionPlayerGame {
+  id: number;
+  status: string;
+  homePlayerId: number | null;
+  awayPlayerId: number | null;
+  homePlayerName?: string | null;
+  awayPlayerName?: string | null;
+}
+
 async function fetchSubmission(matchId: number): Promise<ResultSubmission | null> {
   const res = await fetch(apiUrl(`/api/matches/${matchId}/result-submission`), { credentials: "include" });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error("Could not load submission status");
+  return res.json();
+}
+
+async function fetchGameSubmission(gameId: number): Promise<ResultSubmission | null> {
+  const res = await fetch(apiUrl(`/api/player-games/${gameId}/result-submission`), { credentials: "include" });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error("Could not load submission status");
   return res.json();
@@ -198,13 +215,30 @@ function UploadButton({ label, onClick }: { label: string; onClick: () => void }
   );
 }
 // ── Main component ───────────────────────────────────────────────────────────
-export function ResultSubmission({ match, userId, isAdmin = false }: { match: SubmissionMatch; userId: number | null; isAdmin?: boolean }) {
+// Two modes:
+//   • `match`      — a solo fixture, where the fixture itself is the matchup.
+//   • `playerGame` — a player-vs-player matchup inside a team fixture. The
+//                  upload is bound to the matchup, not the parent team card.
+export function ResultSubmission({
+  match,
+  playerGame,
+  userId,
+  isAdmin = false,
+}: {
+  match?: SubmissionMatch;
+  playerGame?: SubmissionPlayerGame;
+  userId: number | null;
+  isAdmin?: boolean;
+}) {
   const qc = useQueryClient();
+  const isGameMode = playerGame != null;
+  const targetId = isGameMode ? playerGame.id : match?.id;
 
   const { data: submission, isLoading, refetch } = useQuery<ResultSubmission | null>({
-    queryKey: ["match-result-submission", match.id],
-    queryFn: () => fetchSubmission(match.id),
+    queryKey: isGameMode ? ["player-game-result-submission", targetId] : ["match-result-submission", targetId],
+    queryFn: () => (isGameMode ? fetchGameSubmission(targetId!) : fetchSubmission(targetId!)),
     retry: false,
+    enabled: targetId != null,
   });
 
   const [file, setFile] = useState<File | null>(null);
@@ -235,7 +269,10 @@ export function ResultSubmission({ match, userId, isAdmin = false }: { match: Su
 
   const uploadMutation = useMutation({
     mutationFn: async (f: File) => {
-      const res = await fetch(apiUrl(`/api/matches/${match.id}/result-submission`), {
+      const endpoint = isGameMode
+        ? `/api/player-games/${targetId}/result-submission`
+        : `/api/matches/${targetId}/result-submission`;
+      const res = await fetch(apiUrl(endpoint), {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": f.type || "image/png" },
@@ -249,7 +286,9 @@ export function ResultSubmission({ match, userId, isAdmin = false }: { match: Su
       setFile(null);
       setPreview(null);
       refetch();
-      qc.invalidateQueries({ queryKey: ["match-result-submission", match.id] });
+      qc.invalidateQueries({
+        queryKey: isGameMode ? ["player-game-result-submission", targetId] : ["match-result-submission", targetId],
+      });
     },
   });
 
@@ -259,25 +298,28 @@ export function ResultSubmission({ match, userId, isAdmin = false }: { match: Su
     onPickFile(e.dataTransfer?.files?.[0]);
   };
 
-  const isParticipant =
-    userId != null && (userId === match.participant1Id || userId === match.participant2Id);
-  const isTeamMatch = match.tournamentType === "team";
-  const completed = match.status === "completed" || match.status === "cancelled";
+  const isParticipant = isGameMode
+    ? userId != null && (userId === playerGame.homePlayerId || userId === playerGame.awayPlayerId)
+    : userId != null && match != null && (userId === match.participant1Id || userId === match.participant2Id);
+  const isTeamMatch = !isGameMode && match?.tournamentType === "team";
+  const completed = isGameMode
+    ? playerGame.status === "completed"
+    : match?.status === "completed" || match?.status === "cancelled";
 
-  // Only the players/teams assigned to this fixture ever see this panel. For team
-  // fixtures any authenticated member may open it — the server enforces exact team
-  // membership again when a result is submitted. Admins/owners always see it so
-  // they can upload a screenshot on a player's behalf (the server allows it too).
+  // Only the players assigned to this matchup ever see this panel. For team
+  // fixtures the panel lives on the player-vs-player matchup (isGameMode), not
+  // on the parent card. Admins/owners always see it so they can upload a
+  // screenshot on a player's behalf (the server allows it too).
   if (!isParticipant && !isTeamMatch && !isAdmin) return null;
-  // A finished fixture with no submission of my own has nothing left to show.
+  // A finished matchup with no submission of my own has nothing left to show.
   if (!isLoading && !submission && completed) return null;
 
   const current: ResultSubmission | null = submission ?? null;
   const pick = () => inputRef.current?.click();
-  // A completed fixture cannot be resubmitted unless an admin reopens it.
+  // A completed matchup cannot be resubmitted unless an admin reopens it.
   const canUpload = !completed && (current === null || current.status === "rejected" || current.status === "reopened");
-  const homeName = match.participant1Name ?? "Player A";
-  const awayName = match.participant2Name ?? "Player B";
+  const homeName = isGameMode ? playerGame.homePlayerName ?? "Player A" : match?.participant1Name ?? "Player A";
+  const awayName = isGameMode ? playerGame.awayPlayerName ?? "Player B" : match?.participant2Name ?? "Player B";
 
   return (
     <div

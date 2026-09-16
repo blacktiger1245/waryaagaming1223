@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Real OCR / image-text recognition for match-result screenshots.
  *
  * Engine: `tesseract.js` â€” a WASM build of Tesseract that runs entirely inside
@@ -335,12 +335,44 @@ interface RecognizeResult {
   confidence: number;
 }
 
+/**
+ * Tesseract parameter sets for the two passes.
+ *
+ * These are always applied in full (see `recognize`): parameters are sticky on
+ * the worker, so a partial update from one pass would corrupt the other. The
+ * empty whitelist on the page pass is what *clears* the digit whitelist.
+ */
+/**
+ * Page-pass segmentation mode.
+ *
+ * psm 6 (a single uniform block of text) is what this engine's layout detection
+ * is tuned for and what tesseract.js uses by default; other modes were measured
+ * against the reference eFootball screenshot and read noticeably fewer cells
+ * (psm 3 → 2/14, psm 4 → 12/14, psm 6 → 14/14). Overridable so an operator can
+ * tune recognition for an unusual scoreboard layout without a code change.
+ */
+const PAGE_PSM = process.env.MATCH_RESULT_OCR_PAGE_PSM?.trim() || "6";
+
+const PAGE_RECOGNIZE_PARAMS: Record<string, string> = {
+  tessedit_pageseg_mode: PAGE_PSM,
+  tessedit_char_whitelist: "",
+};
+const DIGIT_RECOGNIZE_PARAMS: Record<string, string> = {
+  tessedit_pageseg_mode: "7", // treat the crop as a single text line
+  tessedit_char_whitelist: "0123456789",
+};
+
 async function recognize(
   worker: TesseractWorker,
   image: Buffer,
-  params: Record<string, string> | null,
+  params: Record<string, string>,
 ): Promise<RecognizeResult> {
-  if (params) await worker.setParameters(params);
+  // Always send the *complete* parameter set. Tesseract keeps parameters on the
+  // worker between calls, so updating only one key leaks the digit pass's
+  // single-line mode (`psm 7`) and digit whitelist into the next full-page pass,
+  // which then recognises almost nothing. Every pass states its own mode and
+  // whitelist explicitly so the two passes can never contaminate each other.
+  await worker.setParameters(params);
   const result = await worker.recognize(image, {}, { text: true, blocks: true });
   const data = (result?.data ?? {}) as Record<string, unknown>;
   return {
@@ -502,10 +534,7 @@ async function readDigitCell(
   }
 
   try {
-    const result = await recognize(worker, tile, {
-      tessedit_char_whitelist: "0123456789",
-      tessedit_pageseg_mode: "7",
-    });
+    const result = await recognize(worker, tile, DIGIT_RECOGNIZE_PARAMS);
 
     const candidates = result.words
       .map((w) => ({ digits: digitsOf(w.text), confidence: w.confidence }))
@@ -928,7 +957,7 @@ export async function detectMatchResultReading(bytes: Buffer): Promise<OcrScreen
 
   let page: RecognizeResult;
   try {
-    page = await withTimeout(recognize(worker, prepared.bytes, null), "Page recognition");
+    page = await withTimeout(recognize(worker, prepared.bytes, PAGE_RECOGNIZE_PARAMS), "Page recognition");
   } catch (err) {
     return unavailableReading(err instanceof Error ? err.message : String(err), Date.now() - started);
   }

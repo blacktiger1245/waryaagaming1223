@@ -3,6 +3,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { matchesTable } from "./matches";
 import { playersTable } from "./players";
+import { matchPlayerGamesTable } from "./match_player_games";
 
 // ---------------------------------------------------------------------------
 // Fixture match-result image submissions.
@@ -22,6 +23,11 @@ import { playersTable } from "./players";
 export const matchResultSubmissionsTable = pgTable("match_result_submissions", {
   id: serial("id").primaryKey(),
   fixtureId: integer("fixture_id").notNull().references(() => matchesTable.id, { onDelete: "cascade" }),
+  // When set, the submission belongs to this exact player-vs-player matchup
+  // (match_player_games.id) inside a team fixture. NULL for solo fixtures, where
+  // the fixture itself is the player matchup. `fixture_id` always points at the
+  // parent fixture so the review queue / audit trail / cascade keep working.
+  playerGameId: integer("player_game_id").references(() => matchPlayerGamesTable.id, { onDelete: "cascade" }),
   submittedBy: integer("submitted_by").notNull().references(() => playersTable.id, { onDelete: "cascade" }),
   status: text("status").notNull().default("pending"), // pending | approved | rejected
   imagePath: text("image_path").notNull(),

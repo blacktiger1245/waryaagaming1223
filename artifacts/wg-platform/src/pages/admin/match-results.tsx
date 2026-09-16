@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  Trophy, Shield, CheckCircle2, XCircle, Loader2, RefreshCw, Eye, ClipboardList, History, Search, Clock3, RotateCcw,
+  Trophy, Shield, CheckCircle2, XCircle, Loader2, RefreshCw, Eye, ClipboardList, History, Search, Clock3, RotateCcw, Swords,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import { apiUrl, storageUrl } from "@/lib/api";
 interface ResultSubmission {
   id: number;
   fixtureId: number;
+  playerGameId: number | null;
   submittedBy: number;
   status: "pending" | "approved" | "rejected" | "reopened";
   imagePath: string;
@@ -43,6 +44,11 @@ interface ResultSubmission {
     participant2Name: string | null;
     status: string | null;
   };
+  playerGame?: {
+    id: number;
+    homePlayerName: string | null;
+    awayPlayerName: string | null;
+  } | null;
   tournamentName?: string | null;
   submittedByName?: string | null;
   ocrMetadata?: OcrMetadata | null;
@@ -234,6 +240,15 @@ function ReviewCard({ s, onRefresh }: { s: ResultSubmission; onRefresh: () => vo
         {/* Meta */}
         <div className="space-y-2 text-sm">
           <div className="flex items-center gap-2"><Shield className="w-4 h-4 text-primary" /><span className="font-medium text-foreground">{p1}</span><span className="text-muted-foreground">vs</span><span className="font-medium text-foreground">{p2}</span></div>
+          {s.playerGame && (
+            <div className="flex items-center gap-2 text-xs">
+              <Swords className="w-3.5 h-3.5 text-primary" />
+              <span className="text-muted-foreground">Player match:</span>
+              <span className="font-bold text-foreground">
+                {s.playerGame.homePlayerName ?? "Home"} vs {s.playerGame.awayPlayerName ?? "Away"}
+              </span>
+            </div>
+          )}
           <div className="text-xs text-muted-foreground">Submitted by <span className="text-foreground font-medium">{s.submittedByName ?? `#${s.submittedBy}`}</span></div>
           <div className="text-xs text-muted-foreground">Date <span className="text-foreground font-medium">{fmtDateTime(s.createdAt)}</span></div>
           {s.status === "rejected" && (

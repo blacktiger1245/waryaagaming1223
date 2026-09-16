@@ -27,6 +27,7 @@ import {
   matchesTable,
   tournamentsTable,
   playersTable,
+  teamsTable,
   matchResultSubmissionsTable,
   matchResultAuditLogTable,
   matchPlayerGamesTable,
@@ -76,8 +77,19 @@ let tournamentId: number;
 let fixtureOneId: number;
 let fixtureTwoId: number;
 
+// Team-fixture state: two teams, three rostered players, one team-vs-team
+// fixture with a single player-vs-player matchup inside it.
+let teamHomeId: number;
+let teamAwayId: number;
+let teamPlayerA1: Actor; // plays the matchup for the home team
+let teamPlayerA2: Actor; // rostered on the home team but NOT in the matchup
+let teamPlayerB1: Actor; // plays the matchup for the away team
+let teamFixtureId: number;
+let teamGameId: number;
+
 const createdPlayerIds: number[] = [];
 const createdTournamentIds: number[] = [];
+const createdTeamIds: number[] = [];
 
 // ── HTTP plumbing ────────────────────────────────────────────────────────────
 // The real router is mounted behind a middleware that injects the session, so the
@@ -175,12 +187,75 @@ async function setup(): Promise<void> {
     .returning({ id: matchesTable.id });
   fixtureOneId = inserted[0]!.id;
   fixtureTwoId = inserted[1]!.id;
+
+  // ── Team fixture: Team A vs Team B with one player-vs-player matchup ──
+  teamPlayerA1 = await createPlayer(`e2e_teamA_p1_${suffix}`, "player");
+  teamPlayerA2 = await createPlayer(`e2e_teamA_p2_${suffix}`, "player");
+  teamPlayerB1 = await createPlayer(`e2e_teamB_p1_${suffix}`, "player");
+
+  const [teamHome] = await db
+    .insert(teamsTable)
+    .values({ name: `E2E Team A ${suffix}`, captainId: teamPlayerA1.id })
+    .returning({ id: teamsTable.id });
+  const [teamAway] = await db
+    .insert(teamsTable)
+    .values({ name: `E2E Team B ${suffix}`, captainId: teamPlayerB1.id })
+    .returning({ id: teamsTable.id });
+  teamHomeId = teamHome!.id;
+  teamAwayId = teamAway!.id;
+  createdTeamIds.push(teamHomeId, teamAwayId);
+
+  // Rosters: A1 + A2 on the home team, B1 on the away team.
+  await db.update(playersTable).set({ teamId: teamHomeId }).where(inArray(playersTable.id, [teamPlayerA1.id, teamPlayerA2.id]));
+  await db.update(playersTable).set({ teamId: teamAwayId }).where(eq(playersTable.id, teamPlayerB1.id));
+
+  const [teamTournament] = await db
+    .insert(tournamentsTable)
+    .values({
+      name: `E2E Team Cup ${suffix}`,
+      status: "active",
+      format: "single-elimination",
+      game: "eFootball",
+      tournamentType: "team",
+    })
+    .returning({ id: tournamentsTable.id });
+  createdTournamentIds.push(teamTournament!.id);
+
+  const [teamFixture] = await db
+    .insert(matchesTable)
+    .values({
+      tournamentId: teamTournament!.id,
+      round: 1,
+      stage: 1,
+      status: "scheduled",
+      participant1Id: teamHomeId,
+      participant1Name: `E2E Team A ${suffix}`,
+      participant2Id: teamAwayId,
+      participant2Name: `E2E Team B ${suffix}`,
+    })
+    .returning({ id: matchesTable.id });
+  teamFixtureId = teamFixture!.id;
+
+  // The exact matchup: A1 vs B1. A2 is on the roster but not in this pairing.
+  const [teamGame] = await db
+    .insert(matchPlayerGamesTable)
+    .values({
+      matchId: teamFixtureId,
+      homePlayerId: teamPlayerA1.id,
+      homePlayerName: `TeamA P1`,
+      awayPlayerId: teamPlayerB1.id,
+      awayPlayerName: `TeamB P1`,
+      status: "scheduled",
+    })
+    .returning({ id: matchPlayerGamesTable.id });
+  teamGameId = teamGame!.id;
 }
 
 async function teardown(): Promise<void> {
   // Submissions and audit rows cascade from the fixtures.
   if (fixtureOneId) await db.delete(matchesTable).where(eq(matchesTable.id, fixtureOneId));
   if (fixtureTwoId) await db.delete(matchesTable).where(eq(matchesTable.id, fixtureTwoId));
+  if (teamFixtureId) await db.delete(matchesTable).where(eq(matchesTable.id, teamFixtureId));
   if (playerA) {
     await db
       .delete(matchPlayerGamesTable)
@@ -189,19 +264,22 @@ async function teardown(): Promise<void> {
       .delete(matchPlayerGamesTable)
       .where(inArray(matchPlayerGamesTable.awayPlayerId, createdPlayerIds));
   }
+  // The team fixture's game has no FK cascade from matches — remove it directly.
+  if (teamFixtureId) await db.delete(matchPlayerGamesTable).where(eq(matchPlayerGamesTable.matchId, teamFixtureId));
   for (const id of createdTournamentIds) await db.delete(tournamentsTable).where(eq(tournamentsTable.id, id));
+  for (const id of createdTeamIds) await db.delete(teamsTable).where(eq(teamsTable.id, id));
   for (const id of createdPlayerIds) await db.delete(playersTable).where(eq(playersTable.id, id));
 
   const leftovers = await db
     .select({ id: matchResultSubmissionsTable.id })
     .from(matchResultSubmissionsTable)
-    .where(inArray(matchResultSubmissionsTable.fixtureId, [fixtureOneId, fixtureTwoId].filter(Boolean)));
+    .where(inArray(matchResultSubmissionsTable.fixtureId, [fixtureOneId, fixtureTwoId, teamFixtureId].filter(Boolean)));
   check("teardown: submissions removed", leftovers.length === 0, `${leftovers.length} left`);
 
   const auditLeftovers = await db
     .select({ id: matchResultAuditLogTable.id })
     .from(matchResultAuditLogTable)
-    .where(inArray(matchResultAuditLogTable.fixtureId, [fixtureOneId, fixtureTwoId].filter(Boolean)));
+    .where(inArray(matchResultAuditLogTable.fixtureId, [fixtureOneId, fixtureTwoId, teamFixtureId].filter(Boolean)));
   check("teardown: audit rows removed", auditLeftovers.length === 0, `${auditLeftovers.length} left`);
 }
 
@@ -586,6 +664,114 @@ async function adminUploadTests(): Promise<void> {
   eq_("I8 admin duplicate pending submission blocked", dupe.status, 409);
 }
 
+// ─ J. Team fixture → result belongs to the player-vs-player matchup ──────────
+async function teamFixtureTests(): Promise<void> {
+  console.log("\n=== J. TEAM FIXTURE → PLAYER-VS-PLAYER MATCHUP ===");
+
+  const gamePath = `/api/player-games/${teamGameId}/result-submission`;
+
+  // The parent team-vs-team card must not accept a result directly.
+  as(teamPlayerA1);
+  const onParent = await call("POST", `/api/matches/${teamFixtureId}/result-submission`, screenshot, "image/png");
+  eq_("J1 team fixture rejects a parent-level upload", onParent.status, 400);
+  check(
+    "J2 error points the player at their matchup",
+    /player-vs-player|matchup/i.test(String(onParent.body?.error)),
+    String(onParent.body?.error),
+  );
+
+  // Only the two players in this exact matchup may submit.
+  as(teamPlayerA2);
+  const otherTeamMember = await call("POST", gamePath, screenshot, "image/png");
+  eq_("J3 rostered teammate not in the matchup is refused", otherTeamMember.status, 403);
+  check(
+    "J3b error explains it is matchup-specific",
+    /matchup/i.test(String(otherTeamMember.body?.error)),
+    String(otherTeamMember.body?.error),
+  );
+
+  as(outsider);
+  eq_("J4 unrelated player is refused", (await call("POST", gamePath, screenshot, "image/png")).status, 403);
+
+  // A player in the matchup uploads; the submission is bound to the game.
+  as(teamPlayerA1);
+  const upload = await call("POST", gamePath, screenshot, "image/png");
+  eq_("J5 matchup player upload accepted", upload.status, 201);
+  eq_("J6 submission is bound to the exact matchup", upload.body?.playerGameId, teamGameId);
+  eq_("J7 submission also records the parent fixture", upload.body?.fixtureId, teamFixtureId);
+  const gameSubmissionId = upload.body?.id;
+
+  // Same real OCR pass as the solo flow.
+  if (upload.body?.homeScore == null) {
+    // Diagnose a failed recognition pass instead of only reporting null values.
+    console.log(`      OCR metadata: ${JSON.stringify(upload.body?.ocrMetadata ?? null)}`);
+  }
+  eq_("J8 OCR home score read for the matchup", upload.body?.homeScore, EXPECTED.homeScore);
+  eq_("J9 OCR away score read for the matchup", upload.body?.awayScore, EXPECTED.awayScore);
+  eq_("J10 OCR shots read for the matchup", upload.body?.homeShots, EXPECTED.homeShots);
+
+  // The two players can read it back; other team members cannot.
+  const mine = await call("GET", gamePath);
+  eq_("J11 matchup player can read the submission", mine.status, 200);
+  eq_("J12 submission is pending", mine.body?.status, "pending");
+  as(teamPlayerA2);
+  eq_("J13 other team member cannot read the matchup submission", (await call("GET", gamePath)).status, 403);
+
+  // The duplicate-pending guard is per matchup+player.
+  as(teamPlayerA1);
+  eq_("J14 duplicate pending submission blocked", (await call("POST", gamePath, screenshot, "image/png")).status, 409);
+
+  // The opposing player in the same matchup may also submit.
+  as(teamPlayerB1);
+  const opposing = await call("POST", gamePath, screenshot, "image/png");
+  eq_("J15 the opposing matchup player may also submit", opposing.status, 201);
+
+  // Admin sees the submission in the queue with its player-matchup context.
+  as(admin);
+  const list = await call("GET", "/api/admin/match-result-submissions");
+  const rows = (list.body as Array<Record<string, any>> | null) ?? [];
+  const row = rows.find((r) => r.id === gameSubmissionId);
+  check("J16 matchup submission appears in the verification queue", !!row, `id=${gameSubmissionId}`);
+  if (row) {
+    eq_("J17 queue row exposes the parent fixture", row.fixtureId, teamFixtureId);
+    eq_("J18 queue row exposes the matchup id", row.playerGameId, teamGameId);
+    eq_("J19 queue row shows the home player name", row.playerGame?.homePlayerName, "TeamA P1");
+    eq_("J20 queue row shows the away player name", row.playerGame?.awayPlayerName, "TeamB P1");
+  }
+
+  // Approve → the matchup becomes completed and the parent propagates.
+  const approve = await call("POST", `/api/admin/match-result-submissions/${gameSubmissionId}/approve`, {});
+  eq_("J21 admin can approve a matchup submission", approve.status, 200);
+
+  const [game] = await db.select().from(matchPlayerGamesTable).where(eq(matchPlayerGamesTable.id, teamGameId));
+  eq_("J22 matchup marked completed", game?.status, "completed");
+  eq_("J23 matchup home score written", game?.homeScore, EXPECTED.homeScore);
+  eq_("J24 matchup away score written", game?.awayScore, EXPECTED.awayScore);
+  eq_("J25 matchup home shots written", game?.homeShots, EXPECTED.homeShots);
+  eq_("J26 matchup home position written", game?.homePosition, EXPECTED.homePosition);
+  eq_("J27 matchup yellow cards written", game?.homeYellowCards, EXPECTED.homeYellowCards);
+
+  // Parent propagation: one matchup decided → home team wins the set 1-0 and
+  // the fixture completes because no other matchup is outstanding.
+  const [parent] = await db.select().from(matchesTable).where(eq(matchesTable.id, teamFixtureId));
+  eq_("J28 parent fixture completed", parent?.status, "completed");
+  eq_("J29 parent score counts matchup wins", parent?.participant1Score, 1);
+  eq_("J30 parent away score counts matchup wins", parent?.participant2Score, 0);
+  eq_("J31 parent winner is the home team", parent?.winnerId, teamHomeId);
+
+  // Reopen → the matchup is released and the parent rolls back.
+  const reopen = await call("POST", `/api/admin/match-result-submissions/${gameSubmissionId}/reopen`, {
+    reason: "Matchup screenshot disputed.",
+  });
+  eq_("J32 admin can reopen a matchup result", reopen.status, 200);
+  const [gameAfter] = await db.select().from(matchPlayerGamesTable).where(eq(matchPlayerGamesTable.id, teamGameId));
+  eq_("J33 matchup released back to scheduled", gameAfter?.status, "scheduled");
+  eq_("J34 matchup score cleared", gameAfter?.homeScore, null);
+  const [parentAfter] = await db.select().from(matchesTable).where(eq(matchesTable.id, teamFixtureId));
+  eq_("J35 parent fixture rolled back to scheduled", parentAfter?.status, "scheduled");
+  eq_("J36 parent score cleared", parentAfter?.participant1Score, null);
+}
+
 //  Server bootstrap ─────────────────────────────────────────────────────────
 // The real router is mounted exactly as production mounts it, behind a
 // middleware that injects the acting user's session. Every guard in the route
@@ -631,6 +817,7 @@ async function main(): Promise<void> {
     await auditLogTests(submissionId, rejectedId);
     await reopenTests(submissionId);
     await adminUploadTests();
+    await teamFixtureTests();
   } finally {
     await teardown();
     await new Promise((resolve) => server.close(resolve));

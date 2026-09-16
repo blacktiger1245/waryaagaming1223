@@ -505,6 +505,20 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
                     {open && (
                       <div className="border-t border-[#29406e]/40 px-3 py-2" onClick={(e) => e.stopPropagation()}>
                         <PlayerGameDetail g={g} motmId={motmId} motmName={motmName} />
+                        {/* Result upload belongs to the exact player-vs-player
+                            matchup — never to the parent team-vs-team card. */}
+                        <ResultSubmission
+                          playerGame={{
+                            id: gid,
+                            status: String(g.status ?? "scheduled"),
+                            homePlayerId: g.homePlayerId != null ? Number(g.homePlayerId) : null,
+                            awayPlayerId: g.awayPlayerId != null ? Number(g.awayPlayerId) : null,
+                            homePlayerName: g.homePlayerName ?? null,
+                            awayPlayerName: g.awayPlayerName ?? null,
+                          }}
+                          userId={user?.id ?? null}
+                          isAdmin={isAdmin}
+                        />
                       </div>
                     )}
                   </div>
@@ -521,20 +535,23 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
           <PvpShareCard m={m} games={games ?? []} motmId={motmId} motmName={motmName} />
         </div>
       </div>
-{/* Player match-result upload / verification status */}
-      <ResultSubmission
-        match={{
-          id: m.id,
-          status: m.status,
-          participant1Id: m.participant1Id ?? null,
-          participant2Id: m.participant2Id ?? null,
-          participant1Name: m.participant1Name ?? null,
-          participant2Name: m.participant2Name ?? null,
-          tournamentType: m.tournamentType,
-        }}
-        userId={user?.id ?? null}
-        isAdmin={isAdmin}
-      />
+{/* Player match-result upload / verification status — solo fixtures only. For
+    team fixtures the upload lives on each player-vs-player matchup above. */}
+      {!isTeamMatch && (
+        <ResultSubmission
+          match={{
+            id: m.id,
+            status: m.status,
+            participant1Id: m.participant1Id ?? null,
+            participant2Id: m.participant2Id ?? null,
+            participant1Name: m.participant1Name ?? null,
+            participant2Name: m.participant2Name ?? null,
+            tournamentType: m.tournamentType,
+          }}
+          userId={user?.id ?? null}
+          isAdmin={isAdmin}
+        />
+      )}
     </div>
   );
 }

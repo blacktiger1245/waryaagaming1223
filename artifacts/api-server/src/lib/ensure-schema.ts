@@ -348,6 +348,9 @@ export async function ensureMatchResultSchema(): Promise<void> {
      );`,
     // Provenance of the OCR read, added after the submission table shipped.
     `ALTER TABLE "match_result_submissions" ADD COLUMN IF NOT EXISTS "ocr_metadata" text;`,
+    // Links a submission to the exact player-vs-player game inside a team fixture.
+    `ALTER TABLE "match_result_submissions" ADD COLUMN IF NOT EXISTS "player_game_id" integer REFERENCES "match_player_games"("id") ON DELETE CASCADE;`,
+    `CREATE INDEX IF NOT EXISTS "match_result_submissions_player_game_idx" ON "match_result_submissions" ("player_game_id")`,
     `CREATE INDEX IF NOT EXISTS "match_result_submissions_status_idx" ON "match_result_submissions" ("status")`,
     `CREATE INDEX IF NOT EXISTS "match_result_submissions_fixture_idx" ON "match_result_submissions" ("fixture_id")`,
     `CREATE TABLE IF NOT EXISTS "match_result_audit_log" (

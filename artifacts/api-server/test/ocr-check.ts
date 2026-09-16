@@ -96,5 +96,26 @@ if (!usingFixture && fail > 0) {
   fail = 0;
 }
 
+// ── 4. Repeat-pass regression guard ─────────────────────────────────────────
+// Tesseract keeps its parameters on the worker between calls, so a pass that
+// only sets *some* parameters (e.g. the digit repair pass setting psm 7 + a digit
+// whitelist) used to leak into the next full-page pass, which then recognised
+// nothing. Only a second recognition could expose that, so re-read the image and
+// require the very same values.
+if (usingFixture) {
+  console.log("\n=== SECOND PASS (worker state must not leak between uploads) ===");
+  const d2 = await detectMatchResultFromImage(bytes, contentType);
+  let repeatFail = 0;
+  for (const [field, expected] of EXPECT) {
+    const got = d2[field as keyof typeof d2] as number | null;
+    const ok = got === expected;
+    if (ok) pass += 1;
+    else { repeatFail += 1; fail += 1; }
+    console.log(`${ok ? "PASS" : "FAIL"} repeat ${field.padEnd(14)} expected ${expected}  got ${got}`);
+  }
+  console.log(`\nSECOND PASS: ${EXPECT.length - repeatFail}/${EXPECT.length} fields read correctly`);
+  console.log(`\nFINAL RESULT: ${pass} passed, ${fail} failed`);
+}
+
 await shutdownOcrEngine();
 process.exit(fail === 0 ? 0 : 1);

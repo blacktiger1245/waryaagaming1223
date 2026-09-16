@@ -21,6 +21,7 @@ import {
 import { eq, desc, and, inArray, type AnyColumn, sql } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { advanceKnockoutWinner, computeWinnerFromResult, syncKnockoutProgression } from "../lib/knockout";
+import { recalculateTeamScore } from "../lib/teamScore";
 
 const router = Router();
 
@@ -2059,51 +2060,6 @@ router.get("/admin/tournaments/:id/matches", requireAdmin, async (req, res) => {
 });
 
 // ─── Player Games (individual matchups inside a team match) ───────────────────
-
-// Helper: recalculate team match score from child player games
-async function recalculateTeamScore(matchId: number) {
-  const [match] = await db.select().from(matchesTable).where(eq(matchesTable.id, matchId));
-  if (!match) return;
-
-  const games = await db
-    .select()
-    .from(matchPlayerGamesTable)
-    .where(eq(matchPlayerGamesTable.matchId, matchId));
-
-  if (games.length === 0) return;
-
-  let homeWins = 0;
-  let awayWins = 0;
-  let allDone = true;
-
-  for (const g of games) {
-    if (g.homeScore === null || g.awayScore === null) { allDone = false; continue; }
-    if (g.homeScore > g.awayScore) homeWins++;
-    else if (g.awayScore > g.homeScore) awayWins++;
-  }
-
-  let winnerId: number | null = null;
-  let winnerName: string | null = null;
-  let newStatus = match.status;
-
-  if (allDone) {
-    newStatus = "completed";
-    if (homeWins > awayWins) {
-      winnerId = match.participant1Id;
-      winnerName = match.participant1Name;
-    } else if (awayWins > homeWins) {
-      winnerId = match.participant2Id;
-      winnerName = match.participant2Name;
-    }
-  } else if (games.some((g) => g.homeScore !== null || g.awayScore !== null)) {
-    newStatus = "live";
-  }
-
-  await db
-    .update(matchesTable)
-    .set({ participant1Score: homeWins, participant2Score: awayWins, winnerId, winnerName, status: newStatus })
-    .where(eq(matchesTable.id, matchId));
-}
 
 // GET player games for a match
 router.get("/admin/matches/:id/player-games", requireAdmin, async (req, res) => {
