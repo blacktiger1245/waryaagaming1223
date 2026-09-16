@@ -52,6 +52,7 @@ import AdminPlayersPage from "@/pages/admin/players";
 import AdminTeamsPage from "@/pages/admin/teams";
 import AdminTournamentsPage from "@/pages/admin/tournaments";
 import AdminMatchesPage from "@/pages/admin/matches";
+import AdminMatchResultsPage from "@/pages/admin/match-results";
 import AdminNewsPage from "@/pages/admin/news";
 import AdminMediaPage from "@/pages/admin/media";
 import AdminHallOfFamePage from "@/pages/admin/hall-of-fame";
@@ -161,6 +162,7 @@ function AdminRouter() {
         <Route path="/admin/teams" component={AdminTeamsPage} />
         <Route path="/admin/tournaments" component={AdminTournamentsPage} />
         <Route path="/admin/matches" component={AdminMatchesPage} />
+        <Route path="/admin/match-results" component={AdminMatchResultsPage} />
         <Route path="/admin/news" component={AdminNewsPage} />
         <Route path="/admin/media" component={AdminMediaPage} />
         <Route path="/admin/seasons" component={AdminSeasonsPage} />

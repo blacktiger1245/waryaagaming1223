@@ -30,6 +30,9 @@ async function buildAll() {
     external: [
       "*.node",
       "sharp",
+      // tesseract.js resolves its worker/wasm/core assets by path at runtime, so it
+      // must stay outside the bundle or recognition breaks in the built dist output.
+      "tesseract.js",
       "better-sqlite3",
       "sqlite3",
       "canvas",

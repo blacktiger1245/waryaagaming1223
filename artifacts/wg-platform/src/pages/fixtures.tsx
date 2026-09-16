@@ -10,6 +10,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { storageUrl } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
+import { ResultSubmission } from "@/components/result-submission";
 import { publishScreen, requestScreenStream, startBroadcast, fetchLiveBroadcasts, isScreenShareSupported, type PublishHandle, type LiveBroadcastInfo } from "@/lib/live";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -125,6 +126,7 @@ function Av({ name, size = "md", url }: { name: string; size?: "sm" | "md" | "lg
 // ── Match card ─────────────────────────────────────────────────────────────────
 function PlayerGameDetail({ g, motmId, motmName }: { g: Record<string, any>; motmId?: number | null; motmName?: string | null }) {
   const hasStats =
+    g.homePosition != null || g.awayPosition != null ||
     g.homePossession != null || g.homeShots != null || g.homeShotsOnTarget != null || g.homeCorners != null || g.homeYellowCards != null || g.homeRedCards != null ||
     g.awayPossession != null || g.awayShots != null || g.awayShotsOnTarget != null || g.awayCorners != null || g.awayYellowCards != null || g.awayRedCards != null;
 
@@ -132,6 +134,7 @@ function PlayerGameDetail({ g, motmId, motmName }: { g: Record<string, any>; mot
   const awayIsMotm = motmId != null && g.awayPlayerId != null && Number(g.awayPlayerId) === motmId;
 
   const rows = [
+    { label: "Position", home: g.homePosition, away: g.awayPosition },
     { label: "Possession", home: g.homePossession, away: g.awayPossession, pct: true },
     { label: "Shots", home: g.homeShots, away: g.awayShots },
     { label: "Shots on Target", home: g.homeShotsOnTarget, away: g.awayShotsOnTarget },
@@ -265,10 +268,12 @@ function PvpShareCard({ m, games, motmId, motmName }: {
                   {isMotm(g.awayPlayerId) && <Star className="h-3 w-3 shrink-0 fill-[#FFB800] text-[#FFB800]" />}
                 </span>
               </div>
-              {(g.homePossession != null || g.homeShots != null || g.homeShotsOnTarget != null || g.homeCorners != null || g.homeYellowCards != null || g.homeRedCards != null ||
+              {(g.homePosition != null || g.awayPosition != null ||
+                g.homePossession != null || g.homeShots != null || g.homeShotsOnTarget != null || g.homeCorners != null || g.homeYellowCards != null || g.homeRedCards != null ||
                 g.awayPossession != null || g.awayShots != null || g.awayShotsOnTarget != null || g.awayCorners != null || g.awayYellowCards != null || g.awayRedCards != null) && (
                 <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-zinc-400">
                   <span className="text-[9px] font-black uppercase text-zinc-500">{g.homePlayerName || "Home"}:</span>
+                  {g.homePosition != null && <span>Pos {g.homePosition}</span>}
                   {g.homePossession != null && <span>Poss {g.homePossession}%</span>}
                   {g.homeShots != null && <span>Shots {g.homeShots}</span>}
                   {g.homeShotsOnTarget != null && <span>OT {g.homeShotsOnTarget}</span>}
@@ -276,6 +281,7 @@ function PvpShareCard({ m, games, motmId, motmName }: {
                   {g.homeYellowCards != null && <span className="text-yellow-500">Y {g.homeYellowCards}</span>}
                   {g.homeRedCards != null && <span className="text-red-500">R {g.homeRedCards}</span>}
                   <span className="text-[9px] font-black uppercase text-zinc-500">{g.awayPlayerName || "Away"}:</span>
+                  {g.awayPosition != null && <span>Pos {g.awayPosition}</span>}
                   {g.awayPossession != null && <span>Poss {g.awayPossession}%</span>}
                   {g.awayShots != null && <span>Shots {g.awayShots}</span>}
                   {g.awayShotsOnTarget != null && <span>OT {g.awayShotsOnTarget}</span>}
@@ -308,6 +314,7 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
   const [gamesLoading, setGamesLoading] = useState(false);
   const [gamesError, setGamesError] = useState(false);
   const [openGameId, setOpenGameId] = useState<number | null>(null);
+  const { user } = useAuth();
 
   const goLiveButton = (() => {
     if (!canShare || done) return null;
@@ -514,6 +521,19 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
           <PvpShareCard m={m} games={games ?? []} motmId={motmId} motmName={motmName} />
         </div>
       </div>
+{/* Player match-result upload / verification status */}
+      <ResultSubmission
+        match={{
+          id: m.id,
+          status: m.status,
+          participant1Id: m.participant1Id ?? null,
+          participant2Id: m.participant2Id ?? null,
+          participant1Name: m.participant1Name ?? null,
+          participant2Name: m.participant2Name ?? null,
+          tournamentType: m.tournamentType,
+        }}
+        userId={user?.id ?? null}
+      />
     </div>
   );
 }

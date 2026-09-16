@@ -10,6 +10,10 @@ export const matchPlayerGamesTable = pgTable("match_player_games", {
   homeScore: integer("home_score"),
   awayScore: integer("away_score"),
   status: text("status").notNull().default("scheduled"), // scheduled | completed
+  // Final league position / rank of each side as reported on the match
+  // screenshot that an administrator approved for this fixture.
+  homePosition: integer("home_position"),
+  awayPosition: integer("away_position"),
   // Per-player match stats (entered by the admin alongside the score).
   // Possession is stored as a whole percentage per player (0–100); the pair
   // normally sums to 100 but is not enforced so admins can note overtime etc.

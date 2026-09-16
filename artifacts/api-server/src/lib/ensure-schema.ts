@@ -298,6 +298,9 @@ export async function ensurePlayerGameStatsSchema(): Promise<void> {
     `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "away_yellow_cards" integer;`,
     `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "home_red_cards" integer;`,
     `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "away_red_cards" integer;`,
+    // Position columns written when an admin approves a screenshot submission.
+    `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "home_position" integer;`,
+    `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "away_position" integer;`,
   ];
   try {
     for (const sql of statements) {
@@ -305,5 +308,70 @@ export async function ensurePlayerGameStatsSchema(): Promise<void> {
     }
   } catch (err) {
     logger.warn({ err }, "Could not ensure player-game match-stats schema");
+  }
+}
+
+/**
+ * Fixture match-result image submission + audit-log tables (additive, idempotent).
+ * Mirrors lib/db/src/schema/match_results.ts and lib/db/src/migrate-match-results.mjs.
+ * Safe to run on every boot so deployments without a migration step still get the
+ * upload/approval tables.
+ */
+export async function ensureMatchResultSchema(): Promise<void> {
+  const statements = [
+    `CREATE TABLE IF NOT EXISTS "match_result_submissions" (
+       "id" serial PRIMARY KEY,
+       "fixture_id" integer NOT NULL REFERENCES "matches"("id") ON DELETE CASCADE,
+       "submitted_by" integer NOT NULL REFERENCES "players"("id") ON DELETE CASCADE,
+       "status" text NOT NULL DEFAULT 'pending',
+       "image_path" text NOT NULL,
+       "home_score" integer,
+       "away_score" integer,
+       "home_position" integer,
+       "away_position" integer,
+       "home_shots" integer,
+       "away_shots" integer,
+       "home_shots_on_target" integer,
+       "away_shots_on_target" integer,
+       "home_corners" integer,
+       "away_corners" integer,
+       "home_yellow_cards" integer,
+       "away_yellow_cards" integer,
+       "home_red_cards" integer,
+       "away_red_cards" integer,
+       "rejection_reason" text,
+       "ocr_metadata" text,
+       "approved_by" integer,
+       "approved_at" timestamp,
+       "created_at" timestamp NOT NULL DEFAULT now(),
+       "updated_at" timestamp NOT NULL DEFAULT now()
+     );`,
+    // Provenance of the OCR read, added after the submission table shipped.
+    `ALTER TABLE "match_result_submissions" ADD COLUMN IF NOT EXISTS "ocr_metadata" text;`,
+    `CREATE INDEX IF NOT EXISTS "match_result_submissions_status_idx" ON "match_result_submissions" ("status")`,
+    `CREATE INDEX IF NOT EXISTS "match_result_submissions_fixture_idx" ON "match_result_submissions" ("fixture_id")`,
+    `CREATE TABLE IF NOT EXISTS "match_result_audit_log" (
+       "id" serial PRIMARY KEY,
+       "admin_id" integer REFERENCES "players"("id") ON DELETE SET NULL,
+       "admin_name" text,
+       "action" text NOT NULL,
+       "fixture_id" integer NOT NULL REFERENCES "matches"("id") ON DELETE CASCADE,
+       "submission_id" integer NOT NULL REFERENCES "match_result_submissions"("id") ON DELETE CASCADE,
+       "previous_status" text NOT NULL,
+       "new_status" text NOT NULL,
+       "rejection_reason" text,
+       "created_at" timestamp NOT NULL DEFAULT now()
+     );`,
+    // Relax the constraint on databases created before legacy (password) admin
+    // sessions — which have no player row — were supported.
+    `ALTER TABLE "match_result_audit_log" ALTER COLUMN "admin_id" DROP NOT NULL;`,
+    `CREATE INDEX IF NOT EXISTS "match_result_audit_log_fixture_idx" ON "match_result_audit_log" ("fixture_id")`,
+  ];
+  try {
+    for (const sql of statements) {
+      await pool.query(sql);
+    }
+  } catch (err) {
+    logger.warn({ err }, "Could not ensure match-result schema");
   }
 }

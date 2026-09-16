@@ -52,3 +52,8 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+# Tesseract.js language data (downloaded/cached at runtime, ~5 MB per language).
+# Pre-seed it and set MATCH_RESULT_OCR_LANG_PATH for offline deployments.
+*.traineddata
+*.traineddata.gz

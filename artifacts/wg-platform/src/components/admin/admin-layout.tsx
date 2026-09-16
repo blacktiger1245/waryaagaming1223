@@ -35,6 +35,7 @@ const baseNavItems = [
   { href: "/admin/teams", label: "Clans", icon: Shield },
   { href: "/admin/tournaments", label: "Tournaments", icon: Trophy },
   { href: "/admin/matches", label: "Matches", icon: Swords },
+  { href: "/admin/match-results", label: "Match Results", icon: ClipboardCheck },
   { href: "/admin/news", label: "News", icon: Newspaper },
   { href: "/admin/media", label: "Media", icon: PlaySquare },
   { href: "/admin/hall-of-fame", label: "Hall of Fame", icon: Star },

@@ -71,7 +71,7 @@ async function canManageMatchAssignment(
 // Recompute a player's statistics from all completed matches — the canonical
 // ranking/stats system (same formulas as the admin player-stats sync). Only
 // runs for solo-tournament matches (participant ids are player ids).
-async function recomputePlayerStatsForCompletedMatch(match: typeof matchesTable.$inferSelect): Promise<void> {
+export async function recomputePlayerStatsForCompletedMatch(match: typeof matchesTable.$inferSelect): Promise<void> {
   if (match.status !== "completed") return;
   const [tournament] = match.tournamentId
     ? await db
