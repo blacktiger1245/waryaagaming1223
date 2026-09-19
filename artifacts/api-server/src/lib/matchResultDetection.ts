@@ -113,18 +113,30 @@ export async function assertSafeImage(bytes: Buffer): Promise<{ format: string; 
 export const DETECTED_NUMERIC_FIELDS = [
   "homeScore",
   "awayScore",
-  "homePosition",
-  "awayPosition",
+  "homePossession",
+  "awayPossession",
   "homeShots",
   "awayShots",
   "homeShotsOnTarget",
   "awayShotsOnTarget",
-  "homeCorners",
-  "awayCorners",
-  "homeYellowCards",
-  "awayYellowCards",
-  "homeRedCards",
-  "awayRedCards",
+  "homeCornerKicks",
+  "awayCornerKicks",
+  "homeOffside",
+  "awayOffside",
+  "homeFreeKicks",
+  "awayFreeKicks",
+  "homeFouls",
+  "awayFouls",
+  "homeSuccessfulPasses",
+  "awaySuccessfulPasses",
+  "homeCrosses",
+  "awayCrosses",
+  "homeInterceptions",
+  "awayInterceptions",
+  "homeTackles",
+  "awayTackles",
+  "homeSaves",
+  "awaySaves",
 ] as const;
 
 export type DetectedNumericField = (typeof DETECTED_NUMERIC_FIELDS)[number];
@@ -132,18 +144,30 @@ export type DetectedNumericField = (typeof DETECTED_NUMERIC_FIELDS)[number];
 export interface DetectedResult {
   homeScore: number | null;
   awayScore: number | null;
-  homePosition: number | null;
-  awayPosition: number | null;
+  homePossession: number | null;
+  awayPossession: number | null;
   homeShots: number | null;
   awayShots: number | null;
   homeShotsOnTarget: number | null;
   awayShotsOnTarget: number | null;
-  homeCorners: number | null;
-  awayCorners: number | null;
-  homeYellowCards: number | null;
-  awayYellowCards: number | null;
-  homeRedCards: number | null;
-  awayRedCards: number | null;
+  homeCornerKicks: number | null;
+  awayCornerKicks: number | null;
+  homeOffside: number | null;
+  awayOffside: number | null;
+  homeFreeKicks: number | null;
+  awayFreeKicks: number | null;
+  homeFouls: number | null;
+  awayFouls: number | null;
+  homeSuccessfulPasses: number | null;
+  awaySuccessfulPasses: number | null;
+  homeCrosses: number | null;
+  awayCrosses: number | null;
+  homeInterceptions: number | null;
+  awayInterceptions: number | null;
+  homeTackles: number | null;
+  awayTackles: number | null;
+  homeSaves: number | null;
+  awaySaves: number | null;
   // â”€â”€ OCR provenance (surfaced to the administrator beside the screenshot) â”€â”€â”€
   /** True when the OCR engine actually ran and produced a reading. */
   ocrAvailable: boolean;
@@ -154,9 +178,12 @@ export interface DetectedResult {
   ocrDurationMs: number;
   /** Raw text the engine read â€” shown so the admin can audit the extraction. */
   rawText: string;
-  /** Names read either side of the score (best effort, display only). */
+  /** Names read either side of the score (fed to the player-name verification). */
   homeName: string | null;
   awayName: string | null;
+  /** Confidence (0-100) of each name reading; 0 when no name was read. */
+  homeNameConfidence: number;
+  awayNameConfidence: number;
   /** Per-field engine confidence (0â€“100); uncertain cells are highlighted. */
   confidence: Record<string, number>;
   /** Per-field provenance, e.g. "page" | "digit-pass" | "score" | "none". */
@@ -171,18 +198,30 @@ export function emptyDetection(): DetectedResult {
   return {
     homeScore: null,
     awayScore: null,
-    homePosition: null,
-    awayPosition: null,
+    homePossession: null,
+    awayPossession: null,
     homeShots: null,
     awayShots: null,
     homeShotsOnTarget: null,
     awayShotsOnTarget: null,
-    homeCorners: null,
-    awayCorners: null,
-    homeYellowCards: null,
-    awayYellowCards: null,
-    homeRedCards: null,
-    awayRedCards: null,
+    homeCornerKicks: null,
+    awayCornerKicks: null,
+    homeOffside: null,
+    awayOffside: null,
+    homeFreeKicks: null,
+    awayFreeKicks: null,
+    homeFouls: null,
+    awayFouls: null,
+    homeSuccessfulPasses: null,
+    awaySuccessfulPasses: null,
+    homeCrosses: null,
+    awayCrosses: null,
+    homeInterceptions: null,
+    awayInterceptions: null,
+    homeTackles: null,
+    awayTackles: null,
+    homeSaves: null,
+    awaySaves: null,
     ocrAvailable: false,
     ocrEngine: OCR_ENGINE,
     ocrError: null,
@@ -190,6 +229,8 @@ export function emptyDetection(): DetectedResult {
     rawText: "",
     homeName: null,
     awayName: null,
+    homeNameConfidence: 0,
+    awayNameConfidence: 0,
     confidence: {},
     sources: {},
     uncertainFields: [],
@@ -205,22 +246,35 @@ export function emptyDetection(): DetectedResult {
  * values for the home team first and the away team second.
  */
 const STAT_FIELD_PATTERNS: { field: NumericField; patterns: RegExp[] }[] = [
-  { field: "homePosition", patterns: [/^\s*(?:position|pos|rank|placement)\b/i] },
+  // `Shots on Target` must be tested before `Shots` — it is the more specific one.
   { field: "homeShotsOnTarget", patterns: [/^\s*shots?\s*on\s*target\b/i, /^\s*(?:sot|on\s*target)\b/i] },
   { field: "homeShots", patterns: [/^\s*(?:total\s*)?shots?\b/i] },
-  { field: "homeCorners", patterns: [/^\s*corners?\b/i] },
-  { field: "homeYellowCards", patterns: [/^\s*(?:yellow\s*cards?|yellows?|yc)\b/i] },
-  { field: "homeRedCards", patterns: [/^\s*(?:red\s*cards?|reds?|rc)\b/i] },
+  { field: "homePossession", patterns: [/^\s*(?:ball\s*)?possession\b/i] },
+  { field: "homeCornerKicks", patterns: [/^\s*corner\s*kicks?\b/i, /^\s*corners?\b/i] },
+  { field: "homeOffside", patterns: [/^\s*offsides?\b/i] },
+  { field: "homeFreeKicks", patterns: [/^\s*free\s*kicks?\b/i] },
+  { field: "homeFouls", patterns: [/^\s*fouls?\b/i] },
+  { field: "homeSuccessfulPasses", patterns: [/^\s*successful\s*passes\b/i] },
+  { field: "homeCrosses", patterns: [/^\s*crosses\b/i] },
+  { field: "homeInterceptions", patterns: [/^\s*interceptions?\b/i] },
+  { field: "homeTackles", patterns: [/^\s*tackles?\b/i] },
+  { field: "homeSaves", patterns: [/^\s*saves?\b/i] },
 ];
 
 /** The away counterpart of each home field. */
 const AWAY_FIELD: Record<string, NumericField> = {
-  homePosition: "awayPosition",
+  homePossession: "awayPossession",
   homeShots: "awayShots",
   homeShotsOnTarget: "awayShotsOnTarget",
-  homeCorners: "awayCorners",
-  homeYellowCards: "awayYellowCards",
-  homeRedCards: "awayRedCards",
+  homeCornerKicks: "awayCornerKicks",
+  homeOffside: "awayOffside",
+  homeFreeKicks: "awayFreeKicks",
+  homeFouls: "awayFouls",
+  homeSuccessfulPasses: "awaySuccessfulPasses",
+  homeCrosses: "awayCrosses",
+  homeInterceptions: "awayInterceptions",
+  homeTackles: "awayTackles",
+  homeSaves: "awaySaves",
 };
 
 const MAX_PLAUSIBLE_STAT = 999;
@@ -316,12 +370,18 @@ export function parseMatchStatsFromText(rawText: string): DetectedResult {
 
 /** Maps each recognised statistic row onto its home/away detection fields. */
 const ROW_TO_FIELD: Record<CanonicalStat, { home: NumericField; away: NumericField }> = {
-  Position: { home: "homePosition", away: "awayPosition" },
+  Possession: { home: "homePossession", away: "awayPossession" },
   Shots: { home: "homeShots", away: "awayShots" },
   ShotsOnTarget: { home: "homeShotsOnTarget", away: "awayShotsOnTarget" },
-  Corners: { home: "homeCorners", away: "awayCorners" },
-  YellowCards: { home: "homeYellowCards", away: "awayYellowCards" },
-  RedCards: { home: "homeRedCards", away: "awayRedCards" },
+  CornerKicks: { home: "homeCornerKicks", away: "awayCornerKicks" },
+  Offside: { home: "homeOffside", away: "awayOffside" },
+  FreeKicks: { home: "homeFreeKicks", away: "awayFreeKicks" },
+  Fouls: { home: "homeFouls", away: "awayFouls" },
+  SuccessfulPasses: { home: "homeSuccessfulPasses", away: "awaySuccessfulPasses" },
+  Crosses: { home: "homeCrosses", away: "awayCrosses" },
+  Interceptions: { home: "homeInterceptions", away: "awayInterceptions" },
+  Tackles: { home: "homeTackles", away: "awayTackles" },
+  Saves: { home: "homeSaves", away: "awaySaves" },
 };
 
 /** The numeric detection fields (everything except the OCR metadata block). */
@@ -335,6 +395,8 @@ type NumericField = Exclude<
   | "rawText"
   | "homeName"
   | "awayName"
+  | "homeNameConfidence"
+  | "awayNameConfidence"
   | "confidence"
   | "sources"
   | "uncertainFields"
@@ -344,18 +406,30 @@ type NumericField = Exclude<
 const FIELD_LABEL: Record<string, string> = {
   homeScore: "home score",
   awayScore: "away score",
-  homePosition: "home position",
-  awayPosition: "away position",
+  homePossession: "home possession",
+  awayPossession: "away possession",
   homeShots: "home shots",
   awayShots: "away shots",
   homeShotsOnTarget: "home shots on target",
   awayShotsOnTarget: "away shots on target",
-  homeCorners: "home corners",
-  awayCorners: "away corners",
-  homeYellowCards: "home yellow cards",
-  awayYellowCards: "away yellow cards",
-  homeRedCards: "home red cards",
-  awayRedCards: "away red cards",
+  homeCornerKicks: "home corner kicks",
+  awayCornerKicks: "away corner kicks",
+  homeOffside: "home offside",
+  awayOffside: "away offside",
+  homeFreeKicks: "home free kicks",
+  awayFreeKicks: "away free kicks",
+  homeFouls: "home fouls",
+  awayFouls: "away fouls",
+  homeSuccessfulPasses: "home successful passes",
+  awaySuccessfulPasses: "away successful passes",
+  homeCrosses: "home crosses",
+  awayCrosses: "away crosses",
+  homeInterceptions: "home interceptions",
+  awayInterceptions: "away interceptions",
+  homeTackles: "home tackles",
+  awayTackles: "away tackles",
+  homeSaves: "home saves",
+  awaySaves: "away saves",
 };
 
 /** Reject implausible values so OCR noise can never become an official statistic. */
@@ -383,6 +457,8 @@ export function mapReadingToDetection(reading: OcrScreenshotReading): DetectedRe
   detected.rawText = reading.fullText;
   detected.homeName = reading.homeName;
   detected.awayName = reading.awayName;
+  detected.homeNameConfidence = reading.homeNameConfidence;
+  detected.awayNameConfidence = reading.awayNameConfidence;
 
   // â”€â”€ Score â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   detected.homeScore = bounded(reading.homeScore);

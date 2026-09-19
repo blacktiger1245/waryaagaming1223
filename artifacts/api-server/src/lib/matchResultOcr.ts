@@ -48,12 +48,18 @@ export interface OcrWord {
 
 /** The statistic rows this project understands. */
 export type CanonicalStat =
-  | "Position"
+  | "Possession"
   | "Shots"
   | "ShotsOnTarget"
-  | "Corners"
-  | "YellowCards"
-  | "RedCards";
+  | "CornerKicks"
+  | "Offside"
+  | "FreeKicks"
+  | "Fouls"
+  | "SuccessfulPasses"
+  | "Crosses"
+  | "Interceptions"
+  | "Tackles"
+  | "Saves";
 
 /** Which pass produced a recognised number. */
 export type OcrValueSource = "page" | "digit-pass" | "none";
@@ -87,9 +93,16 @@ export interface OcrScreenshotReading {
   height: number;
   /** One entry per canonical statistic row. */
   rows: OcrStatRow[];
-  /** Participant names read either side of the score (best effort, display only). */
+  /** Participant names read either side of the score (best effort). */
   homeName: string | null;
   awayName: string | null;
+  /**
+   * Confidence (0–100) of each name reading; 0 when no name was read. The
+   * name-verification layer treats a name below the word-confidence floor as
+   * "Name Not Detected" rather than guessing from noise.
+   */
+  homeNameConfidence: number;
+  awayNameConfidence: number;
   homeScore: number | null;
   awayScore: number | null;
   homeScoreConfidence: number;
@@ -273,6 +286,8 @@ export function unavailableReading(error: string, durationMs = 0): OcrScreenshot
     rows: [],
     homeName: null,
     awayName: null,
+    homeNameConfidence: 0,
+    awayNameConfidence: 0,
     homeScore: null,
     awayScore: null,
     homeScoreConfidence: 0,
@@ -455,24 +470,33 @@ function groupIntoLines(words: OcrWord[]): OcrLine[] {
 const STAT_LABELS: Array<{ label: CanonicalStat; matches: (letters: string) => boolean }> = [
   // `Shots on Target` must be tested before `Shots` â€” it is the more specific one.
   { label: "ShotsOnTarget", matches: (t) => t.includes("shotsontarget") || t.includes("ontarget") || t === "sot" },
-  { label: "Position", matches: (t) => t === "position" || t === "pos" || t === "rank" || t === "placement" },
-  { label: "Corners", matches: (t) => t.startsWith("corner") },
-  {
-    label: "YellowCards",
-    matches: (t) => t === "yc" || t === "ye" || t === "yel" || t.startsWith("yell"),
-  },
-  { label: "RedCards", matches: (t) => t === "rc" || t === "red" || t.startsWith("redcards") },
+  { label: "Possession", matches: (t) => t === "possession" || t === "ballpossession" },
+  { label: "CornerKicks", matches: (t) => t === "cornerkicks" || t === "corners" },
+  { label: "Offside", matches: (t) => t === "offside" || t === "offsides" },
+  { label: "FreeKicks", matches: (t) => t === "freekicks" },
+  { label: "Fouls", matches: (t) => t === "fouls" },
+  { label: "SuccessfulPasses", matches: (t) => t === "successfulpasses" },
+  { label: "Crosses", matches: (t) => t === "crosses" },
+  { label: "Interceptions", matches: (t) => t === "interceptions" },
+  { label: "Tackles", matches: (t) => t === "tackles" },
+  { label: "Saves", matches: (t) => t === "saves" },
   { label: "Shots", matches: (t) => t === "sh" || t.startsWith("shot") },
 ];
 
 /** The canonical order rows are reported in. */
 const CANONICAL_ORDER: CanonicalStat[] = [
-  "Position",
+  "Possession",
   "Shots",
   "ShotsOnTarget",
-  "Corners",
-  "YellowCards",
-  "RedCards",
+  "CornerKicks",
+  "Offside",
+  "FreeKicks",
+  "Fouls",
+  "SuccessfulPasses",
+  "Crosses",
+  "Interceptions",
+  "Tackles",
+  "Saves",
 ];
 
 /** Identify the statistic a line describes, or `null` when it is not a stat row. */
@@ -627,6 +651,12 @@ async function prepareImage(bytes: Buffer): Promise<PreparedImage> {
 
 // â”€ Score line detection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+/** Heading words that must never be mistaken for a player name. */
+const NAME_STOPWORDS = new Set([
+  "match", "results", "result", "statistics", "stats", "full", "time", "ft",
+  "final", "score", "half", "summary", "overview", "highlights",
+]);
+
 /** Tokens that sit between the two scores on a results screen. */
 const SCORE_SEPARATORS = new Set(["-", "â€“", "â€”", ":", "x", "vs", "v", "l"]);
 
@@ -637,6 +667,8 @@ interface ScoreReading {
   awayConfidence: number;
   homeName: string | null;
   awayName: string | null;
+  homeNameConfidence: number;
+  awayNameConfidence: number;
   homeWord: OcrWord | null;
   awayWord: OcrWord | null;
   line: OcrLine | null;
@@ -650,19 +682,58 @@ function emptyScoreReading(): ScoreReading {
     awayConfidence: 0,
     homeName: null,
     awayName: null,
+    homeNameConfidence: 0,
+    awayNameConfidence: 0,
     homeWord: null,
     awayWord: null,
     line: null,
   };
 }
 
-/** Join candidate display words into a participant name, or `null`. */
-function nameFromWords(words: OcrWord[]): string | null {
-  const parts = words
-    .map((w) => w.text.replace(/[^A-Za-z0-9 .'&_-]/g, "").trim())
-    .filter((t) => t.length > 0);
-  const name = parts.join(" ").replace(/\s+/g, " ").trim();
-  return name.length >= 2 ? name : null;
+/** A participant name read off the screenshot, plus how confidently it was read. */
+interface NameReading {
+  name: string | null;
+  confidence: number;
+}
+
+const NO_NAME: NameReading = { name: null, confidence: 0 };
+
+/**
+ * Join candidate display words into a participant name, or `null`.
+ *
+ * Words the engine itself distrusts (below `MIN_WORD_CONFIDENCE`) are dropped
+ * first: a name assembled from noise would later be *guessed* at by the
+ * name-verification layer, and guessing an identity is worse than reporting
+ * "Name Not Detected". The returned confidence is the mean of the words that
+ * actually contributed, so the caller can judge how much to trust the string.
+ */
+function readName(words: OcrWord[]): NameReading {
+  const usable = words
+    .map((w) => ({ text: w.text.replace(/[^A-Za-z0-9 .'&_-]/g, "").trim(), confidence: w.confidence }))
+    .filter((w) => w.text.length > 0 && w.confidence >= MIN_WORD_CONFIDENCE);
+  const name = usable.map((w) => w.text).join(" ").replace(/\s+/g, " ").trim();
+  if (name.length < 2) return { ...NO_NAME };
+  const confidence = usable.reduce((sum, w) => sum + w.confidence, 0) / usable.length;
+  return { name, confidence: Math.round(confidence) };
+}
+
+/**
+ * Split a score that OCR read as a single token back into its two numbers.
+ *
+ * `3-1`, `3–1`, `3 : 1` and `3x1` are all common renderings of a score. Left
+ * alone, `3-1` would be reduced to the two-digit number `31` by `digitsOf` — i.e. a
+ * *wrong* score invented from a correct reading. Splitting the token into two words
+ * (sharing its box) keeps both numbers exact and lets the normal two-number score
+ * path handle them. Anything else is returned untouched.
+ */
+function splitScoreToken(word: OcrWord): OcrWord[] {
+  const m = word.text.trim().match(/^(\d{1,2})\s*[-\u2013\u2014:.]\s*(\d{1,2})$/);
+  if (!m) return [word];
+  const mid = (word.x0 + word.x1) / 2;
+  return [
+    { text: m[1]!, confidence: word.confidence, x0: word.x0, y0: word.y0, x1: mid, y1: word.y1 },
+    { text: m[2]!, confidence: word.confidence, x0: mid, y0: word.y0, x1: word.x1, y1: word.y1 },
+  ];
 }
 
 /**
@@ -674,19 +745,63 @@ function nameFromWords(words: OcrWord[]): string | null {
  * Candidates are *ranked* rather than filtered so an unusual layout still yields a
  * best effort â€” and whatever is chosen is then re-verified by the digit pass.
  */
+/**
+ * Read the participant name on one side of the score.
+ *
+ * Names normally share the score line (`ABDULAZIZ  3 - 1  MOHAMED`). Some result
+ * screens print them on their own line directly above the score, so when the
+ * score line itself has no letters on that side the immediately adjacent lines
+ * are tried -- nearest first, never further than ~1.6 line-heights away, and
+ * never a statistics row or a line carrying numbers (a date, a clock, another
+ * score). Anything further away is a heading or a label and must not be
+ * mistaken for a player name.
+ */
+function sideName(lines: OcrLine[], scoreLine: OcrLine, anchor: OcrWord, side: "home" | "away"): NameReading {
+  const onSide = (line: OcrLine) =>
+    line.words.filter(
+      (w) => lettersOnly(w.text).length > 0 && (side === "home" ? w.x1 <= anchor.x0 : w.x0 >= anchor.x1),
+    );
+
+  const direct = onSide(scoreLine);
+  if (direct.length) {
+    return readName(side === "home" ? direct.slice(-3) : direct.slice(0, 3));
+  }
+
+  const neighbours = lines
+    .filter((line) => line !== scoreLine && statisticOf(line) === null)
+    .map((line) => ({ line, gap: Math.abs(line.centerY - scoreLine.centerY) }))
+    .filter(
+      ({ line, gap }) =>
+        gap <= scoreLine.height * 1.25 &&
+        line.words.every((w) => digitsOf(w.text) === null) &&
+        // A heading ("MATCH RESULTS", "MATCH STATISTICS") is never a name.
+        line.words.some((w) => !NAME_STOPWORDS.has(lettersOnly(w.text))),
+    )
+    .sort((a, b) => a.gap - b.gap);
+
+  for (const { line } of neighbours) {
+    const words = onSide(line);
+    if (!words.length) continue;
+    return readName(side === "home" ? words.slice(-3) : words.slice(0, 3));
+  }
+  return { ...NO_NAME };
+}
+
 function findScoreLine(lines: OcrLine[], imageHeight: number): ScoreReading {
   const candidates: Array<{ line: OcrLine; score: number; numeric: OcrWord[] }> = [];
 
   for (const line of lines) {
     // A statistics row can never be the score line.
     if (statisticOf(line) !== null) continue;
-    const numeric = line.words.filter((w) => digitsOf(w.text) !== null);
+    // A merged `3-1` token counts as the two numbers it actually contains.
+    const words = line.words.flatMap(splitScoreToken);
+    const numeric = words.filter((w) => digitsOf(w.text) !== null);
     if (numeric.length < 2 || numeric.length > 4) continue;
 
     let score = 0;
     const first = numeric[0]!;
     const last = numeric[numeric.length - 1]!;
-    const between = line.words.filter((w) => w.x0 >= first.x1 && w.x1 <= last.x0);
+    const between = words.filter((w) => w.x0 >= first.x1 && w.x1 <= last.x0);
     if (between.some((w) => SCORE_SEPARATORS.has(w.text.trim().toLowerCase()))) score += 3;
     if (numeric.length === 2) score += 1;
     if (imageHeight > 0 && line.centerY < imageHeight * 0.5) score += 1;
@@ -705,17 +820,20 @@ function findScoreLine(lines: OcrLine[], imageHeight: number): ScoreReading {
   const homeWord = winner.numeric[0]!;
   const awayWord = winner.numeric[winner.numeric.length - 1]!;
 
-  const left = winner.line.words.filter((w) => w.x1 <= homeWord.x0 && lettersOnly(w.text).length > 0);
-  const right = winner.line.words.filter((w) => w.x0 >= awayWord.x1 && lettersOnly(w.text).length > 0);
+  // The words nearest the score form the name, e.g. `Player A` / `Player B`,
+  // with a fallback to the adjacent line for layouts that print names above.
+  const homeName = sideName(lines, winner.line, homeWord, "home");
+  const awayName = sideName(lines, winner.line, awayWord, "away");
 
   return {
     home: toPlausibleCount(digitsOf(homeWord.text) ?? ""),
     away: toPlausibleCount(digitsOf(awayWord.text) ?? ""),
     homeConfidence: digitsOf(homeWord.text) ? homeWord.confidence : 0,
     awayConfidence: digitsOf(awayWord.text) ? awayWord.confidence : 0,
-    // The words nearest the score form the name, e.g. `Player A` / `Player B`.
-    homeName: nameFromWords(left.slice(-3)),
-    awayName: nameFromWords(right.slice(0, 3)),
+    homeName: homeName.name,
+    awayName: awayName.name,
+    homeNameConfidence: homeName.confidence,
+    awayNameConfidence: awayName.confidence,
     homeWord,
     awayWord,
     line: winner.line,
@@ -902,20 +1020,23 @@ function crossCheck(rows: OcrStatRow[]): string[] {
     }
   }
 
-  // Position and cards are bounded by the shape of the game.
-  const position = byLabel.get("Position");
+  // Possession is a whole percentage per side.
+  const possession = byLabel.get("Possession");
   for (const side of ["home", "away"] as const) {
-    const v = position?.[side] ?? null;
-    if (v !== null && (v < 1 || v > 20)) {
-      mark(position, `Position ${v} is outside the expected 1â€“20 range â€” please verify.`);
+    const v = possession?.[side] ?? null;
+    if (v !== null && (v < 0 || v > 100)) {
+      mark(possession, `Possession ${v} is outside the expected 0â€“100 range â€” please verify.`);
     }
   }
 
-  for (const label of ["YellowCards", "RedCards"] as const) {
+  // Counted events are bounded by the shape of a single match. `Offside` and
+  // `FreeKicks` used to be read from the card rows; the bounds are kept because
+  // the underlying quantity (discrete per-match events) is the same kind.
+  for (const label of ["Offside", "FreeKicks", "Fouls", "Saves"] as const) {
     const row = byLabel.get(label);
     for (const side of ["home", "away"] as const) {
       const v = row?.[side] ?? null;
-      if (v !== null && v > 11) {
+      if (v !== null && v > 40) {
         mark(row, `${label} value ${v} looks too high for a single match â€” please verify.`);
       }
     }
@@ -1088,6 +1209,8 @@ export async function detectMatchResultReading(bytes: Buffer): Promise<OcrScreen
     rows: resolvedRows,
     homeName: score.homeName,
     awayName: score.awayName,
+    homeNameConfidence: score.homeNameConfidence,
+    awayNameConfidence: score.awayNameConfidence,
     homeScore,
     awayScore,
     homeScoreConfidence,

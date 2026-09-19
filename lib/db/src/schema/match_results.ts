@@ -35,18 +35,60 @@ export const matchResultSubmissionsTable = pgTable("match_result_submissions", {
   // NULL means "Not detected" — the admin must confirm the value before approval.
   homeScore: integer("home_score"),
   awayScore: integer("away_score"),
-  homePosition: integer("home_position"),
-  awayPosition: integer("away_position"),
+  // ── Player-vs-player statistics extracted from the screenshot ──
+  // `Position` → `Possession`, `Corners` → `Corner Kicks`, `Yellow Cards` →
+  // `Offside` and `Red Cards` → `Free Kicks`; the remaining six statistics were
+  // added by the same migration. NULL means "Not detected" — the admin must
+  // confirm the value before approval. `Successful Passes` is a single field.
+  homePossession: integer("home_possession"),
+  awayPossession: integer("away_possession"),
   homeShots: integer("home_shots"),
   awayShots: integer("away_shots"),
   homeShotsOnTarget: integer("home_shots_on_target"),
   awayShotsOnTarget: integer("away_shots_on_target"),
-  homeCorners: integer("home_corners"),
-  awayCorners: integer("away_corners"),
-  homeYellowCards: integer("home_yellow_cards"),
-  awayYellowCards: integer("away_yellow_cards"),
-  homeRedCards: integer("home_red_cards"),
-  awayRedCards: integer("away_red_cards"),
+  homeCornerKicks: integer("home_corner_kicks"),
+  awayCornerKicks: integer("away_corner_kicks"),
+  homeOffside: integer("home_offside"),
+  awayOffside: integer("away_offside"),
+  homeFreeKicks: integer("home_free_kicks"),
+  awayFreeKicks: integer("away_free_kicks"),
+  homeFouls: integer("home_fouls"),
+  awayFouls: integer("away_fouls"),
+  homeSuccessfulPasses: integer("home_successful_passes"),
+  awaySuccessfulPasses: integer("away_successful_passes"),
+  homeCrosses: integer("home_crosses"),
+  awayCrosses: integer("away_crosses"),
+  homeInterceptions: integer("home_interceptions"),
+  awayInterceptions: integer("away_interceptions"),
+  homeTackles: integer("home_tackles"),
+  awayTackles: integer("away_tackles"),
+  homeSaves: integer("home_saves"),
+  awaySaves: integer("away_saves"),
+  // ── Player-name verification (screenshot names vs the registered matchup) ──
+  // Before approval the two names read off the screenshot are compared against
+  // the players registered for the exact player-vs-player matchup. The verdict
+  // and both name pairs are frozen here so the admin review screen can show
+  // "expected vs detected" without re-running OCR. NULL = the submission
+  // predates name verification. `name_verification_notes` holds a JSON object:
+  // { notes, homeStatus, awayStatus, homeMethod, awayMethod, sidesSwapped,
+  //   foreignMatchup }.
+  nameVerificationStatus: text("name_verification_status"), // verified | failed | not_detected | not_applicable
+  homeExpectedName: text("home_expected_name"),
+  homeScreenshotName: text("home_screenshot_name"),
+  awayExpectedName: text("away_expected_name"),
+  awayScreenshotName: text("away_screenshot_name"),
+  nameVerificationNotes: text("name_verification_notes"),
+  // ── Admin-controlled Home/Away player assignment ──
+  // At approval time the administrator explicitly chooses which registered
+  // player is the Home side and which is the Away side of the screenshot. The
+  // OCR-detected statistics are then assigned by screenshot side: the selected
+  // Home player receives the Home columns, the selected Away player the Away
+  // columns. These four columns permanently record that decision. NULL = not
+  // yet assigned (pending submissions).
+  assignedHomePlayerId: integer("assigned_home_player_id"),
+  assignedHomePlayerName: text("assigned_home_player_name"),
+  assignedAwayPlayerId: integer("assigned_away_player_id"),
+  assignedAwayPlayerName: text("assigned_away_player_name"),
   rejectionReason: text("rejection_reason"),
   // Provenance of the OCR pass that produced the values above: the engine used,
   // how long it took, the raw text it read, per-field confidence/provenance and

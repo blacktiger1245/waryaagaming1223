@@ -16,7 +16,7 @@
  */
 import { readFileSync } from "node:fs";
 import { detectMatchResultFromImage, validateUploadedImage, assertSafeImage } from "../src/lib/matchResultDetection";
-import { shutdownOcrEngine } from "../src/lib/matchResultOcr";
+import { shutdownOcrEngine, detectMatchResultReading } from "../src/lib/matchResultOcr";
 
 const src = process.argv[2] ?? "test/fixtures/efootball-match-result.png";
 const bytes = readFileSync(src);
@@ -44,12 +44,18 @@ console.log("awayName     :", JSON.stringify(d.awayName));
 console.log("score        :", d.homeScore, "-", d.awayScore);
 
 const FIELDS = [
-  "homePosition", "awayPosition",
+  "homePossession", "awayPossession",
   "homeShots", "awayShots",
   "homeShotsOnTarget", "awayShotsOnTarget",
-  "homeCorners", "awayCorners",
-  "homeYellowCards", "awayYellowCards",
-  "homeRedCards", "awayRedCards",
+  "homeCornerKicks", "awayCornerKicks",
+  "homeOffside", "awayOffside",
+  "homeFreeKicks", "awayFreeKicks",
+  "homeFouls", "awayFouls",
+  "homeSuccessfulPasses", "awaySuccessfulPasses",
+  "homeCrosses", "awayCrosses",
+  "homeInterceptions", "awayInterceptions",
+  "homeTackles", "awayTackles",
+  "homeSaves", "awaySaves",
 ] as const;
 
 console.log("\n--- statistic fields ---");
@@ -70,14 +76,22 @@ console.log("\n=== RAW TEXT READ BY OCR ===");
 console.log(d.rawText.trim());
 
 // ── 3. Assertions against the bundled fixture ───────────────────────────────
+// Values rendered into test/fixtures/efootball-match-result.png by
+// `node test/make-ocr-fixture.mjs`.
 const EXPECT: Array<[string, number]> = [
   ["homeScore", 3], ["awayScore", 1],
-  ["homePosition", 1], ["awayPosition", 2],
+  ["homePossession", 58], ["awayPossession", 42],
   ["homeShots", 8], ["awayShots", 4],
   ["homeShotsOnTarget", 5], ["awayShotsOnTarget", 2],
-  ["homeCorners", 4], ["awayCorners", 2],
-  ["homeYellowCards", 1], ["awayYellowCards", 2],
-  ["homeRedCards", 0], ["awayRedCards", 0],
+  ["homeCornerKicks", 4], ["awayCornerKicks", 2],
+  ["homeOffside", 1], ["awayOffside", 2],
+  ["homeFreeKicks", 12], ["awayFreeKicks", 9],
+  ["homeFouls", 7], ["awayFouls", 10],
+  ["homeSuccessfulPasses", 148], ["awaySuccessfulPasses", 121],
+  ["homeCrosses", 6], ["awayCrosses", 3],
+  ["homeInterceptions", 9], ["awayInterceptions", 11],
+  ["homeTackles", 14], ["awayTackles", 16],
+  ["homeSaves", 2], ["awaySaves", 5],
 ];
 
 let pass = 0;
@@ -90,6 +104,25 @@ for (const [field, expected] of EXPECT) {
   else fail += 1;
   console.log(`${ok ? "PASS" : "FAIL"} ${field.padEnd(20)} expected ${expected}  got ${got}`);
 }
+// ─ 3b. Player names on the score line ──────────────────────────────────────
+// The names on the screenshot are reported to the administrator as OCR
+// information so they can identify each side when assigning the Home and Away
+// players. (They are no longer matched against the registration: the admin
+// makes that decision explicitly on the review screen.)
+if (usingFixture) {
+  console.log("\n=== PLAYER NAMES ON THE SCORE LINE ===");
+  console.log(`home: ${JSON.stringify(d.homeName)} (conf ${d.homeNameConfidence})`);
+  console.log(`away: ${JSON.stringify(d.awayName)} (conf ${d.awayNameConfidence})`);
+
+  const namesOk = d.homeName !== null && d.awayName !== null;
+  console.log(`${namesOk ? "PASS" : "FAIL"} both player names read off the screenshot (home=${d.homeName}, away=${d.awayName})`);
+  if (namesOk) pass += 1; else fail += 1;
+
+  const confOk = d.homeNameConfidence > 0 && d.awayNameConfidence > 0;
+  console.log(`${confOk ? "PASS" : "FAIL"} name readings carry a confidence score`);
+  if (confOk) pass += 1; else fail += 1;
+}
+
 console.log(`\nRESULT: ${pass} passed, ${fail} failed`);
 if (!usingFixture && fail > 0) {
   console.log("(Informational only — a custom screenshot was supplied.)");
@@ -115,6 +148,38 @@ if (usingFixture) {
   }
   console.log(`\nSECOND PASS: ${EXPECT.length - repeatFail}/${EXPECT.length} fields read correctly`);
   console.log(`\nFINAL RESULT: ${pass} passed, ${fail} failed`);
+}
+
+// ── 5. Statistic inventory: exactly the 12 canonical statistics ─────────────
+// Guards the naming contract directly: the OCR must report the renamed statistics
+// and must NOT report a legacy label (Position / Corners / Yellow Cards /
+// Red Cards) or a split "Passes" + "Successful" pair.
+if (usingFixture) {
+  console.log("\n=== STATISTIC INVENTORY (labels actually recognised) ===");
+  const reading = await detectMatchResultReading(bytes);
+  const labels = reading.rows.map((r) => r.label);
+  const expectedLabels = [
+    "Possession", "Shots", "ShotsOnTarget", "CornerKicks", "Offside", "FreeKicks",
+    "Fouls", "SuccessfulPasses", "Crosses", "Interceptions", "Tackles", "Saves",
+  ];
+  const forbidden = ["Position", "Corners", "YellowCards", "RedCards", "Passes", "Successful"];
+  console.log("labels:", JSON.stringify(labels));
+
+  const inventoryOk = JSON.stringify(labels) === JSON.stringify(expectedLabels);
+  console.log(`${inventoryOk ? "PASS" : "FAIL"} exactly the 12 canonical statistics, in order (got ${labels.length})`);
+  if (inventoryOk) pass += 1; else fail += 1;
+
+  const successes = labels.filter((l) => l === "SuccessfulPasses").length;
+  const oneStatistic = successes === 1;
+  console.log(`${oneStatistic ? "PASS" : "FAIL"} 'Successful Passes' is exactly ONE statistic (rows: ${successes})`);
+  if (oneStatistic) pass += 1; else fail += 1;
+
+  const leaked = forbidden.filter((f) => labels.includes(f as never));
+  const noLegacy = leaked.length === 0;
+  console.log(`${noLegacy ? "PASS" : "FAIL"} no legacy/duplicate statistic labels (found: ${JSON.stringify(leaked)})`);
+  if (noLegacy) pass += 1; else fail += 1;
+
+  console.log(`\nINVENTORY RESULT: ${pass} passed, ${fail} failed`);
 }
 
 await shutdownOcrEngine();

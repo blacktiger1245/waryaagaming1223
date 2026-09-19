@@ -2123,14 +2123,22 @@ router.post("/admin/matches/:id/player-games", requireAdmin, async (req, res) =>
   return res.json(inserted);
 });
 
-// PATCH update a player game result + per-player match stats
+// PATCH update a player game result + per-player match stats.
+// The canonical statistics list (see MATCH_RESULT_STAT_COLUMNS in
+// lib/db/src/schema/match_player_games.ts) — `Successful Passes` is ONE field.
 const GAME_STAT_FIELDS = [
   "homePossession", "awayPossession",
   "homeShots", "awayShots",
   "homeShotsOnTarget", "awayShotsOnTarget",
-  "homeCorners", "awayCorners",
-  "homeYellowCards", "awayYellowCards",
-  "homeRedCards", "awayRedCards",
+  "homeCornerKicks", "awayCornerKicks",
+  "homeOffside", "awayOffside",
+  "homeFreeKicks", "awayFreeKicks",
+  "homeFouls", "awayFouls",
+  "homeSuccessfulPasses", "awaySuccessfulPasses",
+  "homeCrosses", "awayCrosses",
+  "homeInterceptions", "awayInterceptions",
+  "homeTackles", "awayTackles",
+  "homeSaves", "awaySaves",
 ] as const;
 
 router.patch("/admin/player-games/:id", requireAdmin, async (req, res) => {

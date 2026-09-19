@@ -280,28 +280,38 @@ export async function ensureClanTournamentSchema(): Promise<void> {
 }
 
 /**
- * Per-player match stats for team-vs-team player games: possession %, shots,
- * shots on target, corners, yellow cards and red cards per player. Additive and
- * idempotent so it is safe to run on every boot.
+ * The canonical player-vs-player statistic columns, as `home_*`/`away_*` pairs.
+ *
+ * This is the single source of truth for the statistics list, shared by both the
+ * submission rows and the per-matchup player-game rows. `Successful Passes` is ONE
+ * column (`successful_passes`) — there is deliberately no separate `passes` or
+ * `successful` column.
+ */
+export const MATCH_RESULT_STAT_COLUMNS = [
+  "possession",
+  "shots",
+  "shots_on_target",
+  "corner_kicks",
+  "offside",
+  "free_kicks",
+  "fouls",
+  "successful_passes",
+  "crosses",
+  "interceptions",
+  "tackles",
+  "saves",
+].flatMap((stat) => [`home_${stat}`, `away_${stat}`]);
+
+/**
+ * Per-player match stats for team-vs-team player games: possession, shots, shots
+ * on target, corner kicks, offside, free kicks, fouls, successful passes, crosses,
+ * interceptions, tackles and saves per player. Additive and idempotent so it is
+ * safe to run on every boot.
  */
 export async function ensurePlayerGameStatsSchema(): Promise<void> {
-  const statements = [
-    `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "home_possession" integer;`,
-    `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "away_possession" integer;`,
-    `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "home_shots" integer;`,
-    `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "away_shots" integer;`,
-    `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "home_shots_on_target" integer;`,
-    `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "away_shots_on_target" integer;`,
-    `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "home_corners" integer;`,
-    `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "away_corners" integer;`,
-    `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "home_yellow_cards" integer;`,
-    `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "away_yellow_cards" integer;`,
-    `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "home_red_cards" integer;`,
-    `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "away_red_cards" integer;`,
-    // Position columns written when an admin approves a screenshot submission.
-    `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "home_position" integer;`,
-    `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "away_position" integer;`,
-  ];
+  const statements = MATCH_RESULT_STAT_COLUMNS.map(
+    (c) => `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "${c}" integer;`,
+  );
   try {
     for (const sql of statements) {
       await pool.query(sql);
@@ -327,18 +337,36 @@ export async function ensureMatchResultSchema(): Promise<void> {
        "image_path" text NOT NULL,
        "home_score" integer,
        "away_score" integer,
-       "home_position" integer,
-       "away_position" integer,
+       "home_possession" integer,
+       "away_possession" integer,
        "home_shots" integer,
        "away_shots" integer,
        "home_shots_on_target" integer,
        "away_shots_on_target" integer,
-       "home_corners" integer,
-       "away_corners" integer,
-       "home_yellow_cards" integer,
-       "away_yellow_cards" integer,
-       "home_red_cards" integer,
-       "away_red_cards" integer,
+       "home_corner_kicks" integer,
+       "away_corner_kicks" integer,
+       "home_offside" integer,
+       "away_offside" integer,
+       "home_free_kicks" integer,
+       "away_free_kicks" integer,
+       "home_fouls" integer,
+       "away_fouls" integer,
+       "home_successful_passes" integer,
+       "away_successful_passes" integer,
+       "home_crosses" integer,
+       "away_crosses" integer,
+       "home_interceptions" integer,
+       "away_interceptions" integer,
+       "home_tackles" integer,
+       "away_tackles" integer,
+       "home_saves" integer,
+       "away_saves" integer,
+       "name_verification_status" text,
+       "home_expected_name" text,
+       "home_screenshot_name" text,
+       "away_expected_name" text,
+       "away_screenshot_name" text,
+       "name_verification_notes" text,
        "rejection_reason" text,
        "ocr_metadata" text,
        "approved_by" integer,
@@ -346,8 +374,116 @@ export async function ensureMatchResultSchema(): Promise<void> {
        "created_at" timestamp NOT NULL DEFAULT now(),
        "updated_at" timestamp NOT NULL DEFAULT now()
      );`,
+    // ── Rename the legacy statistics without losing stored results ───────────
+    // `Position` → `Possession`, `Corners` → `Corner Kicks`, `Yellow Cards` →
+    // `Offside`, `Red Cards` → `Free Kicks`, for the submission rows. PostgreSQL
+    // has no `RENAME COLUMN IF EXISTS`, so the catalog is inspected first. When
+    // the legacy column and its replacement both exist, the legacy value is copied
+    // across (only where the replacement is still NULL) and the legacy column is
+    // dropped — nothing is silently lost and no duplicate column is left behind.
+    `DO $$
+     DECLARE
+       side text;
+       pair text[];
+       legacy text;
+       current_col text;
+     BEGIN
+       FOREACH side IN ARRAY ARRAY['home', 'away'] LOOP
+         FOREACH pair SLICE 1 IN ARRAY ARRAY[
+           ['position', 'possession'],
+           ['corners', 'corner_kicks'],
+           ['yellow_cards', 'offside'],
+           ['red_cards', 'free_kicks']
+         ] LOOP
+           legacy := side || '_' || pair[1];
+           current_col := side || '_' || pair[2];
+           IF EXISTS (
+             SELECT 1 FROM information_schema.columns
+             WHERE table_schema = current_schema()
+               AND table_name = 'match_result_submissions'
+               AND column_name = legacy
+           ) THEN
+             IF EXISTS (
+               SELECT 1 FROM information_schema.columns
+               WHERE table_schema = current_schema()
+                 AND table_name = 'match_result_submissions'
+                 AND column_name = current_col
+             ) THEN
+               EXECUTE format('UPDATE match_result_submissions SET %I = COALESCE(%I, %I)', current_col, current_col, legacy);
+               EXECUTE format('ALTER TABLE match_result_submissions DROP COLUMN %I', legacy);
+             ELSE
+               EXECUTE format('ALTER TABLE match_result_submissions RENAME COLUMN %I TO %I', legacy, current_col);
+             END IF;
+           END IF;
+         END LOOP;
+       END LOOP;
+     END $$;`,
+    // The same rename for the per-matchup player-game statistics. Here the legacy
+    // `position` columns were *already* duplicated by a `possession` pair, so the
+    // two are merged (legacy value only fills a NULL possession) before the legacy
+    // column is dropped.
+    `DO $$
+     DECLARE
+       side text;
+       pair text[];
+       legacy text;
+       current_col text;
+     BEGIN
+       FOREACH side IN ARRAY ARRAY['home', 'away'] LOOP
+         FOREACH pair SLICE 1 IN ARRAY ARRAY[
+           ['position', 'possession'],
+           ['corners', 'corner_kicks'],
+           ['yellow_cards', 'offside'],
+           ['red_cards', 'free_kicks']
+         ] LOOP
+           legacy := side || '_' || pair[1];
+           current_col := side || '_' || pair[2];
+           IF EXISTS (
+             SELECT 1 FROM information_schema.columns
+             WHERE table_schema = current_schema()
+               AND table_name = 'match_player_games'
+               AND column_name = legacy
+           ) THEN
+             IF EXISTS (
+               SELECT 1 FROM information_schema.columns
+               WHERE table_schema = current_schema()
+                 AND table_name = 'match_player_games'
+                 AND column_name = current_col
+             ) THEN
+               EXECUTE format('UPDATE match_player_games SET %I = COALESCE(%I, %I)', current_col, current_col, legacy);
+               EXECUTE format('ALTER TABLE match_player_games DROP COLUMN %I', legacy);
+             ELSE
+               EXECUTE format('ALTER TABLE match_player_games RENAME COLUMN %I TO %I', legacy, current_col);
+             END IF;
+           END IF;
+         END LOOP;
+       END LOOP;
+     END $$;`,
+    // Add any statistic the database is still missing (fresh installs get them
+    // from the CREATE above; upgraded installs get them here). `Successful Passes`
+    // is deliberately ONE column — never a separate `passes` + `successful` pair.
+    ...MATCH_RESULT_STAT_COLUMNS.map(
+      (c) => `ALTER TABLE "match_result_submissions" ADD COLUMN IF NOT EXISTS "${c}" integer;`,
+    ),
+    ...MATCH_RESULT_STAT_COLUMNS.map(
+      (c) => `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "${c}" integer;`,
+    ),
     // Provenance of the OCR read, added after the submission table shipped.
     `ALTER TABLE "match_result_submissions" ADD COLUMN IF NOT EXISTS "ocr_metadata" text;`,
+    // Player-name verification: the screenshot names are compared against the
+    // players registered for the exact matchup, and the verdict plus the
+    // expected/detected pairs are frozen on the submission for the admin review.
+    `ALTER TABLE "match_result_submissions" ADD COLUMN IF NOT EXISTS "name_verification_status" text;`,
+    `ALTER TABLE "match_result_submissions" ADD COLUMN IF NOT EXISTS "home_expected_name" text;`,
+    `ALTER TABLE "match_result_submissions" ADD COLUMN IF NOT EXISTS "home_screenshot_name" text;`,
+    `ALTER TABLE "match_result_submissions" ADD COLUMN IF NOT EXISTS "away_expected_name" text;`,
+    `ALTER TABLE "match_result_submissions" ADD COLUMN IF NOT EXISTS "away_screenshot_name" text;`,
+    `ALTER TABLE "match_result_submissions" ADD COLUMN IF NOT EXISTS "name_verification_notes" text;`,
+    // Admin-controlled Home/Away player assignment, frozen at approval.
+    `ALTER TABLE "match_result_submissions" ADD COLUMN IF NOT EXISTS "assigned_home_player_id" integer;`,
+    `ALTER TABLE "match_result_submissions" ADD COLUMN IF NOT EXISTS "assigned_home_player_name" text;`,
+    `ALTER TABLE "match_result_submissions" ADD COLUMN IF NOT EXISTS "assigned_away_player_id" integer;`,
+    `ALTER TABLE "match_result_submissions" ADD COLUMN IF NOT EXISTS "assigned_away_player_name" text;`,
     // Links a submission to the exact player-vs-player game inside a team fixture.
     `ALTER TABLE "match_result_submissions" ADD COLUMN IF NOT EXISTS "player_game_id" integer REFERENCES "match_player_games"("id") ON DELETE CASCADE;`,
     `CREATE INDEX IF NOT EXISTS "match_result_submissions_player_game_idx" ON "match_result_submissions" ("player_game_id")`,

@@ -12,18 +12,30 @@ export interface ResultSubmission {
   imagePath: string;
   homeScore: number | null;
   awayScore: number | null;
-  homePosition: number | null;
-  awayPosition: number | null;
+  homePossession: number | null;
+  awayPossession: number | null;
   homeShots: number | null;
   awayShots: number | null;
   homeShotsOnTarget: number | null;
   awayShotsOnTarget: number | null;
-  homeCorners: number | null;
-  awayCorners: number | null;
-  homeYellowCards: number | null;
-  awayYellowCards: number | null;
-  homeRedCards: number | null;
-  awayRedCards: number | null;
+  homeCornerKicks: number | null;
+  awayCornerKicks: number | null;
+  homeOffside: number | null;
+  awayOffside: number | null;
+  homeFreeKicks: number | null;
+  awayFreeKicks: number | null;
+  homeFouls: number | null;
+  awayFouls: number | null;
+  homeSuccessfulPasses: number | null;
+  awaySuccessfulPasses: number | null;
+  homeCrosses: number | null;
+  awayCrosses: number | null;
+  homeInterceptions: number | null;
+  awayInterceptions: number | null;
+  homeTackles: number | null;
+  awayTackles: number | null;
+  homeSaves: number | null;
+  awaySaves: number | null;
   rejectionReason: string | null;
   approvedAt: string | null;
   createdAt: string | null;
@@ -129,14 +141,35 @@ function ViewScreenshot({ imagePath }: { imagePath: string }) {
 
 // Statistics that come out of the admin-approved screenshot. `null` means the
 // value was not detected and is therefore displayed as "Not detected".
-const STAT_ROWS: { label: string; home: keyof ResultSubmission; away: keyof ResultSubmission }[] = [
-  { label: "Position", home: "homePosition", away: "awayPosition" },
+//
+// This is the single source of truth for the label ↔ field mapping on the player
+// side. `Successful Passes` is ONE statistic — never split into "Passes" and
+// "Successful".
+/** Only the numeric per-side statistic fields can be used as stat row keys. */
+type NumericStatKey = {
+  [K in keyof ResultSubmission]-?: ResultSubmission[K] extends number | null ? K : never;
+}[keyof ResultSubmission];
+
+export const PLAYER_MATCH_STAT_ROWS: {
+  label: string;
+  home: NumericStatKey;
+  away: NumericStatKey;
+}[] = [
+  { label: "Possession", home: "homePossession", away: "awayPossession" },
   { label: "Shots", home: "homeShots", away: "awayShots" },
   { label: "Shots on Target", home: "homeShotsOnTarget", away: "awayShotsOnTarget" },
-  { label: "Corners", home: "homeCorners", away: "awayCorners" },
-  { label: "Yellow Cards", home: "homeYellowCards", away: "awayYellowCards" },
-  { label: "Red Cards", home: "homeRedCards", away: "awayRedCards" },
+  { label: "Corner Kicks", home: "homeCornerKicks", away: "awayCornerKicks" },
+  { label: "Offside", home: "homeOffside", away: "awayOffside" },
+  { label: "Free Kicks", home: "homeFreeKicks", away: "awayFreeKicks" },
+  { label: "Fouls", home: "homeFouls", away: "awayFouls" },
+  { label: "Successful Passes", home: "homeSuccessfulPasses", away: "awaySuccessfulPasses" },
+  { label: "Crosses", home: "homeCrosses", away: "awayCrosses" },
+  { label: "Interceptions", home: "homeInterceptions", away: "awayInterceptions" },
+  { label: "Tackles", home: "homeTackles", away: "awayTackles" },
+  { label: "Saves", home: "homeSaves", away: "awaySaves" },
 ];
+
+const STAT_ROWS = PLAYER_MATCH_STAT_ROWS;
 
 function StatValue({ value }: { value: number | string | null }) {
   if (value === null || value === undefined) return <span className="text-zinc-600">Not detected</span>;

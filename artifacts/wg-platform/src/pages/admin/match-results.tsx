@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  Trophy, Shield, CheckCircle2, XCircle, Loader2, RefreshCw, Eye, ClipboardList, History, Search, Clock3, RotateCcw, Swords,
+  Trophy, Shield, CheckCircle2, XCircle, Loader2, RefreshCw, Eye, ClipboardList, History, Search, Clock3, RotateCcw, Swords, UserCheck, AlertTriangle, Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,18 +21,30 @@ interface ResultSubmission {
   imagePath: string;
   homeScore: number | null;
   awayScore: number | null;
-  homePosition: number | null;
-  awayPosition: number | null;
+  homePossession: number | null;
+  awayPossession: number | null;
   homeShots: number | null;
   awayShots: number | null;
   homeShotsOnTarget: number | null;
   awayShotsOnTarget: number | null;
-  homeCorners: number | null;
-  awayCorners: number | null;
-  homeYellowCards: number | null;
-  awayYellowCards: number | null;
-  homeRedCards: number | null;
-  awayRedCards: number | null;
+  homeCornerKicks: number | null;
+  awayCornerKicks: number | null;
+  homeOffside: number | null;
+  awayOffside: number | null;
+  homeFreeKicks: number | null;
+  awayFreeKicks: number | null;
+  homeFouls: number | null;
+  awayFouls: number | null;
+  homeSuccessfulPasses: number | null;
+  awaySuccessfulPasses: number | null;
+  homeCrosses: number | null;
+  awayCrosses: number | null;
+  homeInterceptions: number | null;
+  awayInterceptions: number | null;
+  homeTackles: number | null;
+  awayTackles: number | null;
+  homeSaves: number | null;
+  awaySaves: number | null;
   rejectionReason: string | null;
   approvedAt: string | null;
   createdAt: string | null;
@@ -46,12 +58,30 @@ interface ResultSubmission {
   };
   playerGame?: {
     id: number;
+    homePlayerId: number | null;
+    awayPlayerId: number | null;
     homePlayerName: string | null;
     awayPlayerName: string | null;
   } | null;
   tournamentName?: string | null;
   submittedByName?: string | null;
   ocrMetadata?: OcrMetadata | null;
+  assignment?: PlayerAssignment | null;
+}
+
+// ── Admin-controlled player assignment ───────────────────────────────────────
+// The two players registered for this matchup. The administrator chooses which
+// one is the Home side and which is the Away side before approving.
+interface PlayerOption {
+  id: number;
+  name: string;
+}
+
+interface PlayerAssignment {
+  homePlayerId: number | null;
+  homePlayerName: string | null;
+  awayPlayerId: number | null;
+  awayPlayerName: string | null;
 }
 
 interface OcrMetadata {
@@ -61,6 +91,8 @@ interface OcrMetadata {
   durationMs: number;
   homeName: string | null;
   awayName: string | null;
+  homeNameConfidence?: number;
+  awayNameConfidence?: number;
   confidence: Record<string, number>;
   sources: Record<string, string>;
   uncertainFields: string[];
@@ -82,19 +114,28 @@ interface AuditRow {
 }
 
 // ── Constants ────────────────────────────────────────────────────────────────
+// Every statistic the admin can review/correct. The list matches the OCR
+// extraction and the database columns exactly; `Successful Passes` is ONE field.
 const STAT_FIELDS: { key: string; label: string; required?: boolean }[] = [
   { key: "Score", label: "Score", required: true },
-  { key: "Position", label: "Position" },
+  { key: "Possession", label: "Possession" },
   { key: "Shots", label: "Shots" },
   { key: "ShotsOnTarget", label: "Shots on Target" },
-  { key: "Corners", label: "Corners" },
-  { key: "YellowCards", label: "Yellow Cards" },
-  { key: "RedCards", label: "Red Cards" },
+  { key: "CornerKicks", label: "Corner Kicks" },
+  { key: "Offside", label: "Offside" },
+  { key: "FreeKicks", label: "Free Kicks" },
+  { key: "Fouls", label: "Fouls" },
+  { key: "SuccessfulPasses", label: "Successful Passes" },
+  { key: "Crosses", label: "Crosses" },
+  { key: "Interceptions", label: "Interceptions" },
+  { key: "Tackles", label: "Tackles" },
+  { key: "Saves", label: "Saves" },
 ];
 
 const REJECT_REASONS = [
   "Screenshot is unclear",
   "Wrong fixture",
+  "Player names do not match this matchup",
   "Result does not match",
   "Screenshot is incomplete",
   "Invalid submission",
@@ -131,6 +172,179 @@ function valueAt(s: ResultSubmission, side: "home" | "away", field: string): num
   const key = `${side}${field}`;
   return (s[key as keyof ResultSubmission] as number | null) ?? null;
 }
+
+// ── Home/Away player options ───────────────────────────────────────────────
+// The two players registered for this submission's matchup, in the order the
+// administrator can choose from. A player-vs-player matchup exposes its own two
+// players; a solo fixture exposes the fixture's two participants.
+function playerOptions(s: ResultSubmission): PlayerOption[] {
+  const opts: PlayerOption[] = [];
+  const g = s.playerGame;
+  if (g?.homePlayerId != null) {
+    opts.push({ id: g.homePlayerId, name: g.homePlayerName ?? `Player #${g.homePlayerId}` });
+  }
+  if (g?.awayPlayerId != null) {
+    opts.push({ id: g.awayPlayerId, name: g.awayPlayerName ?? `Player #${g.awayPlayerId}` });
+  }
+  if (opts.length === 0 && s.fixture?.participant1Id != null) {
+    opts.push({
+      id: s.fixture.participant1Id,
+      name: s.fixture.participant1Name ?? `Player #${s.fixture.participant1Id}`,
+    });
+  }
+  if (s.fixture?.participant2Id != null && s.fixture.participant2Id !== s.fixture.participant1Id) {
+    opts.push({
+      id: s.fixture.participant2Id,
+      name: s.fixture.participant2Name ?? `Player #${s.fixture.participant2Id}`,
+    });
+  }
+  return opts;
+}
+
+// ── Home/Away assignment dialog (the approval step) ───────────────────────
+// Approving is a two-part decision: the administrator first identifies which
+// registered player is the HOME side of the screenshot and which is the AWAY
+// side, then confirms. The OCR statistics are assigned by screenshot side, so
+// the selection decides which player receives which statistics.
+function AssignPlayersDialog({
+  s,
+  open,
+  onOpenChange,
+  onConfirm,
+  pending,
+}: {
+  s: ResultSubmission;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onConfirm: (homePlayerId: number, awayPlayerId: number) => void;
+  pending: boolean;
+}) {
+  const options = playerOptions(s);
+  const [homeId, setHomeId] = useState<number | null>(s.assignment?.homePlayerId ?? null);
+  const [awayId, setAwayId] = useState<number | null>(s.assignment?.awayPlayerId ?? null);
+
+  const samePlayer = homeId != null && awayId != null && homeId === awayId;
+  const homeName = options.find((o) => o.id === homeId)?.name ?? null;
+  const awayName = options.find((o) => o.id === awayId)?.name ?? null;
+  const canConfirm = homeId != null && awayId != null && !samePlayer;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl" data-testid="assign-players-dialog">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <UserCheck className="h-5 w-5 text-primary" /> Assign Home &amp; Away players
+          </DialogTitle>
+          <DialogDescription>
+            Review the screenshot, then choose which registered player is the Home side and which is the Away side. The detected statistics are saved to the players you select.
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* 1. MATCH SCREENSHOT */}
+        <div className="space-y-2">
+          <p className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Match Screenshot</p>
+          <a href={storageUrl(s.imagePath)} target="_blank" rel="noreferrer" className="block rounded-lg border border-border bg-black/20 p-1">
+            <img
+              src={storageUrl(s.imagePath)}
+              alt="Match result screenshot"
+              className="max-h-[280px] w-full rounded object-contain"
+              data-testid="assign-screenshot"
+            />
+          </a>
+        </div>
+
+        {/* 2. HOME / AWAY SELECTION */}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <p className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Home Player</p>
+            {options.map((o) => (
+              <button
+                key={`home-${o.id}`}
+                type="button"
+                onClick={() => setHomeId(o.id)}
+                data-testid={`home-option-${o.id}`}
+                className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition ${
+                  homeId === o.id
+                    ? "border-emerald-400/60 bg-emerald-400/10 font-bold text-foreground"
+                    : "border-border bg-muted/20 text-foreground/80 hover:border-primary/50"
+                }`}
+              >
+                <span className={`grid h-4 w-4 shrink-0 place-items-center rounded-full border ${homeId === o.id ? "border-emerald-400" : "border-muted-foreground/50"}`}>
+                  {homeId === o.id && <span className="h-2 w-2 rounded-full bg-emerald-400" />}
+                </span>
+                <span className="truncate">{o.name}</span>
+              </button>
+            ))}
+            {options.length < 2 && (
+              <p className="text-[11px] text-red-300">No players are registered for this matchup — assigning participants is not possible.</p>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <p className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Away Player</p>
+            {options.map((o) => (
+              <button
+                key={`away-${o.id}`}
+                type="button"
+                onClick={() => setAwayId(o.id)}
+                data-testid={`away-option-${o.id}`}
+                className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition ${
+                  awayId === o.id
+                    ? "border-sky-400/60 bg-sky-400/10 font-bold text-foreground"
+                    : "border-border bg-muted/20 text-foreground/80 hover:border-primary/50"
+                }`}
+              >
+                <span className={`grid h-4 w-4 shrink-0 place-items-center rounded-full border ${awayId === o.id ? "border-sky-400" : "border-muted-foreground/50"}`}>
+                  {awayId === o.id && <span className="h-2 w-2 rounded-full bg-sky-400" />}
+                </span>
+                <span className="truncate">{o.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {samePlayer && (
+          <p className="flex items-start gap-1.5 rounded-md border border-red-500/50 bg-red-500/10 px-2.5 py-2 text-[11px] font-black text-red-300" data-testid="assignment-same-player-error">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            The same player cannot be selected for both Home and Away.
+          </p>
+        )}
+
+        {/* 3. FINAL PREVIEW */}
+        {homeName && awayName && !samePlayer && (
+          <div className="grid gap-2 rounded-lg border border-border bg-muted/20 p-3 sm:grid-cols-2" data-testid="assignment-preview">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-emerald-300">Home</p>
+              <p className="truncate text-sm font-bold text-foreground">{homeName}</p>
+              <p className="text-[11px] text-muted-foreground">
+                Score {s.homeScore ?? "?"} · {s.awayScore ?? "?"} · Home statistics
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-sky-300">Away</p>
+              <p className="truncate text-sm font-bold text-foreground">{awayName}</p>
+              <p className="text-[11px] text-muted-foreground">Away statistics</p>
+            </div>
+          </div>
+        )}
+
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>Cancel</Button>
+          <Button
+            className="bg-emerald-500 text-black hover:bg-emerald-400"
+            disabled={!canConfirm || pending}
+            onClick={() => homeId != null && awayId != null && onConfirm(homeId, awayId)}
+            data-testid="confirm-assignment"
+          >
+            {pending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-1.5 h-4 w-4" />}
+            Approve Result
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ── Single review card ───────────────────────────────────────────────────────
 function ReviewCard({ s, onRefresh }: { s: ResultSubmission; onRefresh: () => void }) {
   const { toast } = useToast();
@@ -150,13 +364,17 @@ function ReviewCard({ s, onRefresh }: { s: ResultSubmission; onRefresh: () => vo
     setValues((prev) => ({ ...prev, [key]: cleaned }));
   };
 
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [assignError, setAssignError] = useState<string | null>(null);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("Screenshot is unclear");
   const [rejectError, setRejectError] = useState<string | null>(null);
 
   const approve = useMutation({
-    mutationFn: () => {
-      const body: Record<string, number | null> = {};
+    // The administrator's Home/Away selection is REQUIRED: it decides which
+    // registered player receives the Home statistics and which receives Away.
+    mutationFn: ({ homePlayerId, awayPlayerId }: { homePlayerId: number; awayPlayerId: number }) => {
+      const body: Record<string, number | null> = { homePlayerId, awayPlayerId };
       for (const field of STAT_FIELDS) {
         for (const side of ["home", "away"] as const) {
           const raw = values[`${side}${field.key}`].trim();
@@ -173,6 +391,7 @@ function ReviewCard({ s, onRefresh }: { s: ResultSubmission; onRefresh: () => vo
     },
     onSuccess: () => {
       toast({ title: "Result approved", description: "Official fixture result updated." });
+      setAssignOpen(false);
       onRefresh();
     },
     onError: (err) => toast({ title: "Approval failed", description: err.message, variant: "destructive" }),
@@ -213,6 +432,9 @@ function ReviewCard({ s, onRefresh }: { s: ResultSubmission; onRefresh: () => vo
   // Provenance of the recognition pass, so the admin can see where each number came
   // from and which cells the engine could not read confidently.
   const ocr = s.ocrMetadata ?? null;
+  // The two players this submission may be assigned to (the matchup's own
+  // players). The administrator picks which is Home and which is Away.
+  const options = playerOptions(s);
 
   return (
 <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -262,6 +484,26 @@ function ReviewCard({ s, onRefresh }: { s: ResultSubmission; onRefresh: () => vo
           )}
         </div>
       </div>
+
+      {/* Admin player assignment — which registered player took each side */}
+      {s.assignment?.homePlayerId != null && s.assignment?.awayPlayerId != null && (
+        <div className="border-t border-border px-4 py-3" data-testid="assignment-summary">
+          <div className="mb-2 flex items-center gap-2">
+            <UserCheck className="w-4 h-4 text-primary" />
+            <span className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Assigned Players</span>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/5 px-3 py-2">
+              <p className="text-[10px] font-black uppercase tracking-widest text-emerald-300">Home</p>
+              <p className="truncate text-sm font-bold text-foreground">{s.assignment.homePlayerName ?? `Player #${s.assignment.homePlayerId}`}</p>
+            </div>
+            <div className="rounded-lg border border-sky-500/40 bg-sky-500/5 px-3 py-2">
+              <p className="text-[10px] font-black uppercase tracking-widest text-sky-300">Away</p>
+              <p className="truncate text-sm font-bold text-foreground">{s.assignment.awayPlayerName ?? `Player #${s.assignment.awayPlayerId}`}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Detected statistics — confirmation fields for pending submissions */}
       <div className="px-4 pb-4">
@@ -397,12 +639,12 @@ function ReviewCard({ s, onRefresh }: { s: ResultSubmission; onRefresh: () => vo
         {s.status === "pending" ? (
           <>
             <Button
-              onClick={() => approve.mutate()}
-              disabled={approve.isPending}
+              onClick={() => { setAssignError(null); setAssignOpen(true); }}
               className="font-black uppercase tracking-wider"
+              title="Choose which registered player is the Home side and which is the Away side"
               data-testid={`button-approve-result-${s.id}`}
             >
-              {approve.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+              <CheckCircle2 className="w-4 h-4" />
               Approve Result
             </Button>
             <Button
@@ -414,7 +656,7 @@ function ReviewCard({ s, onRefresh }: { s: ResultSubmission; onRefresh: () => vo
               <XCircle className="w-4 h-4" /> Reject Result
             </Button>
             <span className="text-[10px] text-muted-foreground">
-              Approving writes the official score, marks the fixture MATCH COMPLETED and keeps the screenshot.
+              Approving opens the Home / Away player assignment, writes the official score and marks the fixture MATCH COMPLETED.
             </span>
           </>
         ) : s.status === "approved" ? (
@@ -444,6 +686,21 @@ function ReviewCard({ s, onRefresh }: { s: ResultSubmission; onRefresh: () => vo
         )}
       </div>
 
+
+      {/* Home/Away player assignment — the confirmation step before approval */}
+      <AssignPlayersDialog
+        s={s}
+        open={assignOpen}
+        onOpenChange={setAssignOpen}
+        pending={approve.isPending}
+        onConfirm={(homePlayerId, awayPlayerId) => {
+          setAssignError(null);
+          approve.mutate({ homePlayerId, awayPlayerId });
+        }}
+      />
+      {assignError && (
+        <p className="border-t border-border px-4 py-2 text-[11px] font-bold text-red-400">{assignError}</p>
+      )}
 
       {/* Rejection dialog */}
       <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
@@ -517,9 +774,174 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "all", label: "All" },
 ];
 
+// -- Admin screenshot upload --------------------------------------------------
+// The administrator is the person who uploads the match screenshot in this
+// workflow. The screenshot is read by the real OCR pipeline and the submission
+// appears in the review list below, where the admin assigns Home/Away players.
+function AdminUploadDialog({
+  open,
+  onOpenChange,
+  onUploaded,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onUploaded: () => void;
+}) {
+  const { toast } = useToast();
+  const [mode, setMode] = useState<"game" | "fixture">("game");
+  const [targetId, setTargetId] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!file) {
+      setPreview(null);
+      return;
+    }
+    const objectUrl = URL.createObjectURL(file);
+    setPreview(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [file]);
+
+  const upload = useMutation({
+    mutationFn: async () => {
+      const id = Number(targetId);
+      if (!Number.isInteger(id) || id <= 0) throw new Error("Enter a valid ID");
+      if (!file) throw new Error("Choose a screenshot image first");
+      const endpoint =
+        mode === "game"
+          ? `/api/admin/player-games/${id}/result-submission`
+          : `/api/admin/matches/${id}/result-submission`;
+      const res = await fetch(apiUrl(endpoint), {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": file.type || "image/png" },
+        body: file,
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error((data as { error?: string } | null)?.error ?? "Upload failed");
+      return data as ResultSubmission;
+    },
+    onSuccess: (data) => {
+      setUploadedUrl(storageUrl(data.imagePath) ?? null);
+      toast({
+        title: "Screenshot uploaded",
+        description: "The screenshot was read by OCR and queued for verification.",
+      });
+      onUploaded();
+    },
+    onError: (err) => toast({ title: "Upload failed", description: err.message, variant: "destructive" }),
+  });
+
+  const close = (v: boolean) => {
+    if (!v) {
+      setFile(null);
+      setTargetId("");
+      setUploadedUrl(null);
+    }
+    onOpenChange(v);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={close}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg" data-testid="admin-upload-dialog">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 font-black uppercase tracking-tight">
+            <Upload className="h-5 w-5 text-primary" /> Upload Match Screenshot
+          </DialogTitle>
+          <DialogDescription>
+            Upload the eFootball result screenshot for a player-vs-player matchup (or a solo fixture). The
+            statistics are read automatically and you assign the Home and Away players before approving.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div>
+            <label className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+              Upload target
+            </label>
+            <div className="flex gap-1.5">
+              {(["game", "fixture"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMode(m)}
+                  data-testid={`upload-mode-${m}`}
+                  className={`rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-wider transition-colors ${
+                    mode === m
+                      ? "border-primary/60 bg-primary/15 text-primary"
+                      : "border-border text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {m === "game" ? "Player vs Player matchup" : "Solo fixture"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+              {mode === "game" ? "Player matchup ID" : "Fixture ID"}
+            </label>
+            <Input
+              value={targetId}
+              onChange={(e) => setTargetId(e.target.value)}
+              inputMode="numeric"
+              placeholder={mode === "game" ? "e.g. 42" : "e.g. 128"}
+              data-testid="upload-target-id"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+              Screenshot image
+            </label>
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              className="w-full rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs text-foreground"
+              data-testid="upload-file"
+            />
+          </div>
+
+          {(preview || uploadedUrl) && (
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Match Screenshot</p>
+              <img
+                src={uploadedUrl ?? preview ?? ""}
+                alt="Match screenshot preview"
+                className="max-h-56 w-full rounded-lg border border-border bg-black/20 object-contain"
+                data-testid="upload-preview"
+              />
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={() => close(false)} disabled={upload.isPending}>
+            Close
+          </Button>
+          <Button
+            className="font-black uppercase tracking-wider"
+            onClick={() => upload.mutate()}
+            disabled={upload.isPending || !file || !targetId.trim()}
+            data-testid="upload-submit"
+          >
+            {upload.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Upload className="mr-1.5 h-4 w-4" />}
+            Upload Screenshot
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function AdminMatchResultsPage() {
   const [tab, setTab] = useState<TabKey>("pending");
   const [search, setSearch] = useState("");
+  const [uploadOpen, setUploadOpen] = useState(false);
 
   const submissions = useQuery<ResultSubmission[]>({
     queryKey: ["admin", "match-result-submissions"],
@@ -583,11 +1005,20 @@ export default function AdminMatchResultsPage() {
               <Clock3 className="h-3.5 w-3.5" /> {counts.pending} awaiting verification
             </Badge>
           )}
+          <Button
+            onClick={() => setUploadOpen(true)}
+            className="font-black uppercase tracking-wider"
+            data-testid="button-admin-upload"
+          >
+            <Upload className="h-4 w-4" /> Upload Screenshot
+          </Button>
           <Button variant="outline" onClick={refresh} disabled={submissions.isFetching}>
             <RefreshCw className={`h-4 w-4 ${submissions.isFetching ? "animate-spin" : ""}`} /> Refresh
           </Button>
         </div>
       </div>
+
+      <AdminUploadDialog open={uploadOpen} onOpenChange={setUploadOpen} onUploaded={refresh} />
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">

@@ -123,25 +123,46 @@ function Av({ name, size = "md", url }: { name: string; size?: "sm" | "md" | "lg
     );
 }
 
+// ── Player-vs-player statistics ───────────────────────────────────────────────
+// The canonical list, shared by the detailed matchup table and the compact chip
+// row. `Successful Passes` is ONE statistic — it is never split into a separate
+// "Passes" and "Successful" field. `pct` marks a percentage (Possession); every
+// other statistic is a whole count. A statistic the OCR could not read is NULL and
+// is simply not shown.
+const PVP_STAT_ROWS: { label: string; field: string; pct?: boolean }[] = [
+  { label: "Possession", field: "Possession", pct: true },
+  { label: "Shots", field: "Shots" },
+  { label: "Shots on Target", field: "ShotsOnTarget" },
+  { label: "Corner Kicks", field: "CornerKicks" },
+  { label: "Offside", field: "Offside" },
+  { label: "Free Kicks", field: "FreeKicks" },
+  { label: "Fouls", field: "Fouls" },
+  { label: "Successful Passes", field: "SuccessfulPasses" },
+  { label: "Crosses", field: "Crosses" },
+  { label: "Interceptions", field: "Interceptions" },
+  { label: "Tackles", field: "Tackles" },
+  { label: "Saves", field: "Saves" },
+];
+
+const PVP_STAT_CHIPS = PVP_STAT_ROWS.map((r) => ({
+  label: r.label,
+  home: `home${r.field}`,
+  away: `away${r.field}`,
+}));
+
 // ── Match card ─────────────────────────────────────────────────────────────────
 function PlayerGameDetail({ g, motmId, motmName }: { g: Record<string, any>; motmId?: number | null; motmName?: string | null }) {
-  const hasStats =
-    g.homePosition != null || g.awayPosition != null ||
-    g.homePossession != null || g.homeShots != null || g.homeShotsOnTarget != null || g.homeCorners != null || g.homeYellowCards != null || g.homeRedCards != null ||
-    g.awayPossession != null || g.awayShots != null || g.awayShotsOnTarget != null || g.awayCorners != null || g.awayYellowCards != null || g.awayRedCards != null;
+  const hasStats = PVP_STAT_CHIPS.some((c) => g[c.home] != null || g[c.away] != null);
 
   const homeIsMotm = motmId != null && g.homePlayerId != null && Number(g.homePlayerId) === motmId;
   const awayIsMotm = motmId != null && g.awayPlayerId != null && Number(g.awayPlayerId) === motmId;
 
-  const rows = [
-    { label: "Position", home: g.homePosition, away: g.awayPosition },
-    { label: "Possession", home: g.homePossession, away: g.awayPossession, pct: true },
-    { label: "Shots", home: g.homeShots, away: g.awayShots },
-    { label: "Shots on Target", home: g.homeShotsOnTarget, away: g.awayShotsOnTarget },
-    { label: "Corners", home: g.homeCorners, away: g.awayCorners },
-    { label: "Yellow Cards", home: g.homeYellowCards, away: g.awayYellowCards, yellow: true },
-    { label: "Red Cards", home: g.homeRedCards, away: g.awayRedCards, red: true },
-  ] as { label: string; home?: number | null; away?: number | null; pct?: boolean; yellow?: boolean; red?: boolean }[];
+  const rows = PVP_STAT_ROWS.map((r) => ({
+    label: r.label,
+    home: g[`home${r.field}`] as number | null | undefined,
+    away: g[`away${r.field}`] as number | null | undefined,
+    pct: r.pct,
+  }));
 
   return (
     <div className="space-y-2">
@@ -176,7 +197,7 @@ function PlayerGameDetail({ g, motmId, motmName }: { g: Record<string, any>; mot
             return (
               <div key={r.label} className="flex items-center justify-between gap-3 border-t border-[#29406e]/25 py-1 text-[11px]">
                 <span className="w-14 text-right font-semibold text-zinc-100 tabular-nums">{hv ?? "–"}</span>
-                <span className={`flex-1 text-center text-[9px] font-black uppercase tracking-wider ${r.red ? "text-red-500" : r.yellow ? "text-yellow-500" : "text-zinc-500"}`}>
+                <span className="flex-1 text-center text-[9px] font-black uppercase tracking-wider text-zinc-500">
                   {r.label}
                 </span>
                 <span className="w-14 font-semibold text-zinc-100 tabular-nums">{av ?? "–"}</span>
@@ -268,26 +289,24 @@ function PvpShareCard({ m, games, motmId, motmName }: {
                   {isMotm(g.awayPlayerId) && <Star className="h-3 w-3 shrink-0 fill-[#FFB800] text-[#FFB800]" />}
                 </span>
               </div>
-              {(g.homePosition != null || g.awayPosition != null ||
-                g.homePossession != null || g.homeShots != null || g.homeShotsOnTarget != null || g.homeCorners != null || g.homeYellowCards != null || g.homeRedCards != null ||
-                g.awayPossession != null || g.awayShots != null || g.awayShotsOnTarget != null || g.awayCorners != null || g.awayYellowCards != null || g.awayRedCards != null) && (
+              {(PVP_STAT_CHIPS.some((c) => g[c.home] != null || g[c.away] != null)) && (
                 <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-zinc-400">
                   <span className="text-[9px] font-black uppercase text-zinc-500">{g.homePlayerName || "Home"}:</span>
-                  {g.homePosition != null && <span>Pos {g.homePosition}</span>}
-                  {g.homePossession != null && <span>Poss {g.homePossession}%</span>}
-                  {g.homeShots != null && <span>Shots {g.homeShots}</span>}
-                  {g.homeShotsOnTarget != null && <span>OT {g.homeShotsOnTarget}</span>}
-                  {g.homeCorners != null && <span>Cor {g.homeCorners}</span>}
-                  {g.homeYellowCards != null && <span className="text-yellow-500">Y {g.homeYellowCards}</span>}
-                  {g.homeRedCards != null && <span className="text-red-500">R {g.homeRedCards}</span>}
+                  {PVP_STAT_CHIPS.map((c) =>
+                    g[c.home] == null ? null : (
+                      <span key={`h-${c.label}`}>
+                        {c.label} {g[c.home]}
+                      </span>
+                    ),
+                  )}
                   <span className="text-[9px] font-black uppercase text-zinc-500">{g.awayPlayerName || "Away"}:</span>
-                  {g.awayPosition != null && <span>Pos {g.awayPosition}</span>}
-                  {g.awayPossession != null && <span>Poss {g.awayPossession}%</span>}
-                  {g.awayShots != null && <span>Shots {g.awayShots}</span>}
-                  {g.awayShotsOnTarget != null && <span>OT {g.awayShotsOnTarget}</span>}
-                  {g.awayCorners != null && <span>Cor {g.awayCorners}</span>}
-                  {g.awayYellowCards != null && <span className="text-yellow-500">Y {g.awayYellowCards}</span>}
-                  {g.awayRedCards != null && <span className="text-red-500">R {g.awayRedCards}</span>}
+                  {PVP_STAT_CHIPS.map((c) =>
+                    g[c.away] == null ? null : (
+                      <span key={`a-${c.label}`}>
+                        {c.label} {g[c.away]}
+                      </span>
+                    ),
+                  )}
                 </div>
               )}
             </div>

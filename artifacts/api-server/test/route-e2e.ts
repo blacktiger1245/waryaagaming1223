@@ -40,6 +40,7 @@ import {
   DETECTED_NUMERIC_FIELDS,
 } from "../src/lib/matchResultDetection";
 import { shutdownOcrEngine } from "../src/lib/matchResultOcr";
+import { renderResultScreenshot } from "./fixtureImage";
 import { stubStoredObjects } from "./stubs/objectStorage";
 
 // ── Tiny assertion harness ───────────────────────────────────────────────────
@@ -78,14 +79,26 @@ let fixtureOneId: number;
 let fixtureTwoId: number;
 
 // Team-fixture state: two teams, three rostered players, one team-vs-team
-// fixture with a single player-vs-player matchup inside it.
+// fixture with TWO player-vs-player matchups inside it (the second exists so a
+// screenshot belonging to another pairing can be recognised and refused).
 let teamHomeId: number;
 let teamAwayId: number;
-let teamPlayerA1: Actor; // plays the matchup for the home team
-let teamPlayerA2: Actor; // rostered on the home team but NOT in the matchup
-let teamPlayerB1: Actor; // plays the matchup for the away team
+let teamPlayerA1: Actor; // plays matchup 1 for the home team
+let teamPlayerA2: Actor; // plays matchup 2 for the home team
+let teamPlayerB1: Actor; // plays both matchups for the away team
 let teamFixtureId: number;
 let teamGameId: number;
+let teamGame2Id: number;
+
+// Registered names of the two matchups (digit-free on purpose: a token like
+// "P1" reads as a number to OCR and would pollute the score line).
+const GAME1_HOME_NAME = "Abdulaziz Mohamed";
+const GAME1_AWAY_NAME = "Mohamed Ali";
+const GAME2_HOME_NAME = "Yusuf Omar";
+const GAME2_AWAY_NAME = "Ahmed Hassan";
+
+/** Screenshot whose score line shows matchup 1's players (rendered in setup). */
+let teamScreenshot: Buffer;
 
 const createdPlayerIds: number[] = [];
 const createdTournamentIds: number[] = [];
@@ -176,9 +189,12 @@ async function setup(): Promise<void> {
     stage: 1,
     status: "scheduled",
     participant1Id: playerA.id,
-    participant1Name: `Player A ${label}`,
+    // The names match the committed fixture screenshot exactly, so the upload
+    // passes player-name verification. (The label no longer feeds the name —
+    // both fixtures register the same two players.)
+    participant1Name: "Player A",
     participant2Id: playerB.id,
-    participant2Name: `Player B ${label}`,
+    participant2Name: "Player B",
   });
 
   const inserted = await db
@@ -236,19 +252,30 @@ async function setup(): Promise<void> {
     .returning({ id: matchesTable.id });
   teamFixtureId = teamFixture!.id;
 
-  // The exact matchup: A1 vs B1. A2 is on the roster but not in this pairing.
+  // Matchup 1: A1 vs B1. (Matchup 2 is only created later, inside the
+  // name-verification section — the parent-propagation tests above assume a
+  // single outstanding matchup.)
   const [teamGame] = await db
     .insert(matchPlayerGamesTable)
     .values({
       matchId: teamFixtureId,
       homePlayerId: teamPlayerA1.id,
-      homePlayerName: `TeamA P1`,
+      homePlayerName: GAME1_HOME_NAME,
       awayPlayerId: teamPlayerB1.id,
-      awayPlayerName: `TeamB P1`,
+      awayPlayerName: GAME1_AWAY_NAME,
       status: "scheduled",
     })
     .returning({ id: matchPlayerGamesTable.id });
   teamGameId = teamGame!.id;
+
+  // The screenshot that genuinely belongs to matchup 1 (names on the score
+  // line are the two registered players).
+  teamScreenshot = await renderResultScreenshot({
+    homeName: GAME1_HOME_NAME,
+    awayName: GAME1_AWAY_NAME,
+    homeScore: EXPECTED.homeScore,
+    awayScore: EXPECTED.awayScore,
+  });
 }
 
 async function teardown(): Promise<void> {
@@ -290,19 +317,39 @@ const screenshot = readFileSync(SCREENSHOT_PATH);
 const EXPECTED = {
   homeScore: 3,
   awayScore: 1,
-  homePosition: 1,
-  awayPosition: 2,
+  homePossession: 58,
+  awayPossession: 42,
   homeShots: 8,
   awayShots: 4,
   homeShotsOnTarget: 5,
   awayShotsOnTarget: 2,
-  homeCorners: 4,
-  awayCorners: 2,
-  homeYellowCards: 1,
-  awayYellowCards: 2,
-  homeRedCards: 0,
-  awayRedCards: 0,
+  homeCornerKicks: 4,
+  awayCornerKicks: 2,
+  homeOffside: 1,
+  awayOffside: 2,
+  homeFreeKicks: 12,
+  awayFreeKicks: 9,
+  homeFouls: 7,
+  awayFouls: 10,
+  homeSuccessfulPasses: 148,
+  awaySuccessfulPasses: 121,
+  homeCrosses: 6,
+  awayCrosses: 3,
+  homeInterceptions: 9,
+  awayInterceptions: 11,
+  homeTackles: 14,
+  awayTackles: 16,
+  homeSaves: 2,
+  awaySaves: 5,
 };
+
+/** The statistic fields of `EXPECTED` (everything except the two scores). */
+const EXPECTED_STAT_FIELDS = Object.keys(EXPECTED).filter((k) => k !== "homeScore" && k !== "awayScore");
+
+/** camelCase statistic field → database column (`homeShotsOnTarget` → `home_shots_on_target`). */
+function columnOf(field: string): string {
+  return field.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`);
+}
 
 // ── Tests ────────────────────────────────────────────────────────────────────
 async function securityAndValidationTests(): Promise<void> {
@@ -313,7 +360,7 @@ async function securityAndValidationTests(): Promise<void> {
   const numericValues = DETECTED_NUMERIC_FIELDS.map((k) => blank[k]);
   check(
     "A1 OCR-unavailable fallback marks every value Not detected",
-    numericValues.every((v) => v === null) && DETECTED_NUMERIC_FIELDS.length === 14,
+    numericValues.every((v) => v === null) && DETECTED_NUMERIC_FIELDS.length === Object.keys(EXPECTED).length,
     `${numericValues.length} numeric fields, ${numericValues.filter((v) => v === null).length} null`,
   );
   eq_("A2 displayDetected(null) renders Not detected", displayDetected(null), "Not detected");
@@ -381,6 +428,15 @@ async function uploadAndOcrTests(): Promise<{ submissionId: number }> {
 
   check("B7 OCR notes are reported to the admin", Array.isArray(upload.body?.detectionNotes) && upload.body.detectionNotes.length > 0);
 
+  // The automatic name-matching gate is GONE: an upload produces no verdict and
+  // approval is never blocked because OCR read a different name. The names OCR
+  // read are still recorded as information.
+  eq_("B7a no automatic name-verification verdict is produced", upload.body?.nameVerification, undefined);
+  eq_("B7b OCR still records the home name it read", upload.body?.ocrMetadata?.homeName, "Player A");
+  eq_("B7c OCR still records the away name it read", upload.body?.ocrMetadata?.awayName, "Player B");
+  eq_("B7d no Home player is assigned before approval", upload.body?.assignment?.homePlayerId, null);
+  eq_("B7e no Away player is assigned before approval", upload.body?.assignment?.awayPlayerId, null);
+
   // A duplicate pending submission for the same fixture+player is blocked.
   const dupe = await call("POST", `/api/matches/${fixtureOneId}/result-submission`, screenshot, "image/png");
   eq_("B8 duplicate pending submission blocked", dupe.status, 409);
@@ -410,8 +466,8 @@ async function adminApprovalTests(submissionId: number): Promise<void> {
   if (row) {
     eq_("C3 fixture id exposed for the review card", row.fixtureId, fixtureOneId);
     eq_("C4 tournament name exposed", row.tournamentName, `E2E OCR Cup ${suffix}`);
-    eq_("C5 home participant name exposed", row.fixture?.participant1Name, "Player A 1");
-    eq_("C6 away participant name exposed", row.fixture?.participant2Name, "Player B 1");
+    eq_("C5 home participant name exposed", row.fixture?.participant1Name, "Player A");
+    eq_("C6 away participant name exposed", row.fixture?.participant2Name, "Player B");
     check("C7 submitter name exposed", String(row.submittedByName ?? "").length > 0, String(row.submittedByName));
     check("C8 submission time exposed", !!row.createdAt, String(row.createdAt));
     check("C9 screenshot path exposed for review", String(row.imagePath ?? "").length > 0);
@@ -422,10 +478,28 @@ async function adminApprovalTests(submissionId: number): Promise<void> {
   eq_("C11 detected home score persisted for review", row?.homeScore, 3);
   eq_("C12 detected away score persisted for review", row?.awayScore, 1);
 
-  const approve = await call("POST", `/api/admin/match-result-submissions/${submissionId}/approve`, {});
+  // Approving REQUIRES the administrator to name the Home and Away players.
+  const noSelection = await call("POST", `/api/admin/match-result-submissions/${submissionId}/approve`, {});
+  eq_("C12a approval without a player selection is refused", noSelection.status, 400);
+  check(
+    "C12b the refusal explains the selection requirement",
+    /home player and the away player/i.test(String(noSelection.body?.error)),
+    String(noSelection.body?.error),
+  );
+
+  const approve = await call("POST", `/api/admin/match-result-submissions/${submissionId}/approve`, {
+    homePlayerId: playerA.id,
+    awayPlayerId: playerB.id,
+  });
   eq_("C13 approve succeeds", approve.status, 200);
   eq_("C14 submission frozen as approved", approve.body?.submission?.status, "approved");
   eq_("C15 fixture marked completed", approve.body?.match?.status, "completed");
+  // The assignment is frozen on the submission: the official record now knows
+  // which registered player received the Home statistics and which received Away.
+  eq_("C15a the approved submission records the HOME player", approve.body?.submission?.assignment?.homePlayerId, playerA.id);
+  eq_("C15b the approved submission records the AWAY player", approve.body?.submission?.assignment?.awayPlayerId, playerB.id);
+  eq_("C15c the HOME player name is frozen too", approve.body?.submission?.assignment?.homePlayerName, "Player A");
+  eq_("C15d the AWAY player name is frozen too", approve.body?.submission?.assignment?.awayPlayerName, "Player B");
 
   // The official result now shows on the fixture.
   eq_("C16 official home score written", approve.body?.match?.participant1Score, 3);
@@ -447,27 +521,54 @@ async function statisticsPropagationTests(submissionId: number): Promise<void> {
   eq_("D1 database fixture status completed", matchRow?.status, "completed");
   eq_("D2 database fixture home score", matchRow?.participant1Score, 3);
   eq_("D3 database fixture away score", matchRow?.participant2Score, 1);
-  eq_("D4 database yellow cards stored on the fixture", matchRow?.participant1YellowCards, 1);
-  eq_("D5 database away yellow cards stored on the fixture", matchRow?.participant2YellowCards, 2);
+  // Yellow/red cards are no longer part of the player-vs-player statistics set
+  // (Offside and Free Kicks replaced them), so approving a screenshot must not
+  // write a card count anywhere on the fixture.
+  eq_("D4 approval wrote no yellow cards to the fixture", matchRow?.participant1YellowCards, 0);
+  eq_("D5 approval wrote no red cards to the fixture", matchRow?.participant1RedCards, 0);
 
   const [game] = await db.select().from(matchPlayerGamesTable).where(eq(matchPlayerGamesTable.matchId, fixtureOneId));
   check("D6 official per-match statistics row created", !!game, game ? `id=${game.id}` : "missing");
   if (game) {
-    eq_("D7 official statistics home shots", game.homeShots, 8);
-    eq_("D8 official statistics away shots", game.awayShots, 4);
-    eq_("D9 official statistics home shots on target", game.homeShotsOnTarget, 5);
-    eq_("D10 official statistics away shots on target", game.awayShotsOnTarget, 2);
-    eq_("D11 official statistics home corners", game.homeCorners, 4);
-    eq_("D12 official statistics away corners", game.awayCorners, 2);
-    eq_("D13 official statistics home position", game.homePosition, 1);
-    eq_("D14 official statistics away position", game.awayPosition, 2);
-    eq_("D15 official statistics home yellow cards", game.homeYellowCards, 1);
-    eq_("D16 official statistics away yellow cards", game.awayYellowCards, 2);
-    eq_("D17 official statistics home red cards", game.homeRedCards, 0);
-    eq_("D18 official statistics away red cards", game.awayRedCards, 0);
-    eq_("D19 fixture marked completed on the game row", game.status, "completed");
+    // Every statistic the OCR read is written to its own column on the
+    // player-game row — one column per statistic, both sides.
+    const row = game as unknown as Record<string, unknown>;
+    for (const field of EXPECTED_STAT_FIELDS) {
+      eq_(`D7 ${field} written to the player-game row`, row[field], EXPECTED[field as keyof typeof EXPECTED]);
+    }
+    eq_("D8 fixture marked completed on the game row", game.status, "completed");
   }
-  eq_("D20 approved submission keeps its value", submission?.homeScore, 3);
+
+  // ── Statistic inventory: the schema holds exactly the 12 canonical statistics
+  // per side, `Successful Passes` as ONE column, and no duplicate/legacy columns.
+  const { rows: statCols } = await pool.query<{ table_name: string; column_name: string }>(
+    `SELECT table_name, column_name FROM information_schema.columns
+     WHERE table_schema = current_schema()
+       AND table_name IN ('match_result_submissions', 'match_player_games')
+       AND (column_name LIKE 'home\\_%' OR column_name LIKE 'away\\_%')`,
+  );
+  for (const table of ["match_result_submissions", "match_player_games"]) {
+    const cols = statCols.filter((c) => c.table_name === table).map((c) => c.column_name);
+    const missing = EXPECTED_STAT_FIELDS.filter((f) => !cols.includes(columnOf(f)));
+    eq_(`D9 ${table}: every one of the 12 statistics exists per side (24 columns)`, missing.length, 0);
+    if (missing.length) console.log(`      missing columns: ${missing.map(columnOf).join(", ")}`);
+
+    check(
+      `D10 ${table}: 'Successful Passes' is stored as ONE column`,
+      cols.includes("home_successful_passes") && cols.includes("away_successful_passes"),
+      `home_successful_passes=${cols.includes("home_successful_passes")}`,
+    );
+
+    // Nothing may survive under a legacy name, and `Successful Passes` must not be
+    // split into a separate `passes` / `successful` column. Matched on the whole
+    // column name so `home_successful_passes` is not mistaken for a stray `passes`.
+    const forbidden = /^(home|away)_(position|corners|yellow_cards|red_cards|passes|successful)$/;
+    const leftovers = cols.filter((c) => forbidden.test(c));
+    eq_(`D11 ${table}: no legacy or duplicate statistic columns`, leftovers.length, 0);
+    if (leftovers.length) console.log(`      leftover columns: ${leftovers.join(", ")}`);
+  }
+
+  eq_("D12 approved submission keeps its value", submission?.homeScore, 3);
 }
 
 // ─ E. Duplicate approval guard + completed-fixture lock ────────────────────
@@ -634,10 +735,10 @@ async function reopenTests(approvedId: number): Promise<void> {
   }
 }
 
-async function adminUploadTests(): Promise<void> {
+async function adminUploadTests(): Promise<{ adminSubmissionId: number }> {
   console.log("\n=== I. ADMIN UPLOAD ON BEHALF OF PLAYERS ===");
 
-  // The admin is NOT a participant in fixture two (Player A 2 vs Player B 2).
+  // The admin is NOT a participant in fixture two (also Player A vs Player B).
   // Admins/owners are exempt from the participant rule so they can upload a
   // screenshot on a player's behalf.
   as(admin);
@@ -662,6 +763,8 @@ async function adminUploadTests(): Promise<void> {
   // The duplicate-pending guard applies to admins exactly as it does to players.
   const dupe = await call("POST", `/api/matches/${fixtureTwoId}/result-submission`, screenshot, "image/png");
   eq_("I8 admin duplicate pending submission blocked", dupe.status, 409);
+
+  return { adminSubmissionId: Number(adminSubmissionId) };
 }
 
 // ─ J. Team fixture → result belongs to the player-vs-player matchup ──────────
@@ -693,13 +796,22 @@ async function teamFixtureTests(): Promise<void> {
   as(outsider);
   eq_("J4 unrelated player is refused", (await call("POST", gamePath, screenshot, "image/png")).status, 403);
 
-  // A player in the matchup uploads; the submission is bound to the game.
+  // A player in the matchup uploads; the submission is bound to the game. The
+  // screenshot is the one rendered with THIS matchup's registered names.
   as(teamPlayerA1);
-  const upload = await call("POST", gamePath, screenshot, "image/png");
+  const upload = await call("POST", gamePath, teamScreenshot, "image/png");
   eq_("J5 matchup player upload accepted", upload.status, 201);
   eq_("J6 submission is bound to the exact matchup", upload.body?.playerGameId, teamGameId);
   eq_("J7 submission also records the parent fixture", upload.body?.fixtureId, teamFixtureId);
   const gameSubmissionId = upload.body?.id;
+
+  // The upload itself carries no verdict and no assignment: the administrator
+  // makes that decision later, on the review screen.
+  eq_("J7a no automatic verdict is produced for a matchup upload", upload.body?.nameVerification, undefined);
+  eq_("J7b no Home player is assigned at upload", upload.body?.assignment?.homePlayerId, null);
+  eq_("J7c no Away player is assigned at upload", upload.body?.assignment?.awayPlayerId, null);
+  eq_("J7d OCR still records the home name it read", upload.body?.ocrMetadata?.homeName, GAME1_HOME_NAME);
+  eq_("J7e OCR still records the away name it read", upload.body?.ocrMetadata?.awayName, GAME1_AWAY_NAME);
 
   // Same real OCR pass as the solo flow.
   if (upload.body?.homeScore == null) {
@@ -719,12 +831,13 @@ async function teamFixtureTests(): Promise<void> {
 
   // The duplicate-pending guard is per matchup+player.
   as(teamPlayerA1);
-  eq_("J14 duplicate pending submission blocked", (await call("POST", gamePath, screenshot, "image/png")).status, 409);
+  eq_("J14 duplicate pending submission blocked", (await call("POST", gamePath, teamScreenshot, "image/png")).status, 409);
 
   // The opposing player in the same matchup may also submit.
   as(teamPlayerB1);
-  const opposing = await call("POST", gamePath, screenshot, "image/png");
+  const opposing = await call("POST", gamePath, teamScreenshot, "image/png");
   eq_("J15 the opposing matchup player may also submit", opposing.status, 201);
+  eq_("J15b the opposing upload also carries no verdict", opposing.body?.nameVerification, undefined);
 
   // Admin sees the submission in the queue with its player-matchup context.
   as(admin);
@@ -735,21 +848,47 @@ async function teamFixtureTests(): Promise<void> {
   if (row) {
     eq_("J17 queue row exposes the parent fixture", row.fixtureId, teamFixtureId);
     eq_("J18 queue row exposes the matchup id", row.playerGameId, teamGameId);
-    eq_("J19 queue row shows the home player name", row.playerGame?.homePlayerName, "TeamA P1");
-    eq_("J20 queue row shows the away player name", row.playerGame?.awayPlayerName, "TeamB P1");
+    eq_("J19 queue row shows the home player name", row.playerGame?.homePlayerName, GAME1_HOME_NAME);
+    eq_("J20 queue row shows the away player name", row.playerGame?.awayPlayerName, GAME1_AWAY_NAME);
+    // The queue row exposes the matchup's registered player IDS, which is what
+    // the admin chooses from in the Home/Away assignment dialog.
+    eq_("J20a queue row exposes the matchup HOME player id", row.playerGame?.homePlayerId, teamPlayerA1.id);
+    eq_("J20b queue row exposes the matchup AWAY player id", row.playerGame?.awayPlayerId, teamPlayerB1.id);
+    eq_("J20c queue row has no assignment while pending", row.assignment?.homePlayerId, null);
   }
 
-  // Approve → the matchup becomes completed and the parent propagates.
-  const approve = await call("POST", `/api/admin/match-result-submissions/${gameSubmissionId}/approve`, {});
+  // Approve → the matchup becomes completed and the parent propagates. The
+  // administrator first names the two players taking each side of the screenshot.
+  const approve = await call("POST", `/api/admin/match-result-submissions/${gameSubmissionId}/approve`, {
+    homePlayerId: teamPlayerA1.id,
+    awayPlayerId: teamPlayerB1.id,
+  });
   eq_("J21 admin can approve a matchup submission", approve.status, 200);
+  eq_("J21f the matchup assignment is frozen (home)", approve.body?.submission?.assignment?.homePlayerId, teamPlayerA1.id);
+  eq_("J21g the matchup assignment is frozen (away)", approve.body?.submission?.assignment?.awayPlayerId, teamPlayerB1.id);
+  // The approval response reports each player's statistics on the correct side:
+  // home = matchup home player, away = matchup away player, never swapped.
+  eq_("J21b home statistics belong to the home player", approve.body?.statistics?.possession?.home, EXPECTED.homePossession);
+  eq_("J21c away statistics belong to the away player", approve.body?.statistics?.possession?.away, EXPECTED.awayPossession);
+  eq_("J21d home shots on the home side", approve.body?.statistics?.shots?.home, EXPECTED.homeShots);
+  eq_("J21e away shots on the away side", approve.body?.statistics?.shots?.away, EXPECTED.awayShots);
 
   const [game] = await db.select().from(matchPlayerGamesTable).where(eq(matchPlayerGamesTable.id, teamGameId));
   eq_("J22 matchup marked completed", game?.status, "completed");
   eq_("J23 matchup home score written", game?.homeScore, EXPECTED.homeScore);
   eq_("J24 matchup away score written", game?.awayScore, EXPECTED.awayScore);
-  eq_("J25 matchup home shots written", game?.homeShots, EXPECTED.homeShots);
-  eq_("J26 matchup home position written", game?.homePosition, EXPECTED.homePosition);
-  eq_("J27 matchup yellow cards written", game?.homeYellowCards, EXPECTED.homeYellowCards);
+  // The full statistics set lands on the exact player-vs-player matchup.
+  const gameRow = game as unknown as Record<string, unknown> | undefined;
+  for (const field of EXPECTED_STAT_FIELDS) {
+    eq_(`J25 ${field} written to the matchup`, gameRow?.[field], EXPECTED[field as keyof typeof EXPECTED]);
+  }
+
+  // The registered identities are untouched by the submission: a submission is
+  // only ever associated with the matchup, it never changes who plays in it.
+  eq_("J26 home player identity unchanged by the submission", game?.homePlayerName, GAME1_HOME_NAME);
+  eq_("J26b home player id unchanged by the submission", game?.homePlayerId, teamPlayerA1.id);
+  eq_("J27 away player identity unchanged by the submission", game?.awayPlayerName, GAME1_AWAY_NAME);
+  eq_("J27b away player id unchanged by the submission", game?.awayPlayerId, teamPlayerB1.id);
 
   // Parent propagation: one matchup decided → home team wins the set 1-0 and
   // the fixture completes because no other matchup is outstanding.
@@ -771,7 +910,203 @@ async function teamFixtureTests(): Promise<void> {
   eq_("J35 parent fixture rolled back to scheduled", parentAfter?.status, "scheduled");
   eq_("J36 parent score cleared", parentAfter?.participant1Score, null);
 }
+// ── K. Admin player assignment — validation rules (solo fixture) ────────────
+// Approving is a two-part decision: the administrator must name the HOME player
+// and the AWAY player. The same player can never take both sides, and a player
+// who does not belong to the matchup can never be assigned — the official
+// result is never attached to an arbitrary participant.
+async function adminAssignmentValidationTests(submissionId: number): Promise<void> {
+  console.log("\n=== K. ADMIN PLAYER ASSIGNMENT — VALIDATION ===");
 
+  as(admin);
+  const path = `/api/admin/match-result-submissions/${submissionId}/approve`;
+
+  // 1. No selection at all.
+  const none = await call("POST", path, {});
+  eq_("K1 approval without a player selection is refused", none.status, 400);
+  check(
+    "K1b the refusal asks for both sides",
+    /home player and the away player/i.test(String(none.body?.error)),
+    String(none.body?.error),
+  );
+
+  // 2. Only one side selected.
+  eq_("K2 approval with only one side selected is refused", (await call("POST", path, { homePlayerId: playerA.id })).status, 400);
+
+  // 3. The SAME player on both sides.
+  const same = await call("POST", path, { homePlayerId: playerA.id, awayPlayerId: playerA.id });
+  eq_("K3 the same player cannot take both Home and Away", same.status, 400);
+  check("K3b the refusal explains the rule", /must be different/i.test(String(same.body?.error)), String(same.body?.error));
+
+  // 4. A player who is not in this fixture.
+  const foreign = await call("POST", path, { homePlayerId: outsider.id, awayPlayerId: playerB.id });
+  eq_("K4 a player outside the fixture cannot be assigned", foreign.status, 400);
+  check("K4b the refusal explains the rule", /must belong to this matchup/i.test(String(foreign.body?.error)), String(foreign.body?.error));
+
+  // 5. A non-numeric selection.
+  eq_("K5 a non-numeric selection is refused", (await call("POST", path, { homePlayerId: "abc", awayPlayerId: playerB.id })).status, 400);
+
+  // Nothing above approved the submission.
+  const list = await call("GET", "/api/admin/match-result-submissions");
+  const row = ((list.body as Array<Record<string, any>> | null) ?? []).find((r) => r.id === submissionId);
+  eq_("K6 the submission is still pending after every refused attempt", row?.status, "pending");
+
+  // 6. The valid assignment: HOME = Player A, AWAY = Player B.
+  const ok = await call("POST", path, { homePlayerId: playerA.id, awayPlayerId: playerB.id });
+  eq_("K7 a valid Home/Away selection approves the result", ok.status, 200);
+  eq_("K7b the HOME player is frozen on the submission", ok.body?.submission?.assignment?.homePlayerId, playerA.id);
+  eq_("K7c the AWAY player is frozen on the submission", ok.body?.submission?.assignment?.awayPlayerId, playerB.id);
+  eq_("K7d the HOME player name is frozen too", ok.body?.submission?.assignment?.homePlayerName, "Player A");
+  eq_("K7e the AWAY player name is frozen too", ok.body?.submission?.assignment?.awayPlayerName, "Player B");
+  eq_("K8 home statistics belong to the selected HOME player", ok.body?.statistics?.possession?.home, EXPECTED.homePossession);
+  eq_("K9 away statistics belong to the selected AWAY player", ok.body?.statistics?.possession?.away, EXPECTED.awayPossession);
+
+  // 7. The official fixture result carries the score assigned by screenshot side.
+  const [fixture] = await db.select().from(matchesTable).where(eq(matchesTable.id, fixtureTwoId));
+  eq_("K10 fixture marked completed", fixture?.status, "completed");
+  eq_("K11 official home score written", fixture?.participant1Score, EXPECTED.homeScore);
+  eq_("K12 official away score written", fixture?.participant2Score, EXPECTED.awayScore);
+
+  // 8. The per-player game row records the assignment and the statistics.
+  const [game] = await db.select().from(matchPlayerGamesTable).where(eq(matchPlayerGamesTable.matchId, fixtureTwoId));
+  eq_("K13 the player game records the assigned HOME player", game?.homePlayerId, playerA.id);
+  eq_("K14 the player game records the assigned AWAY player", game?.awayPlayerId, playerB.id);
+  eq_("K15 home score on the home side of the player game", game?.homeScore, EXPECTED.homeScore);
+  eq_("K16 away score on the away side of the player game", game?.awayScore, EXPECTED.awayScore);
+  check(
+    "K17 the statistics are not swapped for the solo fixture",
+    game?.homePossession === EXPECTED.homePossession && game?.awayPossession === EXPECTED.awayPossession,
+    `home=${game?.homePossession} away=${game?.awayPossession}`,
+  );
+}
+
+// ── L. Player-vs-player matchup — admin upload + assignment ─────────────────
+// The complete admin-controlled workflow at the Player vs Player level: the admin
+// uploads the screenshot, real OCR reads the Home/Away sides, the admin assigns
+// the two registered players of that matchup, and only then is the result
+// approved and propagated to the parent Team vs Team fixture.
+async function adminMatchupAssignmentTests(): Promise<void> {
+  console.log("\n=== L. PLAYER-VS-PLAYER MATCHUP — ADMIN ASSIGNMENT ===");
+
+  // Players may not use the admin upload endpoints.
+  as(playerA);
+  eq_("L1 a player cannot use the admin matchup upload endpoint", (await call("POST", `/api/admin/player-games/${teamGameId}/result-submission`, teamScreenshot, "image/png")).status, 403);
+  eq_("L2 a player cannot use the admin fixture upload endpoint", (await call("POST", `/api/admin/matches/${teamFixtureId}/result-submission`, teamScreenshot, "image/png")).status, 403);
+
+  // A second matchup of the same fixture: A2 vs B1. Its players are different
+  // people, so matchup 1's players must be refused here.
+  const [teamGame2] = await db
+    .insert(matchPlayerGamesTable)
+    .values({
+      matchId: teamFixtureId,
+      homePlayerId: teamPlayerA2.id,
+      homePlayerName: GAME2_HOME_NAME,
+      awayPlayerId: teamPlayerB1.id,
+      awayPlayerName: GAME2_AWAY_NAME,
+      status: "scheduled",
+    })
+    .returning({ id: matchPlayerGamesTable.id });
+  teamGame2Id = teamGame2!.id;
+
+  // 1. The ADMIN uploads the screenshot for the matchup.
+  as(admin);
+  const upload = await call("POST", `/api/admin/player-games/${teamGame2Id}/result-submission`, teamScreenshot, "image/png");
+  eq_("L3 the admin can upload a screenshot for a player matchup", upload.status, 201);
+  eq_("L4 the submission is bound to that matchup", upload.body?.playerGameId, teamGame2Id);
+  eq_("L5 the parent fixture is recorded too", upload.body?.fixtureId, teamFixtureId);
+  const submissionId = Number(upload.body?.id);
+
+  // 2. OCR ran for real: both sides of the screenshot were read.
+  eq_("L6 OCR read the home score", upload.body?.homeScore, EXPECTED.homeScore);
+  eq_("L7 OCR read the away score", upload.body?.awayScore, EXPECTED.awayScore);
+  for (const field of EXPECTED_STAT_FIELDS) {
+    eq_(`L8 OCR read the home ${field}`, (upload.body as Record<string, unknown>)?.[field], EXPECTED[field as keyof typeof EXPECTED]);
+  }
+  eq_("L8b no Home player assigned by the upload", upload.body?.assignment?.homePlayerId, null);
+  eq_("L8c no Away player assigned by the upload", upload.body?.assignment?.awayPlayerId, null);
+
+  // The screenshot is visible in the admin review workflow only.
+  const list = await call("GET", "/api/admin/match-result-submissions");
+  const row = ((list.body as Array<Record<string, any>> | null) ?? []).find((r) => r.id === submissionId);
+  check("L9 the uploaded screenshot appears in the admin review list", !!row, `id=${submissionId}`);
+  check("L10 the review row exposes the screenshot", String(row?.imagePath ?? "").length > 0, String(row?.imagePath));
+  eq_(
+    "L11 the review row exposes both matchup player ids",
+    [row?.playerGame?.homePlayerId, row?.playerGame?.awayPlayerId].join(","),
+    `${teamPlayerA2.id},${teamPlayerB1.id}`,
+  );
+  as(playerA);
+  eq_("L11b a player still cannot read the admin queue", (await call("GET", "/api/admin/match-result-submissions")).status, 403);
+
+  // 3. A player from a DIFFERENT matchup of the same fixture is refused.
+  as(admin);
+  const foreign = await call("POST", `/api/admin/match-result-submissions/${submissionId}/approve`, {
+    homePlayerId: teamPlayerA1.id,
+    awayPlayerId: teamPlayerB1.id,
+  });
+  eq_("L12 a player from another matchup cannot be assigned", foreign.status, 400);
+  check("L13 the refusal explains the rule", /must belong to this matchup/i.test(String(foreign.body?.error)), String(foreign.body?.error));
+
+  // 4. The same player on both sides is refused.
+  eq_(
+    "L14 the same player cannot take both sides of a matchup",
+    (
+      await call("POST", `/api/admin/match-result-submissions/${submissionId}/approve`, {
+        homePlayerId: teamPlayerA2.id,
+        awayPlayerId: teamPlayerA2.id,
+      })
+    ).status,
+    400,
+  );
+
+  // 5. The correct assignment for this matchup: HOME = A2, AWAY = B1.
+  const ok = await call("POST", `/api/admin/match-result-submissions/${submissionId}/approve`, {
+    homePlayerId: teamPlayerA2.id,
+    awayPlayerId: teamPlayerB1.id,
+  });
+  eq_("L15 approving with the matchup's own players succeeds", ok.status, 200);
+  eq_("L15b the assignment is frozen on the submission (home)", ok.body?.submission?.assignment?.homePlayerId, teamPlayerA2.id);
+  eq_("L15c the assignment is frozen on the submission (away)", ok.body?.submission?.assignment?.awayPlayerId, teamPlayerB1.id);
+
+  // 6. The statistics are attributed by screenshot side to the selected player.
+  const [game] = await db.select().from(matchPlayerGamesTable).where(eq(matchPlayerGamesTable.id, teamGame2Id));
+  eq_("L16 the matchup records the assigned HOME player", game?.homePlayerId, teamPlayerA2.id);
+  eq_("L17 the matchup records the assigned AWAY player", game?.awayPlayerId, teamPlayerB1.id);
+  eq_("L18 the matchup is completed", game?.status, "completed");
+  for (const field of EXPECTED_STAT_FIELDS) {
+    eq_(`L19 ${field} assigned to the HOME side`, (game as unknown as Record<string, unknown>)?.[field], EXPECTED[field as keyof typeof EXPECTED]);
+  }
+  // Never swapped: the home columns hold the screenshot's home column.
+  check(
+    "L20 home and away statistics are not swapped",
+    game?.homePossession === EXPECTED.homePossession && game?.awayPossession === EXPECTED.awayPossession,
+    `home=${game?.homePossession} away=${game?.awayPossession}`,
+  );
+  eq_("L21 the home player keeps his own score", game?.homeScore, EXPECTED.homeScore);
+  eq_("L22 the away player keeps her own score", game?.awayScore, EXPECTED.awayScore);
+
+  // 7. The parent Team vs Team fixture counts the set win (one matchup is still
+  //    outstanding, so the parent is live rather than completed).
+  const [parentLive] = await db.select().from(matchesTable).where(eq(matchesTable.id, teamFixtureId));
+  eq_("L23 the parent fixture counts the matchup win", parentLive?.participant1Score, 1);
+  eq_("L24 the parent fixture counts no away win yet", parentLive?.participant2Score, 0);
+  eq_("L25 the parent is live while one matchup is outstanding", parentLive?.status, "live");
+
+  // 8. The admin uploads and approves the first matchup too, completing the set.
+  const upload1 = await call("POST", `/api/admin/player-games/${teamGameId}/result-submission`, teamScreenshot, "image/png");
+  eq_("L26 the admin can upload for the first matchup as well", upload1.status, 201);
+  const ok1 = await call("POST", `/api/admin/match-result-submissions/${Number(upload1.body?.id)}/approve`, {
+    homePlayerId: teamPlayerA1.id,
+    awayPlayerId: teamPlayerB1.id,
+  });
+  eq_("L27 the first matchup is approved with its own players", ok1.status, 200);
+
+  const [parent] = await db.select().from(matchesTable).where(eq(matchesTable.id, teamFixtureId));
+  eq_("L28 the parent fixture is now completed", parent?.status, "completed");
+  eq_("L29 the parent score counts both matchup wins", parent?.participant1Score, 2);
+  eq_("L30 the parent away score counts no set win", parent?.participant2Score, 0);
+  eq_("L31 the parent winner is the home team", parent?.winnerId, teamHomeId);
+}
 //  Server bootstrap ─────────────────────────────────────────────────────────
 // The real router is mounted exactly as production mounts it, behind a
 // middleware that injects the acting user's session. Every guard in the route
@@ -816,8 +1151,10 @@ async function main(): Promise<void> {
     const { rejectedId } = await rejectionTests();
     await auditLogTests(submissionId, rejectedId);
     await reopenTests(submissionId);
-    await adminUploadTests();
+    const { adminSubmissionId } = await adminUploadTests();
+    await adminAssignmentValidationTests(adminSubmissionId);
     await teamFixtureTests();
+    await adminMatchupAssignmentTests();
   } finally {
     await teardown();
     await new Promise((resolve) => server.close(resolve));

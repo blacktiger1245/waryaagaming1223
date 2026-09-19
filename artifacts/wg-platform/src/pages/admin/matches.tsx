@@ -80,49 +80,63 @@ interface MatchPlayerGame {
   homeScore?: number | null;
   awayScore?: number | null;
   status: string;
-  // Per-player match stats
+  // Per-player match stats. The canonical list lives in PVP_STAT_FIELDS below —
+  // `Successful Passes` is ONE field (never a separate `passes`/`successful` pair).
   homePossession?: number | null;
   awayPossession?: number | null;
   homeShots?: number | null;
   awayShots?: number | null;
   homeShotsOnTarget?: number | null;
   awayShotsOnTarget?: number | null;
-  homeCorners?: number | null;
-  awayCorners?: number | null;
-  homeYellowCards?: number | null;
-  awayYellowCards?: number | null;
-  homeRedCards?: number | null;
-  awayRedCards?: number | null;
+  homeCornerKicks?: number | null;
+  awayCornerKicks?: number | null;
+  homeOffside?: number | null;
+  awayOffside?: number | null;
+  homeFreeKicks?: number | null;
+  awayFreeKicks?: number | null;
+  homeFouls?: number | null;
+  awayFouls?: number | null;
+  homeSuccessfulPasses?: number | null;
+  awaySuccessfulPasses?: number | null;
+  homeCrosses?: number | null;
+  awayCrosses?: number | null;
+  homeInterceptions?: number | null;
+  awayInterceptions?: number | null;
+  homeTackles?: number | null;
+  awayTackles?: number | null;
+  homeSaves?: number | null;
+  awaySaves?: number | null;
 }
+
+// The canonical player-vs-player statistics, in display order. `field` is the
+// suffix after `home`/`away` in both the API payload and the database column.
+const PVP_STAT_FIELDS: { field: string; label: string; max?: number }[] = [
+  { field: "Possession", label: "Poss %", max: 100 },
+  { field: "Shots", label: "Shots" },
+  { field: "ShotsOnTarget", label: "On Target" },
+  { field: "CornerKicks", label: "Corner Kicks" },
+  { field: "Offside", label: "Offside" },
+  { field: "FreeKicks", label: "Free Kicks" },
+  { field: "Fouls", label: "Fouls" },
+  { field: "SuccessfulPasses", label: "Successful Passes" },
+  { field: "Crosses", label: "Crosses" },
+  { field: "Interceptions", label: "Interceptions" },
+  { field: "Tackles", label: "Tackles" },
+  { field: "Saves", label: "Saves" },
+];
 
 // Local editable draft for a player game: score + per-player match stats.
 interface GameStatsDraft {
   home: string;
   away: string;
-  possessionHome: string;
-  possessionAway: string;
-  shotsHome: string;
-  shotsAway: string;
-  shotsOnTargetHome: string;
-  shotsOnTargetAway: string;
-  cornersHome: string;
-  cornersAway: string;
-  yellowHome: string;
-  yellowAway: string;
-  redHome: string;
-  redAway: string;
+  /** One home/away string pair per statistic, keyed by PVP_STAT_FIELDS `field`. */
+  stats: Record<string, { home: string; away: string }>;
 }
 
 function makeLocal(): GameStatsDraft {
-  return {
-    home: "", away: "",
-    possessionHome: "", possessionAway: "",
-    shotsHome: "", shotsAway: "",
-    shotsOnTargetHome: "", shotsOnTargetAway: "",
-    cornersHome: "", cornersAway: "",
-    yellowHome: "", yellowAway: "",
-    redHome: "", redAway: "",
-  };
+  const stats: Record<string, { home: string; away: string }> = {};
+  for (const f of PVP_STAT_FIELDS) stats[f.field] = { home: "", away: "" };
+  return { home: "", away: "", stats };
 }
 
 // Small numeric stat input row.
@@ -149,7 +163,7 @@ function PlayerStatsEditor({
 }: {
   game: MatchPlayerGame;
   local: GameStatsDraft;
-  setStat: (field: keyof GameStatsDraft, value: string) => void;
+  setStat: (field: string, side: "home" | "away", value: string) => void;
   saving: boolean;
   onSave: () => void;
 }) {
@@ -168,28 +182,22 @@ function PlayerStatsEditor({
         </Button>
       </div>
       <div className="grid gap-3 md:grid-cols-2">
-        {sides.map(({ side, name }) => {
-          const k = (homeKey: keyof GameStatsDraft, awayKey: keyof GameStatsDraft): keyof GameStatsDraft =>
-            side === "home" ? homeKey : awayKey;
-          const F: { h: keyof GameStatsDraft; a: keyof GameStatsDraft; label: string; max?: number }[] = [
-            { h: "possessionHome", a: "possessionAway", label: "Poss %", max: 100 },
-            { h: "shotsHome", a: "shotsAway", label: "Shots" },
-            { h: "shotsOnTargetHome", a: "shotsOnTargetAway", label: "On Target" },
-            { h: "cornersHome", a: "cornersAway", label: "Corners" },
-            { h: "yellowHome", a: "yellowAway", label: "Yellow" },
-            { h: "redHome", a: "redAway", label: "Red" },
-          ];
-          return (
-            <div key={side} className="space-y-1.5">
-              <p className="truncate text-[10px] font-black uppercase tracking-widest text-muted-foreground">{name}</p>
-              <div className="grid grid-cols-3 gap-2">
-                {F.map(({ h, a, label, max }) => (
-                  <StatField key={label} label={label} max={max} value={local[k(h, a)]} onChange={(v) => setStat(k(h, a), v)} />
-                ))}
-              </div>
+        {sides.map(({ side, name }) => (
+          <div key={side} className="space-y-1.5">
+            <p className="truncate text-[10px] font-black uppercase tracking-widest text-muted-foreground">{name}</p>
+            <div className="grid grid-cols-3 gap-2">
+              {PVP_STAT_FIELDS.map((f) => (
+                <StatField
+                  key={f.field}
+                  label={f.label}
+                  max={f.max}
+                  value={local.stats[f.field]?.[side] ?? ""}
+                  onChange={(v) => setStat(f.field, side, v)}
+                />
+              ))}
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -734,18 +742,15 @@ function PlayerGamesDialog({
           const d = makeLocal();
           d.home = g.homeScore != null ? String(g.homeScore) : "";
           d.away = g.awayScore != null ? String(g.awayScore) : "";
-          d.possessionHome = g.homePossession != null ? String(g.homePossession) : "";
-          d.possessionAway = g.awayPossession != null ? String(g.awayPossession) : "";
-          d.shotsHome = g.homeShots != null ? String(g.homeShots) : "";
-          d.shotsAway = g.awayShots != null ? String(g.awayShots) : "";
-          d.shotsOnTargetHome = g.homeShotsOnTarget != null ? String(g.homeShotsOnTarget) : "";
-          d.shotsOnTargetAway = g.awayShotsOnTarget != null ? String(g.awayShotsOnTarget) : "";
-          d.cornersHome = g.homeCorners != null ? String(g.homeCorners) : "";
-          d.cornersAway = g.awayCorners != null ? String(g.awayCorners) : "";
-          d.yellowHome = g.homeYellowCards != null ? String(g.homeYellowCards) : "";
-          d.yellowAway = g.awayYellowCards != null ? String(g.awayYellowCards) : "";
-          d.redHome = g.homeRedCards != null ? String(g.homeRedCards) : "";
-          d.redAway = g.awayRedCards != null ? String(g.awayRedCards) : "";
+          for (const f of PVP_STAT_FIELDS) {
+            const rec = g as unknown as Record<string, number | null | undefined>;
+            const home = rec[`home${f.field}`];
+            const away = rec[`away${f.field}`];
+            d.stats[f.field] = {
+              home: home != null ? String(home) : "",
+              away: away != null ? String(away) : "",
+            };
+          }
           next[g.id] = d;
           changed = true;
         }
@@ -775,24 +780,19 @@ function PlayerGamesDialog({
     if (!local) return;
     setSavingId(gameId);
     try {
+      // Send every statistic explicitly so clearing a field saves as NULL.
+      const body: Record<string, number | null> = {
+        homeScore: local.home === "" ? null : Number(local.home),
+        awayScore: local.away === "" ? null : Number(local.away),
+      };
+      for (const f of PVP_STAT_FIELDS) {
+        const pair = local.stats[f.field] ?? { home: "", away: "" };
+        body[`home${f.field}`] = pair.home === "" ? null : Number(pair.home);
+        body[`away${f.field}`] = pair.away === "" ? null : Number(pair.away);
+      }
       await apiFetch(`/api/admin/player-games/${gameId}`, {
         method: "PATCH",
-        body: JSON.stringify({
-          homeScore: local.home === "" ? null : Number(local.home),
-          awayScore: local.away === "" ? null : Number(local.away),
-          homePossession: local.possessionHome === "" ? null : Number(local.possessionHome),
-          awayPossession: local.possessionAway === "" ? null : Number(local.possessionAway),
-          homeShots: local.shotsHome === "" ? null : Number(local.shotsHome),
-          awayShots: local.shotsAway === "" ? null : Number(local.shotsAway),
-          homeShotsOnTarget: local.shotsOnTargetHome === "" ? null : Number(local.shotsOnTargetHome),
-          awayShotsOnTarget: local.shotsOnTargetAway === "" ? null : Number(local.shotsOnTargetAway),
-          homeCorners: local.cornersHome === "" ? null : Number(local.cornersHome),
-          awayCorners: local.cornersAway === "" ? null : Number(local.cornersAway),
-          homeYellowCards: local.yellowHome === "" ? null : Number(local.yellowHome),
-          awayYellowCards: local.yellowAway === "" ? null : Number(local.yellowAway),
-          homeRedCards: local.redHome === "" ? null : Number(local.redHome),
-          awayRedCards: local.redAway === "" ? null : Number(local.redAway),
-        }),
+        body: JSON.stringify(body),
       });
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["admin-player-games", match.id] }),
@@ -936,8 +936,17 @@ function PlayerGamesDialog({
                 const a = local.away !== "" ? Number(local.away) : null;
                 const homeWin = h != null && a != null && h > a;
                 const awayWin = h != null && a != null && a > h;
-                const setStat = (field: keyof GameStatsDraft, value: string) =>
-                  setLocalScores((p) => ({ ...p, [game.id]: { ...(p[game.id] ?? makeLocal()), [field]: value } }));
+                const setStat = (field: string, side: "home" | "away", value: string) =>
+                  setLocalScores((p) => {
+                    const current = p[game.id] ?? makeLocal();
+                    return {
+                      ...p,
+                      [game.id]: {
+                        ...current,
+                        stats: { ...current.stats, [field]: { ...current.stats[field], [side]: value } },
+                      },
+                    };
+                  });
                 return (
                   <div key={game.id} className="mt-1">
                     <motion.div
