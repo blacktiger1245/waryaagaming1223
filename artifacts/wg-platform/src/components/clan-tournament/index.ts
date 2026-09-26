@@ -11,6 +11,8 @@ export {
   PREVIEW_TEAM_OF_THE_WEEK,
 } from "./preview-data";
 export { SectionPlaceholder } from "./SectionPlaceholder";
+export { FixturesPanel } from "./FixturesPanel";
+export type { FixtureMatch, ClanLookupEntry } from "./FixturesPanel";
 export { SeasonSidebar } from "./SeasonSidebar";
 export type { SeasonOption, TournamentOption } from "./SeasonSidebar";
 export { SeasonSummary } from "./SeasonSummary";

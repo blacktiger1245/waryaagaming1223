@@ -18,6 +18,7 @@ import {
 import {
   ClanStandingsTable,
   ClanTournamentNav,
+  FixturesPanel,
   PREVIEW_STANDINGS,
   PREVIEW_TEAM_OF_THE_WEEK,
   SeasonSidebar,
@@ -27,12 +28,49 @@ import {
   clanTheme,
 } from "@/components/clan-tournament";
 import type {
+  ClanLookupEntry,
   ClanStanding,
   ClanTournamentTabId,
+  FixtureMatch,
   SeasonOption,
   TournamentOption,
 } from "@/components/clan-tournament";
 import { apiUrl } from "@/lib/api";
+
+/** Fields we consume from GET /api/tournaments/:id/matches. */
+interface TournamentMatchRow {
+  id: number;
+  tournamentName?: string | null;
+  round?: number | null;
+  roundName?: string | null;
+  status?: string | null;
+  participant1Name?: string | null;
+  participant1Score?: number | null;
+  participant2Name?: string | null;
+  participant2Score?: number | null;
+  scheduledAt?: string | null;
+  streamUrl?: string | null;
+}
+
+/**
+ * Normalise a tournament-match row into a fixture. For team-format tournaments
+ * participant1/participant2 are clan IDs and their names are the clan names.
+ */
+function toFixture(row: TournamentMatchRow, fallbackTournamentName: string): FixtureMatch {
+  return {
+    id: row.id,
+    tournamentName: row.tournamentName ?? fallbackTournamentName,
+    round: row.round ?? 1,
+    roundName: row.roundName ?? null,
+    status: row.status ?? "scheduled",
+    homeName: row.participant1Name?.trim() || "TBD",
+    homeScore: row.participant1Score ?? null,
+    awayName: row.participant2Name?.trim() || "TBD",
+    awayScore: row.participant2Score ?? null,
+    scheduledAt: row.scheduledAt ?? null,
+    streamUrl: row.streamUrl ?? null,
+  };
+}
 
 /** Fields we consume from GET /api/seasons. */
 interface SeasonRow {
@@ -110,14 +148,9 @@ function toStanding(row: TeamRankingRow, index: number): ClanStanding {
 
 /** Copy for the tabs whose data feed is not wired up yet. */
 const PLACEHOLDERS: Record<
-  Exclude<ClanTournamentTabId, "overview" | "table">,
+  Exclude<ClanTournamentTabId, "overview" | "table" | "fixtures">,
   { title: string; description: string; icon: typeof Users }
 > = {
-  fixtures: {
-    title: "Fixtures",
-    description: "The full clan fixture list and results for the current round.",
-    icon: CalendarDays,
-  },
   "player-stats": {
     title: "Player stats",
     description: "Goals, assists and appearance rankings for every registered clan player.",
@@ -271,8 +304,52 @@ export default function ClanTournamentPage() {
   const standings = usingPreview ? PREVIEW_STANDINGS : liveStandings;
   const teamOfTheWeek = usingPreview ? PREVIEW_TEAM_OF_THE_WEEK : [];
 
+  /**
+   * Fixtures cover a single tournament when one is selected, otherwise every
+   * clan tournament in the active season (or all of them for "All time").
+   */
+  const fixturesScope = useMemo<TournamentOption[]>(() => {
+    if (activeTournamentId != null) {
+      return clanTournaments.filter((t) => t.id === activeTournamentId);
+    }
+    if (activeSeasonId == null) return clanTournaments;
+    return clanTournaments.filter((t) => t.seasonId === activeSeasonId);
+  }, [clanTournaments, activeSeasonId, activeTournamentId]);
+
+  const fixturesScopeKey = fixturesScope.map((t) => t.id).join(",");
+
+  const matchesQuery = useQuery({
+    queryKey: ["clan-tournament-matches", fixturesScopeKey],
+    enabled: fixturesScope.length > 0,
+    queryFn: async (): Promise<FixtureMatch[]> => {
+      const perTournament = await Promise.all(
+        fixturesScope.map(async (tournament) => {
+          const res = await fetch(apiUrl(`/api/tournaments/${tournament.id}/matches`), {
+            credentials: "include",
+          });
+          if (!res.ok) return [] as FixtureMatch[];
+          const data = (await res.json().catch(() => [])) as unknown;
+          const rows = Array.isArray(data) ? (data as TournamentMatchRow[]) : [];
+          return rows.map((row) => toFixture(row, tournament.name));
+        }),
+      );
+      return perTournament.flat();
+    },
+  });
+
+  /** Clan tag/crest by name so fixture rows reuse the same badges as the table. */
+  const clanIndex = useMemo<Record<string, ClanLookupEntry>>(() => {
+    const index: Record<string, ClanLookupEntry> = {};
+    for (const clan of standings) {
+      index[clan.name] = { tag: clan.tag, logoUrl: clan.logoUrl };
+    }
+    return index;
+  }, [standings]);
+
   const placeholderSpec =
-    activeTab === "overview" || activeTab === "table" ? null : PLACEHOLDERS[activeTab];
+    activeTab === "overview" || activeTab === "table" || activeTab === "fixtures"
+      ? null
+      : PLACEHOLDERS[activeTab];
 
   const selectAllTime = () => {
     setActiveSeasonId(null);
@@ -349,8 +426,15 @@ export default function ClanTournamentPage() {
               isCurrentSeason={isCurrentSeason}
             />
 
-            {/* Overview / Table — split 8/12 + 4/12 within the content column */}
-            {placeholderSpec ? (
+            {/* Fixtures — live, finished and scheduled matches for the scope */}
+            {activeTab === "fixtures" ? (
+              <FixturesPanel
+                matches={matchesQuery.data ?? []}
+                clanIndex={clanIndex}
+                isLoading={matchesQuery.isLoading}
+                title={`Fixtures — ${scopeLabel}`}
+              />
+            ) : placeholderSpec ? (
               <SectionPlaceholder
                 title={placeholderSpec.title}
                 description={placeholderSpec.description}
