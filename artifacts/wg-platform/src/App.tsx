@@ -28,6 +28,7 @@ import WatchPage from "@/pages/watch";
 import ComingSoonPage from "@/pages/coming-soon";
 import BuyCoinsPage from "@/pages/buy-coins";
 import AcademyPage from "@/pages/academy";
+import ClanTournamentPage from "@/pages/clan-tournament";
 import PartnershipPage from "@/pages/partnership";
 import MarketplacePage from "@/pages/marketplace";
 import AgentMessagesPage from "@/pages/agent-messages";
@@ -126,6 +127,7 @@ function SiteRouter() {
         <Route path="/partnership" component={PartnershipPage} />
         <Route path="/buy-coins" component={BuyCoinsPage} />
         <Route path="/academy" component={AcademyPage} />
+        <Route path="/clan-tournament" component={ClanTournamentPage} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

@@ -22,6 +22,7 @@ import {
   MessageCircle,
   Coins,
   Store,
+  Swords,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useAuth } from "@/hooks/use-auth";
@@ -69,6 +70,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const navLinks: NavLink[] = [
     { href: "/", label: "Home", icon: Home },
     { href: "/tournaments", label: "Tournaments", icon: Trophy },
+    { href: "/clan-tournament", label: "Clan Tournament", icon: Swords },
     { href: "/players", label: "Players", icon: Users },
     { href: "/teams", label: "Clans", icon: Shield },
     { href: "/fixtures", label: "Fixtures", icon: CalendarDays },
