@@ -20,12 +20,48 @@ import {
   ClanTournamentNav,
   PREVIEW_STANDINGS,
   PREVIEW_TEAM_OF_THE_WEEK,
+  SeasonSidebar,
+  SeasonSummary,
   SectionPlaceholder,
   TeamOfTheWeekPitch,
   clanTheme,
 } from "@/components/clan-tournament";
-import type { ClanStanding, ClanTournamentTabId } from "@/components/clan-tournament";
+import type {
+  ClanStanding,
+  ClanTournamentTabId,
+  SeasonOption,
+  TournamentOption,
+} from "@/components/clan-tournament";
 import { apiUrl } from "@/lib/api";
+
+/** Fields we consume from GET /api/seasons. */
+interface SeasonRow {
+  id: number;
+  name?: string | null;
+  isCurrent?: boolean | null;
+  topScorerPlayer?: SeasonPersonRow | null;
+  ballonDorPlayer?: SeasonPersonRow | null;
+}
+
+interface SeasonPersonRow {
+  username?: string | null;
+  displayName?: string | null;
+  avatarUrl?: string | null;
+}
+
+/** Fields we consume from GET /api/tournaments. */
+interface TournamentRow {
+  id: number;
+  name?: string | null;
+  status?: string | null;
+  seasonId?: number | null;
+  tournamentType?: string | null;
+  isClanTournament?: boolean | null;
+}
+
+function personLabel(p?: SeasonPersonRow | null): string {
+  return p?.displayName?.trim() || p?.username?.trim() || "Unknown";
+}
 
 /**
  * Loose shape for GET /api/rankings/teams — the endpoint has returned both
@@ -128,11 +164,38 @@ function PreviewChip() {
 export default function ClanTournamentPage() {
   const [activeTab, setActiveTab] = useState<ClanTournamentTabId>("overview");
   const [round, setRound] = useState(5);
+  /** `null` = All time. */
+  const [activeSeasonId, setActiveSeasonId] = useState<number | null>(null);
+  /** `null` = the whole season is selected rather than one tournament. */
+  const [activeTournamentId, setActiveTournamentId] = useState<number | null>(null);
+
+  const seasonsQuery = useQuery({
+    queryKey: ["clan-tournament-seasons"],
+    queryFn: async (): Promise<SeasonRow[]> => {
+      const res = await fetch(apiUrl("/api/seasons"), { credentials: "include" });
+      if (!res.ok) return [];
+      const data = (await res.json().catch(() => [])) as unknown;
+      return Array.isArray(data) ? (data as SeasonRow[]) : [];
+    },
+  });
+
+  const tournamentsQuery = useQuery({
+    queryKey: ["clan-tournament-tournaments"],
+    queryFn: async (): Promise<TournamentRow[]> => {
+      const res = await fetch(apiUrl("/api/tournaments"), { credentials: "include" });
+      if (!res.ok) return [];
+      const data = (await res.json().catch(() => [])) as unknown;
+      return Array.isArray(data) ? (data as TournamentRow[]) : [];
+    },
+  });
 
   const standingsQuery = useQuery({
-    queryKey: ["clan-tournament-standings"],
+    queryKey: ["clan-tournament-standings", activeSeasonId],
     queryFn: async (): Promise<TeamRankingRow[]> => {
-      const res = await fetch(apiUrl("/api/rankings/teams"), { credentials: "include" });
+      const seasonParam = activeSeasonId == null ? "" : `?seasonId=${activeSeasonId}`;
+      const res = await fetch(apiUrl(`/api/rankings/teams${seasonParam}`), {
+        credentials: "include",
+      });
       if (!res.ok) return [];
       const data = (await res.json().catch(() => [])) as unknown;
       return Array.isArray(data) ? (data as TeamRankingRow[]) : [];
@@ -144,6 +207,43 @@ export default function ClanTournamentPage() {
     [standingsQuery.data],
   );
 
+  const seasons = useMemo<SeasonOption[]>(
+    () =>
+      (seasonsQuery.data ?? []).map((s) => ({
+        id: s.id,
+        name: s.name ?? `Season ${s.id}`,
+        isCurrent: Boolean(s.isCurrent),
+      })),
+    [seasonsQuery.data],
+  );
+
+  /** Only clan/team-format tournaments belong in this section. */
+  const clanTournaments = useMemo<TournamentOption[]>(
+    () =>
+      (tournamentsQuery.data ?? [])
+        .filter((t) => t.isClanTournament === true || t.tournamentType === "team")
+        .map((t) => ({
+          id: t.id,
+          name: t.name ?? `Tournament ${t.id}`,
+          seasonId: t.seasonId ?? null,
+          status: t.status ?? "upcoming",
+        })),
+    [tournamentsQuery.data],
+  );
+
+  const activeSeason = seasons.find((s) => s.id === activeSeasonId) ?? null;
+  const activeTournament = clanTournaments.find((t) => t.id === activeTournamentId) ?? null;
+  const activeSeasonRow =
+    activeSeasonId == null
+      ? null
+      : (seasonsQuery.data ?? []).find((s) => s.id === activeSeasonId) ?? null;
+
+  const toPerson = (p?: SeasonPersonRow | null) =>
+    p ? { name: personLabel(p), avatarUrl: p.avatarUrl ?? null } : null;
+
+  const scopeLabel = activeTournament?.name ?? activeSeason?.name ?? "All time";
+  const tournamentSeasonLabel = activeTournament ? activeSeason?.name ?? null : null;
+
   // Fall back to the preview dataset so the layout is always reviewable.
   const usingPreview = liveStandings.length === 0;
   const standings = usingPreview ? PREVIEW_STANDINGS : liveStandings;
@@ -151,6 +251,21 @@ export default function ClanTournamentPage() {
 
   const placeholderSpec =
     activeTab === "overview" || activeTab === "table" ? null : PLACEHOLDERS[activeTab];
+
+  const selectAllTime = () => {
+    setActiveSeasonId(null);
+    setActiveTournamentId(null);
+  };
+
+  const selectSeason = (seasonId: number) => {
+    setActiveSeasonId(seasonId);
+    setActiveTournamentId(null);
+  };
+
+  const selectTournament = (seasonId: number, tournamentId: number) => {
+    setActiveSeasonId(seasonId);
+    setActiveTournamentId(tournamentId);
+  };
 
   return (
     <div
@@ -161,42 +276,68 @@ export default function ClanTournamentPage() {
 
       <div className="mx-auto w-full max-w-[1500px] px-3 py-5 lg:px-4">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="text-lg font-black uppercase tracking-[0.14em] text-white">
+          <div className="min-w-0">
+            <h1 className="truncate text-lg font-black uppercase tracking-[0.14em] text-white">
               Clan Tournament
             </h1>
-            <p className="mt-1 text-xs" style={{ color: clanTheme.muted }}>
-              Season standings, fixtures and player ratings
+            <p className="mt-1 truncate text-xs" style={{ color: clanTheme.muted }}>
+              {scopeLabel} · season standings, fixtures and player ratings
             </p>
           </div>
           {usingPreview ? <PreviewChip /> : null}
         </div>
 
-        {placeholderSpec ? (
-          <SectionPlaceholder
-            title={placeholderSpec.title}
-            description={placeholderSpec.description}
-            icon={placeholderSpec.icon}
+        {/* Selector on the left; everything on the right follows that selection. */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
+          <SeasonSidebar
+            seasons={seasons}
+            tournaments={clanTournaments}
+            activeSeasonId={activeSeasonId}
+            activeTournamentId={activeTournamentId}
+            isLoading={seasonsQuery.isLoading}
+            onSelectAllTime={selectAllTime}
+            onSelectSeason={selectSeason}
+            onSelectTournament={selectTournament}
           />
-        ) : (
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-            {/* Left — 8/12: clan standings */}
-            <div className="lg:col-span-8">
-              <ClanStandingsTable standings={standings} title="Standings" />
-            </div>
 
-            {/* Right — 4/12: Team of the Week */}
-            <div className="lg:col-span-4">
-              <TeamOfTheWeekPitch
-                players={teamOfTheWeek}
-                round={round}
-                minRound={1}
-                maxRound={38}
-                onRoundChange={setRound}
+          <div className="min-w-0 space-y-4">
+            <SeasonSummary
+              scopeLabel={scopeLabel}
+              seasonLabel={tournamentSeasonLabel}
+              topScorer={toPerson(activeSeasonRow?.topScorerPlayer)}
+              ballonDor={toPerson(activeSeasonRow?.ballonDorPlayer)}
+              clanCount={standings.length}
+            />
+
+            {/* Overview / Table — split 8/12 + 4/12 within the content column */}
+            {placeholderSpec ? (
+              <SectionPlaceholder
+                title={placeholderSpec.title}
+                description={placeholderSpec.description}
+                icon={placeholderSpec.icon}
               />
-            </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+                <div className="lg:col-span-8">
+                  <ClanStandingsTable
+                    standings={standings}
+                    title={`Standings — ${scopeLabel}`}
+                  />
+                </div>
+
+                <div className="lg:col-span-4">
+                  <TeamOfTheWeekPitch
+                    players={teamOfTheWeek}
+                    round={round}
+                    minRound={1}
+                    maxRound={38}
+                    onRoundChange={setRound}
+                  />
+                </div>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

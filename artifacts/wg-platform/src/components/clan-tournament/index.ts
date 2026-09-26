@@ -11,4 +11,8 @@ export {
   PREVIEW_TEAM_OF_THE_WEEK,
 } from "./preview-data";
 export { SectionPlaceholder } from "./SectionPlaceholder";
+export { SeasonSidebar } from "./SeasonSidebar";
+export type { SeasonOption, TournamentOption } from "./SeasonSidebar";
+export { SeasonSummary } from "./SeasonSummary";
+export type { SeasonPerson } from "./SeasonSummary";
 export * from "./types";
