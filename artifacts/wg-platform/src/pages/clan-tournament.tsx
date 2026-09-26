@@ -5,7 +5,7 @@
  * layout: clan standings table (8/12) on the left and the Team of the Week
  * pitch widget (4/12) on the right for the Overview and Table tabs.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   BarChart3,
@@ -202,6 +202,22 @@ export default function ClanTournamentPage() {
     },
   });
 
+  /**
+   * On first load — and therefore after every page refresh — default the
+   * selection to the CURRENT season the admin created. A deliberate selection
+   * made afterwards is never overridden, and nothing is persisted, so a refresh
+   * always returns to the current season.
+   */
+  const seasonDefaultedRef = useRef(false);
+  useEffect(() => {
+    if (seasonDefaultedRef.current) return;
+    const list = seasonsQuery.data ?? [];
+    if (list.length === 0) return;
+    const current = list.find((s) => s.isCurrent) ?? list[0];
+    seasonDefaultedRef.current = true;
+    setActiveSeasonId(current.id);
+  }, [seasonsQuery.data]);
+
   const liveStandings = useMemo<ClanStanding[]>(
     () => (standingsQuery.data ?? []).map((row, index) => toStanding(row, index)),
     [standingsQuery.data],
@@ -243,9 +259,15 @@ export default function ClanTournamentPage() {
 
   const scopeLabel = activeTournament?.name ?? activeSeason?.name ?? "All time";
   const tournamentSeasonLabel = activeTournament ? activeSeason?.name ?? null : null;
+  const isCurrentSeason = Boolean(activeSeason?.isCurrent);
+  const seasonTournamentCount =
+    activeSeasonId == null
+      ? clanTournaments.length
+      : clanTournaments.filter((t) => t.seasonId === activeSeasonId).length;
 
-  // Fall back to the preview dataset so the layout is always reviewable.
-  const usingPreview = liveStandings.length === 0;
+  // Only fall back to sample data for the unfiltered "All time" view — a
+  // specific season must never be shown sample rows in its table.
+  const usingPreview = liveStandings.length === 0 && activeSeasonId == null;
   const standings = usingPreview ? PREVIEW_STANDINGS : liveStandings;
   const teamOfTheWeek = usingPreview ? PREVIEW_TEAM_OF_THE_WEEK : [];
 
@@ -272,7 +294,23 @@ export default function ClanTournamentPage() {
       className="min-h-screen w-full"
       style={{ background: clanTheme.bg, color: clanTheme.text }}
     >
-      <ClanTournamentNav activeTab={activeTab} onTabChange={setActiveTab} />
+      <ClanTournamentNav
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        trailing={
+          <span
+            className="whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em]"
+            style={{
+              color: clanTheme.accent,
+              background: "rgba(34, 197, 94, 0.12)",
+              border: "1px solid rgba(34, 197, 94, 0.35)",
+            }}
+            title="Active season"
+          >
+            {isCurrentSeason ? `${scopeLabel} · current` : scopeLabel}
+          </span>
+        }
+      />
 
       <div className="mx-auto w-full max-w-[1500px] px-3 py-5 lg:px-4">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
@@ -307,6 +345,8 @@ export default function ClanTournamentPage() {
               topScorer={toPerson(activeSeasonRow?.topScorerPlayer)}
               ballonDor={toPerson(activeSeasonRow?.ballonDorPlayer)}
               clanCount={standings.length}
+              tournamentCount={seasonTournamentCount}
+              isCurrentSeason={isCurrentSeason}
             />
 
             {/* Overview / Table — split 8/12 + 4/12 within the content column */}

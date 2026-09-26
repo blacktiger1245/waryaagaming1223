@@ -19,6 +19,10 @@ interface SeasonSummaryProps {
   topScorer: SeasonPerson | null;
   ballonDor: SeasonPerson | null;
   clanCount: number;
+  /** Clan tournaments inside the selected season. */
+  tournamentCount: number;
+  /** True when the selected season is the one the admin marked current. */
+  isCurrentSeason: boolean;
 }
 
 function Person({ person }: { person: SeasonPerson }) {
@@ -74,6 +78,8 @@ export function SeasonSummary({
   topScorer,
   ballonDor,
   clanCount,
+  tournamentCount,
+  isCurrentSeason,
 }: SeasonSummaryProps) {
   return (
     <section
@@ -89,9 +95,19 @@ export function SeasonSummary({
             <Trophy className="h-3 w-3" />
             {seasonLabel ? "Tournament" : "Season"}
           </p>
-          <p className="mt-1 truncate text-[13px] font-bold text-white" title={scopeLabel}>
-            {scopeLabel}
-          </p>
+          <div className="mt-1 flex items-center gap-2">
+            <p className="truncate text-[13px] font-bold text-white" title={scopeLabel}>
+              {scopeLabel}
+            </p>
+            {isCurrentSeason && (
+              <span
+                className="shrink-0 rounded px-1.5 py-px text-[8px] font-black uppercase tracking-wider"
+                style={{ color: clanTheme.accent, background: "rgba(34, 197, 94, 0.14)" }}
+              >
+                Current season
+              </span>
+            )}
+          </div>
           {seasonLabel && (
             <p className="text-[10px]" style={{ color: clanTheme.muted }}>
               in {seasonLabel}
@@ -101,6 +117,10 @@ export function SeasonSummary({
 
         <Metric label="Clans" icon={Trophy}>
           <span className="font-bold tabular-nums text-white">{clanCount}</span>
+        </Metric>
+
+        <Metric label="Clan tournaments" icon={Trophy}>
+          <span className="font-bold tabular-nums text-white">{tournamentCount}</span>
         </Metric>
 
         <Metric label="Top scorer" icon={Goal}>
