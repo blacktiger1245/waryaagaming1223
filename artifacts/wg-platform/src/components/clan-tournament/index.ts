@@ -13,6 +13,13 @@ export {
 export { SectionPlaceholder } from "./SectionPlaceholder";
 export { FixturesPanel } from "./FixturesPanel";
 export type { FixtureMatch, ClanLookupEntry } from "./FixturesPanel";
+export { ClanStatsPanel } from "./ClanStatsPanel";
+export type {
+  ClanStatEntry,
+  ClanStatLeaderboard,
+  ClanStatsScope,
+  StatUnit,
+} from "./ClanStatsPanel";
 export { SeasonSidebar } from "./SeasonSidebar";
 export type { SeasonOption, TournamentOption } from "./SeasonSidebar";
 export { SeasonSummary } from "./SeasonSummary";

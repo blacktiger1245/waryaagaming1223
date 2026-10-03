@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import {
   ClanStandingsTable,
+  ClanStatsPanel,
   ClanTournamentNav,
   FixturesPanel,
   PREVIEW_STANDINGS,
@@ -30,6 +31,8 @@ import {
 import type {
   ClanLookupEntry,
   ClanStanding,
+  ClanStatLeaderboard,
+  ClanStatsScope,
   ClanTournamentTabId,
   FixtureMatch,
   SeasonOption,
@@ -95,6 +98,13 @@ interface TournamentRow {
   seasonId?: number | null;
   tournamentType?: string | null;
   isClanTournament?: boolean | null;
+}
+
+/** Response shape of GET /api/clan-tournament/stats. */
+interface ClanStatsResponse {
+  scope: ClanStatsScope;
+  players: ClanStatLeaderboard[];
+  teams: ClanStatLeaderboard[];
 }
 
 function personLabel(p?: SeasonPersonRow | null): string {
@@ -337,6 +347,38 @@ export default function ClanTournamentPage() {
     },
   });
 
+  // ── Player / team statistics leaderboards (Player stats & Team stats tabs).
+  //     Scope mirrors the sidebar selection (single tournament → season → all
+  //     time) and is fetched lazily once either tab is opened. ──
+  const statsQuery = useQuery({
+    queryKey: ["clan-tournament-stats", activeSeasonId, activeTournamentId],
+    enabled: activeTab === "player-stats" || activeTab === "team-stats",
+    queryFn: async (): Promise<ClanStatsResponse> => {
+      const params = new URLSearchParams();
+      if (activeTournamentId != null) params.set("tournamentId", String(activeTournamentId));
+      else if (activeSeasonId != null) params.set("seasonId", String(activeSeasonId));
+      const query = params.toString();
+
+      const res = await fetch(apiUrl(`/api/clan-tournament/stats${query ? `?${query}` : ""}`), {
+        credentials: "include",
+      });
+      if (!res.ok) {
+        return {
+          scope: {
+            seasonId: activeSeasonId,
+            tournamentId: activeTournamentId,
+            tournamentCount: 0,
+            matchCount: 0,
+            playerGameCount: 0,
+          },
+          players: [],
+          teams: [],
+        };
+      }
+      return (await res.json()) as ClanStatsResponse;
+    },
+  });
+
   /** Clan tag/crest by name so fixture rows reuse the same badges as the table. */
   const clanIndex = useMemo<Record<string, ClanLookupEntry>>(() => {
     const index: Record<string, ClanLookupEntry> = {};
@@ -346,10 +388,21 @@ export default function ClanTournamentPage() {
     return index;
   }, [standings]);
 
+  // Tabs whose data feed is still a placeholder. `player-stats` and `team-stats`
+  // are backed by GET /api/clan-tournament/stats and rendered below instead.
   const placeholderSpec =
-    activeTab === "overview" || activeTab === "table" || activeTab === "fixtures"
+    activeTab === "overview" ||
+    activeTab === "table" ||
+    activeTab === "fixtures" ||
+    activeTab === "player-stats" ||
+    activeTab === "team-stats"
       ? null
       : PLACEHOLDERS[activeTab];
+
+  /** Subtitle for the stats tabs: the scope plus how much data backs it. */
+  const statsScopeLabel = statsQuery.data
+    ? `${scopeLabel} · ${statsQuery.data.scope.matchCount} fixtures · ${statsQuery.data.scope.playerGameCount} matchups`
+    : scopeLabel;
 
   const selectAllTime = () => {
     setActiveSeasonId(null);
@@ -433,6 +486,24 @@ export default function ClanTournamentPage() {
                 clanIndex={clanIndex}
                 isLoading={matchesQuery.isLoading}
                 title={`Fixtures — ${scopeLabel}`}
+              />
+            ) : activeTab === "player-stats" ? (
+              <ClanStatsPanel
+                title="Player stats"
+                subtitle={statsScopeLabel}
+                headerIcon={Users}
+                variant="player"
+                leaderboards={statsQuery.data?.players ?? []}
+                isLoading={statsQuery.isLoading}
+              />
+            ) : activeTab === "team-stats" ? (
+              <ClanStatsPanel
+                title="Team stats"
+                subtitle={statsScopeLabel}
+                headerIcon={BarChart3}
+                variant="team"
+                leaderboards={statsQuery.data?.teams ?? []}
+                isLoading={statsQuery.isLoading}
               />
             ) : placeholderSpec ? (
               <SectionPlaceholder

@@ -24,6 +24,7 @@ import liveRouter from "./live";
 import coinsRouter from "./coins";
 import socialRouter from "./social";
 import shopRouter from "./shop";
+import clanStatsRouter from "./clan-stats";
 
 const router: IRouter = Router();
 
@@ -52,6 +53,7 @@ router.use(liveRouter);
 router.use(coinsRouter);
 router.use(socialRouter);
 router.use(shopRouter);
+router.use(clanStatsRouter);
 // Note: auth routes are mounted directly in app.ts
 
 export default router;
