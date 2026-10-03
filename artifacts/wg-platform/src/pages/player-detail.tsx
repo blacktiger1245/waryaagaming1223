@@ -9,7 +9,7 @@ import {
   ArrowLeft, Star, ScrollText, Fingerprint, Activity, Building2, Swords, BookOpen, CreditCard,
   CalendarDays, MapPin, Droplets, Gamepad2, Shield, Trophy, Share2,
   TrendingUp, Zap, Target, ShieldCheck, Award, Coins, Handshake, XCircle, Square, User, BarChart2, Presentation, Medal,
-  UserPlus, UserCheck, MessageSquare,
+  UserPlus, UserCheck, MessageSquare, UserCog,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1129,7 +1129,23 @@ function PlayerSocialActions({ playerId, playerName }: { playerId: number; playe
     onSuccess: () => qc.invalidateQueries({ queryKey: ["follow-status", playerId] }),
   });
 
-  if (isSelf || !isLoggedIn || playerId <= 0) return null;
+  // On your own profile show a shortcut to the self-service profile editor
+  // instead of the follow/message actions. The Discord-managed name & avatar
+  // are locked automatically inside the editor.
+  if (isSelf && playerId > 0) {
+    return (
+      <div className="flex items-center gap-2 mt-3">
+        <Button size="sm" variant="outline" className="gap-1.5 h-8" asChild>
+          <Link href="/profile/edit" data-testid="button-edit-profile">
+            <UserCog className="w-4 h-4" />
+            Edit Profile
+          </Link>
+        </Button>
+      </div>
+    );
+  }
+
+  if (!isLoggedIn || playerId <= 0) return null;
 
   const following = status?.following ?? false;
 

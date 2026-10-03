@@ -1,6 +1,6 @@
 import { useEffect } from "react";
-import { useLocation } from "wouter";
-import { LogOut, Loader2 } from "lucide-react";
+import { Link, useLocation } from "wouter";
+import { LogOut, Loader2, UserCog } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -55,15 +55,23 @@ export default function DashboardPage() {
           <p className="font-mono text-sm">{user.discordId}</p>
         </div>
 
-        <Button
-          variant="outline"
-          className="gap-2 font-bold border-destructive/40 text-destructive hover:bg-destructive/10"
-          onClick={() => logout()}
-          data-testid="button-dashboard-logout"
-        >
-          <LogOut className="w-4 h-4" />
-          Logout
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button asChild className="gap-2 font-bold" data-testid="button-dashboard-edit-profile">
+            <Link href="/profile/edit">
+              <UserCog className="w-4 h-4" />
+              Edit Profile
+            </Link>
+          </Button>
+          <Button
+            variant="outline"
+            className="gap-2 font-bold border-destructive/40 text-destructive hover:bg-destructive/10"
+            onClick={() => logout()}
+            data-testid="button-dashboard-logout"
+          >
+            <LogOut className="w-4 h-4" />
+            Logout
+          </Button>
+        </div>
       </div>
     </div>
   );

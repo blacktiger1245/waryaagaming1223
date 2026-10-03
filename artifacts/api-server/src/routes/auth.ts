@@ -486,6 +486,99 @@ router.post("/auth/onboarding", async (req, res) => {
   return res.json({ ok: true });
 });
 
+// ── Profile (self-service) ────────────────────────────────────────────────────
+// A player's own editable profile. Identity fields that are mirrored from the
+// linked Discord account — `username`, `displayName` and `avatarUrl` — are
+// deliberately NOT writable here: Discord is the single source of truth for
+// them, so a player can never rename themselves or swap their avatar.
+const BLOOD_GROUP_VALUES = ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"];
+const GAMING_DEVICE_VALUES = ["mobile", "pc"];
+const MAX_BIO_LENGTH = 600;
+
+function normalizeOptionalText(value: unknown): string | null {
+  return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
+}
+
+// GET /auth/profile — everything the logged-in player may see/edit about their
+// own profile. Used to pre-fill the Edit Profile form.
+router.get("/auth/profile", async (req, res) => {
+  if (!req.session.userId) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+
+  const [player] = await db.select().from(playersTable).where(eq(playersTable.id, req.session.userId));
+  if (!player) return res.status(404).json({ error: "Player not found" });
+
+  return res.json({ ...player, createdAt: player.createdAt.toISOString() });
+});
+
+// PATCH /auth/profile — update only the fields a player is allowed to change.
+// Any key that is not on the allowlist (notably `username`, `displayName` and
+// `avatarUrl`) is ignored, so Discord-managed data can never be overwritten.
+router.patch("/auth/profile", async (req, res) => {
+  if (!req.session.userId) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+
+  const body = (req.body ?? {}) as Record<string, unknown>;
+
+  const patch: {
+    gamingDevice?: string | null;
+    deviceName?: string | null;
+    konamiId?: string | null;
+    bloodGroup?: string | null;
+    country?: string | null;
+    bio?: string | null;
+    isFreeAgent?: boolean;
+    profileComplete?: boolean;
+  } = {};
+
+  if ("gamingDevice" in body) {
+    const value = normalizeOptionalText(body.gamingDevice);
+    if (value && !GAMING_DEVICE_VALUES.includes(value)) {
+      return res.status(400).json({ error: "gamingDevice must be 'mobile' or 'pc'" });
+    }
+    patch.gamingDevice = value;
+  }
+  if ("deviceName" in body) patch.deviceName = normalizeOptionalText(body.deviceName);
+  if ("konamiId" in body) patch.konamiId = normalizeOptionalText(body.konamiId);
+  if ("bloodGroup" in body) {
+    const value = normalizeOptionalText(body.bloodGroup);
+    if (value && !BLOOD_GROUP_VALUES.includes(value)) {
+      return res.status(400).json({ error: "Invalid blood group" });
+    }
+    patch.bloodGroup = value;
+  }
+  if ("country" in body) patch.country = normalizeOptionalText(body.country);
+  if ("bio" in body) {
+    const value = normalizeOptionalText(body.bio);
+    if (value && value.length > MAX_BIO_LENGTH) {
+      return res.status(400).json({ error: `Bio must be ${MAX_BIO_LENGTH} characters or fewer` });
+    }
+    patch.bio = value;
+  }
+  if ("isFreeAgent" in body) patch.isFreeAgent = Boolean(body.isFreeAgent);
+
+  // Saving a valid profile (with a gaming device) also completes onboarding, so
+  // a player who filled in their details here never gets bounced back to the
+  // one-time onboarding screen.
+  if (patch.gamingDevice) patch.profileComplete = true;
+
+  if (Object.keys(patch).length === 0) {
+    return res.status(400).json({ error: "No editable fields provided" });
+  }
+
+  const [updated] = await db
+    .update(playersTable)
+    .set(patch)
+    .where(eq(playersTable.id, req.session.userId))
+    .returning();
+
+  if (!updated) return res.status(404).json({ error: "Player not found" });
+
+  return res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
+});
+
 function doLogout(req: import("express").Request, res: import("express").Response, redirectTo?: string) {
   req.session.destroy((err) => {
     if (err) req.log.error({ err }, "Session destroy error");

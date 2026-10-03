@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useAuth } from "@/hooks/use-auth";
-import { Crown, ShieldCheck, LifeBuoy, Star } from "lucide-react";
+import { Crown, ShieldCheck, LifeBuoy, Star, UserCog } from "lucide-react";
 import { fetchUnreadCount } from "@/lib/agent-chat";
 import { useQuery } from "@tanstack/react-query";
 import { user as supportUser } from "@/lib/support";
@@ -622,6 +622,15 @@ function UserMenu({ user, onLogout }: { user: { username: string; displayName: s
               <p className="text-xs text-muted-foreground uppercase tracking-wider">Logged in as</p>
               <p className="font-bold text-sm truncate mt-0.5">{user.username}</p>
             </div>
+            <Link
+              href="/profile/edit"
+              onClick={() => setOpen(false)}
+              className="w-full flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors border-b border-border"
+              data-testid="link-edit-profile"
+            >
+              <UserCog className="w-4 h-4" />
+              Edit Profile
+            </Link>
             <button
               onClick={() => { onLogout(); setOpen(false); }}
               className="w-full flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"

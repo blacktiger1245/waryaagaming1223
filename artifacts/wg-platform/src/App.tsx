@@ -38,6 +38,7 @@ import RegisterPage from "@/pages/register";
 import RegisterTeamPage from "@/pages/register-team";
 import ComparePage from "@/pages/compare";
 import DashboardPage from "@/pages/dashboard";
+import EditProfilePage from "@/pages/edit-profile";
 import FixturesPage from "@/pages/fixtures";
 import FixturesDashboardPage from "@/pages/fixtures-dashboard";
 import HallOfFamePage from "@/pages/hall-of-fame";
@@ -118,6 +119,7 @@ function SiteRouter() {
         <Route path="/register-team" component={RegisterTeamPage} />
         <Route path="/compare" component={ComparePage} />
         <Route path="/dashboard" component={DashboardPage} />
+        <Route path="/profile/edit" component={EditProfilePage} />
         <Route path="/community" component={CommunityPage} />
         <Route path="/messages" component={MessagesPage} />
         <Route path="/support" component={SupportPage} />

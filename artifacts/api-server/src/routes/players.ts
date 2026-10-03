@@ -243,12 +243,37 @@ router.patch("/players/:id", async (req, res) => {
   const params = UpdatePlayerParams.safeParse(req.params);
   if (!params.success) return res.status(400).json({ error: "Invalid params" });
 
+  // A player's row is only writable by the player themselves, or by platform
+  // staff. `displayName` and `avatarUrl` are owned by the linked Discord
+  // account (see routes/auth.ts) so they are never applied here — attempts to
+  // send them are ignored rather than silently renaming the player.
+  const sessionUserId = req.session?.userId;
+  if (!sessionUserId) return res.status(401).json({ error: "Login required" });
+
+  const isPlatformStaff =
+    !!req.session.isAdmin ||
+    req.session.role === "admin" ||
+    req.session.role === "owner" ||
+    (req.session.username ?? "").toLowerCase() === "black_tiger";
+
+  if (sessionUserId !== params.data.id && !isPlatformStaff) {
+    return res.status(403).json({ error: "You can only edit your own profile" });
+  }
+
   const body = UpdatePlayerBody.safeParse(req.body);
   if (!body.success) return res.status(400).json({ error: "Invalid body" });
 
+  const patch: { bio?: string; country?: string } = {};
+  if (typeof body.data.bio === "string") patch.bio = body.data.bio;
+  if (typeof body.data.country === "string") patch.country = body.data.country;
+
+  if (Object.keys(patch).length === 0) {
+    return res.status(400).json({ error: "No editable fields provided" });
+  }
+
   const [player] = await db
     .update(playersTable)
-    .set(body.data)
+    .set(patch)
     .where(eq(playersTable.id, params.data.id))
     .returning();
 
