@@ -4,8 +4,8 @@
  * A dark-green pitch with the week's best players placed in a 4-3-3 formation.
  * Each node shows the player's headshot (or initials), name, and match rating.
  */
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { clanCard, clanTheme } from "./theme";
+import { ChevronLeft, ChevronRight, Star } from "lucide-react";
+import { clanCard, clanGradient, clanTheme } from "./theme";
 import type { PitchPlayer, PitchPosition } from "./types";
 
 interface TeamOfTheWeekPitchProps {
@@ -70,7 +70,13 @@ function PlayerNode({ player }: { player: PitchPlayer }) {
       <div className="relative">
         <div
           className="h-12 w-12 overflow-hidden rounded-full"
-          style={{ border: "2px solid rgba(255,255,255,0.75)", background: "rgba(0,0,0,0.35)" }}
+          style={{
+            border: "2px solid rgba(255,255,255,0.85)",
+            background: "rgba(0,0,0,0.4)",
+            boxShadow: player.starred
+              ? "0 0 0 3px rgba(251,191,36,0.55), 0 0 22px -2px rgba(251,191,36,0.9)"
+              : "0 6px 16px -8px rgba(0,0,0,0.9)",
+          }}
         >
           {player.avatarUrl ? (
             <img
@@ -87,8 +93,12 @@ function PlayerNode({ player }: { player: PitchPlayer }) {
         </div>
 
         <span
-          className="absolute -right-2 -top-1.5 whitespace-nowrap rounded-full px-1.5 py-0.5 text-[10px] font-black leading-none shadow-[0_1px_4px_rgba(0,0,0,0.5)]"
-          style={{ background: clanTheme.rating, color: "#171717" }}
+          className="absolute -right-2 -top-1.5 whitespace-nowrap rounded-full px-1.5 py-0.5 text-[10px] font-black leading-none"
+          style={{
+            background: clanGradient.gold,
+            color: "#221703",
+            boxShadow: "0 2px 10px -2px rgba(245,158,11,0.9)",
+          }}
         >
           {player.rating.toFixed(1)}
           {player.starred ? " ★" : ""}
@@ -118,17 +128,23 @@ export function TeamOfTheWeekPitch({
     "flex h-6 w-6 items-center justify-center rounded-md transition-colors disabled:opacity-35";
 
   return (
-    <section
-      className={clanCard}
-      style={{ background: clanTheme.card, borderColor: clanTheme.border }}
-    >
+    <section className={clanCard}>
       <header
         className="flex items-center justify-between gap-2 border-b px-4 py-3"
         style={{ borderColor: clanTheme.border }}
       >
-        <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-white">
-          Team of the Week
-        </h2>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span
+            aria-hidden
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
+            style={{ background: clanGradient.brand, boxShadow: "0 0 18px -4px rgba(168,85,247,0.85)" }}
+          >
+            <Star className="h-3.5 w-3.5 text-white" />
+          </span>
+          <h2 className="truncate text-sm font-bold uppercase tracking-[0.12em] text-white">
+            Team of the Week
+          </h2>
+        </div>
 
         {/* `< Round N >` selector */}
         <div className="flex shrink-0 items-center gap-1">
@@ -173,16 +189,12 @@ export function TeamOfTheWeekPitch({
 
       <div className="p-3">
         <div
-          className="relative overflow-hidden rounded-lg"
-          style={{
-            aspectRatio: "3 / 4",
-            background: `repeating-linear-gradient(180deg, ${clanTheme.pitch} 0 8%, ${clanTheme.pitchAlt} 8% 16%)`,
-            border: `1px solid ${clanTheme.border}`,
-          }}
+          className="clan-pitch relative overflow-hidden rounded-xl"
+          style={{ aspectRatio: "3 / 4", border: "1px solid rgba(16,185,129,0.35)" }}
         >
           <PitchMarkings />
 
-          <div className="relative flex h-full flex-col justify-between py-4">
+          <div className="relative z-10 flex h-full flex-col justify-between py-4">
             {FORMATION_ROWS.map((position) => {
               const row = byPosition(position);
               if (row.length === 0) return null;

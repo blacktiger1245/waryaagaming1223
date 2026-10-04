@@ -8,7 +8,7 @@
  */
 import { CalendarDays, Radio } from "lucide-react";
 import { ClanBadge } from "./ClanBadge";
-import { clanCard, clanTheme } from "./theme";
+import { clanCard, clanGradient, clanTheme } from "./theme";
 
 export interface FixtureMatch {
   id: number;
@@ -88,7 +88,7 @@ function FixtureRow({
 
   return (
     <div
-      className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-t px-3 py-2.5 transition-colors hover:bg-white/[0.03]"
+      className="clan-row grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-t px-3 py-2.5"
       style={{ borderColor: clanTheme.border }}
       data-testid={`fixture-row-${match.id}`}
     >
@@ -129,17 +129,20 @@ export function FixturesPanel({ matches, clanIndex, isLoading, title }: Fixtures
   for (const match of matches) grouped[bucketOf(match.status)].push(match);
 
   return (
-    <section
-      className={clanCard}
-      style={{ background: clanTheme.card, borderColor: clanTheme.border }}
-    >
+    <section className={clanCard}>
       <header
-        className="flex items-center gap-2 border-b px-4 py-3"
+        className="flex items-center gap-2.5 border-b px-4 py-3"
         style={{ borderColor: clanTheme.border }}
       >
-        <CalendarDays className="h-4 w-4" style={{ color: clanTheme.accent }} />
-        <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-white">{title}</h2>
-        <span className="ml-auto text-[11px] tabular-nums" style={{ color: clanTheme.muted }}>
+        <span
+          aria-hidden
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
+          style={{ background: clanGradient.brand, boxShadow: "0 0 18px -4px rgba(168,85,247,0.85)" }}
+        >
+          <CalendarDays className="h-4 w-4 text-white" />
+        </span>
+        <h2 className="truncate text-sm font-bold uppercase tracking-[0.12em] text-white">{title}</h2>
+        <span className="clan-chip ml-auto shrink-0 px-2.5 py-1 text-[10px]" style={{ color: clanTheme.muted }}>
           {matches.length} {matches.length === 1 ? "match" : "matches"}
         </span>
       </header>
@@ -152,7 +155,7 @@ export function FixturesPanel({ matches, clanIndex, isLoading, title }: Fixtures
           <div key={bucket}>
             <div
               className="flex items-center gap-2 px-4 py-2"
-              style={{ background: clanTheme.surfaceAlt }}
+              style={{ background: "linear-gradient(90deg, rgba(148,163,255,0.11), rgba(148,163,255,0.02))" }}
             >
               {bucket === "live" ? (
                 <Radio className="h-3.5 w-3.5 animate-pulse" style={{ color }} />

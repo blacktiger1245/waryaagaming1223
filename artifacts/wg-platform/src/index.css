@@ -472,6 +472,7 @@ html { scroll-behavior: smooth; }
 .wg-site[data-wg-page="marketplace"] { --a: #a3e635; --b: #34d399; --c: #2dd4bf; }
 .wg-site[data-wg-page="support"]     { --a: #94a3b8; --b: #38bdf8; --c: #22d3ee; }
 .wg-site[data-wg-page="referees"]    { --a: #a78bfa; --b: #818cf8; --c: #38bdf8; }
+.wg-site[data-wg-page="clan-tournament"] { --a: #22d3ee; --b: #a855f7; --c: #f472b6; }
 
 /* Glow effects for neon elements */
 .glow-primary {
@@ -1069,3 +1070,130 @@ html { scroll-behavior: smooth; }
   box-shadow: 0 0 0 1px rgba(0,240,255,0.04), 0 20px 46px -34px rgba(0,240,255,0.28);
 }
 .wg-fixtures [class*="rounded-2xl"] > [class*="border-b"] { border-color: rgba(0,240,255,0.12); }
+/* ═════════════════════════════════════════════════════════════════════════════
+   CLAN TOURNAMENT — ARENA SKIN
+   Midnight indigo arena: cyan → violet → magenta identity, champion gold medals,
+   glass cards, an animated glow field and a broadcast-grade pitch.
+   ═════════════════════════════════════════════════════════════════════════ */
+
+/* Page canvas: glow field + blueprint grid, painted as background layers so no
+   extra element (and no z-index juggling) is needed. */
+.clan-page {
+  position: relative;
+  background-color: #060915;
+  background-image:
+    linear-gradient(rgba(148, 163, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 255, 0.06) 1px, transparent 1px),
+    radial-gradient(1100px 520px at 10% -8%, rgba(34, 211, 238, 0.18), transparent 62%),
+    radial-gradient(920px 500px at 90% 0%, rgba(168, 85, 247, 0.20), transparent 64%),
+    radial-gradient(1000px 620px at 50% 112%, rgba(244, 114, 182, 0.13), transparent 62%),
+    linear-gradient(180deg, #070b1c 0%, #080d22 45%, #060915 100%);
+  background-size: 46px 46px, 46px 46px, auto, auto, auto, auto;
+  background-repeat: repeat, repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+}
+
+/* Hero banner */
+.clan-hero {
+  position: relative; overflow: hidden; border-radius: 1.25rem;
+  border: 1px solid rgba(148, 163, 255, 0.24);
+  background:
+    radial-gradient(720px 250px at 6% 0%, rgba(34, 211, 238, 0.22), transparent 62%),
+    radial-gradient(720px 270px at 94% 8%, rgba(168, 85, 247, 0.24), transparent 64%),
+    linear-gradient(135deg, #111a3d 0%, #0d1330 52%, #16123a 100%);
+  box-shadow:
+    0 26px 70px -32px rgba(34, 211, 238, 0.45),
+    0 22px 60px -36px rgba(168, 85, 247, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+.clan-hero::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0;
+  background: linear-gradient(110deg, transparent 34%, rgba(255, 255, 255, 0.12) 50%, transparent 66%);
+  background-size: 220% 100%; transform: translateX(-70%);
+  animation: clanSheen 7s ease-in-out infinite;
+}
+@keyframes clanSheen {
+  0%, 52% { transform: translateX(-70%); opacity: 0; }
+  62% { opacity: 0.9; }
+  100% { transform: translateX(70%); opacity: 0; }
+}
+
+/* Glass card shell (shared by every panel) */
+.clan-card {
+  position: relative;
+  background: linear-gradient(180deg, rgba(24, 32, 68, 0.92), rgba(13, 18, 42, 0.95));
+  border: 1px solid rgba(148, 163, 255, 0.17);
+  box-shadow: 0 20px 48px -28px rgba(2, 6, 23, 0.95), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(7px);
+}
+.clan-card::before {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 1px; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.75), rgba(168, 85, 247, 0.75), rgba(244, 114, 182, 0.65), transparent);
+  opacity: 0.6; transition: opacity 0.25s ease;
+}
+.clan-card:hover::before { opacity: 1; }
+
+/* Sub-navigation bar (position is supplied by the Tailwind `sticky` utility) */
+.clan-nav {
+  border-bottom: 1px solid rgba(148, 163, 255, 0.16);
+  background: linear-gradient(180deg, rgba(11, 16, 36, 0.94), rgba(8, 12, 28, 0.88));
+  backdrop-filter: blur(14px) saturate(150%);
+  box-shadow: 0 14px 34px -26px rgba(2, 6, 23, 0.98);
+}
+.clan-nav::before {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 2px; pointer-events: none;
+  background: linear-gradient(90deg, transparent, #22d3ee, #a855f7, #f472b6, transparent);
+  opacity: 0.85;
+}
+.clan-tab { position: relative; transition: color 0.18s ease, background 0.18s ease; }
+.clan-tab:hover { background: rgba(148, 163, 255, 0.07); }
+.clan-tab-active::after {
+  content: ""; position: absolute; left: 7px; right: 7px; bottom: 0; height: 3px;
+  border-radius: 999px 999px 0 0;
+  background: linear-gradient(90deg, #22d3ee, #a855f7, #f472b6, #22d3ee);
+  background-size: 220% 100%;
+  box-shadow: 0 0 14px rgba(168, 85, 247, 0.85), 0 0 28px rgba(34, 211, 238, 0.5);
+  animation: clanTabFlow 4.5s linear infinite;
+}
+@keyframes clanTabFlow { 0% { background-position: 0% 0; } 100% { background-position: 220% 0; } }
+
+/* Champion medals + podium rows */
+.clan-medal {
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 999px; font-weight: 900; line-height: 1;
+}
+.clan-medal-1 { background: linear-gradient(135deg, #fde68a, #f59e0b 55%, #b45309); color: #241a02; box-shadow: 0 0 15px rgba(245, 158, 11, 0.75); }
+.clan-medal-2 { background: linear-gradient(135deg, #f8fafc, #cbd5e1 55%, #94a3b8); color: #0f172a; box-shadow: 0 0 13px rgba(203, 213, 225, 0.65); }
+.clan-medal-3 { background: linear-gradient(135deg, #fdba74, #ea580c 55%, #9a3412); color: #251003; box-shadow: 0 0 13px rgba(234, 88, 12, 0.65); }
+.clan-podium-1 { background: linear-gradient(90deg, rgba(245, 158, 11, 0.17), rgba(245, 158, 11, 0.02) 58%, transparent); }
+.clan-podium-2 { background: linear-gradient(90deg, rgba(203, 213, 225, 0.15), rgba(203, 213, 225, 0.02) 58%, transparent); }
+.clan-podium-3 { background: linear-gradient(90deg, rgba(234, 88, 12, 0.15), rgba(234, 88, 12, 0.02) 58%, transparent); }
+.clan-row { transition: background 0.16s ease; }
+.clan-row:hover { background: rgba(148, 163, 255, 0.08); }
+
+/* Broadcast pitch */
+.clan-pitch {
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(255, 255, 255, 0.10), transparent 55%),
+    repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0 8%, transparent 8% 16%),
+    linear-gradient(180deg, #0f5132 0%, #0b3d27 55%, #07281a 100%);
+  box-shadow: inset 0 0 90px rgba(0, 0, 0, 0.6), 0 22px 54px -32px rgba(16, 185, 129, 0.65);
+}
+.clan-pitch::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(92% 72% at 50% 46%, transparent 44%, rgba(0, 0, 0, 0.5) 100%);
+}
+
+/* Small shared bits */
+.clan-chip {
+  border-radius: 999px; border: 1px solid rgba(148, 163, 255, 0.28);
+  background: linear-gradient(135deg, rgba(34, 211, 238, 0.16), rgba(168, 85, 247, 0.16));
+  font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
+}
+.clan-divider { height: 1px; background: linear-gradient(90deg, transparent, rgba(148, 163, 255, 0.35), transparent); }
+.clan-glow-ring { box-shadow: 0 0 0 1px rgba(148, 163, 255, 0.30), 0 0 22px -6px rgba(168, 85, 247, 0.75); }
+
+@media (prefers-reduced-motion: reduce) {
+  .clan-hero::after, .clan-tab-active::after { animation: none !important; }
+  .clan-hero::after { opacity: 0 !important; }
+}
+

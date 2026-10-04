@@ -5,7 +5,7 @@ export { ClanStandingsTable } from "./ClanStandingsTable";
 export { TeamOfTheWeekPitch } from "./TeamOfTheWeekPitch";
 export { ClanBadge } from "./ClanBadge";
 export { FormBadges, SingleFormBadge } from "./FormBadges";
-export { clanTheme, clanCard, clanLabel } from "./theme";
+export { clanTheme, clanCard, clanLabel, clanGradient, clanPodium, podiumFor } from "./theme";
 export {
   PREVIEW_STANDINGS,
   PREVIEW_TEAM_OF_THE_WEEK,

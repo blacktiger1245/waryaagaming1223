@@ -13,6 +13,7 @@ import {
   Layers,
   Newspaper,
   Repeat,
+  Swords,
   Users,
 } from "lucide-react";
 import {
@@ -26,6 +27,7 @@ import {
   SeasonSummary,
   SectionPlaceholder,
   TeamOfTheWeekPitch,
+  clanGradient,
   clanTheme,
 } from "@/components/clan-tournament";
 import type {
@@ -191,16 +193,27 @@ const PLACEHOLDERS: Record<
 function PreviewChip() {
   return (
     <span
-      className="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em]"
-      style={{
-        color: clanTheme.accent,
-        background: "rgba(34, 197, 94, 0.12)",
-        border: `1px solid rgba(34, 197, 94, 0.35)`,
-      }}
+      className="clan-chip px-2.5 py-1 text-[10px]"
+      style={{ color: clanTheme.accentWarm }}
       title="No live clan standings were returned, so the layout is shown with sample data."
     >
       Preview data
     </span>
+  );
+}
+
+/** Compact numeric tile used in the arena hero banner. */
+function HeroStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div
+      className="rounded-xl border px-3.5 py-2 text-center"
+      style={{ borderColor: clanTheme.border, background: "rgba(148,163,255,0.06)" }}
+    >
+      <div className="text-lg font-black leading-tight tabular-nums text-white">{value}</div>
+      <div className="text-[9px] font-bold uppercase tracking-[0.14em]" style={{ color: clanTheme.muted }}>
+        {label}
+      </div>
+    </div>
   );
 }
 
@@ -420,21 +433,14 @@ export default function ClanTournamentPage() {
   };
 
   return (
-    <div
-      className="min-h-screen w-full"
-      style={{ background: clanTheme.bg, color: clanTheme.text }}
-    >
+    <div className="clan-page min-h-screen w-full" style={{ color: clanTheme.text }}>
       <ClanTournamentNav
         activeTab={activeTab}
         onTabChange={setActiveTab}
         trailing={
           <span
-            className="whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em]"
-            style={{
-              color: clanTheme.accent,
-              background: "rgba(34, 197, 94, 0.12)",
-              border: "1px solid rgba(34, 197, 94, 0.35)",
-            }}
+            className="clan-chip whitespace-nowrap px-3 py-1.5 text-[10px]"
+            style={{ color: clanTheme.accent }}
             title="Active season"
           >
             {isCurrentSeason ? `${scopeLabel} · current` : scopeLabel}
@@ -443,16 +449,39 @@ export default function ClanTournamentPage() {
       />
 
       <div className="mx-auto w-full max-w-[1500px] px-3 py-5 lg:px-4">
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="truncate text-lg font-black uppercase tracking-[0.14em] text-white">
-              Clan Tournament
-            </h1>
-            <p className="mt-1 truncate text-xs" style={{ color: clanTheme.muted }}>
-              {scopeLabel} · season standings, fixtures and player ratings
-            </p>
+        {/* ── Arena hero banner ── */}
+        <div className="clan-hero mb-5 px-5 py-5 sm:px-6">
+          <div className="relative z-10 flex flex-wrap items-center justify-between gap-5">
+            <div className="flex min-w-0 items-center gap-4">
+              <span
+                aria-hidden
+                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl"
+                style={{ background: clanGradient.brand, boxShadow: "0 0 36px -8px rgba(168,85,247,0.95)" }}
+              >
+                <Swords className="h-7 w-7 text-white" />
+              </span>
+              <div className="min-w-0">
+                <span
+                  className="clan-chip inline-flex px-2.5 py-1 text-[9px]"
+                  style={{ color: clanTheme.accent }}
+                >
+                  {isCurrentSeason ? "Live season" : "Clan arena"}
+                </span>
+                <h1 className="mt-2 truncate text-2xl font-black uppercase tracking-[0.14em] text-white sm:text-3xl">
+                  Clan Tournament
+                </h1>
+                <p className="mt-1 truncate text-xs" style={{ color: clanTheme.muted }}>
+                  {scopeLabel} · standings, fixtures, player ratings and awards
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <HeroStat label="Clans" value={standings.length} />
+              <HeroStat label="Tournaments" value={seasonTournamentCount} />
+              {usingPreview ? <PreviewChip /> : null}
+            </div>
           </div>
-          {usingPreview ? <PreviewChip /> : null}
         </div>
 
         {/* Selector on the left; everything on the right follows that selection. */}

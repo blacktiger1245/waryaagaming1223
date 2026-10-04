@@ -38,7 +38,12 @@ interface SeasonSidebarProps {
 }
 
 const ROW =
-  "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-[12px] font-semibold transition-colors";
+  "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[12px] font-semibold transition-colors";
+
+/** Selected row treatment — a soft cyan → violet wash with a lit border. */
+const ACTIVE_BG = "linear-gradient(135deg, rgba(34,211,238,0.18), rgba(168,85,247,0.22))";
+const ACTIVE_BORDER = "1px solid rgba(148,163,255,0.45)";
+const IDLE_BORDER = "1px solid transparent";
 
 export function SeasonSidebar({
   seasons,
@@ -60,11 +65,7 @@ export function SeasonSidebar({
   const allTimeActive = activeSeasonId === null && activeTournamentId === null;
 
   return (
-    <aside
-      className={`${clanCard} p-3`}
-      style={{ background: clanTheme.card, borderColor: clanTheme.border }}
-      aria-label="Season and tournament selection"
-    >
+    <aside className={`${clanCard} p-3`} aria-label="Season and tournament selection">
       <p className={`${clanLabel} px-1 pb-2`} style={{ color: clanTheme.muted }}>
         Seasons
       </p>
@@ -75,8 +76,8 @@ export function SeasonSidebar({
         className={ROW}
         style={{
           color: allTimeActive ? clanTheme.text : clanTheme.muted,
-          background: allTimeActive ? "rgba(34, 197, 94, 0.12)" : "transparent",
-          border: `1px solid ${allTimeActive ? "rgba(34, 197, 94, 0.45)" : "transparent"}`,
+          background: allTimeActive ? ACTIVE_BG : "transparent",
+          border: allTimeActive ? ACTIVE_BORDER : IDLE_BORDER,
         }}
       >
         <Clock3 className="h-3.5 w-3.5 shrink-0" />
@@ -98,15 +99,15 @@ export function SeasonSidebar({
                   className={ROW}
                   style={{
                     color: seasonActive ? clanTheme.text : clanTheme.muted,
-                    background: seasonActive ? "rgba(34, 197, 94, 0.12)" : "transparent",
-                    border: `1px solid ${seasonActive ? "rgba(34, 197, 94, 0.45)" : "transparent"}`,
+                    background: seasonActive ? ACTIVE_BG : "transparent",
+                    border: seasonActive ? ACTIVE_BORDER : IDLE_BORDER,
                   }}
                 >
                   <span className="flex-1 truncate">{season.name}</span>
                   {season.isCurrent && (
                     <span
                       className="shrink-0 rounded px-1.5 py-px text-[8px] font-black uppercase tracking-wider"
-                      style={{ color: clanTheme.accent, background: "rgba(34, 197, 94, 0.14)" }}
+                      style={{ color: clanTheme.accent, background: "rgba(34,211,238,0.16)" }}
                     >
                       Current
                     </span>
@@ -144,7 +145,7 @@ export function SeasonSidebar({
                         className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[11px] font-semibold transition-colors"
                         style={{
                           color: tActive ? clanTheme.text : clanTheme.muted,
-                          background: tActive ? "rgba(34, 197, 94, 0.12)" : "transparent",
+                          background: tActive ? ACTIVE_BG : "transparent",
                         }}
                       >
                         <span className="flex-1 truncate">{t.name}</span>

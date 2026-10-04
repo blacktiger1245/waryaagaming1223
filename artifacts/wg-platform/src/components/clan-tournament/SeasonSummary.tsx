@@ -4,7 +4,7 @@
  * GET /api/seasons already returns for the active season.
  */
 import { Award, Goal, Trophy } from "lucide-react";
-import { clanCard, clanTheme } from "./theme";
+import { clanCard, clanGradient, clanTheme } from "./theme";
 
 export interface SeasonPerson {
   name: string;
@@ -61,10 +61,16 @@ function Metric({
   return (
     <div className="min-w-0">
       <p
-        className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.14em]"
+        className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.14em]"
         style={{ color: clanTheme.muted }}
       >
-        <Icon className="h-3 w-3" />
+        <span
+          aria-hidden
+          className="flex h-4 w-4 items-center justify-center rounded"
+          style={{ background: "rgba(34,211,238,0.14)", border: "1px solid rgba(148,163,255,0.25)" }}
+        >
+          <Icon className="h-2.5 w-2.5" style={{ color: clanTheme.accent }} />
+        </span>
         {label}
       </p>
       <div className="mt-1 text-[12px]">{children}</div>
@@ -82,17 +88,20 @@ export function SeasonSummary({
   isCurrentSeason,
 }: SeasonSummaryProps) {
   return (
-    <section
-      className={`${clanCard} px-4 py-3`}
-      style={{ background: clanTheme.card, borderColor: clanTheme.border }}
-    >
+    <section className={`${clanCard} px-4 py-3`}>
       <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
         <div className="min-w-0">
           <p
-            className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.14em]"
+            className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.14em]"
             style={{ color: clanTheme.muted }}
           >
-            <Trophy className="h-3 w-3" />
+            <span
+              aria-hidden
+              className="flex h-4 w-4 items-center justify-center rounded"
+              style={{ background: clanGradient.brand }}
+            >
+              <Trophy className="h-2.5 w-2.5 text-white" />
+            </span>
             {seasonLabel ? "Tournament" : "Season"}
           </p>
           <div className="mt-1 flex items-center gap-2">
@@ -100,10 +109,7 @@ export function SeasonSummary({
               {scopeLabel}
             </p>
             {isCurrentSeason && (
-              <span
-                className="shrink-0 rounded px-1.5 py-px text-[8px] font-black uppercase tracking-wider"
-                style={{ color: clanTheme.accent, background: "rgba(34, 197, 94, 0.14)" }}
-              >
+              <span className="clan-chip shrink-0 px-2 py-px text-[8px]" style={{ color: clanTheme.accent }}>
                 Current season
               </span>
             )}

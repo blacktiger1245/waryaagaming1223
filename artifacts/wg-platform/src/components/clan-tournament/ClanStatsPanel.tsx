@@ -28,7 +28,7 @@ import {
   Trophy,
 } from "lucide-react";
 import { ClanBadge } from "./ClanBadge";
-import { clanCard, clanTheme } from "./theme";
+import { clanCard, clanGradient, clanTheme, podiumFor } from "./theme";
 
 export type StatUnit = "count" | "games" | "percent" | "average";
 
@@ -130,21 +130,17 @@ function LeaderboardCard({
   const Icon = STAT_ICONS[board.key] ?? BarChart3;
 
   return (
-    <article
-      className={clanCard}
-      style={{ background: clanTheme.card, borderColor: clanTheme.border }}
-      data-testid={`clan-stat-${board.key}`}
-    >
+    <article className={clanCard} data-testid={`clan-stat-${board.key}`}>
       <header
-        className="flex items-center gap-2 border-b px-3 py-2.5"
+        className="flex items-center gap-2.5 border-b px-3 py-2.5"
         style={{ borderColor: clanTheme.border }}
         title={board.note ?? undefined}
       >
         <span
           className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md"
-          style={{ background: clanTheme.surfaceAlt, border: `1px solid ${clanTheme.border}` }}
+          style={{ background: clanGradient.brand, boxShadow: "0 0 14px -3px rgba(168,85,247,0.85)" }}
         >
-          <Icon className="h-3.5 w-3.5" style={{ color: clanTheme.accent }} />
+          <Icon className="h-3.5 w-3.5 text-white" />
         </span>
         <h3 className="min-w-0 text-[10.5px] font-black uppercase leading-tight tracking-[0.08em] text-white">
           {board.title}
@@ -157,18 +153,27 @@ function LeaderboardCard({
         </p>
       ) : (
         <ol>
-          {board.entries.map((entry, index) => (
-            <li
-              key={entry.id}
-              className="flex items-center gap-2.5 border-t px-3 py-2 first:border-t-0"
-              style={{ borderColor: clanTheme.border }}
-            >
-              <span
-                className="w-3.5 shrink-0 text-center text-[10px] font-black tabular-nums"
-                style={{ color: index === 0 ? clanTheme.accent : clanTheme.muted }}
+          {board.entries.map((entry, index) => {
+            const podium = podiumFor(index + 1);
+            return (
+              <li
+                key={entry.id}
+                className={`clan-row flex items-center gap-2.5 border-t px-3 py-2 first:border-t-0 ${podium ? podium.row : ""}`}
+                style={{ borderColor: clanTheme.border }}
+                title={podium?.label}
               >
-                {index + 1}
-              </span>
+                {podium ? (
+                  <span className={`clan-medal ${podium.medal} h-5 w-5 shrink-0 text-[10px]`}>
+                    {index + 1}
+                  </span>
+                ) : (
+                  <span
+                    className="w-5 shrink-0 text-center text-[10px] font-black tabular-nums"
+                    style={{ color: clanTheme.muted }}
+                  >
+                    {index + 1}
+                  </span>
+                )}
 
               {variant === "player" ? (
                 <PlayerAvatar name={entry.name} avatarUrl={entry.avatarUrl} />
@@ -193,11 +198,15 @@ function LeaderboardCard({
                 ) : null}
               </div>
 
-              <span className="shrink-0 text-[12px] font-black tabular-nums text-white">
-                {formatValue(entry.value, board.unit)}
-              </span>
-            </li>
-          ))}
+                <span
+                  className="shrink-0 text-[12px] font-black tabular-nums text-white"
+                  style={{ color: podium?.color }}
+                >
+                  {formatValue(entry.value, board.unit)}
+                </span>
+              </li>
+            );
+          })}
         </ol>
       )}
     </article>
@@ -236,17 +245,11 @@ export function ClanStatsPanel({
       </header>
 
       {isLoading && !hasAny ? (
-        <div
-          className={`${clanCard} px-6 py-14 text-center text-xs`}
-          style={{ background: clanTheme.card, borderColor: clanTheme.border, color: clanTheme.muted }}
-        >
+        <div className={`${clanCard} px-6 py-14 text-center text-xs`} style={{ color: clanTheme.muted }}>
           Loading statistics…
         </div>
       ) : !hasAny ? (
-        <div
-          className={`${clanCard} px-6 py-14 text-center text-xs`}
-          style={{ background: clanTheme.card, borderColor: clanTheme.border, color: clanTheme.muted }}
-        >
+        <div className={`${clanCard} px-6 py-14 text-center text-xs`} style={{ color: clanTheme.muted }}>
           No player statistics recorded for this selection yet. Leaderboards appear once an
           administrator approves a clan fixture result with its match statistics.
         </div>

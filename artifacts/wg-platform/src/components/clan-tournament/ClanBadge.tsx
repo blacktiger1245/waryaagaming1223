@@ -40,9 +40,10 @@ export function ClanBadge({ name, tag, logoUrl, size = 26 }: ClanBadgeProps) {
         height: size,
         fontSize: size * 0.36,
         letterSpacing: "0.02em",
-        color: clanTheme.muted,
-        background: clanTheme.surfaceAlt,
-        border: `1px solid ${clanTheme.borderStrong}`,
+        color: "#c7d2fe",
+        background: "linear-gradient(135deg, rgba(34,211,238,0.22), rgba(168,85,247,0.30))",
+        border: "1px solid rgba(148,163,255,0.35)",
+        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08)",
       }}
     >
       {label.slice(0, 3)}

@@ -1,9 +1,10 @@
 /**
- * ClanTournamentNav — the horizontal FotMob-style sub-navigation bar.
+ * ClanTournamentNav — the horizontal section navigation bar.
  *
- * Renders the eight section tabs in a fixed order with a neon-green underline
- * indicator beneath the active tab. The bar is horizontally scrollable on small
- * screens so all tabs stay reachable without wrapping.
+ * Renders the eight section tabs in a fixed order. The active tab gets a flowing
+ * cyan → violet → magenta underline (.clan-tab-active) that keeps animating, and
+ * the bar itself is frosted glass so the arena glow shows through. Horizontally
+ * scrollable on small screens so all tabs stay reachable without wrapping.
  */
 import type { ReactNode } from "react";
 import { clanTheme } from "./theme";
@@ -35,11 +36,7 @@ interface ClanTournamentNavProps {
 
 export function ClanTournamentNav({ activeTab, onTabChange, trailing }: ClanTournamentNavProps) {
   return (
-    <nav
-      aria-label="Clan Tournament sections"
-      className="sticky top-0 z-20 w-full border-b"
-      style={{ background: clanTheme.surface, borderColor: clanTheme.border }}
-    >
+    <nav aria-label="Clan Tournament sections" className="clan-nav sticky top-0 z-20 w-full">
       <div className="mx-auto flex max-w-[1500px] items-stretch px-2 lg:px-4">
         <div
           role="tablist"
@@ -56,22 +53,12 @@ export function ClanTournamentNav({ activeTab, onTabChange, trailing }: ClanTour
                 onClick={() => onTabChange(tab.id)}
                 data-testid={`tab-clan-${tab.id}`}
                 className={
-                  "relative shrink-0 whitespace-nowrap px-3 py-3.5 text-[13px] transition-colors lg:px-4 " +
-                  (active ? "font-bold" : "font-semibold")
+                  "clan-tab shrink-0 whitespace-nowrap px-3 py-3.5 text-[13px] lg:px-4 " +
+                  (active ? "clan-tab-active font-bold" : "font-semibold")
                 }
                 style={{ color: active ? clanTheme.text : clanTheme.muted }}
               >
                 {tab.label}
-                {active && (
-                  <span
-                    aria-hidden
-                    className="absolute inset-x-1.5 bottom-0 h-[3px] rounded-t-full"
-                    style={{
-                      background: clanTheme.accent,
-                      boxShadow: `0 0 12px ${clanTheme.accent}`,
-                    }}
-                  />
-                )}
               </button>
             );
           })}

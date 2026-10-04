@@ -5,9 +5,10 @@
  * Numeric columns use tabular figures so digits line up column-to-column.
  */
 import type { ReactNode } from "react";
+import { Trophy } from "lucide-react";
 import { ClanBadge } from "./ClanBadge";
 import { FormBadges } from "./FormBadges";
-import { clanCard, clanTheme } from "./theme";
+import { clanCard, clanGradient, clanTheme, podiumFor } from "./theme";
 import type { ClanStanding } from "./types";
 
 interface ClanStandingsTableProps {
@@ -28,22 +29,32 @@ function signed(value: number): string {
 
 export function ClanStandingsTable({ standings, title, action }: ClanStandingsTableProps) {
   return (
-    <section
-      className={clanCard}
-      style={{ background: clanTheme.card, borderColor: clanTheme.border }}
-    >
+    <section className={clanCard}>
       <header
         className="flex items-center justify-between gap-3 border-b px-4 py-3"
         style={{ borderColor: clanTheme.border }}
       >
-        <h2 className="text-sm font-bold uppercase tracking-[0.12em] text-white">{title}</h2>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span
+            aria-hidden
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
+            style={{ background: clanGradient.brand, boxShadow: "0 0 18px -4px rgba(168,85,247,0.85)" }}
+          >
+            <Trophy className="h-4 w-4 text-white" />
+          </span>
+          <h2 className="truncate text-sm font-bold uppercase tracking-[0.12em] text-white">{title}</h2>
+        </div>
         {action}
       </header>
 
       <div className="overflow-x-auto">
         <table className="w-full min-w-[760px] border-collapse text-[13px] tabular-nums">
           <thead>
-            <tr style={{ background: clanTheme.surfaceAlt }}>
+            <tr
+              style={{
+                background: "linear-gradient(180deg, rgba(148,163,255,0.11), rgba(148,163,255,0.03))",
+              }}
+            >
               <th className={`${TH} w-[46px] text-center`} style={{ color: clanTheme.muted }}>#</th>
               <th className={`${TH} text-left`} style={{ color: clanTheme.muted }}>Clan / Team</th>
               <th className={`${TH} text-center`} style={{ color: clanTheme.muted }}>PL</th>
@@ -59,25 +70,25 @@ export function ClanStandingsTable({ standings, title, action }: ClanStandingsTa
           </thead>
           <tbody>
             {standings.map((row) => {
-              const inTopZone = row.rank <= 3;
+              const podium = podiumFor(row.rank);
               return (
                 <tr
                   key={row.id}
-                  className="border-t transition-colors hover:bg-white/[0.03]"
+                  className={`clan-row border-t ${podium ? podium.row : ""}`}
                   style={{ borderColor: clanTheme.border }}
+                  title={podium?.label}
                   data-testid={`standing-row-${row.id}`}
                 >
                   <td className={`${TD} text-center`}>
-                    <span className="relative inline-flex items-center justify-center font-bold text-white">
-                      {inTopZone && (
-                        <span
-                          aria-hidden
-                          className="absolute -left-3 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full"
-                          style={{ background: clanTheme.accent }}
-                        />
-                      )}
-                      {row.rank}
-                    </span>
+                    {podium ? (
+                      <span className={`clan-medal ${podium.medal} mx-auto h-6 w-6 text-[11px]`}>
+                        {row.rank}
+                      </span>
+                    ) : (
+                      <span className="font-bold" style={{ color: clanTheme.muted }}>
+                        {row.rank}
+                      </span>
+                    )}
                   </td>
 
                   <td className={`${TD} text-left`}>
@@ -93,7 +104,7 @@ export function ClanStandingsTable({ standings, title, action }: ClanStandingsTa
                   <td className={`${TD} text-center text-white`}>{row.lost}</td>
                   <td className={`${TD} text-center`} style={{ color: clanTheme.muted }}>{signed(row.plusMinus)}</td>
                   <td className={`${TD} text-center`} style={{ color: clanTheme.muted }}>{signed(row.goalDifference)}</td>
-                  <td className={`${TD} text-center font-black`} style={{ color: clanTheme.accent }}>{row.points}</td>
+                  <td className={`${TD} text-center text-[14px] font-black`} style={{ color: podium?.color ?? clanTheme.accent }}>{row.points}</td>
 
                   <td className={`${TD} text-left`}>
                     <FormBadges form={row.form} length={5} />
