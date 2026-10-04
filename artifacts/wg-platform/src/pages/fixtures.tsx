@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, type CSSProperties } from "react";
 import { toPng } from "html-to-image";
 import { Link } from "wouter";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -224,96 +224,363 @@ function TournamentBadge({ name }: { name: string }) {
   );
 }
 
-function SpanBadge({ text, color }: { text: string; color: string }) {
-  return (
-    <div className="flex h-14 w-14 items-center justify-center rounded-xl border-2 text-xl font-black text-white"
-      style={{ borderColor: color, background: `${color}22`, boxShadow: `0 0 14px ${color}44` }}>
-      {(text || "?").trim().charAt(0).toUpperCase()}
+// ── Branded export card ───────────────────────────────────────────────────────
+// The downloaded PNG is a poster: the Waryaa Gaming crest and wordmark, both clan
+// crests, every player's avatar, the scoreline, the Man of the Match and the full
+// list of 1v1 results. Every decoration is plain CSS (gradients, glows, rings,
+// accent bars) so html-to-image rasterises it exactly as shown on screen.
+const WG_LOGO_SRC = `${import.meta.env.BASE_URL}waryaalogo-removebg-preview.png`;
+
+/** Circular player avatar with an initials fallback. */
+function ShareAvatar({
+  url,
+  name,
+  size = 38,
+  ring = "rgba(0,240,255,0.45)",
+}: {
+  url?: string | null;
+  name: string;
+  size?: number;
+  ring?: string;
+}) {
+  const letter = (name || "?").trim().charAt(0).toUpperCase() || "?";
+  const base: CSSProperties = {
+    width: size,
+    height: size,
+    borderRadius: 999,
+    flexShrink: 0,
+    border: `2px solid ${ring}`,
+  };
+  return url ? (
+    <img src={url} alt="" style={{ ...base, objectFit: "cover" }} />
+  ) : (
+    <div
+      style={{
+        ...base,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "linear-gradient(135deg, #1e3a8a, #0e1b33)",
+        color: "#cfe4ff",
+        fontWeight: 900,
+        fontSize: Math.round(size * 0.42),
+      }}
+    >
+      {letter}
     </div>
   );
 }
 
-function PvpShareCard({ m, games, motmId, motmName }: {
+/** Square clan crest with a generated monogram fallback. */
+function ShareCrest({ url, name, size = 66 }: { url?: string | null; name: string; size?: number }) {
+  const letter = (name || "?").trim().charAt(0).toUpperCase() || "?";
+  const base: CSSProperties = {
+    width: size,
+    height: size,
+    borderRadius: 18,
+    flexShrink: 0,
+    border: "2px solid rgba(0,240,255,0.45)",
+    boxShadow: "0 0 24px rgba(0,240,255,0.30)",
+  };
+  return url ? (
+    <img src={url} alt="" style={{ ...base, objectFit: "cover" }} />
+  ) : (
+    <div
+      style={{
+        ...base,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "linear-gradient(135deg, rgba(0,240,255,0.20), rgba(139,92,246,0.28))",
+        color: "#eaf6ff",
+        fontWeight: 900,
+        fontSize: Math.round(size * 0.42),
+      }}
+    >
+      {letter}
+    </div>
+  );
+}
+
+function PvpShareCard({ m, games, motmId, motmName, logoMap }: {
   m: FlatMatch;
   games: Array<Record<string, any>>;
   motmId?: number | null;
   motmName?: string | null;
+  /** Participant / player id → clan crest or player avatar URL. */
+  logoMap: Map<number, string | null>;
 }) {
   const done = m.status === "completed";
+  const live = m.status === "live";
   const isMotm = (id?: number | null) => motmId != null && id != null && Number(id) === motmId;
+  const crest1 = m.participant1Id ? logoMap.get(m.participant1Id) ?? null : null;
+  const crest2 = m.participant2Id ? logoMap.get(m.participant2Id) ?? null : null;
+  const avatarOf = (id?: number | null) => (id != null ? logoMap.get(Number(id)) ?? null : null);
+  const p1wins = done && m.winnerId === m.participant1Id;
+  const p2wins = done && m.winnerId === m.participant2Id;
+  const statusLabel = done ? "FULL TIME" : live ? "LIVE" : "SCHEDULED";
+
   return (
-    <div>
-      <div className="flex items-center justify-between border-b border-[#1d2c4e] pb-3">
-        <div className="flex items-center gap-2">
-          <Trophy className="w-4 h-4 text-[#FFB800]" />
-          <span className="text-[11px] font-black uppercase tracking-widest text-[#00E0FF]">{m.tournamentName}</span>
-        </div>
-        <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Match Report</span>
-      </div>
+    <div
+      style={{
+        position: "relative",
+        overflow: "hidden",
+        borderRadius: 24,
+        background: "linear-gradient(155deg, #081020 0%, #0e1e3c 42%, #0a1226 100%)",
+        border: "1px solid rgba(0,240,255,0.22)",
+        color: "#e7ecf5",
+        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06)",
+      }}
+    >
+      {/* Ambient glows + tri-colour accent bar along the top edge */}
+      <div aria-hidden style={{ position: "absolute", left: -90, top: -110, width: 320, height: 320, borderRadius: 999, background: "radial-gradient(circle, rgba(0,240,255,0.20) 0%, transparent 70%)" }} />
+      <div aria-hidden style={{ position: "absolute", right: -110, top: -70, width: 320, height: 320, borderRadius: 999, background: "radial-gradient(circle, rgba(139,92,246,0.22) 0%, transparent 70%)" }} />
+      <div aria-hidden style={{ position: "absolute", right: -60, bottom: -120, width: 280, height: 280, borderRadius: 999, background: "radial-gradient(circle, rgba(255,184,0,0.12) 0%, transparent 70%)" }} />
+      <div aria-hidden style={{ position: "absolute", left: 0, right: 0, top: 0, height: 3, background: "linear-gradient(90deg, transparent, #00F0FF, #8B5CF6, #FFB800, transparent)" }} />
 
-      <div className="flex items-center justify-between gap-3 py-4">
-        <div className="flex flex-1 flex-col items-center gap-1.5">
-          <SpanBadge text={m.participant1Name ?? "?"} color="#00E676" />
-          <span className="max-w-[140px] truncate text-center text-sm font-black text-white">{m.participant1Name ?? "?"}</span>
-        </div>
-        <div className="text-center">
-          <div className="font-mono text-2xl font-black text-white">{m.participant1Score ?? 0} - {m.participant2Score ?? 0}</div>
-          <div className="mt-0.5 text-[9px] font-bold uppercase tracking-widest text-zinc-500">{done ? "Full Time" : m.status}</div>
-        </div>
-        <div className="flex flex-1 flex-col items-center gap-1.5">
-          <SpanBadge text={m.participant2Name ?? "?"} color="#FF2A5F" />
-          <span className="max-w-[140px] truncate text-center text-sm font-black text-white">{m.participant2Name ?? "?"}</span>
-        </div>
-      </div>
-
-      {motmId != null && motmName && (
-        <div className="mb-3 flex items-center gap-2 rounded-lg border border-[#FFB800]/40 bg-[#FFB800]/10 px-3 py-2">
-          <Star className="h-4 w-4 fill-[#FFB800] text-[#FFB800]" />
-          <span className="text-xs font-bold text-[#FFB800]">Man of the Match: {motmName}</span>
-        </div>
-      )}
-
-      {games.length === 0 ? (
-        <p className="py-6 text-center text-xs text-zinc-500">No player matchups recorded.</p>
-      ) : (
-        <div className="space-y-1.5">
-          {games.map((g) => (
-            <div key={String(g.id)} className="rounded-lg border border-[#29406e]/50 px-3 py-2">
-              <div className="flex items-center justify-between gap-2">
-                <span className="flex min-w-0 flex-1 items-center gap-1 truncate text-sm font-bold">
-                  {isMotm(g.homePlayerId) && <Star className="h-3 w-3 shrink-0 fill-[#FFB800] text-[#FFB800]" />}
-                  <span className="truncate">{g.homePlayerName || "—"}</span>
-                </span>
-                <span className="shrink-0 font-black text-base tabular-nums">{g.homeScore ?? 0} - {g.awayScore ?? 0}</span>
-                <span className="flex min-w-0 flex-1 items-center justify-end gap-1 truncate text-sm font-bold">
-                  <span className="truncate">{g.awayPlayerName || "—"}</span>
-                  {isMotm(g.awayPlayerId) && <Star className="h-3 w-3 shrink-0 fill-[#FFB800] text-[#FFB800]" />}
-                </span>
+      <div style={{ position: "relative", padding: "24px 28px 26px" }}>
+        {/* ── Brand header ── */}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <img
+              src={WG_LOGO_SRC}
+              alt="Waryaa Gaming"
+              className="h-12 w-12 object-contain"
+              style={{ filter: "drop-shadow(0 0 12px rgba(0,240,255,0.45))" }}
+            />
+            <div className="leading-none">
+              <div className="text-[17px] font-black uppercase tracking-[0.16em] text-white">Waryaa Gaming</div>
+              <div className="mt-1 text-[9px] font-bold uppercase tracking-[0.26em] text-[#00E0FF]">
+                Official Match Report
               </div>
-              {(PVP_STAT_CHIPS.some((c) => g[c.home] != null || g[c.away] != null)) && (
-                <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-zinc-400">
-                  <span className="text-[9px] font-black uppercase text-zinc-500">{g.homePlayerName || "Home"}:</span>
-                  {PVP_STAT_CHIPS.map((c) =>
-                    g[c.home] == null ? null : (
-                      <span key={`h-${c.label}`}>
-                        {c.label} {g[c.home]}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {live && <span className="h-2 w-2 rounded-full bg-[#FF2A5F]" />}
+            <span
+              className="rounded-full border px-3 py-1 text-[9px] font-black uppercase tracking-[0.2em]"
+              style={{
+                color: done ? "#FFB800" : live ? "#FF2A5F" : "#7DD3FC",
+                borderColor: done ? "rgba(255,184,0,0.45)" : live ? "rgba(255,42,95,0.45)" : "rgba(125,211,252,0.40)",
+                background: done ? "rgba(255,184,0,0.12)" : live ? "rgba(255,42,95,0.12)" : "rgba(125,211,252,0.10)",
+              }}
+            >
+              {statusLabel}
+            </span>
+          </div>
+        </div>
+
+        {/* Cyan → gold hairline */}
+        <div
+          className="my-4 h-px"
+          style={{ background: "linear-gradient(90deg, transparent, rgba(0,240,255,0.55), rgba(255,184,0,0.55), transparent)" }}
+        />
+
+        {/* ── Competition bar ── */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <Trophy className="h-4 w-4 shrink-0 text-[#FFB800]" />
+            <span className="truncate text-[11px] font-black uppercase tracking-widest text-[#00E0FF]">
+              {m.tournamentName}
+            </span>
+          </div>
+          {m.roundName ? (
+            <span className="shrink-0 text-[9px] font-bold uppercase tracking-[0.18em] text-zinc-500">
+              {m.roundName}
+            </span>
+          ) : null}
+        </div>
+
+        {/* ── Scoreline: clan crests, names and the big result ── */}
+        <div className="mt-5 flex items-center justify-between gap-4">
+          <div className="flex flex-1 flex-col items-center gap-2">
+            <ShareCrest url={crest1} name={m.participant1Name ?? "?"} />
+            <span className="max-w-[190px] truncate text-center text-[15px] font-black leading-tight text-white">
+              {m.participant1Name ?? "TBD"}
+            </span>
+            {p1wins && (
+              <span className="flex items-center gap-1 rounded-full border border-[#FFB800]/50 bg-[#FFB800]/12 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.16em] text-[#FFB800]">
+                <Trophy className="h-3 w-3" /> Winner
+              </span>
+            )}
+          </div>
+
+          <div className="shrink-0 text-center">
+            <div
+              className="rounded-2xl border px-5 py-2"
+              style={{
+                borderColor: "rgba(0,240,255,0.28)",
+                background: "linear-gradient(180deg, rgba(0,240,255,0.10), rgba(8,16,32,0.55))",
+                boxShadow: "0 0 28px -8px rgba(0,240,255,0.55)",
+              }}
+            >
+              <div className="font-mono text-4xl font-black leading-none tabular-nums text-white">
+                {m.participant1Score ?? 0}
+                <span className="mx-2 text-2xl text-[#00E0FF]">:</span>
+                {m.participant2Score ?? 0}
+              </div>
+              <div className="mt-1 text-[8px] font-black uppercase tracking-[0.24em] text-zinc-500">
+                {done ? "Final Score" : live ? "In Play" : "Kick-off"}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-1 flex-col items-center gap-2">
+            <ShareCrest url={crest2} name={m.participant2Name ?? "?"} />
+            <span className="max-w-[190px] truncate text-center text-[15px] font-black leading-tight text-white">
+              {m.participant2Name ?? "TBD"}
+            </span>
+            {p2wins && (
+              <span className="flex items-center gap-1 rounded-full border border-[#FFB800]/50 bg-[#FFB800]/12 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.16em] text-[#FFB800]">
+                <Trophy className="h-3 w-3" /> Winner
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* ── Man of the Match ── */}
+        {motmId != null && motmName && (
+          <div
+            className="mt-4 flex items-center gap-3 rounded-xl border px-3 py-2"
+            style={{
+              borderColor: "rgba(255,184,0,0.45)",
+              background: "linear-gradient(90deg, rgba(255,184,0,0.16), rgba(255,184,0,0.04))",
+              boxShadow: "0 0 26px -14px rgba(255,184,0,0.95)",
+            }}
+          >
+            <ShareAvatar
+              url={logoMap.get(Number(motmId)) ?? null}
+              name={motmName}
+              size={34}
+              ring="rgba(255,184,0,0.75)"
+            />
+            <div className="min-w-0 leading-tight">
+              <div className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-[0.22em] text-[#FFB800]">
+                <Star className="h-3 w-3 fill-[#FFB800] text-[#FFB800]" /> Man of the Match
+              </div>
+              <div className="mt-0.5 truncate text-sm font-black text-white">{motmName}</div>
+            </div>
+          </div>
+        )}
+
+        {/* ── 1v1 results ── */}
+        <div className="mt-5 mb-2 flex items-center gap-2">
+          <Swords className="h-3.5 w-3.5 shrink-0 text-[#00E0FF]" />
+          <span className="text-[9px] font-black uppercase tracking-[0.22em] text-[#00E0FF]">Player vs Player</span>
+          <span className="h-px flex-1" style={{ background: "linear-gradient(90deg, rgba(0,240,255,0.45), transparent)" }} />
+          <span className="shrink-0 text-[9px] font-bold tabular-nums text-zinc-500">
+            {games.length} {games.length === 1 ? "matchup" : "matchups"}
+          </span>
+        </div>
+
+        {games.length === 0 ? (
+          <p className="py-6 text-center text-xs text-zinc-500">No player matchups recorded.</p>
+        ) : (
+          <div className="space-y-2">
+            {games.map((g) => {
+              const homeWin = Number(g.homeScore ?? 0) > Number(g.awayScore ?? 0);
+              const awayWin = Number(g.awayScore ?? 0) > Number(g.homeScore ?? 0);
+              return (
+                <div
+                  key={String(g.id)}
+                  className="rounded-xl border px-3 py-2.5"
+                  style={{
+                    borderColor: "rgba(41,64,110,0.7)",
+                    background: "linear-gradient(180deg, rgba(19,34,63,0.55), rgba(11,20,36,0.35))",
+                  }}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="flex min-w-0 flex-1 items-center gap-2">
+                      <ShareAvatar
+                        url={avatarOf(g.homePlayerId)}
+                        name={g.homePlayerName || "?"}
+                        size={32}
+                        ring={isMotm(g.homePlayerId) ? "rgba(255,184,0,0.8)" : "rgba(0,240,255,0.45)"}
+                      />
+                      <span className="flex min-w-0 items-center gap-1">
+                        {isMotm(g.homePlayerId) && <Star className="h-3 w-3 shrink-0 fill-[#FFB800] text-[#FFB800]" />}
+                        <span className={`truncate text-sm font-bold ${homeWin ? "text-white" : "text-zinc-300"}`}>
+                          {g.homePlayerName || "—"}
+                        </span>
                       </span>
-                    ),
-                  )}
-                  <span className="text-[9px] font-black uppercase text-zinc-500">{g.awayPlayerName || "Away"}:</span>
-                  {PVP_STAT_CHIPS.map((c) =>
-                    g[c.away] == null ? null : (
-                      <span key={`a-${c.label}`}>
-                        {c.label} {g[c.away]}
+                    </span>
+
+                    <span
+                      className="shrink-0 rounded-lg border px-2.5 py-1 font-mono text-base font-black tabular-nums text-white"
+                      style={{ borderColor: "rgba(0,240,255,0.25)", background: "rgba(8,16,32,0.6)" }}
+                    >
+                      {g.homeScore ?? 0}
+                      <span className="mx-1 text-[#00E0FF]">:</span>
+                      {g.awayScore ?? 0}
+                    </span>
+
+                    <span className="flex min-w-0 flex-1 items-center justify-end gap-2">
+                      <span className="flex min-w-0 items-center gap-1">
+                        <span className={`truncate text-sm font-bold ${awayWin ? "text-white" : "text-zinc-300"}`}>
+                          {g.awayPlayerName || "—"}
+                        </span>
+                        {isMotm(g.awayPlayerId) && <Star className="h-3 w-3 shrink-0 fill-[#FFB800] text-[#FFB800]" />}
                       </span>
-                    ),
+                      <ShareAvatar
+                        url={avatarOf(g.awayPlayerId)}
+                        name={g.awayPlayerName || "?"}
+                        size={32}
+                        ring={isMotm(g.awayPlayerId) ? "rgba(255,184,0,0.8)" : "rgba(0,240,255,0.45)"}
+                      />
+                    </span>
+                  </div>
+
+                  {PVP_STAT_CHIPS.some((c) => g[c.home] != null || g[c.away] != null) && (
+                    <div
+                      className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 border-t pt-2 text-[10px] text-zinc-400"
+                      style={{ borderColor: "rgba(41,64,110,0.5)" }}
+                    >
+                      <span className="text-[9px] font-black uppercase text-zinc-500">{g.homePlayerName || "Home"}:</span>
+                      {PVP_STAT_CHIPS.map((c) =>
+                        g[c.home] == null ? null : (
+                          <span key={`h-${c.label}`}>
+                            {c.label} {g[c.home]}
+                          </span>
+                        ),
+                      )}
+                      <span className="text-[9px] font-black uppercase text-zinc-500">{g.awayPlayerName || "Away"}:</span>
+                      {PVP_STAT_CHIPS.map((c) =>
+                        g[c.away] == null ? null : (
+                          <span key={`a-${c.label}`}>
+                            {c.label} {g[c.away]}
+                          </span>
+                        ),
+                      )}
+                    </div>
                   )}
                 </div>
-              )}
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── Brand footer ── */}
+        <div
+          className="mt-5 flex items-center justify-between gap-3 rounded-2xl border px-4 py-3"
+          style={{
+            borderColor: "rgba(0,240,255,0.25)",
+            background: "linear-gradient(90deg, rgba(0,240,255,0.10), rgba(139,92,246,0.10))",
+          }}
+        >
+          <div className="flex items-center gap-2.5">
+            <img src={WG_LOGO_SRC} alt="" className="h-8 w-8 object-contain" />
+            <div className="leading-tight">
+              <div className="text-[11px] font-black uppercase tracking-[0.18em] text-white">Waryaa Gaming</div>
+              <div className="text-[8px] font-bold uppercase tracking-[0.2em] text-[#00E0FF]">
+                Clan Tournament · Official Match Report
+              </div>
             </div>
-          ))}
+          </div>
+          <div className="shrink-0 rounded-full border border-[#00F0FF]/30 bg-[#00F0FF]/10 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.18em] text-[#00E0FF]">
+            waryaagaming
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -393,9 +660,17 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
     if (!node) return;
     setDownloading(true);
     try {
-      const dataUrl = await toPng(node, { pixelRatio: 2, cacheBust: true });
+      // Wait a frame so the crests / avatars are decoded, then rasterise at 2x.
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+      const dataUrl = await toPng(node, {
+        pixelRatio: 2,
+        cacheBust: true,
+        backgroundColor: "#050A12",
+      });
+      const slug = (value?: string | null) =>
+        (value ?? "team").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "team";
       const link = document.createElement("a");
-      link.download = `match-${m.id}-player-vs-player.png`;
+      link.download = `waryaa-gaming-${slug(m.participant1Name)}-vs-${slug(m.participant2Name)}-${m.id}.png`;
       link.href = dataUrl;
       link.click();
     } catch {
@@ -551,8 +826,14 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
     
       {/* Hidden export node for PNG download */}
       <div style={{ position: "fixed", left: -100000, top: 0, pointerEvents: "none" }} aria-hidden>
-        <div ref={captureRef} style={{ width: 760, background: "#0b1424", color: "#e7ecf5", padding: 20 }}>
-          <PvpShareCard m={m} games={games ?? []} motmId={motmId} motmName={motmName} />
+        <div ref={captureRef} style={{ width: 780, background: "transparent" }}>
+          <PvpShareCard
+            m={m}
+            games={games ?? []}
+            motmId={motmId}
+            motmName={motmName}
+            logoMap={logoMap}
+          />
         </div>
       </div>
 {/* Player match-result upload / verification status — solo fixtures only. For
