@@ -13,6 +13,8 @@ export type FollowStatus = {
   following: boolean;
   followerCount: number;
   followingCount: number;
+  /** Mutual follows — players you follow who follow you back. */
+  friendCount: number;
 };
 
 export type InboxMessage = {

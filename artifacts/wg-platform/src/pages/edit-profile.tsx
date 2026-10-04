@@ -11,6 +11,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiUrl } from "@/lib/api";
 import { CountryPicker } from "@/components/country-picker";
 import { BLOOD_GROUPS } from "@/lib/profile-constants";
+import { SOCIAL_LINKS, emptySocialValues, type SocialField } from "@/lib/social-links";
 import { useToast } from "@/hooks/use-toast";
 
 // Mirrors MAX_BIO_LENGTH on the server (routes/auth.ts).
@@ -33,6 +34,13 @@ interface EditableProfile {
   bloodGroup: string | null;
   country: string | null;
   bio: string | null;
+  // Social links — canonical https URLs, or null when not set.
+  tiktokUrl: string | null;
+  facebookUrl: string | null;
+  whatsappUrl: string | null;
+  instagramUrl: string | null;
+  youtubeUrl: string | null;
+  twitterUrl: string | null;
   isFreeAgent: boolean;
 }
 
@@ -58,6 +66,7 @@ export default function EditProfilePage() {
   const [bloodGroup, setBloodGroup] = useState("");
   const [country, setCountry] = useState("");
   const [bio, setBio] = useState("");
+  const [socials, setSocials] = useState<Record<SocialField, string>>(emptySocialValues);
   const [isFreeAgent, setIsFreeAgent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -78,6 +87,14 @@ export default function EditProfilePage() {
     setBloodGroup(profile.bloodGroup ?? "");
     setCountry(profile.country ?? "");
     setBio(profile.bio ?? "");
+    setSocials({
+      tiktokUrl: profile.tiktokUrl ?? "",
+      facebookUrl: profile.facebookUrl ?? "",
+      whatsappUrl: profile.whatsappUrl ?? "",
+      instagramUrl: profile.instagramUrl ?? "",
+      youtubeUrl: profile.youtubeUrl ?? "",
+      twitterUrl: profile.twitterUrl ?? "",
+    });
     setIsFreeAgent(!!profile.isFreeAgent);
   }, [profile]);
 
@@ -94,7 +111,7 @@ export default function EditProfilePage() {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gamingDevice, deviceName, konamiId, bloodGroup, country, bio, isFreeAgent }),
+        body: JSON.stringify({ gamingDevice, deviceName, konamiId, bloodGroup, country, bio, isFreeAgent, ...socials }),
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -276,6 +293,30 @@ export default function EditProfilePage() {
           <p className="text-xs text-muted-foreground text-right">
             {bio.length}/{MAX_BIO_LENGTH}
           </p>
+        </div>
+
+        {/* Social media links */}
+        <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-4">
+          <div>
+            <Label className="text-sm font-semibold uppercase tracking-wide">Social Media</Label>
+            <p className="text-xs text-muted-foreground mt-1">
+              Add your handles so fans and clans can find you. Leave a field blank to hide it.
+            </p>
+          </div>
+          {SOCIAL_LINKS.map(({ field, label, icon: Icon, placeholder, color }) => (
+            <div key={field} className="space-y-1.5">
+              <Label htmlFor={field} className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide">
+                <Icon className="w-4 h-4" style={{ color }} />
+                {label}
+              </Label>
+              <Input
+                id={field}
+                placeholder={placeholder}
+                value={socials[field]}
+                onChange={(e) => setSocials((prev) => ({ ...prev, [field]: e.target.value }))}
+              />
+            </div>
+          ))}
         </div>
 
         {/* Marketplace availability */}

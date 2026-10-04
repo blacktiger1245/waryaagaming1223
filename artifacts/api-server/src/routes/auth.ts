@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { db } from "@workspace/db";
 import { playersTable, discordTokensTable, type Player } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { SOCIAL_PLATFORMS, normalizeSocialLink, type SocialField } from "../lib/social-links";
 
 const router = Router();
 
@@ -531,6 +532,12 @@ router.patch("/auth/profile", async (req, res) => {
     bio?: string | null;
     isFreeAgent?: boolean;
     profileComplete?: boolean;
+    tiktokUrl?: string | null;
+    facebookUrl?: string | null;
+    whatsappUrl?: string | null;
+    instagramUrl?: string | null;
+    youtubeUrl?: string | null;
+    twitterUrl?: string | null;
   } = {};
 
   if ("gamingDevice" in body) {
@@ -558,6 +565,18 @@ router.patch("/auth/profile", async (req, res) => {
     patch.bio = value;
   }
   if ("isFreeAgent" in body) patch.isFreeAgent = Boolean(body.isFreeAgent);
+
+  // Social links: a pasted URL or a bare @handle / phone number is normalised to
+  // a canonical https URL (or cleared with an empty string). The platform host is
+  // validated so a profile link can never point somewhere unexpected.
+  const socialPatch: Partial<Record<SocialField, string | null>> = {};
+  for (const platform of SOCIAL_PLATFORMS) {
+    if (!(platform.field in body)) continue;
+    const result = normalizeSocialLink(platform, body[platform.field]);
+    if (!result.ok) return res.status(400).json({ error: result.error });
+    socialPatch[platform.field] = result.value;
+  }
+  Object.assign(patch, socialPatch);
 
   // Saving a valid profile (with a gaming device) also completes onboarding, so
   // a player who filled in their details here never gets bounced back to the

@@ -1,6 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
-import { ensureMatchBracketSchema, ensureAcademySchema, ensureShopSchema, ensureClanSchema, ensureClanTournamentSchema, ensurePlayerGameStatsSchema, ensureMatchResultSchema } from "./lib/ensure-schema";
+import { ensureMatchBracketSchema, ensureAcademySchema, ensureShopSchema, ensureClanSchema, ensureClanTournamentSchema, ensurePlayerGameStatsSchema, ensureMatchResultSchema, ensurePlayerSocialSchema } from "./lib/ensure-schema";
 import { activateUpcomingTournaments } from "./lib/tournament-scheduler";
 
 // Replit's API artifact workflow supplies PORT=5000. Keep the same default
@@ -102,6 +102,7 @@ async function main() {
   await ensureClanTournamentSchema();
   await ensurePlayerGameStatsSchema();
   await ensureMatchResultSchema();
+  await ensurePlayerSocialSchema();
 
   // Auto-activate upcoming tournaments whose start date has been reached.
   // Runs on boot and then every 5 minutes while the server is alive.

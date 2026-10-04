@@ -255,6 +255,30 @@ export async function ensureClanSchema(): Promise<void> {
 }
 
 /**
+ * Player-editable social links (TikTok, Facebook, WhatsApp, Instagram, YouTube,
+ * X). Additive and idempotent, so it is safe to run on every boot; the columns
+ * live in the drizzle schema as `*_url` text columns.
+ */
+export async function ensurePlayerSocialSchema(): Promise<void> {
+  const statements = [
+    "tiktok_url",
+    "facebook_url",
+    "whatsapp_url",
+    "instagram_url",
+    "youtube_url",
+    "twitter_url",
+  ].map((column) => `ALTER TABLE "players" ADD COLUMN IF NOT EXISTS "${column}" text;`);
+
+  try {
+    for (const sql of statements) {
+      await pool.query(sql);
+    }
+  } catch (err) {
+    logger.warn({ err }, "Could not ensure player social schema");
+  }
+}
+
+/**
  * Clan tournament roster system: per-team player limits on tournaments plus
  * the roster table that stores which players each registered clan selected.
  */

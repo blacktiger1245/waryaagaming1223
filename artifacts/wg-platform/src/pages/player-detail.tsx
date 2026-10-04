@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { social } from "@/lib/social";
+import { SOCIAL_LINKS, socialLinkLabel, type SocialField } from "@/lib/social-links";
 import { useAuth } from "@/hooks/use-auth";
 import { useParams, Link } from "wouter";
 import { countryNameToFlagUrl } from "@/lib/countries";
@@ -1049,8 +1050,13 @@ export default function PlayerDetailPage() {
                 <span className="text-xs text-muted-foreground">Rank #{player.rank}</span>
               </div>
 
-              {/* Follow + Message buttons */}
-              <PlayerSocialActions playerId={player.id} playerName={displayName} />
+              {/* Follower / following / friend counts, follow + message actions
+                  and the player's linked social accounts */}
+              <PlayerSocialBar
+                playerId={player.id}
+                playerName={displayName}
+                socials={player as unknown as SocialFields}
+              />
             </div>
             </div>
           </div>
@@ -1111,17 +1117,32 @@ export default function PlayerDetailPage() {
   );
 }
 
-// ── Follow + Message actions on the player profile ────────────────────────────
-function PlayerSocialActions({ playerId, playerName }: { playerId: number; playerName: string }) {
+type SocialFields = Partial<Record<SocialField, string | null>>;
+
+// ── Social bar on the player profile ──────────────────────────────────────────
+// Follower / following / friend counts for every visitor, the follow + message
+// actions (or an Edit Profile shortcut on your own profile), and the player's
+// linked social accounts.
+function PlayerSocialBar({
+  playerId,
+  playerName,
+  socials,
+}: {
+  playerId: number;
+  playerName: string;
+  socials: SocialFields;
+}) {
   const { user, isLoggedIn } = useAuth();
   const qc = useQueryClient();
   const [messageOpen, setMessageOpen] = useState(false);
   const isSelf = !!user && user.id === playerId;
 
+  // Counts are public, so this loads for logged-out visitors too (the endpoint
+  // simply reports `following: false` for them).
   const { data: status, isLoading } = useQuery({
     queryKey: ["follow-status", playerId],
     queryFn: () => social.followStatus(playerId),
-    enabled: isLoggedIn && !isSelf && playerId > 0,
+    enabled: playerId > 0,
   });
 
   const followMutation = useMutation({
@@ -1129,60 +1150,95 @@ function PlayerSocialActions({ playerId, playerName }: { playerId: number; playe
     onSuccess: () => qc.invalidateQueries({ queryKey: ["follow-status", playerId] }),
   });
 
-  // On your own profile show a shortcut to the self-service profile editor
-  // instead of the follow/message actions. The Discord-managed name & avatar
-  // are locked automatically inside the editor.
-  if (isSelf && playerId > 0) {
-    return (
-      <div className="flex items-center gap-2 mt-3">
+  const following = status?.following ?? false;
+  const links = SOCIAL_LINKS.map((def) => ({ def, url: socials[def.field] ?? null })).filter(
+    (entry): entry is { def: (typeof SOCIAL_LINKS)[number]; url: string } => !!entry.url,
+  );
+
+  return (
+    <div className="mt-3 space-y-3">
+      {/* Follower / following / friend counts */}
+      <div className="flex items-center gap-5">
+        <SocialCount value={status?.followerCount ?? 0} label="Followers" />
+        <SocialCount value={status?.followingCount ?? 0} label="Following" />
+        <SocialCount value={status?.friendCount ?? 0} label="Friends" />
+      </div>
+
+      {/* Follow / message — or the Edit Profile shortcut on your own profile. The
+          Discord-managed name & avatar are locked inside the editor. */}
+      {isSelf ? (
         <Button size="sm" variant="outline" className="gap-1.5 h-8" asChild>
           <Link href="/profile/edit" data-testid="button-edit-profile">
             <UserCog className="w-4 h-4" />
             Edit Profile
           </Link>
         </Button>
-      </div>
-    );
-  }
+      ) : isLoggedIn ? (
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant={following ? "outline" : "default"}
+            className="gap-1.5 h-8"
+            disabled={isLoading || followMutation.isPending}
+            onClick={() => followMutation.mutate(!following)}
+            data-testid="button-follow"
+          >
+            {following ? <UserCheck className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
+            {following ? "Following" : "Follow"}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 h-8"
+            onClick={() => setMessageOpen(true)}
+            data-testid="button-message"
+          >
+            <MessageSquare className="w-4 h-4" />
+            Message
+          </Button>
+        </div>
+      ) : null}
 
-  if (!isLoggedIn || playerId <= 0) return null;
-
-  const following = status?.following ?? false;
-
-  return (
-    <div className="flex items-center gap-2 mt-3">
-      <Button
-        size="sm"
-        variant={following ? "outline" : "default"}
-        className="gap-1.5 h-8"
-        disabled={isLoading || followMutation.isPending}
-        onClick={() => followMutation.mutate(!following)}
-        data-testid="button-follow"
-      >
-        {following ? <UserCheck className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
-        {following ? "Following" : "Follow"}
-      </Button>
-      <Button
-        size="sm"
-        variant="outline"
-        className="gap-1.5 h-8"
-        onClick={() => setMessageOpen(true)}
-        data-testid="button-message"
-      >
-        <MessageSquare className="w-4 h-4" />
-        Message
-      </Button>
-      {status && (
-        <span className="text-xs text-muted-foreground ml-1">
-          {status.followerCount} follower{status.followerCount === 1 ? "" : "s"}
-        </span>
+      {/* Linked social accounts */}
+      {links.length > 0 && (
+        <div className="flex items-center gap-2">
+          {links.map(({ def, url }) => {
+            const Icon = def.icon;
+            return (
+              <a
+                key={def.field}
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`${def.label} — ${socialLinkLabel(url)}`}
+                aria-label={def.label}
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card/60 transition-colors hover:border-primary/60 hover:bg-card"
+                style={{ color: def.color }}
+                data-testid={`social-${def.field}`}
+              >
+                <Icon className="h-4 w-4" />
+              </a>
+            );
+          })}
+        </div>
       )}
+
       <ProfileMessageDialog
         open={messageOpen}
         onOpenChange={setMessageOpen}
         playerId={playerId}
         playerName={playerName}
       />
+    </div>
+  );
+}
+
+/** A single number + label in the profile's social summary. */
+function SocialCount({ value, label }: { value: number; label: string }) {
+  return (
+    <div className="leading-tight">
+      <div className="text-base font-black tabular-nums">{value}</div>
+      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
     </div>
   );
 }

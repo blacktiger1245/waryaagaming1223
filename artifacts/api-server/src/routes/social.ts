@@ -61,27 +61,48 @@ const authorCols = {
 
 // ── Follows ───────────────────────────────────────────────────────────────────
 
-// GET /players/:id/follow — follow status for the logged-in viewer
-router.get("/players/:id/follow", async (req: Request, res: Response) => {
-  await ensureSocialSchema();
-  const targetId = Number(req.params.id);
-  if (isNaN(targetId)) { res.status(400).json({ error: "Invalid id" }); return; }
-  const viewerId: number | null = req.session?.userId ?? null;
-
-  const [followers, following, isFollowing] = await Promise.all([
+/**
+ * Follow status for one player from a viewer's perspective.
+ *
+ * "Friends" are mutual follows — both players follow each other. A self-join
+ * keeps this accurate without needing a separate friendships table, so a friend
+ * is simply someone you follow who follows you back.
+ */
+async function followStatusFor(targetId: number, viewerId: number | null) {
+  const [followers, following, isFollowing, friends] = await Promise.all([
     db.select({ count: sql<number>`count(*)::int` }).from(playerFollowsTable).where(eq(playerFollowsTable.followingId, targetId)),
     db.select({ count: sql<number>`count(*)::int` }).from(playerFollowsTable).where(eq(playerFollowsTable.followerId, targetId)),
     viewerId && viewerId !== targetId
       ? db.select({ id: playerFollowsTable.id }).from(playerFollowsTable)
           .where(and(eq(playerFollowsTable.followerId, viewerId), eq(playerFollowsTable.followingId, targetId)))
       : Promise.resolve([] as { id: number }[]),
+    pool.query(
+      `SELECT count(*)::int AS count
+         FROM player_follows f1
+         JOIN player_follows f2
+           ON f2.follower_id = f1.following_id
+          AND f2.following_id = f1.follower_id
+        WHERE f1.follower_id = $1`,
+      [targetId],
+    ),
   ]);
 
-  res.json({
+  return {
     following: isFollowing.length > 0,
     followerCount: followers[0]?.count ?? 0,
     followingCount: following[0]?.count ?? 0,
-  });
+    friendCount: Number(friends.rows[0]?.count ?? 0),
+  };
+}
+
+// GET /players/:id/follow — follow status + follower/following/friend counts
+// for the viewed profile. Works for logged-out visitors too (counts only).
+router.get("/players/:id/follow", async (req: Request, res: Response) => {
+  await ensureSocialSchema();
+  const targetId = Number(req.params.id);
+  if (isNaN(targetId)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  res.json(await followStatusFor(targetId, req.session?.userId ?? null));
 });
 
 // POST /players/:id/follow — follow a player
@@ -97,8 +118,7 @@ router.post("/players/:id/follow", async (req: Request, res: Response) => {
   if (!target) { res.status(404).json({ error: "Player not found" }); return; }
 
   await db.insert(playerFollowsTable).values({ followerId: viewerId, followingId: targetId }).onConflictDoNothing();
-  const [c] = await db.select({ count: sql<number>`count(*)::int` }).from(playerFollowsTable).where(eq(playerFollowsTable.followingId, targetId));
-  res.status(201).json({ following: true, followerCount: c?.count ?? 0 });
+  res.status(201).json(await followStatusFor(targetId, viewerId));
 });
 
 // DELETE /players/:id/follow — unfollow a player
@@ -110,8 +130,7 @@ router.delete("/players/:id/follow", async (req: Request, res: Response) => {
 
   await db.delete(playerFollowsTable)
     .where(and(eq(playerFollowsTable.followerId, req.session.userId), eq(playerFollowsTable.followingId, targetId)));
-  const [c] = await db.select({ count: sql<number>`count(*)::int` }).from(playerFollowsTable).where(eq(playerFollowsTable.followingId, targetId));
-  res.json({ following: false, followerCount: c?.count ?? 0 });
+  res.json(await followStatusFor(targetId, req.session.userId));
 });
 
 // GET /players/:id/followers — list of players following this player

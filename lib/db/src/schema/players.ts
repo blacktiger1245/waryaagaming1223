@@ -41,6 +41,16 @@ export const playersTable = pgTable("players", {
   deviceName: text("device_name"),
   konamiId: text("konami_id"),
   bloodGroup: text("blood_group"),
+  // ── Player-editable social links ──
+  // Stored as canonical https:// URLs (a bare @handle, username or phone number
+  // is normalised by the API before it is saved), so the profile can link
+  // straight out without any platform logic on the client.
+  tiktokUrl: text("tiktok_url"),
+  facebookUrl: text("facebook_url"),
+  whatsappUrl: text("whatsapp_url"),
+  instagramUrl: text("instagram_url"),
+  youtubeUrl: text("youtube_url"),
+  twitterUrl: text("twitter_url"),
   profileComplete: boolean("profile_complete").notNull().default(false),
   isFreeAgent: boolean("is_free_agent").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
