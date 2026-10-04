@@ -529,30 +529,6 @@ function PvpShareCard({ m, games, motmId, motmName, logoMap }: {
                       />
                     </span>
                   </div>
-
-                  {PVP_STAT_CHIPS.some((c) => g[c.home] != null || g[c.away] != null) && (
-                    <div
-                      className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 border-t pt-2 text-[10px] text-zinc-400"
-                      style={{ borderColor: "rgba(41,64,110,0.5)" }}
-                    >
-                      <span className="text-[9px] font-black uppercase text-zinc-500">{g.homePlayerName || "Home"}:</span>
-                      {PVP_STAT_CHIPS.map((c) =>
-                        g[c.home] == null ? null : (
-                          <span key={`h-${c.label}`}>
-                            {c.label} {g[c.home]}
-                          </span>
-                        ),
-                      )}
-                      <span className="text-[9px] font-black uppercase text-zinc-500">{g.awayPlayerName || "Away"}:</span>
-                      {PVP_STAT_CHIPS.map((c) =>
-                        g[c.away] == null ? null : (
-                          <span key={`a-${c.label}`}>
-                            {c.label} {g[c.away]}
-                          </span>
-                        ),
-                      )}
-                    </div>
-                  )}
                 </div>
               );
             })}
