@@ -22,11 +22,11 @@ import {
   ClanTournamentNav,
   FixturesPanel,
   PREVIEW_STANDINGS,
-  PREVIEW_TEAM_OF_THE_WEEK,
   SeasonSidebar,
   SeasonSummary,
   SectionPlaceholder,
-  TeamOfTheWeekPitch,
+  TeamOfTheWeek,
+  TopScoresTable,
   clanGradient,
   clanTheme,
 } from "@/components/clan-tournament";
@@ -36,8 +36,11 @@ import type {
   ClanStatLeaderboard,
   ClanStatsScope,
   ClanTournamentTabId,
+  ClanWeekOption,
   FixtureMatch,
+  PitchPlayer,
   SeasonOption,
+  TopScorePlayer,
   TournamentOption,
 } from "@/components/clan-tournament";
 import { apiUrl } from "@/lib/api";
@@ -107,6 +110,29 @@ interface ClanStatsResponse {
   scope: ClanStatsScope;
   players: ClanStatLeaderboard[];
   teams: ClanStatLeaderboard[];
+}
+
+/**
+ * Response shape of GET /api/clan-tournament/top-players — the single
+ * aggregation behind both the Top Scores table and the Team of the Week.
+ */
+interface ClanTopPlayersResponse {
+  scope: {
+    seasonId: number | null;
+    tournamentId: number | null;
+    tournamentCount: number;
+    matchCount: number;
+    playerGameCount: number;
+  };
+  rounds: ClanWeekOption[];
+  teamOfTheWeek: {
+    round: number | null;
+    label: string | null;
+    roundName: string | null;
+    isComplete: boolean;
+    players: (TopScorePlayer & { position: PitchPlayer["position"] })[];
+  };
+  topScores: { players: TopScorePlayer[] };
 }
 
 function personLabel(p?: SeasonPersonRow | null): string {
@@ -219,7 +245,7 @@ function HeroStat({ label, value }: { label: string; value: number }) {
 
 export default function ClanTournamentPage() {
   const [activeTab, setActiveTab] = useState<ClanTournamentTabId>("overview");
-  const [round, setRound] = useState(5);
+  const [weekRound, setWeekRound] = useState<number | null>(null);
   /** `null` = All time. */
   const [activeSeasonId, setActiveSeasonId] = useState<number | null>(null);
   /** `null` = the whole season is selected rather than one tournament. */
@@ -322,10 +348,10 @@ export default function ClanTournamentPage() {
       : clanTournaments.filter((t) => t.seasonId === activeSeasonId).length;
 
   // Only fall back to sample data for the unfiltered "All time" view — a
-  // specific season must never be shown sample rows in its table.
+  // specific season must never be shown sample rows in its table. The Team of
+  // the Week never uses sample data: it is always the real tournament best XI.
   const usingPreview = liveStandings.length === 0 && activeSeasonId == null;
   const standings = usingPreview ? PREVIEW_STANDINGS : liveStandings;
-  const teamOfTheWeek = usingPreview ? PREVIEW_TEAM_OF_THE_WEEK : [];
 
   /**
    * Fixtures cover a single tournament when one is selected, otherwise every
@@ -400,6 +426,45 @@ export default function ClanTournamentPage() {
     }
     return index;
   }, [standings]);
+
+  // ── Tournament statistics: Top Scores + the automatically selected Team of the
+  //     Week. A single request feeds both, so the table and the pitch can never
+  //     disagree. It polls so a freshly completed week appears on its own. ──
+  const topPlayersQuery = useQuery({
+    queryKey: ["clan-top-players", activeSeasonId, activeTournamentId, weekRound],
+    queryFn: async (): Promise<ClanTopPlayersResponse> => {
+      const params = new URLSearchParams();
+      if (activeTournamentId != null) params.set("tournamentId", String(activeTournamentId));
+      else if (activeSeasonId != null) params.set("seasonId", String(activeSeasonId));
+      if (weekRound != null) params.set("round", String(weekRound));
+      const query = params.toString();
+
+      const res = await fetch(apiUrl(`/api/clan-tournament/top-players${query ? `?${query}` : ""}`), {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to load tournament statistics");
+      return (await res.json()) as ClanTopPlayersResponse;
+    },
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+  });
+
+  const topPlayers = topPlayersQuery.data;
+
+  /** The real best XI of the selected week — ranked player stats from the API. */
+  const teamOfTheWeek: PitchPlayer[] = useMemo(
+    () =>
+      (topPlayers?.teamOfTheWeek.players ?? []).map((player) => ({
+        ...player,
+        id: String(player.playerId),
+        starred: player.rank === 1,
+      })),
+    [topPlayers],
+  );
+
+  const topScores: TopScorePlayer[] = topPlayers?.topScores.players ?? [];
+  const weeks: ClanWeekOption[] = topPlayers?.rounds ?? [];
+  const activeWeek = topPlayers?.teamOfTheWeek ?? null;
 
   // Tabs whose data feed is still a placeholder. `player-stats` and `team-stats`
   // are backed by GET /api/clan-tournament/stats and rendered below instead.
@@ -517,14 +582,23 @@ export default function ClanTournamentPage() {
                 title={`Fixtures — ${scopeLabel}`}
               />
             ) : activeTab === "player-stats" ? (
-              <ClanStatsPanel
-                title="Player stats"
-                subtitle={statsScopeLabel}
-                headerIcon={Users}
-                variant="player"
-                leaderboards={statsQuery.data?.players ?? []}
-                isLoading={statsQuery.isLoading}
-              />
+              <div className="space-y-4">
+                {/* Top Scores — the same tournament statistics that pick the Team
+                    of the Week, so both views can never disagree. */}
+                <TopScoresTable
+                  players={topScores}
+                  title={`Top Scores — ${scopeLabel}`}
+                  isLoading={topPlayersQuery.isLoading}
+                />
+                <ClanStatsPanel
+                  title="Player stats"
+                  subtitle={statsScopeLabel}
+                  headerIcon={Users}
+                  variant="player"
+                  leaderboards={statsQuery.data?.players ?? []}
+                  isLoading={statsQuery.isLoading}
+                />
+              </div>
             ) : activeTab === "team-stats" ? (
               <ClanStatsPanel
                 title="Team stats"
@@ -550,12 +624,14 @@ export default function ClanTournamentPage() {
                 </div>
 
                 <div className="lg:col-span-4">
-                  <TeamOfTheWeekPitch
+                  <TeamOfTheWeek
                     players={teamOfTheWeek}
-                    round={round}
-                    minRound={1}
-                    maxRound={38}
-                    onRoundChange={setRound}
+                    label={activeWeek?.label ?? null}
+                    isComplete={activeWeek?.isComplete ?? false}
+                    weeks={weeks}
+                    activeRound={activeWeek?.round ?? null}
+                    onRoundChange={setWeekRound}
+                    isLoading={topPlayersQuery.isLoading}
                   />
                 </div>
               </div>

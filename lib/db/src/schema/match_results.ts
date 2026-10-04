@@ -35,6 +35,10 @@ export const matchResultSubmissionsTable = pgTable("match_result_submissions", {
   // NULL means "Not detected" — the admin must confirm the value before approval.
   homeScore: integer("home_score"),
   awayScore: integer("away_score"),
+  // Assists made by each side. Admin-entered (the result screenshot has no
+  // assists row), so NULL means "not recorded" and counts as zero.
+  homeAssists: integer("home_assists"),
+  awayAssists: integer("away_assists"),
   // ── Player-vs-player statistics extracted from the screenshot ──
   // `Position` → `Possession`, `Corners` → `Corner Kicks`, `Yellow Cards` →
   // `Offside` and `Red Cards` → `Free Kicks`; the remaining six statistics were

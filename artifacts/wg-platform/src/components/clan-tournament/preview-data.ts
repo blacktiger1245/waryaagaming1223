@@ -1,13 +1,12 @@
 /**
  * Preview dataset for the Clan Tournament section.
  *
- * There is currently NO backend endpoint that returns per-player match ratings,
- * so the Team of the Week widget has no live source. These samples let the
- * section render its full layout (and let the design be reviewed) until a
- * ratings feed exists. The page only uses them when the live API returns no
- * rows, and shows a "Preview data" chip whenever it does.
+ * Sample STANDINGS only, shown when the live API returns no clan rows for the
+ * unfiltered "All time" view (the page shows a "Preview data" chip whenever it
+ * does). The Team of the Week has NO preview: it is always the real best XI
+ * computed from the tournament statistics.
  */
-import type { ClanStanding, PitchPlayer } from "./types";
+import type { ClanStanding } from "./types";
 
 export const PREVIEW_STANDINGS: ClanStanding[] = [
   {
@@ -92,17 +91,3 @@ export const PREVIEW_STANDINGS: ClanStanding[] = [
   },
 ];
 
-/** One 4-3-3 line-up (GK 1 · DEF 4 · MID 3 · FWD 3). */
-export const PREVIEW_TEAM_OF_THE_WEEK: PitchPlayer[] = [
-  { id: "f1", name: "A. Warsame", position: "FWD", rating: 9.7, avatarUrl: null, starred: true },
-  { id: "f2", name: "M. Cabdi", position: "FWD", rating: 8.3, avatarUrl: null, starred: false },
-  { id: "f3", name: "Y. Nuur", position: "FWD", rating: 8.1, avatarUrl: null, starred: false },
-  { id: "m1", name: "H. Faarax", position: "MID", rating: 8.7, avatarUrl: null, starred: false },
-  { id: "m2", name: "S. Xasan", position: "MID", rating: 8.0, avatarUrl: null, starred: false },
-  { id: "m3", name: "B. Cali", position: "MID", rating: 7.8, avatarUrl: null, starred: false },
-  { id: "d1", name: "I. Yuusuf", position: "DEF", rating: 8.2, avatarUrl: null, starred: false },
-  { id: "d2", name: "K. Maxamed", position: "DEF", rating: 7.9, avatarUrl: null, starred: false },
-  { id: "d3", name: "N. Guuleed", position: "DEF", rating: 7.7, avatarUrl: null, starred: false },
-  { id: "d4", name: "F. Cismaan", position: "DEF", rating: 7.5, avatarUrl: null, starred: false },
-  { id: "g1", name: "O. Aadan", position: "GK", rating: 8.4, avatarUrl: null, starred: false },
-];

@@ -2127,6 +2127,7 @@ router.post("/admin/matches/:id/player-games", requireAdmin, async (req, res) =>
 // The canonical statistics list (see MATCH_RESULT_STAT_COLUMNS in
 // lib/db/src/schema/match_player_games.ts) — `Successful Passes` is ONE field.
 const GAME_STAT_FIELDS = [
+  "homeAssists", "awayAssists",
   "homePossession", "awayPossession",
   "homeShots", "awayShots",
   "homeShotsOnTarget", "awayShotsOnTarget",

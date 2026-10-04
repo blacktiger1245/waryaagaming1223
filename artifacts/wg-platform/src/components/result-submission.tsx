@@ -14,6 +14,8 @@ export interface ResultSubmission {
   awayScore: number | null;
   homePossession: number | null;
   awayPossession: number | null;
+  homeAssists: number | null;
+  awayAssists: number | null;
   homeShots: number | null;
   awayShots: number | null;
   homeShotsOnTarget: number | null;
@@ -163,6 +165,7 @@ export const PLAYER_MATCH_STAT_ROWS: {
   { label: "Free Kicks", home: "homeFreeKicks", away: "awayFreeKicks" },
   { label: "Fouls", home: "homeFouls", away: "awayFouls" },
   { label: "Successful Passes", home: "homeSuccessfulPasses", away: "awaySuccessfulPasses" },
+  { label: "Assists", home: "homeAssists", away: "awayAssists" },
   { label: "Crosses", home: "homeCrosses", away: "awayCrosses" },
   { label: "Interceptions", home: "homeInterceptions", away: "awayInterceptions" },
   { label: "Tackles", home: "homeTackles", away: "awayTackles" },

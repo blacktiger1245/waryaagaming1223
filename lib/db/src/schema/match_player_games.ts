@@ -9,6 +9,10 @@ export const matchPlayerGamesTable = pgTable("match_player_games", {
   awayPlayerName: text("away_player_name"),
   homeScore: integer("home_score"),
   awayScore: integer("away_score"),
+  // Assists made by each side. Admin-entered (the result screenshot has no
+  // assists row), so NULL means "not recorded" and counts as zero.
+  homeAssists: integer("home_assists"),
+  awayAssists: integer("away_assists"),
   status: text("status").notNull().default("scheduled"), // scheduled | completed
   // ── Player-vs-player match statistics (admin-confirmed from the screenshot) ──
   // Every value is a whole number. NULL always means "not detected / not

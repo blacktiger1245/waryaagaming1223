@@ -309,9 +309,12 @@ export async function ensureClanTournamentSchema(): Promise<void> {
  * This is the single source of truth for the statistics list, shared by both the
  * submission rows and the per-matchup player-game rows. `Successful Passes` is ONE
  * column (`successful_passes`) — there is deliberately no separate `passes` or
- * `successful` column.
+ * `successful` column. `assists` is entered by the administrator: the result
+ * screenshot has no assists row, so it is NULL until someone records it, and the
+ * clan-tournament performance model treats NULL as zero.
  */
 export const MATCH_RESULT_STAT_COLUMNS = [
+  "assists",
   "possession",
   "shots",
   "shots_on_target",

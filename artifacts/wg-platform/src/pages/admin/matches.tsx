@@ -79,6 +79,9 @@ interface MatchPlayerGame {
   awayPlayerName?: string | null;
   homeScore?: number | null;
   awayScore?: number | null;
+  /** Assists per side — admin-entered (the result screenshot has no assists row). */
+  homeAssists?: number | null;
+  awayAssists?: number | null;
   status: string;
   // Per-player match stats. The canonical list lives in PVP_STAT_FIELDS below —
   // `Successful Passes` is ONE field (never a separate `passes`/`successful` pair).
@@ -111,6 +114,7 @@ interface MatchPlayerGame {
 // The canonical player-vs-player statistics, in display order. `field` is the
 // suffix after `home`/`away` in both the API payload and the database column.
 const PVP_STAT_FIELDS: { field: string; label: string; max?: number }[] = [
+  { field: "Assists", label: "Assists" },
   { field: "Possession", label: "Poss %", max: 100 },
   { field: "Shots", label: "Shots" },
   { field: "ShotsOnTarget", label: "On Target" },

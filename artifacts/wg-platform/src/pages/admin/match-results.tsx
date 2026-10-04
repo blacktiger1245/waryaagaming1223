@@ -21,6 +21,8 @@ interface ResultSubmission {
   imagePath: string;
   homeScore: number | null;
   awayScore: number | null;
+  homeAssists: number | null;
+  awayAssists: number | null;
   homePossession: number | null;
   awayPossession: number | null;
   homeShots: number | null;
@@ -118,6 +120,7 @@ interface AuditRow {
 // extraction and the database columns exactly; `Successful Passes` is ONE field.
 const STAT_FIELDS: { key: string; label: string; required?: boolean }[] = [
   { key: "Score", label: "Score", required: true },
+  { key: "Assists", label: "Assists" },
   { key: "Possession", label: "Possession" },
   { key: "Shots", label: "Shots" },
   { key: "ShotsOnTarget", label: "Shots on Target" },

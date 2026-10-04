@@ -200,6 +200,8 @@ function serializeSubmission(row: typeof matchResultSubmissionsTable.$inferSelec
     imagePath: row.imagePath,
     homeScore: row.homeScore,
     awayScore: row.awayScore,
+    homeAssists: row.homeAssists,
+    awayAssists: row.awayAssists,
     homePossession: row.homePossession,
     awayPossession: row.awayPossession,
     homeShots: row.homeShots,
@@ -776,6 +778,8 @@ router.post("/admin/match-result-submissions/:id/approve", requireAdmin, async (
   const confirmed = {
     homeScore: pick("homeScore", submission.homeScore),
     awayScore: pick("awayScore", submission.awayScore),
+    homeAssists: pick("homeAssists", submission.homeAssists),
+    awayAssists: pick("awayAssists", submission.awayAssists),
     homePossession: pick("homePossession", submission.homePossession),
     awayPossession: pick("awayPossession", submission.awayPossession),
     homeShots: pick("homeShots", submission.homeShots),

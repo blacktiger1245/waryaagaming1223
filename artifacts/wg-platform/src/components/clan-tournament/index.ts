@@ -2,14 +2,12 @@
 export { ClanTournamentNav, CLAN_TOURNAMENT_TABS } from "./ClanTournamentNav";
 export type { ClanTournamentTab } from "./ClanTournamentNav";
 export { ClanStandingsTable } from "./ClanStandingsTable";
-export { TeamOfTheWeekPitch } from "./TeamOfTheWeekPitch";
+export { TeamOfTheWeek } from "./TeamOfTheWeek";
+export { TopScoresTable } from "./TopScoresTable";
 export { ClanBadge } from "./ClanBadge";
 export { FormBadges, SingleFormBadge } from "./FormBadges";
 export { clanTheme, clanCard, clanLabel, clanGradient, clanPodium, podiumFor } from "./theme";
-export {
-  PREVIEW_STANDINGS,
-  PREVIEW_TEAM_OF_THE_WEEK,
-} from "./preview-data";
+export { PREVIEW_STANDINGS } from "./preview-data";
 export { SectionPlaceholder } from "./SectionPlaceholder";
 export { FixturesPanel } from "./FixturesPanel";
 export type { FixtureMatch, ClanLookupEntry } from "./FixturesPanel";

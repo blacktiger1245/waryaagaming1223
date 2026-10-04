@@ -130,6 +130,7 @@ function Av({ name, size = "md", url }: { name: string; size?: "sm" | "md" | "lg
 // other statistic is a whole count. A statistic the OCR could not read is NULL and
 // is simply not shown.
 const PVP_STAT_ROWS: { label: string; field: string; pct?: boolean }[] = [
+  { label: "Assists", field: "Assists" },
   { label: "Possession", field: "Possession", pct: true },
   { label: "Shots", field: "Shots" },
   { label: "Shots on Target", field: "ShotsOnTarget" },
