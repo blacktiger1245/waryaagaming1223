@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { useAuth } from "@/hooks/use-auth";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 import { Crown, ShieldCheck, LifeBuoy, Star, UserCog } from "lucide-react";
 import { fetchUnreadCount } from "@/lib/agent-chat";
 import { useQuery } from "@tanstack/react-query";
@@ -45,6 +46,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user, isLoading, isLoggedIn, loginWithDiscord, logout } = useAuth();
+  // Admin status also covers the /admin/login password session, which is
+  // separate from the Discord player session — see useIsAdmin.
+  const { isAdmin: isAdminUser, isOwner: isOwnerUser } = useIsAdmin();
   const pageKey = location.split("/").filter(Boolean)[0] || "home";
 
   // Single source of truth: ANY navigation (nav links, dropdown items, admin
@@ -231,39 +235,39 @@ export function Layout({ children }: { children: React.ReactNode }) {
               Login with Discord
             </Button>
           )}
-          <a
-            href="https://discord.com/invite/PGC5KFpjkD"
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center justify-center gap-2 w-full rounded-md bg-pink-accent hover-pink-accent glow-pink text-white text-sm font-bold uppercase tracking-wide px-3 py-2.5 transition-colors"
-            data-testid="link-join-discord"
-          >
-            <DiscordIcon />
-            Join Discord
-          </a>
-          {isLoggedIn && user && (user.role === "admin" || user.role === "owner") ? (
-            // Logged-in admin/owner: show a prominent Admin Panel shortcut
+          {/* Admins/owners get one clear button straight into the admin
+              dashboard instead of the community invite; every other visitor
+              keeps the Join Discord call-to-action. */}
+          {isAdminUser ? (
             <Link
               href="/admin"
-              className="flex items-center justify-center gap-2 w-full rounded-md border border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 text-xs font-bold uppercase tracking-wide px-3 py-2 transition-colors"
+              className="flex items-center justify-center gap-2 w-full rounded-md bg-primary hover:bg-primary/90 glow-primary text-primary-foreground text-sm font-bold uppercase tracking-wide px-3 py-2.5 transition-colors"
               data-testid="link-admin-panel"
             >
-              {user.role === "owner" ? (
-                <Crown className="w-3.5 h-3.5" />
-              ) : (
-                <ShieldCheck className="w-3.5 h-3.5" />
-              )}
-              {user.role === "owner" ? "Owner Panel" : "Admin Panel"}
+              {isOwnerUser ? <Crown className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
+              {isOwnerUser ? "Owner Dashboard" : "Admin Dashboard"}
             </Link>
           ) : (
-            <Link
-              href="/admin/login"
-              className="flex items-center justify-center gap-2 w-full rounded-md border border-sidebar-border text-sidebar-foreground/50 hover:text-sidebar-foreground hover:border-sidebar-foreground/30 text-xs font-bold uppercase tracking-wide px-3 py-2 transition-colors"
-              data-testid="link-admin"
-            >
-              <LayoutDashboard className="w-3.5 h-3.5" />
-              Admin
-            </Link>
+            <>
+              <a
+                href="https://discord.com/invite/PGC5KFpjkD"
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center justify-center gap-2 w-full rounded-md bg-pink-accent hover-pink-accent glow-pink text-white text-sm font-bold uppercase tracking-wide px-3 py-2.5 transition-colors"
+                data-testid="link-join-discord"
+              >
+                <DiscordIcon />
+                Join Discord
+              </a>
+              <Link
+                href="/admin/login"
+                className="flex items-center justify-center gap-2 w-full rounded-md border border-sidebar-border text-sidebar-foreground/50 hover:text-sidebar-foreground hover:border-sidebar-foreground/30 text-xs font-bold uppercase tracking-wide px-3 py-2 transition-colors"
+                data-testid="link-admin"
+              >
+                <LayoutDashboard className="w-3.5 h-3.5" />
+                Admin
+              </Link>
+            </>
           )}
         </div>
       </aside>
