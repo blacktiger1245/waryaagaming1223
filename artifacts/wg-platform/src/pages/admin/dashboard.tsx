@@ -30,27 +30,27 @@ export default function AdminDashboardPage() {
   ];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       <div>
-        <h1 className="text-2xl font-black uppercase tracking-wide">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Manage every part of Waryaa Gaming from here.</p>
+        <h1 className="text-xl sm:text-2xl font-black uppercase tracking-wide">Dashboard</h1>
+        <p className="text-sm sm:text-base text-muted-foreground mt-1">Manage every part of Waryaa Gaming from here.</p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3">
         {cards.map((card) => {
           const Icon = card.icon;
           return (
             <div
               key={card.label}
-              className="rounded-lg border border-border bg-card p-6 flex items-center gap-4"
+              className="min-w-0 rounded-lg border border-border bg-card p-4 sm:p-6 flex items-center gap-3 sm:gap-4"
               data-testid={`card-stat-${card.label.toLowerCase().replace(/\s+/g, "-")}`}
             >
-              <div className="size-12 rounded-md bg-primary/10 border border-primary/30 flex items-center justify-center flex-shrink-0">
-                <Icon className="w-6 h-6 text-primary" />
+              <div className="size-10 sm:size-12 rounded-md bg-primary/10 border border-primary/30 flex items-center justify-center flex-shrink-0">
+                <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
               </div>
-              <div>
-                <p className="text-2xl font-black">{isLoading ? "—" : card.value}</p>
-                <p className="text-xs uppercase tracking-wider text-muted-foreground font-bold">
+              <div className="min-w-0">
+                <p className="text-xl sm:text-2xl font-black">{isLoading ? "—" : card.value}</p>
+                <p className="text-xs uppercase tracking-wider text-muted-foreground font-bold leading-tight">
                   {card.label}
                 </p>
               </div>
