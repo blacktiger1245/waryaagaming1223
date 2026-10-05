@@ -95,10 +95,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <div className="wg-aurora" aria-hidden><i /><i /><i /><i /></div>
       {/* Interstitial advertisement overlay (above normal content) */}
       <AdOverlay />
-      {/* Top bar (all screen sizes) */}
-      <div className="fixed top-0 left-0 right-0 z-50 h-16 flex items-center gap-3 px-4 border-b border-border bg-background/95 backdrop-blur">
+      {/* Top bar (all screen sizes) — scales down so it always fits a phone */}
+      <div className="fixed top-0 left-0 right-0 z-50 h-16 flex items-center gap-2 sm:gap-3 px-3 sm:px-4 border-b border-border bg-background/95 backdrop-blur">
         <button
-          className="text-muted-foreground hover:text-foreground p-1"
+          className="shrink-0 text-muted-foreground hover:text-foreground p-1"
           onClick={() => setSidebarOpen(!sidebarOpen)}
           aria-label="Toggle menu"
           aria-expanded={sidebarOpen}
@@ -106,9 +106,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
         >
           {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
-        <Link href="/" className="flex items-center gap-2.5">
-          <img src={`${import.meta.env.BASE_URL}logo.jpg`} alt="Waryaa Gaming" className="size-8 rounded-sm glow-primary object-cover" />
-          <span className="font-black text-lg tracking-widest text-primary uppercase wg-brand-glow">Waryaa Gaming</span>
+        <Link href="/" className="flex min-w-0 items-center gap-2 sm:gap-2.5">
+          <img src={`${import.meta.env.BASE_URL}logo.jpg`} alt="Waryaa Gaming" className="size-8 shrink-0 rounded-sm glow-primary object-cover" />
+          <span className="truncate font-black text-sm tracking-wide text-primary uppercase wg-brand-glow sm:text-lg sm:tracking-widest">
+            Waryaa Gaming
+          </span>
         </Link>
         <CoinBalance />
         <SupportBell />
@@ -503,13 +505,13 @@ function CoinBalance() {
   return (
     <Link
       href="/buy-coins"
-      className="ml-auto flex h-9 items-center gap-1.5 rounded-md border border-primary/40 bg-card px-3 font-black text-primary transition-colors hover:border-primary hover:bg-primary/10"
+      className="ml-auto flex h-9 min-w-0 shrink items-center gap-1.5 rounded-md border border-primary/40 bg-card px-2.5 font-black text-primary transition-colors hover:border-primary hover:bg-primary/10 sm:px-3"
       data-testid="link-buy-coins"
       aria-label="Coin balance — buy coins"
       title="Your WG Coins — click to buy more"
     >
-      <Coins className="w-4 h-4" />
-      <span data-testid="coin-balance">{formatCoins(data?.balance ?? 0)}</span>
+      <Coins className="w-4 h-4 shrink-0" />
+      <span data-testid="coin-balance" className="truncate">{formatCoins(data?.balance ?? 0)}</span>
     </Link>
   );
 }
@@ -545,7 +547,7 @@ function AgentChatBell() {
   return (
     <Link
       href="/agent-messages"
-      className="relative ml-auto flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+      className="relative ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
       data-testid="link-agent-messages"
       aria-label="Agent messages"
     >
@@ -571,7 +573,7 @@ function SupportBell() {
   return (
     <Link
       href="/support"
-      className="relative ml-auto flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
+      className="relative ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground"
       data-testid="link-support"
       aria-label="Support"
     >

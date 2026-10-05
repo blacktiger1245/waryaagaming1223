@@ -249,6 +249,56 @@
   }
 }
 
+/* ────────────────────────────────────────────────────────────────────────────
+   GLOBAL MOBILE FIT
+   The layouts are authored desktop-first, so these rules guarantee the page
+   always fits the width of whatever device the visitor is on — no sideways
+   scrolling and no clipped content on phones / tablets.
+   Kept inside `@layer base` so any Tailwind utility can still override them.
+   `overflow-x: clip` (instead of `hidden`) is used on purpose: it does NOT
+   create a scroll container, so `position: sticky` bars keep working.
+   ──────────────────────────────────────────────────────────────────────────── */
+@layer base {
+  html {
+    overflow-x: hidden; /* fallback for engines without `overflow-x: clip` */
+    overflow-x: clip;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  body,
+  #root {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    overflow-x: clip;
+  }
+
+  /* Media can never widen a narrow viewport */
+  img,
+  video,
+  canvas,
+  iframe,
+  embed,
+  object {
+    max-width: 100%;
+  }
+
+  /* Long unbreakable tokens (usernames, tags, ids, urls) wrap instead of pushing
+     the layout wider than the screen. `break-word` only breaks when needed. */
+  .wg-site,
+  .wg-site * {
+    overflow-wrap: break-word;
+  }
+
+  /* Small screens: keep page containers comfortably inside the viewport. */
+  @media (max-width: 640px) {
+    .container:not([class*="px-"]) {
+      padding-left: 1rem;
+      padding-right: 1rem;
+    }
+  }
+}
+
 /* Premium Hall of Fame player card (portrait 3:4, fully CSS/SVG —
    no hallofframe.png, which was removed). */
 .hall-of-fame-card {
