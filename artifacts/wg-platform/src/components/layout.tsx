@@ -123,9 +123,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Sidebar — collapsible slide-out drawer on ALL screen sizes.
           Hidden by default; opened with the ☰ button and closed by selecting
-          a layout, tapping the backdrop or pressing Escape. */}
+          a layout, tapping the backdrop or pressing Escape.
+          z-[60] keeps the whole drawer (including its footer buttons) ABOVE
+          the mobile bottom tab bar below: that bar is a later DOM sibling and
+          used to share z-50, so it painted over the bottom of the drawer and
+          hid the last footer button on phones. */}
       <aside
-        className={`fixed top-0 left-0 h-[100dvh] w-64 flex-shrink-0 border-r border-sidebar-border bg-sidebar flex flex-col z-50 shadow-2xl transition-transform duration-300 ease-out
+        className={`fixed top-0 left-0 h-[100dvh] w-64 flex-shrink-0 border-r border-sidebar-border bg-sidebar flex flex-col z-[60] shadow-2xl transition-transform duration-300 ease-out
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
       >
         <div className="h-16 flex-shrink-0" />
@@ -281,8 +285,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
         />
       )}
 
-      {/* ── Mobile bottom tab bar ─────────────────────────────────────────── */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 lg:hidden border-t border-border bg-background/95 backdrop-blur-md flex items-stretch">
+      {/* ── Mobile bottom tab bar ───────────────────────────────────────────
+          z-30 = above page content but BELOW the drawer backdrop (z-40) and
+          the drawer itself (z-[60]), so an open drawer dims it instead of it
+          floating over the overlay. */}
+      <nav className="fixed bottom-0 left-0 right-0 z-30 lg:hidden border-t border-border bg-background/95 backdrop-blur-md flex items-stretch">
         {[
           { href: "/", label: "Home", icon: Home },
           { href: "/fixtures", label: "Fixtures", icon: CalendarDays },
