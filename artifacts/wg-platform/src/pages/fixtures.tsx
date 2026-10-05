@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef, type CSSProperties } from "react";
 import { toPng } from "html-to-image";
+import { saveImage, notifySaveOutcome } from "@/lib/save-image";
 import { Link } from "wouter";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -645,10 +646,12 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
       });
       const slug = (value?: string | null) =>
         (value ?? "team").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "team";
-      const link = document.createElement("a");
-      link.download = `waryaa-gaming-${slug(m.participant1Name)}-vs-${slug(m.participant2Name)}-${m.id}.png`;
-      link.href = dataUrl;
-      link.click();
+      notifySaveOutcome(
+        await saveImage(
+          dataUrl,
+          `waryaa-gaming-${slug(m.participant1Name)}-vs-${slug(m.participant2Name)}-${m.id}.png`,
+        ),
+      );
     } catch {
       /* ignore export errors */
     } finally {

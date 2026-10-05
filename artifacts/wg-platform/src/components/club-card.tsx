@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toPng } from "html-to-image";
+import { saveImage, notifySaveOutcome } from "@/lib/save-image";
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { storageUrl } from "@/lib/api";
@@ -155,12 +156,7 @@ export default function ClubCard({ team, stats }: ClubCardProps) {
         height: CARD_H,
         cacheBust: true,
       });
-      const a = document.createElement("a");
-      a.href = dataUrl;
-      a.download = `${sanitizeFilename(name)}-club-card.png`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+      notifySaveOutcome(await saveImage(dataUrl, `${sanitizeFilename(name)}-club-card.png`));
     } catch (err) {
       console.error("Club card export failed:", err);
     } finally {

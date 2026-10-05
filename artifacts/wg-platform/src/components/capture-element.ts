@@ -10,6 +10,8 @@
  * back to downloading the SVG file instead.
  */
 
+import { saveImage, canvasToBlob, notifySaveOutcome } from "@/lib/save-image";
+
 function inlineComputedStyles(sourceRoot: HTMLElement, targetRoot: HTMLElement) {
   const sourceNodes = [sourceRoot, ...Array.from(sourceRoot.querySelectorAll<HTMLElement>("*"))];
   const targetNodes = [targetRoot, ...Array.from(targetRoot.querySelectorAll<HTMLElement>("*"))];
@@ -112,15 +114,6 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-function triggerDownload(dataUrl: string, filename: string) {
-  const a = document.createElement("a");
-  a.href = dataUrl;
-  a.download = filename.endsWith(".png") ? filename : `${filename}.png`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-}
-
 export async function downloadElementAsPng(el: HTMLElement, filename: string) {
   const width = Math.ceil(el.offsetWidth);
   const height = Math.ceil(el.offsetHeight);
@@ -146,15 +139,10 @@ export async function downloadElementAsPng(el: HTMLElement, filename: string) {
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("no 2d context");
     ctx.drawImage(img, 0, 0);
-    triggerDownload(canvas.toDataURL("image/png"), filename);
+    notifySaveOutcome(await saveImage(await canvasToBlob(canvas), filename));
   } catch {
     // Fallback: offer the SVG file itself so the card is still downloadable.
     const svgName = filename.replace(/\.png$/i, "") + ".svg";
-    const a = document.createElement("a");
-    a.href = dataUrl;
-    a.download = svgName;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    notifySaveOutcome(await saveImage(dataUrl, svgName));
   }
 }

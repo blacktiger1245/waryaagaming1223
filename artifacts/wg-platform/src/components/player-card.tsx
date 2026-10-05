@@ -1,5 +1,6 @@
 ﻿import { useRef, useState, useEffect, useCallback } from "react";
 import { toPng } from "html-to-image";
+import { saveImage, notifySaveOutcome } from "@/lib/save-image";
 import { Download, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { countryNameToFlagUrl } from "@/lib/countries";
@@ -103,12 +104,9 @@ export default function PlayerCard({ player, overall, marketValue }: PlayerCardP
         height: CARD_H,
         cacheBust: true,
       });
-      const a = document.createElement("a");
-      a.href = dataUrl;
-      a.download = `${sanitizeFilename(displayName)}-player-card.png`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+      notifySaveOutcome(
+        await saveImage(dataUrl, `${sanitizeFilename(displayName)}-player-card.png`),
+      );
     } catch (err) {
       console.error("Player card export failed:", err);
     } finally {

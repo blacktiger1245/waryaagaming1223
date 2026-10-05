@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Trophy, Star, TrendingUp, TrendingDown, ArrowUpDown, ChevronsUpDown, Search, Shield, X, Minus, CalendarRange, ChevronDown } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { storageUrl } from "@/lib/api";
+import { saveImage, notifySaveOutcome, canvasToBlob } from "@/lib/save-image";
 import { marketValueLabel } from "@/lib/player-stats";
 import { BallonDorIcon, TopScorerIcon } from "@/components/award-icons";
 
@@ -340,12 +341,8 @@ function SeasonAwardCard({
         ctx.restore();
       }
 
-      const dataUrl2 = canvas.toDataURL("image/png");
-      const link = document.createElement("a");
       const safeName = (winner?.username ?? title).replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "") || "winner";
-      link.download = `${safeName}-${awardKey}.png`;
-      link.href = dataUrl2;
-      link.click();
+      notifySaveOutcome(await saveImage(await canvasToBlob(canvas), `${safeName}-${awardKey}.png`));
     } catch (err) {
       console.error("Award card export failed:", err);
     } finally {
