@@ -25,9 +25,18 @@ import {
 } from "lucide-react";
 
 // ── Assets ─────────────────────────────────────────────────────────────────────
-// WG logo ships with the app. The SFF logo is the EXACT file the owner supplies.
+// WG logo ships with the app. The SFF logo is the EXACT file the owner supplies
+// at public/sff-logo.jpg, and it is the single source for every Esomali Sport
+// Federation emblem on this page (hero medallion, federation card, closing
+// showcase), so replacing that one file updates all three.
+//
+// The version suffix is deliberate: files in public/ are served under their
+// literal filename with no content hash, so browsers and any CDN would keep
+// showing the previous artwork after the file is swapped. Bump
+// SFF_LOGO_VERSION whenever sff-logo.jpg is replaced.
+const SFF_LOGO_VERSION = "2";
 const WG_LOGO = `${import.meta.env.BASE_URL}logo.jpg`;
-const SFF_LOGO = `${import.meta.env.BASE_URL}sff-logo.jpg`;
+const SFF_LOGO = `${import.meta.env.BASE_URL}sff-logo.jpg?v=${SFF_LOGO_VERSION}`;
 const SFF_URL = "https://essf.so/";
 
 // ── ESSF social links ─────────────────────────────────────────────────────────
