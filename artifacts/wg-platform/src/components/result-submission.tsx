@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ImageUp, Loader2, CheckCircle2, XCircle, Clock3, Eye, Trophy } from "lucide-react";
+import { Link } from "wouter";
 import { apiUrl, storageUrl } from "@/lib/api";
 
 // ── Data types (mirror the API serialization) ────────────────────────────────
@@ -180,6 +181,31 @@ function StatValue({ value }: { value: number | string | null }) {
 }
 
 /**
+ * A fixture side's name. Links to the clan/team or player profile whenever the
+ * id is known and renders plain text otherwise.
+ */
+function SideName({
+  href,
+  className,
+  children,
+}: {
+  href?: string | null;
+  className: string;
+  children: ReactNode;
+}) {
+  if (!href) return <span className={className}>{children}</span>;
+  return (
+    <Link
+      href={href}
+      className={`${className} cursor-pointer hover:text-[#00E0FF] hover:underline`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {children}
+    </Link>
+  );
+}
+
+/**
  * Read-only official result view: score, the statistics extracted from the
  * approved screenshot and a button to open the original screenshot.
  */
@@ -187,10 +213,15 @@ function OfficialResult({
   submission,
   homeName,
   awayName,
+  homeHref,
+  awayHref,
 }: {
   submission: ResultSubmission;
   homeName: string;
   awayName: string;
+  /** Public profile of each side (`/players/:id` or `/teams/:id`) when known. */
+  homeHref?: string | null;
+  awayHref?: string | null;
 }) {
   return (
     <div className="w-full">
@@ -203,11 +234,11 @@ function OfficialResult({
       </div>
 
       <div className="mt-2 flex items-center justify-center gap-3 rounded-lg border border-[#29406e] bg-[#0b1424] px-3 py-2.5">
-        <span className="min-w-0 flex-1 truncate text-right text-sm font-black text-white">{homeName}</span>
+        <SideName href={homeHref} className="min-w-0 flex-1 truncate text-right text-sm font-black text-white">{homeName}</SideName>
         <span className="shrink-0 rounded-md border border-[#00F0FF]/40 bg-[#00F0FF]/10 px-3 py-1 text-base font-black text-[#00E0FF]">
           {submission.homeScore ?? "—"} — {submission.awayScore ?? "—"}
         </span>
-        <span className="min-w-0 flex-1 truncate text-left text-sm font-black text-white">{awayName}</span>
+        <SideName href={awayHref} className="min-w-0 flex-1 truncate text-left text-sm font-black text-white">{awayName}</SideName>
       </div>
 
       <div className="mt-2 overflow-x-auto">
@@ -215,8 +246,8 @@ function OfficialResult({
           <thead>
             <tr className="text-[9px] uppercase tracking-wider text-zinc-500">
               <th className="py-1 pr-2 text-left font-black">Match Statistics</th>
-              <th className="px-2 py-1 text-center font-black text-[#00E0FF]">{homeName}</th>
-              <th className="px-2 py-1 text-center font-black text-[#FF2A5F]">{awayName}</th>
+              <th className="px-2 py-1 text-center font-black text-[#00E0FF]"><SideName href={homeHref} className="">{homeName}</SideName></th>
+              <th className="px-2 py-1 text-center font-black text-[#FF2A5F]"><SideName href={awayHref} className="">{awayName}</SideName></th>
             </tr>
           </thead>
           <tbody>
@@ -356,6 +387,13 @@ export function ResultSubmission({
   const canUpload = !completed && (current === null || current.status === "rejected" || current.status === "reopened");
   const homeName = isGameMode ? playerGame.homePlayerName ?? "Player A" : match?.participant1Name ?? "Player A";
   const awayName = isGameMode ? playerGame.awayPlayerName ?? "Player B" : match?.participant2Name ?? "Player B";
+  // Profile each side's name links to. A player-vs-player matchup is always two
+  // players, a solo fixture is a player too — but a team fixture stores team ids.
+  const homeId = isGameMode ? playerGame.homePlayerId : match?.participant1Id ?? null;
+  const awayId = isGameMode ? playerGame.awayPlayerId : match?.participant2Id ?? null;
+  const sideBase = isGameMode || match?.tournamentType !== "team" ? "/players" : "/teams";
+  const homeHref = homeId != null ? `${sideBase}/${homeId}` : null;
+  const awayHref = awayId != null ? `${sideBase}/${awayId}` : null;
 
   return (
     <div
@@ -381,7 +419,7 @@ export function ResultSubmission({
           <span className="text-[10px] text-zinc-500">Screenshot of the completed match</span>
         </>
       ) : current.status === "approved" ? (
-        <OfficialResult submission={current} homeName={homeName} awayName={awayName} />
+        <OfficialResult submission={current} homeName={homeName} awayName={awayName} homeHref={homeHref} awayHref={awayHref} />
       ) : current.status === "rejected" || current.status === "reopened" ? (
         <>
           <StatusBadge submission={current} />

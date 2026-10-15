@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef, type CSSProperties } from "react";
+import { useState, useMemo, useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { toPng } from "html-to-image";
 import { saveImage, notifySaveOutcome } from "@/lib/save-image";
 import { Link } from "wouter";
@@ -124,6 +124,49 @@ function Av({ name, size = "md", url }: { name: string; size?: "sm" | "md" | "lg
     );
 }
 
+/**
+ * Destination of a match participant's public profile. A team tournament stores
+ * TEAM ids in its fixture rows while a solo tournament stores PLAYER ids, so the
+ * same `participantId` field opens a different kind of profile page.
+ */
+function participantProfileHref(
+  m: { tournamentType?: string | null },
+  id: number | null | undefined,
+): string | null {
+  if (id == null) return null;
+  return m.tournamentType === "team" ? `/teams/${id}` : `/players/${id}`;
+}
+
+/**
+ * Turns a clan/team or player name (with its crest/avatar) into a link to that
+ * entity's public profile. Renders plain, unlinked content when the id is
+ * unknown, and stops the click bubbling into parent cards that expand on click.
+ */
+function ProfileLink({
+  href,
+  title,
+  className,
+  children,
+}: {
+  href?: string | null;
+  title?: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  if (!href) return <>{children}</>;
+  return (
+    <Link
+      href={href}
+      title={title}
+      className={`${className ?? ""} cursor-pointer hover:text-[#00E0FF] hover:underline`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {children}
+    </Link>
+  );
+}
+
+
 // ── Player-vs-player statistics ───────────────────────────────────────────────
 // The canonical list, shared by the detailed matchup table and the compact chip
 // row. `Successful Passes` is ONE statistic — it is never split into a separate
@@ -169,28 +212,35 @@ function PlayerGameDetail({ g, motmId, motmName }: { g: Record<string, any>; mot
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2 text-[11px] font-bold text-zinc-300">
-        <span className="flex min-w-0 flex-1 items-center gap-1 truncate">{homeIsMotm && <Star className="h-3 w-3 shrink-0 fill-[#FFB800] text-[#FFB800]" />}<span className="truncate">{g.homePlayerName || "Home"}</span></span>
+        <span className="flex min-w-0 flex-1 items-center gap-1 truncate">{homeIsMotm && <Star className="h-3 w-3 shrink-0 fill-[#FFB800] text-[#FFB800]" />}<ProfileLink href={g.homePlayerId != null ? `/players/${Number(g.homePlayerId)}` : null} title={g.homePlayerName ? `View ${g.homePlayerName} profile` : undefined} className="min-w-0 truncate">{g.homePlayerName || "Home"}</ProfileLink></span>
         <span className="shrink-0 font-black text-sm tabular-nums">
           {g.homeScore != null ? (g.homeScore ?? 0) : "–"}
           <span className="text-zinc-500 font-bold"> - </span>
           {(g.awayScore ?? 0)}
         </span>
-        <span className="flex min-w-0 flex-1 items-center justify-end gap-1 truncate"><span className="truncate">{g.awayPlayerName || "Away"}</span>{awayIsMotm && <Star className="h-3 w-3 shrink-0 fill-[#FFB800] text-[#FFB800]" />}</span>
+        <span className="flex min-w-0 flex-1 items-center justify-end gap-1 truncate"><ProfileLink href={g.awayPlayerId != null ? `/players/${Number(g.awayPlayerId)}` : null} title={g.awayPlayerName ? `View ${g.awayPlayerName} profile` : undefined} className="min-w-0 truncate">{g.awayPlayerName || "Away"}</ProfileLink>{awayIsMotm && <Star className="h-3 w-3 shrink-0 fill-[#FFB800] text-[#FFB800]" />}</span>
       </div>
 
       {(homeIsMotm || awayIsMotm) && (
         <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-[#FFB800]">
           <Star className="h-3.5 w-3.5 fill-[#FFB800] text-[#FFB800]" />
-          Man of the Match: {motmName || (homeIsMotm ? g.homePlayerName : g.awayPlayerName)}
+          <span className="shrink-0">Man of the Match:</span>
+          <ProfileLink href={motmId != null ? `/players/${Number(motmId)}` : null} title={motmName ? `View ${motmName} profile` : undefined} className="min-w-0 truncate">
+            {motmName || (homeIsMotm ? g.homePlayerName : g.awayPlayerName) || "Player"}
+          </ProfileLink>
         </div>
       )}
 
       {hasStats ? (
         <div className="rounded-lg border border-[#29406e]/40 bg-[#0b1424]/40 px-3 py-2">
           <div className="mb-1 flex items-center justify-between text-[9px] font-black uppercase tracking-widest text-zinc-600">
-            <span>{g.homePlayerName || "Home"}</span>
+            <ProfileLink href={g.homePlayerId != null ? `/players/${Number(g.homePlayerId)}` : null} title={g.homePlayerName ? `View ${g.homePlayerName} profile` : undefined} className="min-w-0 truncate">
+              {g.homePlayerName || "Home"}
+            </ProfileLink>
             <span>Stat</span>
-            <span>{g.awayPlayerName || "Away"}</span>
+            <ProfileLink href={g.awayPlayerId != null ? `/players/${Number(g.awayPlayerId)}` : null} title={g.awayPlayerName ? `View ${g.awayPlayerName} profile` : undefined} className="min-w-0 truncate">
+              {g.awayPlayerName || "Away"}
+            </ProfileLink>
           </div>
           {rows.map((r) => {
             const hv = r.home != null ? (r.pct ? `${r.home}%` : String(r.home)) : null;
@@ -611,6 +661,12 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
   const logo2 = m.participant2Id ? logoMap.get(m.participant2Id) ?? null : null;
   const motmId = m.manOfTheMatchId ?? null;
   const motmName = m.manOfTheMatchName ?? null;
+  // Team tournaments store team ids, solo tournaments store player ids — so each
+  // side's name and crest links to the matching public profile.
+  const p1Href = participantProfileHref(m, m.participant1Id);
+  const p2Href = participantProfileHref(m, m.participant2Id);
+  const p1Title = p1Href ? `View ${m.participant1Name ?? "participant"} profile` : undefined;
+  const p2Title = p2Href ? `View ${m.participant2Name ?? "participant"} profile` : undefined;
 
   async function toggleGames() {
     if (gamesOpen) { setGamesOpen(false); return; }
@@ -683,12 +739,18 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
         <div className="flex min-w-0 flex-1 items-center gap-3 justify-end">
           {p1wins && <Trophy className="w-3.5 h-3.5 text-[#FFB800] shrink-0" strokeWidth={2} />}
           <div className="min-w-0 text-right">
-            <div className={`truncate text-sm font-black leading-tight ${p1wins ? "text-white" : done ? "text-zinc-500" : "text-zinc-100"}`}>
+            <ProfileLink
+              href={p1Href}
+              title={p1Title}
+              className={`block truncate text-sm font-black leading-tight ${p1wins ? "text-white" : done ? "text-zinc-500" : "text-zinc-100"}`}
+            >
               {m.participant1Name ?? "TBD"}
-            </div>
+            </ProfileLink>
             <div className="mt-0.5 truncate text-[9px] font-bold uppercase tracking-wide text-cyan-300/60">{stageLabel(m)}</div>
           </div>
-          <Av name={m.participant1Name ?? "?"} size="sm" url={logo1} />
+          <ProfileLink href={p1Href} title={p1Title} className="flex shrink-0">
+            <Av name={m.participant1Name ?? "?"} size="sm" url={logo1} />
+          </ProfileLink>
         </div>
 
         <div className="shrink-0 px-2 text-center">
@@ -702,11 +764,17 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
         </div>
 
         <div className="flex min-w-0 flex-1 items-center gap-3">
-          <Av name={m.participant2Name ?? "?"} size="sm" url={logo2} />
+          <ProfileLink href={p2Href} title={p2Title} className="flex shrink-0">
+            <Av name={m.participant2Name ?? "?"} size="sm" url={logo2} />
+          </ProfileLink>
           <div className="min-w-0">
-            <div className={`truncate text-sm font-black leading-tight ${p2wins ? "text-white" : done ? "text-zinc-500" : "text-zinc-100"}`}>
+            <ProfileLink
+              href={p2Href}
+              title={p2Title}
+              className={`block truncate text-sm font-black leading-tight ${p2wins ? "text-white" : done ? "text-zinc-500" : "text-zinc-100"}`}
+            >
               {m.participant2Name ?? "TBD"}
-            </div>
+            </ProfileLink>
             <div className="mt-0.5 truncate text-[9px] font-bold uppercase tracking-wide text-cyan-300/60">
               {done ? "FT" : live ? "LIVE" : "UPCOMING"}
             </div>
@@ -762,20 +830,28 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
                 const awayAvatar = g.awayPlayerId ? logoMap.get(g.awayPlayerId) : null;
                 return (
                   <div key={String(g.id)} className="overflow-hidden rounded-lg border border-[#29406e]/60 bg-[#13223f]/30">
-                    <button
+                    <div
+                      role="button"
+                      tabIndex={0}
                       onClick={(e) => { e.stopPropagation(); setOpenGameId(open ? null : gid); }}
-                      className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left transition-colors ${open ? "bg-[#13223f]/60" : "hover:bg-[#13223f]/40"}`}
+                      onKeyDown={(e) => {
+                        if (e.key !== "Enter" && e.key !== " ") return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setOpenGameId(open ? null : gid);
+                      }}
+                      className={`flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-2 text-left transition-colors ${open ? "bg-[#13223f]/60" : "hover:bg-[#13223f]/40"}`}
                       data-testid="button-toggle-pvp-game"
                     >
-                      <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-sm font-bold">{logo1 && <img src={logo1} alt="" className="h-6 w-6 shrink-0 rounded-md object-cover border border-[#29406e]" />}{homeAvatar ? <img src={homeAvatar} alt="" className="h-6 w-6 shrink-0 rounded-full object-cover border border-[#00F0FF]/40" /> : <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#29406e] bg-[#13223f] text-[9px] font-black text-white">{(g.homePlayerName || "?").charAt(0).toUpperCase()}</div>}<span className="truncate">{g.homePlayerName || "—"}</span></span>
+                      <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate text-sm font-bold">{logo1 && <ProfileLink href={participantProfileHref(m, m.participant1Id)} title={m.participant1Name ? `View ${m.participant1Name} profile` : undefined} className="flex shrink-0"><img src={logo1} alt="" className="h-6 w-6 shrink-0 rounded-md object-cover border border-[#29406e]" /></ProfileLink>}<ProfileLink href={g.homePlayerId != null ? `/players/${Number(g.homePlayerId)}` : null} title={g.homePlayerName ? `View ${g.homePlayerName} profile` : undefined} className="flex min-w-0 items-center gap-1.5">{homeAvatar ? <img src={homeAvatar} alt="" className="h-6 w-6 shrink-0 rounded-full object-cover border border-[#00F0FF]/40" /> : <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#29406e] bg-[#13223f] text-[9px] font-black text-white">{(g.homePlayerName || "?").charAt(0).toUpperCase()}</div>}<span className="truncate">{g.homePlayerName || "—"}</span></ProfileLink></span>
                       <span className="shrink-0 font-black text-base tabular-nums">
                         {g.homeScore != null ? (g.homeScore ?? 0) : "–"}
                         <span className="text-zinc-500 font-bold"> - </span>
                         {(g.awayScore ?? 0)}
                       </span>
-                      <span className="flex min-w-0 flex-1 items-center justify-end gap-1.5 truncate text-sm font-bold"><span className="truncate">{g.awayPlayerName || "—"}</span>{awayAvatar ? <img src={awayAvatar} alt="" className="h-6 w-6 shrink-0 rounded-full object-cover border border-[#00F0FF]/40" /> : <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#29406e] bg-[#13223f] text-[9px] font-black text-white">{(g.awayPlayerName || "?").charAt(0).toUpperCase()}</div>}{logo2 && <img src={logo2} alt="" className="h-6 w-6 shrink-0 rounded-md object-cover border border-[#29406e]" />}</span>
+                      <span className="flex min-w-0 flex-1 items-center justify-end gap-1.5 truncate text-sm font-bold"><ProfileLink href={g.awayPlayerId != null ? `/players/${Number(g.awayPlayerId)}` : null} title={g.awayPlayerName ? `View ${g.awayPlayerName} profile` : undefined} className="flex min-w-0 items-center gap-1.5"><span className="truncate">{g.awayPlayerName || "—"}</span>{awayAvatar ? <img src={awayAvatar} alt="" className="h-6 w-6 shrink-0 rounded-full object-cover border border-[#00F0FF]/40" /> : <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#29406e] bg-[#13223f] text-[9px] font-black text-white">{(g.awayPlayerName || "?").charAt(0).toUpperCase()}</div>}</ProfileLink>{logo2 && <ProfileLink href={participantProfileHref(m, m.participant2Id)} title={m.participant2Name ? `View ${m.participant2Name} profile` : undefined} className="flex shrink-0"><img src={logo2} alt="" className="h-6 w-6 shrink-0 rounded-md object-cover border border-[#29406e]" /></ProfileLink>}</span>
                       <ChevronDown className={`w-3.5 h-3.5 shrink-0 text-[#00E0FF] transition-transform ${open ? "rotate-180" : ""}`} />
-                    </button>
+                    </div>
                     {open && (
                       <div className="border-t border-[#29406e]/40 px-3 py-2" onClick={(e) => e.stopPropagation()}>
                         <PlayerGameDetail g={g} motmId={motmId} motmName={motmName} />
@@ -852,10 +928,16 @@ function LiveSpotlight({ m, logoMap, broadcast }: { m: FlatMatch; logoMap: Map<n
       <div className="px-4 py-5">
         <div className="flex items-center justify-between gap-2">
           <div className="flex flex-col items-center gap-2 flex-1 min-w-0">
-            <Av name={m.participant1Name ?? "?"} size="lg" url={logo1} />
-            <span className="text-xs font-bold text-zinc-300 text-center leading-tight truncate w-full text-center">
-              {m.participant1Name ?? "TBD"}
-            </span>
+            <ProfileLink
+              href={participantProfileHref(m, m.participant1Id)}
+              title={m.participant1Name ? `View ${m.participant1Name} profile` : undefined}
+              className="flex w-full min-w-0 flex-col items-center gap-2"
+            >
+              <Av name={m.participant1Name ?? "?"} size="lg" url={logo1} />
+              <span className="text-xs font-bold text-zinc-300 text-center leading-tight truncate w-full text-center">
+                {m.participant1Name ?? "TBD"}
+              </span>
+            </ProfileLink>
           </div>
           <div className="flex flex-col items-center gap-1 shrink-0">
             <div className="font-black text-3xl text-white tabular-nums leading-none">
@@ -866,10 +948,16 @@ function LiveSpotlight({ m, logoMap, broadcast }: { m: FlatMatch; logoMap: Map<n
             <span className="text-[10px] text-[#00E0FF] font-bold mt-1 text-center max-w-[90px] truncate">{m.tournamentName}</span>
           </div>
           <div className="flex flex-col items-center gap-2 flex-1 min-w-0">
-            <Av name={m.participant2Name ?? "?"} size="lg" url={logo2} />
-            <span className="text-xs font-bold text-zinc-300 text-center leading-tight truncate w-full text-center">
-              {m.participant2Name ?? "TBD"}
-            </span>
+            <ProfileLink
+              href={participantProfileHref(m, m.participant2Id)}
+              title={m.participant2Name ? `View ${m.participant2Name} profile` : undefined}
+              className="flex w-full min-w-0 flex-col items-center gap-2"
+            >
+              <Av name={m.participant2Name ?? "?"} size="lg" url={logo2} />
+              <span className="text-xs font-bold text-zinc-300 text-center leading-tight truncate w-full text-center">
+                {m.participant2Name ?? "TBD"}
+              </span>
+            </ProfileLink>
           </div>
         </div>
         <Link
@@ -925,7 +1013,7 @@ function MiniStandings({ matches, name }: { matches: FlatMatch[]; name: string }
 }
 
 // ── Top players ───────────────────────────────────────────────────────────────
-function TopPlayers({ players, teamLogoMap }: { players: any[]; teamLogoMap: Map<string, string | null> }) {
+function TopPlayers({ players, teamLogoMap, teamIdMap }: { players: any[]; teamLogoMap: Map<string, string | null>; teamIdMap: Map<string, number> }) {
   if (!players.length) return null;
   return (
     <div className="rounded-2xl bg-[#101c33] border border-[#1d2c4e] overflow-hidden">
@@ -947,20 +1035,29 @@ function TopPlayers({ players, teamLogoMap }: { players: any[]; teamLogoMap: Map
         <tbody>
           {players.slice(0, 10).map((p, i) => {
             const teamLogo = p.teamName ? teamLogoMap.get(p.teamName) ?? null : null;
+            const teamId = p.teamName ? teamIdMap.get(p.teamName) ?? null : null;
             return (
               <tr key={p.playerId} className="border-b border-[#1d2c4e]/40 last:border-0 hover:bg-[#13223f]/30 transition-colors">
                 <td className="pl-3 pr-1 py-2.5 text-center text-zinc-500 font-mono">{i + 1}</td>
                 <td className="px-2 py-2.5">
-                  <div className="flex items-center gap-2">
+                  <ProfileLink
+                    href={p.playerId != null ? `/players/${p.playerId}` : null}
+                    title={`View ${p.displayName ?? p.username ?? "player"} profile`}
+                    className="flex min-w-0 items-center gap-2"
+                  >
                     {p.avatarUrl
                       ? <img src={p.avatarUrl} alt="" className="w-6 h-6 rounded-full object-cover border border-[#29406e]" />
                       : <div className="w-6 h-6 rounded-full bg-[#13223f] border border-[#29406e] flex items-center justify-center text-[9px] font-black text-zinc-500">{(p.displayName ?? p.username ?? "?").charAt(0).toUpperCase()}</div>
                     }
                     <span className="font-bold text-zinc-200 truncate max-w-[65px]">{p.displayName ?? p.username}</span>
-                  </div>
+                  </ProfileLink>
                 </td>
                 <td className="px-2 py-2.5">
-                  <div className="flex items-center gap-1.5">
+                  <ProfileLink
+                    href={teamId != null ? `/teams/${teamId}` : null}
+                    title={p.teamName ? `View ${p.teamName} profile` : undefined}
+                    className="flex min-w-0 items-center gap-1.5"
+                  >
                     {teamLogo
                       ? <img src={teamLogo} alt="" className="w-5 h-5 rounded-full object-cover border border-[#29406e] shrink-0" />
                       : p.teamName
@@ -968,7 +1065,7 @@ function TopPlayers({ players, teamLogoMap }: { players: any[]; teamLogoMap: Map
                         : null
                     }
                     <span className="text-zinc-500 truncate max-w-[55px]">{p.teamName ?? "—"}</span>
-                  </div>
+                  </ProfileLink>
                 </td>
                 <td className="pl-1 pr-3 py-2.5 text-center font-black text-[#00E0FF] tabular-nums">{p.points}</td>
               </tr>
@@ -1008,13 +1105,17 @@ function TopTeams({ teams }: { teams: any[] }) {
               <tr key={t.teamId} className="border-b border-[#1d2c4e]/40 last:border-0 hover:bg-[#13223f]/30 transition-colors">
                 <td className="pl-3 pr-1 py-2.5 text-center text-zinc-500 font-mono">{i + 1}</td>
                 <td className="px-2 py-2.5">
-                  <div className="flex items-center gap-2">
+                  <ProfileLink
+                    href={t.teamId != null ? `/teams/${t.teamId}` : null}
+                    title={t.name ? `View ${t.name} profile` : undefined}
+                    className="flex min-w-0 items-center gap-2"
+                  >
                     {storageUrl(t.logoUrl)
                       ? <img src={storageUrl(t.logoUrl)} alt="" className="w-6 h-6 rounded-full object-cover border border-[#29406e]" />
                       : <div className="w-6 h-6 rounded-full bg-[#13223f] border border-[#29406e] flex items-center justify-center text-[9px] font-black text-zinc-500">{(t.name ?? "?").charAt(0).toUpperCase()}</div>
                     }
                     <span className="font-bold text-zinc-200 truncate max-w-[65px]">{t.name}</span>
-                  </div>
+                  </ProfileLink>
                 </td>
                 <td className="px-1 py-2.5 text-center tabular-nums">
                   <span className="flex items-center justify-center gap-1">
@@ -1246,6 +1347,15 @@ export default function FixturesPage() {
     const map = new Map<string, string | null>();
     for (const t of allTeams) {
       if (t.name) map.set(t.name, t.logoUrl ?? null);
+    }
+    return map;
+  }, [allTeams]);
+
+  // ── Build team-name → team-id map (for TopPlayers clan profile links) ────
+  const teamIdByName = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const t of allTeams) {
+      if (t.name && t.id != null) map.set(t.name, Number(t.id));
     }
     return map;
   }, [allTeams]);
@@ -1771,13 +1881,13 @@ export default function FixturesPage() {
                                       <span className="text-xs font-black tabular-nums text-zinc-500">{pos}</span>
                                     </td>
                                     <td className="px-3 py-3.5">
-                                      <div className="flex items-center gap-2.5">
+                                      <ProfileLink href={`/teams/${s.id}`} title={`View ${s.name} profile`} className="flex min-w-0 items-center gap-2.5">
                                         {logoMap.get(s.id)
                                           ? <img src={logoMap.get(s.id)!} alt={s.name} className="w-7 h-7 rounded-full object-cover border border-[#29406e] shrink-0" />
                                           : <div className="w-7 h-7 rounded-full bg-[#13223f] border border-[#29406e] flex items-center justify-center text-[10px] font-black text-zinc-400 shrink-0">{s.name.charAt(0).toUpperCase()}</div>
                                         }
                                         <span className="font-black text-zinc-100 truncate">{s.name}</span>
-                                      </div>
+                                      </ProfileLink>
                                     </td>
                                     <td className="px-2 py-3.5 text-center tabular-nums text-zinc-400">{s.mp}</td>
                                     <td className="px-2 py-3.5 text-center tabular-nums text-emerald-400 font-bold">{s.w}</td>
@@ -1942,13 +2052,13 @@ export default function FixturesPage() {
                                     <tr key={s.id} className={`border-b border-[#1d2c4e]/40 last:border-0 border-l-2 ${stripe} hover:bg-[#13223f]/30 transition-colors`}>
                                       <td className="pl-4 pr-1 py-2.5 text-center text-zinc-500 font-mono">{pos}</td>
                                       <td className="px-2 py-2.5">
-                                        <div className="flex items-center gap-1.5">
+                                        <ProfileLink href={`/players/${s.id}`} title={`View ${s.name} profile`} className="flex min-w-0 items-center gap-1.5">
                                           {logoMap.get(s.id)
                                             ? <img src={logoMap.get(s.id)!} alt={s.name} className="w-5 h-5 rounded-full object-cover border border-[#29406e] shrink-0" />
                                             : <div className="w-5 h-5 rounded-full bg-[#13223f] border border-[#29406e] flex items-center justify-center text-[8px] font-black text-zinc-500 shrink-0">{s.name.charAt(0).toUpperCase()}</div>
                                           }
                                           <span className="font-bold text-zinc-200 truncate max-w-[80px]">{s.name}</span>
-                                        </div>
+                                        </ProfileLink>
                                       </td>
                                       <td className="px-1.5 py-2.5 text-center text-zinc-400 tabular-nums">{s.mp}</td>
                                       <td className="px-1.5 py-2.5 text-center text-emerald-400 font-bold tabular-nums">{s.w}</td>
@@ -2054,7 +2164,7 @@ export default function FixturesPage() {
           )}
 
           {/* Top players */}
-          {topPlayers.length > 0 && <TopPlayers players={topPlayers} teamLogoMap={teamNameLogoMap} />}
+          {topPlayers.length > 0 && <TopPlayers players={topPlayers} teamLogoMap={teamNameLogoMap} teamIdMap={teamIdByName} />}
 
           {/* Top team winners */}
           {topTeams.length > 0 && <TopTeams teams={topTeams} />}
