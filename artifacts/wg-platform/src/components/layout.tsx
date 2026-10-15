@@ -139,37 +139,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
             const Icon = link.icon;
             const active = location === link.href || location.startsWith(link.href + "/");
 
-            // Teams → dropdown with Team Inbox shortcut
-            if (link.href === "/teams") {
-              return (
-                <DropdownMenu key={link.href}>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      data-testid="link-nav-teams"
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-bold uppercase tracking-wide transition-colors ${
-                        location.startsWith("/teams")
-                          ? "bg-primary text-primary-foreground"
-                          : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-                      }`}
-                    >
-                      {Icon ? <Icon className="w-4 h-4" /> : null}
-                      {link.label}
-                      <ChevronDown className="w-3.5 h-3.5 ml-auto opacity-60" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent side="right" align="start" className="w-48">
-                    <DropdownMenuItem asChild>
-                      <Link href="/teams" onClick={() => setSidebarOpen(false)}>All Teams</Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link href="/messages?tab=team" onClick={() => setSidebarOpen(false)}>
-                        <Users className="w-4 h-4 mr-2" /> Team Inbox
-                      </Link>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              );
-            }
+            // Clans opens the full clan roster directly — there is no
+            // "All Teams / Team Inbox" dropdown to click through first. The
+            // Team Inbox shortcut now lives in the Messages dropdown below.
 
             // Messages → inbox preview dropdown (logged in only)
             if (link.href === "/messages" && isLoggedIn) {
@@ -494,6 +466,11 @@ function InboxNavDropdown({ active, onNavigate }: { active: boolean; onNavigate:
           </DropdownMenuItem>
         ))}
         <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link href="/messages?tab=team" onClick={onNavigate} className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-primary">
+            <Users className="w-4 h-4" /> Team Inbox
+          </Link>
+        </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="/messages" onClick={onNavigate} className="text-xs font-bold uppercase tracking-widest text-primary">
             Open full inbox →

@@ -38,6 +38,22 @@ export default function MessagesPage() {
     }
   }, [toParam]);
 
+  // Support /messages?tab=team and ?tab=sent — the "Team Inbox" shortcut (and
+  // any deep link) lands on the requested conversation tab instead of always
+  // opening the default direct-message inbox.
+  const tabParam = useMemo<Tab | null>(() => {
+    const q = search.split("?")[1];
+    if (!q) return null;
+    const v = new URLSearchParams(q).get("tab");
+    return v === "inbox" || v === "sent" || v === "team" ? v : null;
+  }, [search]);
+  useEffect(() => {
+    if (tabParam) {
+      setActiveThread(null);
+      setTab(tabParam);
+    }
+  }, [tabParam]);
+
   if (authLoading) {
     return (
       <div className="container mx-auto px-4 py-16 flex justify-center">

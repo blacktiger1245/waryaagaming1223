@@ -74,7 +74,7 @@ export default function TeamsPage() {
   const qc = useQueryClient();
   const [leaveError, setLeaveError] = useState<string | null>(null);
   const [deviceModalOpen, setDeviceModalOpen] = useState(false);
-  const [activeDivision, setActiveDivision] = useState<"serie_a" | "serie_b">("serie_a");
+  const [activeDivision, setActiveDivision] = useState<"all" | "serie_a" | "serie_b">("all");
   const { data: myTeam, isLoading: myTeamLoading } = useQuery<any | null>({
     queryKey: ["my-team"],
     queryFn: async () => {
@@ -100,8 +100,10 @@ export default function TeamsPage() {
   });
   const registrationOpen = clanSettings?.serieARegistrationOpen || clanSettings?.serieBRegistrationOpen;
 
-  const serieA = (teams ?? []).filter((t) => (t as any).division !== "serie_b");
-  const serieB = (teams ?? []).filter((t) => (t as any).division === "serie_b");
+  // Every clan is listed by default — the division tabs are optional filters.
+  const allClans = teams ?? [];
+  const serieA = allClans.filter((t) => (t as any).division !== "serie_b");
+  const serieB = allClans.filter((t) => (t as any).division === "serie_b");
 
   async function leaveTeam() {
     if (!myTeam) return;
@@ -198,8 +200,19 @@ export default function TeamsPage() {
           </div>
         ) : (
           <div>
-            {/* Division tabs */}
+            {/* Division tabs — "All Clans" is the default, so every clan is
+                visible as soon as the page opens with no selection needed. */}
             <div className="mb-6 flex flex-wrap gap-2">
+              <button
+                onClick={() => setActiveDivision("all")}
+                className={`rounded-lg border px-4 py-2 text-sm font-black uppercase tracking-wide transition-colors ${
+                  activeDivision === "all"
+                    ? "border-primary bg-primary/15 text-primary"
+                    : "border-border bg-card text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                All Clans ({allClans.length})
+              </button>
               <button
                 onClick={() => setActiveDivision("serie_a")}
                 className={`rounded-lg border px-4 py-2 text-sm font-black uppercase tracking-wide transition-colors ${
@@ -222,7 +235,17 @@ export default function TeamsPage() {
               </button>
             </div>
 
-            {activeDivision === "serie_a" ? (
+            {activeDivision === "all" ? (
+              allClans.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border bg-card/40 p-12 text-center text-sm text-muted-foreground">
+                  No clans yet.
+                </div>
+              ) : (
+                <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {allClans.map((team, i) => <ClanCard key={team.id} team={team} index={i} />)}
+                </div>
+              )
+            ) : activeDivision === "serie_a" ? (
               serieA.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-border bg-card/40 p-12 text-center text-sm text-muted-foreground">
                   No clans in Serie A yet.
