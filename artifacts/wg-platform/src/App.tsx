@@ -40,6 +40,7 @@ import ComparePage from "@/pages/compare";
 import DashboardPage from "@/pages/dashboard";
 import EditProfilePage from "@/pages/edit-profile";
 import FixturesPage from "@/pages/fixtures";
+import MatchResultPreviewPage from "@/pages/match-result";
 import FixturesDashboardPage from "@/pages/fixtures-dashboard";
 import HallOfFamePage from "@/pages/hall-of-fame";
 import CommunityPage from "@/pages/community";
@@ -103,6 +104,8 @@ function SiteRouter() {
         <Route path="/teams/:id/manage" component={TeamManagePage} />
         <Route path="/teams/:id" component={TeamDetailPage} />
         <Route path="/fixtures" component={FixturesPage} />
+        {/* Dynamic Match Result + Man of the Match preview (/match-result). */}
+        <Route path="/match-result" component={MatchResultPreviewPage} />
         <Route path="/rankings" component={RankingsPage} />
         <Route path="/hall-of-fame" component={HallOfFamePage} />
         <Route path="/news" component={NewsPage} />
