@@ -18,7 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { useGetPlayer, useGetPlayerMatchHistory } from "@workspace/api-client-react";
-import { marketValueLabel, pointsToMarketValue } from "@/lib/player-stats";
+import { marketValueLabel, playerPoints, pointsToMarketValue } from "@/lib/player-stats";
 import PlayerCard from "@/components/player-card";
 import { BallonDorIcon, TopScorerIcon } from "@/components/award-icons";
 
@@ -331,7 +331,24 @@ export default function PlayerDetailPage() {
     );
   }
 
-  const stars = starCount(player.points ?? 0);
+  // Live points / market value derived from the same statistics the rankings use,
+  // so the profile header and player card never lag behind the ladder.
+  const displayPoints = useMemo(() => {
+    if (overallStats.played > 0) {
+      return playerPoints({
+        appearances: overallStats.played,
+        wins: overallStats.wins,
+        cleanSheets: overallStats.cleanSheets,
+        goals: overallStats.goals,
+        motm: overallStats.motm,
+        draws: overallStats.draws,
+      });
+    }
+    return player?.points ?? 0;
+  }, [overallStats, player]);
+  const displayMarketValue = marketValueLabel(pointsToMarketValue(displayPoints));
+
+  const stars = starCount(displayPoints);
   const displayName = player.displayName ?? player.username;
 
   // ── tab panels ──────────────────────────────────────────────────────────────
@@ -516,12 +533,11 @@ export default function PlayerDetailPage() {
     const isTopScorer = !!selectedSeason && selectedSeason.topScorerPlayerId === player.id;
     const isBallonDor = !!selectedSeason && selectedSeason.ballonDorPlayerId === player.id;
 
-    // Market Value is derived from the player's TOTAL POINTS (persisted value,
-    // with a live fallback computed from points).
-    const marketValue = marketValueLabel((player as any).marketValue ?? pointsToMarketValue(player.points ?? 0));
+    // Market Value is derived from the player's TOTAL POINTS (live from results).
+    const marketValue = displayMarketValue;
 
     const stats = [
-      { icon: <TrendingUp className="w-6 h-6 text-violet-400" />,  value: Math.round(player.points ?? 0), label: "Points" },
+      { icon: <TrendingUp className="w-6 h-6 text-violet-400" />,  value: Math.round(displayPoints), label: "Points" },
       { icon: <User        className="w-6 h-6 text-violet-400" />,  value: played,                          label: "Appearances" },
       { icon: <Trophy      className="w-6 h-6 text-amber-400"  />,  value: won,                             label: "Win" },
       { icon: <Handshake   className="w-6 h-6 text-amber-300"  />,  value: drawn,                           label: "Draw" },
@@ -810,7 +826,7 @@ export default function PlayerDetailPage() {
       ? Math.round((teamGameStats.wins / teamGameStats.played) * 100)
       : 0;
 
-    const marketValue = marketValueLabel((player as any).marketValue ?? pointsToMarketValue(player.points ?? 0));
+    const marketValue = displayMarketValue;
 
     const stats = [
       { icon: <User        className="w-6 h-6 text-violet-400" />,  value: teamGameStats.played,       label: "Appearances" },
@@ -944,7 +960,7 @@ export default function PlayerDetailPage() {
     const { played, wins: won, losses: lost, draws: drawn, goals, cleanSheets, motm, deciderWins } = soloStats;
     const winRate = played > 0 ? Math.round((won / played) * 100) : 0;
 
-    const marketValue = marketValueLabel((player as any).marketValue ?? pointsToMarketValue(player.points ?? 0));
+    const marketValue = displayMarketValue;
 
     const stats = [
       { icon: <User        className="w-6 h-6 text-violet-400" />, value: played,                      label: "Appearances" },
@@ -1075,7 +1091,7 @@ export default function PlayerDetailPage() {
               <div className="flex items-center gap-3 mt-2 flex-wrap">
                 <Stars n={stars} />
                 <Badge className="bg-indigo-500/20 text-indigo-200 border border-indigo-400/40 font-bold text-xs px-2 py-0.5">
-                  {(player.points ?? 0).toFixed(1)} pts
+                  {displayPoints.toFixed(1)} pts
                 </Badge>
                 <span className="text-xs text-muted-foreground">Rank #{player.rank}</span>
               </div>
@@ -1137,7 +1153,7 @@ export default function PlayerDetailPage() {
               <PlayerCard
                 player={player}
                 overall={overallStats}
-                marketValue={marketValueLabel((player as any).marketValue ?? pointsToMarketValue(player.points ?? 0))}
+                marketValue={displayMarketValue}
               />
             )}
           </div>

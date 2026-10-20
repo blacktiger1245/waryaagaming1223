@@ -8,7 +8,7 @@ import {
   playerPoints,
   pointsToMarketValue,
 } from "@workspace/db";
-import { eq, and, or, isNull, isNotNull, inArray, desc } from "drizzle-orm";
+import { eq, and, or, isNull, isNotNull, inArray, desc, ne, sql } from "drizzle-orm";
 /**
  * Canonical statistics synchronisation.
  *
@@ -329,6 +329,152 @@ export async function syncStatsAfterFixture(
   const playerIds = games.flatMap((g) => [g.homePlayerId, g.awayPlayerId]);
   await recomputePlayerStats([...playerIds, match.manOfTheMatchId]);
   await recalculateTeamStats([match.participant1Id, match.participant2Id]);
+}
+
+export interface PlayerTally {
+  played: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  goals: number;
+  conceded: number;
+  cleanSheets: number;
+  motm: number;
+}
+
+function emptyPlayerTally(): PlayerTally {
+  return { played: 0, wins: 0, draws: 0, losses: 0, goals: 0, conceded: 0, cleanSheets: 0, motm: 0 };
+}
+
+export interface PlayerTallyFilter {
+  /** Only count fixtures belonging to these tournaments (season scope). */
+  tournamentIds?: number[];
+  /** Only count results recorded on/after this moment (weekly/monthly scope). */
+  since?: Date;
+}
+
+/**
+ * Aggregate EVERY player's results in one pass: solo tournament fixtures plus
+ * clan player-vs-player duels, and Man of the Match awards. Used by the public
+ * player rankings so Match / Win / Draw / Rating always reflect real results
+ * (including matches a player played for their clan).
+ */
+export async function computeAllPlayerTallies(
+  filter: PlayerTallyFilter = {},
+): Promise<Map<number, PlayerTally>> {
+  const tallies = new Map<number, PlayerTally>();
+  const forPlayer = (id: number): PlayerTally => {
+    let tally = tallies.get(id);
+    if (!tally) {
+      tally = emptyPlayerTally();
+      tallies.set(id, tally);
+    }
+    return tally;
+  };
+
+  const sinceExpr = filter.since
+    ? sql`COALESCE(${matchesTable.resultSetAt}, ${matchesTable.createdAt}) >= ${filter.since}`
+    : null;
+
+  // ── Solo tournament fixtures (participant columns hold player ids) ────────
+  const soloConditions = [
+    eq(matchesTable.status, "completed"),
+    or(isNull(matchesTable.tournamentId), ne(tournamentsTable.tournamentType, "team")),
+  ];
+  if (filter.tournamentIds) soloConditions.push(inArray(matchesTable.tournamentId, filter.tournamentIds));
+  if (sinceExpr) soloConditions.push(sinceExpr);
+
+  const soloRows = await db
+    .select({
+      participant1Id: matchesTable.participant1Id,
+      participant2Id: matchesTable.participant2Id,
+      participant1Score: matchesTable.participant1Score,
+      participant2Score: matchesTable.participant2Score,
+      winnerId: matchesTable.winnerId,
+    })
+    .from(matchesTable)
+    .leftJoin(tournamentsTable, eq(matchesTable.tournamentId, tournamentsTable.id))
+    .where(and(...soloConditions));
+
+  for (const m of soloRows) {
+    if (m.participant1Id == null || m.participant2Id == null) continue;
+    const s1 = m.participant1Score ?? 0;
+    const s2 = m.participant2Score ?? 0;
+
+    const a = forPlayer(m.participant1Id);
+    const b = forPlayer(m.participant2Id);
+    a.played++; b.played++;
+    a.goals += s1; a.conceded += s2;
+    b.goals += s2; b.conceded += s1;
+    if (s2 === 0) a.cleanSheets++;
+    if (s1 === 0) b.cleanSheets++;
+
+    if (s1 === s2) {
+      a.draws++; b.draws++;
+    } else if (m.winnerId != null) {
+      if (m.winnerId === m.participant1Id) { a.wins++; b.losses++; }
+      else if (m.winnerId === m.participant2Id) { b.wins++; a.losses++; }
+    } else if (s1 > s2) { a.wins++; b.losses++; }
+    else { b.wins++; a.losses++; }
+  }
+
+  // ── Clan duels (each player-vs-player game inside a clan fixture) ─────────
+  const gameConditions = [
+    eq(tournamentsTable.tournamentType, "team"),
+    isNotNull(matchPlayerGamesTable.homeScore),
+    isNotNull(matchPlayerGamesTable.awayScore),
+  ];
+  if (filter.tournamentIds) gameConditions.push(inArray(matchesTable.tournamentId, filter.tournamentIds));
+  if (sinceExpr) gameConditions.push(sinceExpr);
+
+  const games = await db
+    .select({
+      homePlayerId: matchPlayerGamesTable.homePlayerId,
+      awayPlayerId: matchPlayerGamesTable.awayPlayerId,
+      homeScore: matchPlayerGamesTable.homeScore,
+      awayScore: matchPlayerGamesTable.awayScore,
+    })
+    .from(matchPlayerGamesTable)
+    .innerJoin(matchesTable, eq(matchPlayerGamesTable.matchId, matchesTable.id))
+    .innerJoin(tournamentsTable, eq(matchesTable.tournamentId, tournamentsTable.id))
+    .where(and(...gameConditions));
+
+  for (const g of games) {
+    if (g.homePlayerId == null || g.awayPlayerId == null) continue;
+    const s1 = g.homeScore ?? 0;
+    const s2 = g.awayScore ?? 0;
+
+    const a = forPlayer(g.homePlayerId);
+    const b = forPlayer(g.awayPlayerId);
+    a.played++; b.played++;
+    a.goals += s1; a.conceded += s2;
+    b.goals += s2; b.conceded += s1;
+    if (s2 === 0) a.cleanSheets++;
+    if (s1 === 0) b.cleanSheets++;
+    if (s1 > s2) { a.wins++; b.losses++; }
+    else if (s2 > s1) { b.wins++; a.losses++; }
+    else { a.draws++; b.draws++; }
+  }
+
+  // ── Man of the Match (one award per completed fixture) ───────────────────
+  const motmConditions = [
+    eq(matchesTable.status, "completed"),
+    isNotNull(matchesTable.manOfTheMatchId),
+  ];
+  if (filter.tournamentIds) motmConditions.push(inArray(matchesTable.tournamentId, filter.tournamentIds));
+  if (sinceExpr) motmConditions.push(sinceExpr);
+
+  const motmRows = await db
+    .select({ manOfTheMatchId: matchesTable.manOfTheMatchId })
+    .from(matchesTable)
+    .where(and(...motmConditions));
+
+  for (const row of motmRows) {
+    if (row.manOfTheMatchId == null) continue;
+    forPlayer(row.manOfTheMatchId).motm++;
+  }
+
+  return tallies;
 }
 
 /**

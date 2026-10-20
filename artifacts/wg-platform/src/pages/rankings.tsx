@@ -1485,9 +1485,9 @@ export default function RankingsPage() {
                                 </div>
                               </Link>
                             </td>
-                            {/* Rating — stars based on wins */}
+                            {/* Rating — stars from real wins (computed by the API) */}
                             <td className="px-3 py-3 text-center hidden md:table-cell">
-                              <StarRating wins={p.matchesWon ?? 0} />
+                              <StarRating wins={Math.min(5, Math.max((p as any).rating ?? 0, p.matchesWon ?? 0))} />
                             </td>
                             {/* Market Value */}
                             <td className="px-3 py-3 text-center hidden lg:table-cell">
