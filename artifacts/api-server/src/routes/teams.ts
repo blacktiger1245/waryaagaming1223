@@ -374,12 +374,13 @@ router.delete("/teams/:id", async (req, res) => {
   if (isNaN(teamId)) return res.status(400).json({ error: "Invalid team id" });
 
   try {
-    const { team, role } = await resolveTeamWithCheck(req, teamId);
+    const { team } = await resolveTeamWithCheck(req, teamId);
     if (!team) return res.status(404).json({ error: "Team not found" });
 
-    // Only the President may delete the team. Coach/Captain/player cannot.
-    if (role !== "president" && !isPlatformStaff(req)) {
-      return res.status(403).json({ error: "Only the team President can delete this team" });
+    // Teams can only be deleted by platform administrators (owner/admin).
+    // Presidents, coaches, captains and players can never delete a clan.
+    if (!isPlatformStaff(req)) {
+      return res.status(403).json({ error: "Only a platform administrator can delete a team" });
     }
 
     await db.transaction(async (tx) => {
@@ -506,8 +507,9 @@ router.delete("/teams/:id/players/:playerId", async (req, res) => {
 
   const { team, role } = await resolveTeamWithCheck(req, teamId);
   if (!team) return res.status(404).json({ error: "Team not found" });
-  if (role !== "president" && role !== "coach" && !isPlatformStaff(req)) {
-    return res.status(403).json({ error: "Only the President or Coach can remove players" });
+  // President, Coach and Captain can all manage the roster.
+  if (role !== "president" && role !== "coach" && role !== "captain" && !isPlatformStaff(req)) {
+    return res.status(403).json({ error: "Only the President, Coach or Captain can remove players" });
   }
 
   const leaders = [team.presidentId, team.coachId, team.captainId];
@@ -913,12 +915,15 @@ router.delete("/teams/:id/members/:playerId", async (req, res) => {
   if (!team) return res.status(404).json({ error: "Team not found" });
 
   const role = await resolveTeamRole(req, team);
-  if (role !== "president" && role !== "coach" && !isPlatformStaff(req))
-    return res.status(403).json({ error: "Only the President or Coach can remove players" });
+  // President, Coach and Captain can all remove players from the roster.
+  if (role !== "president" && role !== "coach" && role !== "captain" && !isPlatformStaff(req))
+    return res.status(403).json({ error: "Only the President, Coach or Captain can remove players" });
 
-  // Cannot remove the captain without reassigning first
+  // Leadership roles cannot be removed from the roster — change the role first.
   if (playerId === team.captainId)
     return res.status(400).json({ error: "Cannot remove the captain. Change the captain first, then remove them." });
+  if (playerId === team.presidentId || playerId === team.coachId)
+    return res.status(400).json({ error: "The President and Coach cannot be removed from the roster." });
 
   const [player] = await db.select({ id: playersTable.id }).from(playersTable).where(
     sql`${playersTable.id} = ${playerId} AND ${playersTable.teamId} = ${teamId}`

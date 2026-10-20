@@ -1,7 +1,7 @@
 /**
  * Real OCR / image-text recognition for match-result screenshots.
  *
- * Engine: `tesseract.js` â€” a WASM build of Tesseract that runs entirely inside
+ * Engine: `tesseract.js` — a WASM build of Tesseract that runs entirely inside
  * the api-server process. It needs **no API key, no network access and no
  * external service**, which is why it is the engine of choice for this project:
  * the deployment target (a Render-hosted Node service) cannot be relied on to
@@ -10,8 +10,8 @@
  * dependency of `artifacts/api-server`.
  *
  * Recognition pipeline
- * â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
- *   Pass 1 â€” full page:       `sharp` normalises the image (EXIF rotation,
+ * ────────────────────
+ *   Pass 1 — full page:       `sharp` normalises the image (EXIF rotation,
  *                             greyscale, contrast stretch, upscale to 2200px),
  *                             then Tesseract reads the whole page and returns
  *                             every word with its pixel bounding box.
@@ -20,20 +20,20 @@
  *                             shots on target, corners, yellow cards, red cards)
  *                             and the two numbers either side of that label are
  *                             read from their geometric columns.
- *   Pass 2 â€” digit repair:    any cell that pass 1 could not turn into a clean
+ *   Pass 2 — digit repair:    any cell that pass 1 could not turn into a clean
  *                             number (e.g. `pi` where `2` was printed) is
  *                             cropped and re-read on its own with a digits-only
  *                             whitelist. This is what makes small scoreboard
  *                             digits legible.
  *
  * Honesty rules (non-negotiable)
- * â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
- *   â€¢ A value is only ever returned when a numeric token was actually
+ * ──────────────────────────────
+ *   • A value is only ever returned when a numeric token was actually
  *     recognised. Nothing is guessed, interpolated or carried over between rows.
- *   â€¢ A cell containing two *conflicting* numbers is ambiguous â†’ returned as
+ *   • A cell containing two *conflicting* numbers is ambiguous → returned as
  *     `null` so the administrator decides.
- *   â€¢ If the engine is missing, unreachable or times out, every value is `null`
- *     and `available:false` is reported â€” the upload still succeeds and the
+ *   • If the engine is missing, unreachable or times out, every value is `null`
+ *     and `available:false` is reported — the upload still succeeds and the
  *     admin fills the fields in by hand. OCR never blocks a submission.
  */
 
@@ -78,13 +78,13 @@ export interface OcrStatRow {
 }
 
 export interface OcrScreenshotReading {
-  /** `false` â‡’ engine unavailable/timed out; every value must be treated as NULL. */
+  /** `false` ⇒ engine unavailable/timed out; every value must be treated as NULL. */
   available: boolean;
   engine: string;
   /** Populated when something went wrong, so the admin UI can explain itself. */
   error: string | null;
   durationMs: number;
-  /** Raw full-page text â€” shown to the admin for transparency and debugging. */
+  /** Raw full-page text — shown to the admin for transparency and debugging. */
   fullText: string;
   /** Full-page word boxes (used for the admin's confidence display). */
   words: OcrWord[];
@@ -111,7 +111,7 @@ export interface OcrScreenshotReading {
   warnings: string[];
 }
 
-export const OCR_ENGINE = "tesseract.js (local WASM Tesseract â€” offline, no API key required)";
+export const OCR_ENGINE = "tesseract.js (local WASM Tesseract — offline, no API key required)";
 export const OCR_LANG = process.env.MATCH_RESULT_OCR_LANG?.trim() || "eng";
 
 /**
@@ -150,7 +150,7 @@ function ocrDebug(message: string, detail?: unknown): void {
   console.log(`[match-result-ocr] ${message}`, detail === undefined ? "" : detail);
 }
 
-// â”€â”€ sharp (image preprocessing) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── sharp (image preprocessing) ──────────────────────────────────────────────
 
 interface SharpInstance {
   rotate(): SharpInstance;
@@ -170,7 +170,7 @@ let sharpPromise: Promise<SharpFactory> | null = null;
 
 /**
  * Lazily load sharp exactly like `lib/transcript.ts` does, so a native-module
- * failure can never crash the API server â€” only OCR degrades.
+ * failure can never crash the API server — only OCR degrades.
  */
 export async function loadSharp(): Promise<SharpFactory> {
   if (!sharpPromise) {
@@ -187,7 +187,7 @@ export async function loadSharp(): Promise<SharpFactory> {
   return sharpPromise;
 }
 
-// â”€â”€ tesseract.js (recognition engine) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── tesseract.js (recognition engine) ────────────────────────────────────────
 
 interface TesseractWorker {
   recognize(image: Buffer, options?: unknown, output?: unknown): Promise<{ data: Record<string, unknown> }>;
@@ -296,7 +296,7 @@ export function unavailableReading(error: string, durationMs = 0): OcrScreenshot
   };
 }
 
-// â”€â”€ Text / geometry helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Text / geometry helpers ──────────────────────────────────────────────────
 
 interface Box {
   x0: number;
@@ -313,7 +313,7 @@ interface OcrLine {
   words: OcrWord[];
 }
 
-/** Letters only, lowercased â€” makes label matching immune to OCR punctuation. */
+/** Letters only, lowercased — makes label matching immune to OCR punctuation. */
 function lettersOnly(text: string): string {
   return text.toLowerCase().replace(/[^a-z]/g, "");
 }
@@ -400,7 +400,7 @@ async function recognize(
 /**
  * Reduce a recognised token to digits.
  *
- * `1]` â†’ `"1"` is accepted (trailing OCR punctuation is extremely common), but a
+ * `1]` → `"1"` is accepted (trailing OCR punctuation is extremely common), but a
  * token containing no digit at all (`pi` where `2` was printed) returns `null` so
  * the digit pass gets a chance to re-read that cell.
  */
@@ -419,7 +419,7 @@ function toPlausibleCount(digits: string): number | null {
 /**
  * Find the single unambiguous number inside a box from the page pass.
  * Returns `null` when nothing numeric is there, or when two conflicting numbers
- * are â€” an ambiguous cell is never guessed; it is handed to the digit pass and
+ * are — an ambiguous cell is never guessed; it is handed to the digit pass and
  * ultimately to the admin.
  */
 function numberInBox(words: OcrWord[], box: Box): { value: number; confidence: number } | null {
@@ -440,7 +440,7 @@ function numberInBox(words: OcrWord[], box: Box): { value: number; confidence: n
   return { value, confidence: candidates[0]!.confidence };
 }
 
-/** Cluster word boxes into visual lines, leftâ†’right within each line. */
+/** Cluster word boxes into visual lines, left→right within each line. */
 function groupIntoLines(words: OcrWord[]): OcrLine[] {
   const sorted = [...words].sort((a, b) => (a.y0 + a.y1) / 2 - (b.y0 + b.y1) / 2);
   const lines: OcrLine[] = [];
@@ -449,7 +449,7 @@ function groupIntoLines(words: OcrWord[]): OcrLine[] {
     const centerY = (word.y0 + word.y1) / 2;
     const height = Math.max(1, word.y1 - word.y0);
     const last = lines[lines.length - 1];
-    // Same line when vertical centres nearly coincide â€” tolerant of ascenders and
+    // Same line when vertical centres nearly coincide — tolerant of ascenders and
     // descenders, which is what keeps `Shots on Target` on a single line.
     if (last && Math.abs(centerY - last.centerY) <= Math.max(height, last.height) * 0.7) {
       last.words.push(word);
@@ -468,7 +468,7 @@ function groupIntoLines(words: OcrWord[]): OcrLine[] {
 
 /** The recognisable label of a statistic row, in match priority order. */
 const STAT_LABELS: Array<{ label: CanonicalStat; matches: (letters: string) => boolean }> = [
-  // `Shots on Target` must be tested before `Shots` â€” it is the more specific one.
+  // `Shots on Target` must be tested before `Shots` — it is the more specific one.
   { label: "ShotsOnTarget", matches: (t) => t.includes("shotsontarget") || t.includes("ontarget") || t === "sot" },
   { label: "Possession", matches: (t) => t === "possession" || t === "ballpossession" },
   { label: "CornerKicks", matches: (t) => t === "cornerkicks" || t === "corners" },
@@ -509,7 +509,7 @@ function statisticOf(line: OcrLine): CanonicalStat | null {
   return null;
 }
 
-// â”€ Pass 2: digit repair on isolated cells â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─ Pass 2: digit repair on isolated cells ───────────────────────────────────
 
 const CELL_RENDER_HEIGHT = 90;
 const CELL_SCALE = 4;
@@ -565,7 +565,7 @@ async function readDigitCell(
       .filter((c): c is { digits: string; confidence: number } => !!c.digits && c.confidence >= MIN_DIGIT_CONFIDENCE);
 
     if (candidates.length) {
-      // Two different numbers in one cell is ambiguous â€” leave it to the admin.
+      // Two different numbers in one cell is ambiguous — leave it to the admin.
       if (new Set(candidates.map((c) => c.digits)).size > 1) return null;
       const value = toPlausibleCount(candidates[0]!.digits);
       if (value === null) return null;
@@ -585,7 +585,7 @@ async function readDigitCell(
 
 /**
  * Run the digit pass over every cell the page pass could not trust.
- * Anything still unreadable is simply absent from the map â‡’ "Not detected".
+ * Anything still unreadable is simply absent from the map ⇒ "Not detected".
  */
 async function readDigitCells(
   worker: TesseractWorker,
@@ -612,7 +612,7 @@ async function readDigitCells(
 
   return out;
 }
-// â”€ Image preparation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─ Image preparation ────────────────────────────────────────────────────────
 
 interface PreparedImage {
   bytes: Buffer;
@@ -625,7 +625,7 @@ interface PreparedImage {
  * (Tesseract reads luminance), stretch contrast, and upscale small phone
  * screenshots so the scoreboard digits are large enough to be recognised.
  *
- * Preprocessing must never block recognition â€” any failure falls back to using
+ * Preprocessing must never block recognition — any failure falls back to using
  * the original bytes, and the geometry then simply matches the original size.
  */
 async function prepareImage(bytes: Buffer): Promise<PreparedImage> {
@@ -649,7 +649,7 @@ async function prepareImage(bytes: Buffer): Promise<PreparedImage> {
   }
 }
 
-// â”€ Score line detection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─ Score line detection ─────────────────────────────────────────────────────
 
 /** Heading words that must never be mistaken for a player name. */
 const NAME_STOPWORDS = new Set([
@@ -658,7 +658,7 @@ const NAME_STOPWORDS = new Set([
 ]);
 
 /** Tokens that sit between the two scores on a results screen. */
-const SCORE_SEPARATORS = new Set(["-", "â€“", "â€”", ":", "x", "vs", "v", "l"]);
+const SCORE_SEPARATORS = new Set(["-", "–", "—", ":", "x", "vs", "v", "l"]);
 
 interface ScoreReading {
   home: number | null;
@@ -743,7 +743,7 @@ function splitScoreToken(word: OcrWord): OcrWord[] {
  * a score: a separator token between the two numbers, the tallest text on the
  * page, positioned in the upper half, and carrying exactly two numbers.
  * Candidates are *ranked* rather than filtered so an unusual layout still yields a
- * best effort â€” and whatever is chosen is then re-verified by the digit pass.
+ * best effort — and whatever is chosen is then re-verified by the digit pass.
  */
 /**
  * Read the participant name on one side of the score.
@@ -840,7 +840,7 @@ function findScoreLine(lines: OcrLine[], imageHeight: number): ScoreReading {
   };
 }
 
-// â”€ Statistic extraction â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─ Statistic extraction ─────────────────────────────────────────────────────
 
 interface SideValue {
   value: number | null;
@@ -976,7 +976,7 @@ function columnCenters(rows: RowWork[], words: OcrWord[]): { home: number | null
 
   const medianWidth = median(onRows.map((w) => w.x1 - w.x0)) ?? 0;
   if (splitAt < 1 || widestGap < Math.max(24, medianWidth * 1.5)) {
-    // A single numeric column is all that can be distinguished â€” treat it as home
+    // A single numeric column is all that can be distinguished — treat it as home
     // and leave the away side to the repair pass / the administrator.
     return { home: median(centers), away: null };
   }
@@ -987,7 +987,7 @@ function columnCenters(rows: RowWork[], words: OcrWord[]): { home: number | null
 /**
  * Advisory cross-checks over the resolved rows.
  *
- * These NEVER change a detected value â€” they only annotate rows the administrator
+ * These NEVER change a detected value — they only annotate rows the administrator
  * should look at twice. Per-row notes are written onto `row.warning`; genuinely
  * global observations are returned.
  */
@@ -1009,14 +1009,14 @@ function crossCheck(rows: OcrStatRow[]): string[] {
     const total = shots?.[side] ?? null;
     const onTarget = sot?.[side] ?? null;
     if (total !== null && onTarget !== null && onTarget > total) {
-      mark(shots, `Shots on target (${onTarget}) exceeds total shots (${total}) â€” please verify.`);
+      mark(shots, `Shots on target (${onTarget}) exceeds total shots (${total}) — please verify.`);
     }
   }
 
   // A statistic present on one side but not the other is worth confirming.
   for (const row of rows) {
     if ((row.home === null) !== (row.away === null)) {
-      mark(row, "Only one side of this statistic was read â€” confirm the other value.");
+      mark(row, "Only one side of this statistic was read — confirm the other value.");
     }
   }
 
@@ -1025,7 +1025,7 @@ function crossCheck(rows: OcrStatRow[]): string[] {
   for (const side of ["home", "away"] as const) {
     const v = possession?.[side] ?? null;
     if (v !== null && (v < 0 || v > 100)) {
-      mark(possession, `Possession ${v} is outside the expected 0â€“100 range â€” please verify.`);
+      mark(possession, `Possession ${v} is outside the expected 0–100 range — please verify.`);
     }
   }
 
@@ -1037,7 +1037,7 @@ function crossCheck(rows: OcrStatRow[]): string[] {
     for (const side of ["home", "away"] as const) {
       const v = row?.[side] ?? null;
       if (v !== null && v > 40) {
-        mark(row, `${label} value ${v} looks too high for a single match â€” please verify.`);
+        mark(row, `${label} value ${v} looks too high for a single match — please verify.`);
       }
     }
   }
@@ -1050,13 +1050,13 @@ function crossCheck(rows: OcrStatRow[]): string[] {
  *
  * Flow:
  *   1. normalise the image (rotation, greyscale, contrast, upscale);
- *   2. full-page recognition â†’ words + geometry;
+ *   2. full-page recognition → words + geometry;
  *   3. locate the score line and the statistic rows from that geometry;
  *   4. re-read, with a digits-only whitelist, any numeric cell that was missed or
  *      misread in step 2;
  *   5. report everything, marking anything not confidently read as `null`.
  *
- * A `null` always means "Not detected" â€” the function never guesses a number, so
+ * A `null` always means "Not detected" — the function never guesses a number, so
  * the administrator confirms or corrects it before approval.
  */
 export async function detectMatchResultReading(bytes: Buffer): Promise<OcrScreenshotReading> {
@@ -1088,7 +1088,7 @@ export async function detectMatchResultReading(bytes: Buffer): Promise<OcrScreen
   const rows = rowsFromLines(lines, page.words, prepared.width);
   const centers = columnCenters(rows, page.words);
 
-  // â”€ Repair pass: collect every side the page pass missed or misread â”€â”€
+  // ─ Repair pass: collect every side the page pass missed or misread ──
   // The box is taken from the *tight bounding box of the words already observed*
   // in that cell whenever possible. Tesseract reads an isolated digit far more
   // reliably when the crop hugs the glyph; a generous crop leaves the digit adrift
@@ -1130,7 +1130,7 @@ export async function detectMatchResultReading(bytes: Buffer): Promise<OcrScreen
 
   let usedDigitPass = false;
 
-  // â”€â”€ Merge the repaired values back onto the rows â”€â”€
+  // ── Merge the repaired values back onto the rows ──
   const resolvedRows: OcrStatRow[] = rows.map((row) => {
     const merged: Record<"home" | "away", SideValue> = { home: row.home, away: row.away };
     for (const side of ["home", "away"] as const) {
@@ -1152,7 +1152,7 @@ export async function detectMatchResultReading(bytes: Buffer): Promise<OcrScreen
     };
   });
 
-  // â”€â”€ Merge the repaired score digits â”€â”€
+  // ── Merge the repaired score digits ──
   let homeScore = score.home;
   let awayScore = score.away;
   let homeScoreConfidence = Math.round(score.homeConfidence);
@@ -1171,7 +1171,7 @@ export async function detectMatchResultReading(bytes: Buffer): Promise<OcrScreen
     usedDigitPass = true;
   }
 
-  // â”€â”€ Consistency checks (advisory only â€” never change a value) â”€â”€
+  // ── Consistency checks (advisory only — never change a value) ──
   const warnings = crossCheck(resolvedRows);
   if (usedDigitPass) {
     warnings.push(
@@ -1180,13 +1180,13 @@ export async function detectMatchResultReading(bytes: Buffer): Promise<OcrScreen
   }
   if (homeScore === null || awayScore === null) {
     warnings.push(
-      "The final score could not be read confidently from this screenshot â€” enter it manually and confirm it against the image.",
+      "The final score could not be read confidently from this screenshot — enter it manually and confirm it against the image.",
     );
   } else if (homeScore === awayScore) {
-    warnings.push("The detected score is a draw â€” confirm this is correct for this fixture.");
+    warnings.push("The detected score is a draw — confirm this is correct for this fixture.");
   }
   if (homeScore !== null && awayScore !== null && (homeScore > 30 || awayScore > 30)) {
-    warnings.push(`An unusually high score was detected (${homeScore}â€“${awayScore}) â€” please verify.`);
+    warnings.push(`An unusually high score was detected (${homeScore}–${awayScore}) — please verify.`);
   }
   if (!resolvedRows.length) {
     warnings.push(

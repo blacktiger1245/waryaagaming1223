@@ -9,7 +9,6 @@ import {
   pointsToMarketValue,
 } from "@workspace/db";
 import { eq, and, or, isNull, isNotNull, inArray, desc } from "drizzle-orm";
-
 /**
  * Canonical statistics synchronisation.
  *
@@ -333,11 +332,70 @@ export async function syncStatsAfterFixture(
 }
 
 /**
+ * Older/manual player pairings only stored a display name. Link them to the
+ * matching player profile so their goals/appearances/MOTM reach the profile and
+ * the rankings. Runs as part of the boot refresh.
+ */
+export async function backfillPlayerGameIds(): Promise<number> {
+  const rows = await db
+    .select({
+      id: matchPlayerGamesTable.id,
+      homePlayerId: matchPlayerGamesTable.homePlayerId,
+      homePlayerName: matchPlayerGamesTable.homePlayerName,
+      awayPlayerId: matchPlayerGamesTable.awayPlayerId,
+      awayPlayerName: matchPlayerGamesTable.awayPlayerName,
+    })
+    .from(matchPlayerGamesTable)
+    .where(or(isNull(matchPlayerGamesTable.homePlayerId), isNull(matchPlayerGamesTable.awayPlayerId)));
+
+  if (rows.length === 0) return 0;
+
+  const names = new Set<string>();
+  for (const row of rows) {
+    if (row.homePlayerId == null && row.homePlayerName) names.add(row.homePlayerName);
+    if (row.awayPlayerId == null && row.awayPlayerName) names.add(row.awayPlayerName);
+  }
+  if (names.size === 0) return 0;
+
+  const list = Array.from(names);
+  const players = await db
+    .select({ id: playersTable.id, displayName: playersTable.displayName, username: playersTable.username })
+    .from(playersTable)
+    .where(or(inArray(playersTable.displayName, list), inArray(playersTable.username, list)));
+
+  const idByName = new Map<string, number>();
+  for (const p of players) {
+    if (p.displayName) idByName.set(p.displayName, p.id);
+    if (p.username) idByName.set(p.username, p.id);
+  }
+
+  let updated = 0;
+  for (const row of rows) {
+    const patch: { homePlayerId?: number; awayPlayerId?: number } = {};
+    if (row.homePlayerId == null && row.homePlayerName) {
+      const found = idByName.get(row.homePlayerName);
+      if (found) patch.homePlayerId = found;
+    }
+    if (row.awayPlayerId == null && row.awayPlayerName) {
+      const found = idByName.get(row.awayPlayerName);
+      if (found) patch.awayPlayerId = found;
+    }
+    if (Object.keys(patch).length > 0) {
+      await db.update(matchPlayerGamesTable).set(patch).where(eq(matchPlayerGamesTable.id, row.id));
+      updated++;
+    }
+  }
+  return updated;
+}
+
+/**
  * Rebuild every player's and clan's derived statistics from all completed
  * results. Run once at boot (and available through the admin endpoint) so
  * profiles/rankings self-heal after result imports, edits or legacy data.
  */
-export async function refreshAllStats(): Promise<{ players: number; teams: number }> {
+export async function refreshAllStats(): Promise<{ players: number; teams: number; linkedGames: number }> {
+  const linkedGames = await backfillPlayerGameIds();
+
   const players = await db.select({ id: playersTable.id }).from(playersTable);
   const CHUNK = 100;
   for (let i = 0; i < players.length; i += CHUNK) {
@@ -351,5 +409,5 @@ export async function refreshAllStats(): Promise<{ players: number; teams: numbe
   const teams = await db.select({ id: teamsTable.id }).from(teamsTable);
   await recalculateTeamStats(teams.map((t) => t.id));
 
-  return { players: players.length, teams: teams.length };
+  return { players: players.length, teams: teams.length, linkedGames };
 }

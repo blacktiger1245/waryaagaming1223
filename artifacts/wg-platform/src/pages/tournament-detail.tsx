@@ -35,7 +35,7 @@ const matchStatusColors: Record<string, string> = {
   cancelled: "text-destructive",
 };
 
-// â”€â”€â”€ League Table â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── League Table ─────────────────────────────────────────────────────────────
 
 interface Standing {
   id: number;
@@ -126,9 +126,9 @@ function LeagueTable({ matches, totalTeams, logoMap = {}, profileHref, logoForId
     );
   }
 
-  const promotionCutoff = Math.ceil(totalTeams * 0.25); // top 25% â†’ Champions League green
-  const europaEnd = Math.ceil(totalTeams * 0.40);       // next 15% â†’ Europa orange
-  const relegationStart = totalTeams - Math.floor(totalTeams * 0.15); // bottom 15% â†’ relegation red
+  const promotionCutoff = Math.ceil(totalTeams * 0.25); // top 25% → Champions League green
+  const europaEnd = Math.ceil(totalTeams * 0.40);       // next 15% → Europa orange
+  const relegationStart = totalTeams - Math.floor(totalTeams * 0.15); // bottom 15% → relegation red
 
   return (
     <div className="rounded-xl border border-border overflow-hidden">
@@ -225,7 +225,7 @@ function LeagueTable({ matches, totalTeams, logoMap = {}, profileHref, logoForId
   );
 }
 
-// â”€â”€â”€ Match Detail Dialog (public, read-only player matchups) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Match Detail Dialog (public, read-only player matchups) ──────────────────
 
 // Small helper: a player's name that links to their public profile when known.
 function PlayerNameLink({
@@ -316,14 +316,14 @@ function MatchDetailDialog({
             <div className="text-center shrink-0 min-w-[72px]">
               {done ? (
                 <div className="text-3xl font-black tabular-nums">
-                  {match.participant1Score} â€“ {match.participant2Score}
+                  {match.participant1Score} – {match.participant2Score}
                 </div>
               ) : live ? (
                 <div className="flex flex-col items-center gap-1">
                   <span className="flex items-center gap-1 text-red-400 font-bold text-xs">
                     <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /> LIVE
                   </span>
-                  {played > 0 && <span className="text-xl font-black tabular-nums">{homeWins} â€“ {awayWins}</span>}
+                  {played > 0 && <span className="text-xl font-black tabular-nums">{homeWins} – {awayWins}</span>}
                 </div>
               ) : (
                 <span className="text-muted-foreground font-bold">vs</span>
@@ -445,7 +445,7 @@ function MatchDetailDialog({
                     <div className="text-center min-w-[64px]">
                       {gDone ? (
                         <span className={`font-mono font-black text-base tabular-nums ${hWin || aWin ? "" : "text-muted-foreground"}`}>
-                          {game.homeScore} â€“ {game.awayScore}
+                          {game.homeScore} – {game.awayScore}
                         </span>
                       ) : (
                         <span className="text-muted-foreground text-xs font-bold">vs</span>
@@ -472,11 +472,11 @@ function MatchDetailDialog({
         {played > 0 && (
           <div className="px-6 py-3 border-t border-border shrink-0 bg-muted/10 text-center text-sm">
             {homeWins > awayWins ? (
-              <span className="font-black text-emerald-400">{match.participant1Name} leads {homeWins}â€“{awayWins}</span>
+              <span className="font-black text-emerald-400">{match.participant1Name} leads {homeWins}–{awayWins}</span>
             ) : awayWins > homeWins ? (
-              <span className="font-black text-emerald-400">{match.participant2Name} leads {awayWins}â€“{homeWins}</span>
+              <span className="font-black text-emerald-400">{match.participant2Name} leads {awayWins}–{homeWins}</span>
             ) : (
-              <span className="font-bold text-muted-foreground">Tied {homeWins}â€“{awayWins}</span>
+              <span className="font-bold text-muted-foreground">Tied {homeWins}–{awayWins}</span>
             )}
           </div>
         )}
@@ -612,7 +612,7 @@ function PlayerGamesInline({
   );
 }
 
-// â”€â”€â”€ Register Button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Register Button ──────────────────────────────────────────────────────────
 
 function RegisterButton({ tournamentId, status, isFull, isClanTournament }: { tournamentId: number; status: string; isFull: boolean; isClanTournament?: boolean; playersPerTeam?: number | null }) {
   const { user, isLoading: authLoading, loginWithDiscord } = useAuth();
@@ -679,7 +679,7 @@ function RegisterButton({ tournamentId, status, isFull, isClanTournament }: { to
   const teamManagerLoading = !!isClanTournament && !!user && myTeamLoading;
 
   if (authLoading || regLoading || teamManagerLoading) {
-    return <Button disabled className="gap-2 h-12 px-6 text-base"><Loader2 className="w-4 h-4 animate-spin" /> Loadingâ€¦</Button>;
+    return <Button disabled className="gap-2 h-12 px-6 text-base"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</Button>;
   }
 
   if (!user) {
@@ -801,7 +801,7 @@ function TournamentAdminPanel({ tournamentId, createdBy }: { tournamentId: numbe
           {error && <p className="text-sm text-destructive">{error}</p>}
           <div className="flex flex-col sm:flex-row gap-2">
             <select value={playerId} onChange={(event) => setPlayerId(event.target.value)} className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm">
-              <option value="">Select a Discord memberâ€¦</option>
+              <option value="">Select a Discord member…</option>
               {availablePlayers.map((player) => <option key={player.id} value={player.id}>{player.displayName ?? player.username}</option>)}
             </select>
             <Button size="sm" disabled={!playerId} onClick={() => updateAdmin("POST", Number(playerId))}>Add admin</Button>
@@ -847,7 +847,7 @@ function getFormatConfig(format: string | undefined): FormatConfig {
   return FORMAT_CONFIG[format as TournamentFormat] ?? FORMAT_CONFIG["single-elimination"];
 }
 
-// â”€â”€â”€ Tab Bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Tab Bar ──────────────────────────────────────────────────────────────────
 
 interface TabDef {
   key: string;
@@ -888,7 +888,7 @@ function TournamentTabs({
   );
 }
 
-// â”€â”€â”€ Main Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Main Page ────────────────────────────────────────────────────────────────
 // Group Standings
 
 function buildGroupStandings(matches: Match[]) {
@@ -1009,7 +1009,7 @@ function GroupStandings({ matches, logoMap = {}, profileHref, logoForId }: { mat
   );
 }
 
-// Ã¢â€â‚¬Ã¢â€â‚¬ Tournament Stats Component Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+// ── Tournament Stats Component ────────────────────────────────────────────────────────────
 
 function TournamentStatsView({
   stats,
@@ -1202,7 +1202,7 @@ export default function TournamentDetailPage() {
     );
   }
 
-  // The API returns tournamentType but the generated type is stale â€” cast through unknown
+  // The API returns tournamentType but the generated type is stale — cast through unknown
   const isTeamTournament = (tournament as unknown as { tournamentType?: string }).tournamentType === "team";
   const createdBy = (tournament as unknown as { createdBy?: number | null }).createdBy;
 
@@ -1231,13 +1231,13 @@ export default function TournamentDetailPage() {
             <span className="text-xs text-muted-foreground">{tournament.game}</span>
             {isTeamTournament && (
               <>
-                <span className="text-xs text-muted-foreground">â€¢</span>
+                <span className="text-xs text-muted-foreground">•</span>
                 <span className="wg-chip">Team League</span>
               </>
             )}
             {!isTeamTournament && (
               <>
-                <span className="text-xs text-muted-foreground">â€¢</span>
+                <span className="text-xs text-muted-foreground">•</span>
                 <span className="text-xs text-muted-foreground capitalize">{tournament.format.replace(/-/g, " ")}</span>
               </>
             )}
@@ -1289,10 +1289,25 @@ export default function TournamentDetailPage() {
               label: "Start Date",
               value: tournament.startDate
                 ? new Date(tournament.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-                : "TBD",
+                : (() => {
+                    // Active tournaments start when they are created; fall back to
+                    // the creation date for legacy rows saved without a start date.
+                    const createdAt = (tournament as unknown as { createdAt?: string }).createdAt;
+                    if (tournament.status !== "upcoming" && createdAt) {
+                      return new Date(createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+                    }
+                    return "TBD";
+                  })(),
               icon: Calendar,
             },
-            { label: "Winner", value: tournament.winnerName ?? "TBD", icon: Trophy },
+            {
+              label: "Winner",
+              value:
+                tournament.winnerName && tournament.winnerName.trim().toUpperCase() !== "BYE"
+                  ? tournament.winnerName
+                  : "TBD",
+              icon: Trophy,
+            },
           ].map(({ label, value, icon: Icon }) => (
             <div key={label} className="wg-stat flex flex-col gap-2">
               <Icon className="w-5 h-5 text-[var(--acc)]" />

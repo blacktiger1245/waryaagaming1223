@@ -617,7 +617,7 @@ export default function TeamDetailPage() {
   const isPresident = !!user && user.id === (team as any)?.presidentId;
   const isCoach =
     !!user &&
-    (isPresident || user.id === (team as any)?.coachId || user.username === "black_tiger" || user.role === "admin" || user.role === "owner");
+    (isPresident || user.id === (team as any)?.coachId || (user.username ?? "").toLowerCase() === "black_tiger" || user.role === "admin" || user.role === "owner");
   const isCaptain = !!user && user.id === team?.captainId;
 
   const [kickConfirmId,    setKickConfirmId]    = useState<number | null>(null);
@@ -1814,11 +1814,11 @@ export default function TeamDetailPage() {
                                   </div>
                                 </Link>
 
-                                {/* Coach action buttons */}
-                                {isCoach && (
+                                {/* Management action buttons (coach + captain) */}
+                                {(isCoach || isCaptain) && (
                                   <div className="flex items-center gap-1.5 shrink-0">
-                                    {/* Make Captain */}
-                                    {!isMemberCaptain && (
+                                    {/* Make Captain — coach/president only */}
+                                    {isCoach && !isMemberCaptain && (
                                       <button
                                         onClick={() => setChangeCaptainId(isNewCaptain ? null : m.id)}
                                         className={`text-[10px] font-black px-2 py-1 rounded-lg border transition-colors
@@ -1837,8 +1837,8 @@ export default function TeamDetailPage() {
                                         <RefreshCw className="w-3 h-3" />
                                       </button>
                                     )}
-                                    {/* Kick */}
-                                    {!isMemberCaptain && !isMemberCoach && (
+                                    {/* Kick — coach, president or captain */}
+                                    {!isMemberCaptain && !isMemberCoach && !isMemberPresident && (
                                       <button
                                         onClick={() => setKickConfirmId(isKicking ? null : m.id)}
                                         className={`text-[10px] font-black px-2 py-1 rounded-lg border transition-colors

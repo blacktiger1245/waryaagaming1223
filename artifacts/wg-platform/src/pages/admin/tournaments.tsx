@@ -1102,6 +1102,7 @@ export default function AdminTournamentsPage() {
           { name: "endDate", label: "End Date" },
           { name: "prizePool", label: "Prize Pool" },
           { name: "hostedBy", label: "Hosted By" },
+          { name: "winnerName", label: "Winner (auto from results — editable)" },
           { name: "logoUrl", label: "Tournament Image", type: "image" },
           { name: "maxParticipants", label: "Max Participants", type: "number" },
           { name: "rules", label: "Rules", type: "textarea" },

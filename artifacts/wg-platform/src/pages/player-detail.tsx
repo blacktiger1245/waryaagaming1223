@@ -223,6 +223,40 @@ export default function PlayerDetailPage() {
     [liveStats, teamGameStats]
   );
 
+  // Stored (server-recomputed) statistics. These are the canonical numbers that
+  // also drive points/market value; used as a fallback so a profile never shows
+  // zeros when the match feeds are missing or a duel was recorded by name only.
+  const storedStats = useMemo<AggStats>(() => {
+    // The generated Player type does not list the statistics columns yet, so read
+    // them through a narrow cast of the same row.
+    const stored = (player ?? {}) as unknown as {
+      matchesPlayed?: number | null;
+      matchesWon?: number | null;
+      matchesLost?: number | null;
+      draws?: number | null;
+      goalsScored?: number | null;
+      goalsConceded?: number | null;
+      cleanSheets?: number | null;
+      manOfTheMatch?: number | null;
+    };
+    return {
+      played: stored.matchesPlayed ?? 0,
+      wins: stored.matchesWon ?? 0,
+      draws: stored.draws ?? 0,
+      losses: stored.matchesLost ?? 0,
+      goals: stored.goalsScored ?? 0,
+      conceded: stored.goalsConceded ?? 0,
+      cleanSheets: stored.cleanSheets ?? 0,
+      motm: stored.manOfTheMatch ?? 0,
+      deciderWins: 0,
+    };
+  }, [player]);
+
+  // The live feeds win when they have data; otherwise fall back to the stored
+  // totals (never both, so nothing is double counted).
+  const soloStats = liveStats.played > 0 || teamGameStats.played > 0 ? liveStats : storedStats;
+  const overallStats = overall.played > 0 ? overall : storedStats;
+
   // ── Seasons + tournament→season mapping (for the Overall scope picker) ────
   const { data: seasons = [] } = useQuery<any[]>({
     queryKey: ["seasons"],
@@ -465,7 +499,7 @@ export default function PlayerDetailPage() {
     // Stats source: career aggregate or the selected season's aggregate
     const scopeStats: AggStats =
       overallScope === "career"
-        ? overall
+        ? overallStats
         : statsBySeason.get(overallScope as number) ?? ZERO_AGG;
     const { played, wins: won, draws: drawn, losses: lost, goals: goalsScored } = scopeStats;
     const winPct = played > 0 ? Math.round((won / played) * 100) : 0;
@@ -659,11 +693,11 @@ export default function PlayerDetailPage() {
         {/* Summary cards — live from computed stats */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {[
-            { label: "Played",       value: overall.played,   color: "" },
-            { label: "Won",          value: overall.wins,     color: "text-primary" },
-            { label: "Draw",         value: overall.draws,    color: "text-amber-400" },
-            { label: "Lost",         value: overall.losses,   color: "text-destructive" },
-            { label: "Goals Scored", value: overall.goals,    color: "text-teal-400" },
+            { label: "Played",       value: overallStats.played,   color: "" },
+            { label: "Won",          value: overallStats.wins,     color: "text-primary" },
+            { label: "Draw",         value: overallStats.draws,    color: "text-amber-400" },
+            { label: "Lost",         value: overallStats.losses,   color: "text-destructive" },
+            { label: "Goals Scored", value: overallStats.goals,    color: "text-teal-400" },
           ].map(({ label, value, color }) => (
             <div key={label} className="rounded-2xl border border-border bg-card p-5 text-center">
               <div className={`text-3xl font-black ${color}`}>{value}</div>
@@ -907,7 +941,7 @@ export default function PlayerDetailPage() {
 
   function SoloTab() {
     if (!player) return null;
-    const { played, wins: won, losses: lost, draws: drawn, goals, cleanSheets, motm, deciderWins } = liveStats;
+    const { played, wins: won, losses: lost, draws: drawn, goals, cleanSheets, motm, deciderWins } = soloStats;
     const winRate = played > 0 ? Math.round((won / played) * 100) : 0;
 
     const marketValue = marketValueLabel((player as any).marketValue ?? pointsToMarketValue(player.points ?? 0));
@@ -922,7 +956,7 @@ export default function PlayerDetailPage() {
       { icon: <ShieldCheck className="w-6 h-6 text-violet-400" />, value: cleanSheets,                 label: "Clean Sheets" },
       { icon: <BarChart2   className="w-6 h-6 text-primary"    />, value: `${winRate}%`,               label: "Win Rate" },
       { icon: <Star        className="w-6 h-6 text-amber-400"  />, value: motm,                        label: "MOTM" },
-      { icon: <Square      className="w-6 h-6 text-orange-400" />, value: 0,                           label: "Card" },
+      { icon: <Square      className="w-6 h-6 text-orange-400" />, value: ((player as unknown as { yellowCards?: number | null; redCards?: number | null }).yellowCards ?? 0) + ((player as unknown as { yellowCards?: number | null; redCards?: number | null }).redCards ?? 0), label: "Card" },
       { icon: <Award       className="w-6 h-6 text-amber-400"  />, value: player.tournamentWins ?? 0,  label: "Tournament Win" },
       { icon: <Coins       className="w-6 h-6 text-amber-400"  />, value: marketValue,                 label: "Market Value" },
     ];
@@ -1102,7 +1136,7 @@ export default function PlayerDetailPage() {
             {activeTab === "card"     && (
               <PlayerCard
                 player={player}
-                overall={overall}
+                overall={overallStats}
                 marketValue={marketValueLabel((player as any).marketValue ?? pointsToMarketValue(player.points ?? 0))}
               />
             )}

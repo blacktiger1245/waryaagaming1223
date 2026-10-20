@@ -19,7 +19,7 @@ import { syncStatsAfterFixture } from "../lib/stats-sync";
 const router = Router();
 const objectStorageService = new ObjectStorageService();
 
-// â”€â”€ Auth helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Auth helpers ─────────────────────────────────────────────────────────────
 function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (req.session?.userId) return next();
   return res.status(401).json({ error: "You must be logged in" });
@@ -41,8 +41,8 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
  * Identify the administrator performing an action.
  *
  * Two session styles exist in this codebase:
- *   â€¢ Discord-authenticated staff â€” `session.userId` points at their player row.
- *   â€¢ Legacy password admin â€” only `session.adminUsername` / `session.isAdmin`
+ *   • Discord-authenticated staff — `session.userId` points at their player row.
+ *   • Legacy password admin — only `session.adminUsername` / `session.isAdmin`
  *     are set, so the player row (when one exists) is looked up by username.
  *
  * The audit trail always records a name; `adminId` is null when no player row can
@@ -70,12 +70,12 @@ async function resolveAdminIdentity(req: Request): Promise<{ adminId: number | n
   return { adminId: player?.id ?? null, adminName: player?.displayName ?? username };
 }
 
-// â”€â”€ Serializers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Serializers ──────────────────────────────────────────────────────────────
 function iso(value: Date | null | undefined): string | null {
   return value ? value.toISOString() : null;
 }
 
-// â”€â”€ OCR provenance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── OCR provenance ───────────────────────────────────────────────────────────
 /**
  * Everything the recognition pass learnt about a screenshot, kept so the admin can
  * audit exactly where each extracted number came from. Persisted as a JSON string.
@@ -245,14 +245,14 @@ function serializeSubmission(row: typeof matchResultSubmissionsTable.$inferSelec
   };
 }
 
-// â”€â”€ Canonical player-vs-player statistics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Canonical player-vs-player statistics ────────────────────────────────────
 /**
  * The statistics list, in display order. This is the ONE place the list lives on
  * the API side, so a rename can never drift between the submission row, the
  * player-matchup row and the approve response.
  *
  * `Successful Passes` is deliberately a single field (`homeSuccessfulPasses` /
- * `awaySuccessfulPasses`) â€” there is no separate `passes` or `successful` field.
+ * `awaySuccessfulPasses`) — there is no separate `passes` or `successful` field.
  */
 const STAT_KEYS = [
   "homePossession",
@@ -291,7 +291,7 @@ function statColumns(source: Partial<Record<StatKey, number | null>>): Record<St
 }
 
 /**
- * The same statistics grouped by statistic name with both sides alongside it â€”
+ * The same statistics grouped by statistic name with both sides alongside it —
  * the shape the approve response reports, so a caller never has to know the
  * home/away field naming.
  */
@@ -310,7 +310,7 @@ function statSides(
   return out;
 }
 
-// â”€â”€ Authorization: is this logged-in player/team assigned to the fixture? â”€â”€â”€â”€â”€
+// ── Authorization: is this logged-in player/team assigned to the fixture? ─────
 async function isFixtureParticipant(
   match: { tournamentId: number; participant1Id: number | null; participant2Id: number | null },
   userId: number,
@@ -338,7 +338,7 @@ async function isFixtureParticipant(
 /**
  * Authorization for a player-vs-player matchup inside a team fixture: only the
  * two players actually named on the game may act on it. Team membership alone
- * is NOT enough â€” a teammate who is not playing this specific game cannot
+ * is NOT enough — a teammate who is not playing this specific game cannot
  * submit its screenshot.
  */
 function isPlayerGameParticipant(
@@ -347,7 +347,7 @@ function isPlayerGameParticipant(
 ): boolean {
   return game.homePlayerId === userId || game.awayPlayerId === userId;
 }
-// â”€â”€ Player: read my latest submission for a fixture â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Player: read my latest submission for a fixture ──────────────────────────
 router.get("/matches/:id/result-submission", requireAuth, async (req: Request, res: Response) => {
   const fixtureId = Number(req.params.id);
   if (isNaN(fixtureId)) return res.status(400).json({ error: "Invalid id" });
@@ -378,7 +378,7 @@ router.get("/matches/:id/result-submission", requireAuth, async (req: Request, r
   return res.json(submission ? serializeSubmission(submission) : null);
 });
 
-// â”€â”€ Player: upload match-result screenshot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Player: upload match-result screenshot ───────────────────────────────────
 router.post("/matches/:id/result-submission", requireAuth, async (req: Request, res: Response) => {
   const fixtureId = Number(req.params.id);
   if (isNaN(fixtureId)) return res.status(400).json({ error: "Invalid id" });
@@ -388,7 +388,7 @@ router.post("/matches/:id/result-submission", requireAuth, async (req: Request, 
   const [match] = await db.select().from(matchesTable).where(eq(matchesTable.id, fixtureId));
   if (!match) return res.status(404).json({ error: "Fixture not found" });
 
-  // Only players/teams assigned to this fixture may submit a result â€” admins and
+  // Only players/teams assigned to this fixture may submit a result — admins and
   // owners are exempt so they can upload a screenshot on a player's behalf.
   const role = req.session?.role;
   const isAdmin = role === "admin" || role === "owner" || !!req.session?.isAdmin;
@@ -406,7 +406,7 @@ router.post("/matches/:id/result-submission", requireAuth, async (req: Request, 
     : [null];
   if (tournament?.tournamentType === "team") {
     return res.status(400).json({
-      error: "This is a team fixture â€” open it and upload the screenshot on your player-vs-player matchup instead",
+      error: "This is a team fixture — open it and upload the screenshot on your player-vs-player matchup instead",
     });
   }
 
@@ -481,7 +481,7 @@ router.post("/matches/:id/result-submission", requireAuth, async (req: Request, 
   });
 });
 
-// â”€â”€ Player: read my latest submission for a player-vs-player matchup â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Player: read my latest submission for a player-vs-player matchup ─────────
 router.get("/player-games/:id/result-submission", requireAuth, async (req: Request, res: Response) => {
   const gameId = Number(req.params.id);
   if (isNaN(gameId)) return res.status(400).json({ error: "Invalid id" });
@@ -507,7 +507,7 @@ router.get("/player-games/:id/result-submission", requireAuth, async (req: Reque
   return res.json(submission ? serializeSubmission(submission) : null);
 });
 
-// â”€â”€ Player: upload match-result screenshot for a player-vs-player matchup â”€â”€â”€â”€
+// ── Player: upload match-result screenshot for a player-vs-player matchup ────
 // This is where team-fixture results live: the submission is bound to the exact
 // matchup (match_player_games.id) AND to the parent fixture (fixture_id) so the
 // admin queue, audit trail and cascade behaviour are unchanged.
@@ -520,7 +520,7 @@ router.post("/player-games/:id/result-submission", requireAuth, async (req: Requ
   const [game] = await db.select().from(matchPlayerGamesTable).where(eq(matchPlayerGamesTable.id, gameId));
   if (!game) return res.status(404).json({ error: "Player matchup not found" });
 
-  // Only the two players actually playing this matchup may submit its result â€”
+  // Only the two players actually playing this matchup may submit its result —
   // a teammate who is not in this pairing cannot. Admins/owners are exempt so
   // they can upload a screenshot on a player's behalf.
   const role = req.session?.role;
@@ -655,7 +655,7 @@ router.post("/admin/player-games/:id/result-submission", requireAdmin, async (re
   if (!game) return res.status(404).json({ error: "Player matchup not found" });
   return adminUploadSubmission(req, res, { fixtureId: game.matchId, playerGameId: game.id });
 });
-// â”€â”€ Admin: list all submissions with fixture + tournament context â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Admin: list all submissions with fixture + tournament context ────────────
 router.get("/admin/match-result-submissions", requireAdmin, async (req: Request, res: Response) => {
   const rows = await db
     .select({
@@ -708,7 +708,7 @@ router.get("/admin/match-result-submissions", requireAdmin, async (req: Request,
   );
 });
 
-// â”€â”€ Admin: approve a submission and auto-write the official result â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Admin: approve a submission and auto-write the official result ───────────
 router.post("/admin/match-result-submissions/:id/approve", requireAdmin, async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
@@ -861,7 +861,7 @@ router.post("/admin/match-result-submissions/:id/approve", requireAdmin, async (
     updatedMatch = refetched!;
   } else {
     // Solo fixture: the fixture itself is the player matchup. The card columns on
-    // `matches` are intentionally left untouched â€” yellow/red cards are not part of
+    // `matches` are intentionally left untouched — yellow/red cards are not part of
     // the player-vs-player statistics set (they were replaced by Offside and Free
     // Kicks), so nothing here may write a card count.
     [updatedMatch] = await db
@@ -936,7 +936,7 @@ router.post("/admin/match-result-submissions/:id/approve", requireAdmin, async (
 
   // Propagate to the bracket and refresh player rankings/statistics. For a
   // player-vs-player approval the parent fixture may still be waiting on other
-  // matchups â€” only advance the bracket once the parent itself is completed.
+  // matchups — only advance the bracket once the parent itself is completed.
   try {
     await advanceKnockoutWinner(updatedMatch);
   } catch (err) {
@@ -956,7 +956,7 @@ router.post("/admin/match-result-submissions/:id/approve", requireAdmin, async (
     statistics: statSides(confirmed),
   });
 });
-// â”€â”€ Admin: reject a submission with a reason â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Admin: reject a submission with a reason ─────────────────────────────────
 router.post("/admin/match-result-submissions/:id/reject", requireAdmin, async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   if (isNaN(id)) return res.status(400).json({ error: "Invalid id" });
@@ -997,7 +997,7 @@ router.post("/admin/match-result-submissions/:id/reject", requireAdmin, async (r
   return res.json(serializeSubmission(rejected));
 });
 
-// â”€â”€ Admin: reopen an approved result so the player can resubmit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Admin: reopen an approved result so the player can resubmit ──────────────
 // A completed fixture is frozen: the player cannot upload again until an admin
 // reopens it. Reopening reverts the fixture to its pre-result state, releases the
 // frozen submission ("reopened") and is recorded in the audit trail.
@@ -1016,7 +1016,7 @@ router.post("/admin/match-result-submissions/:id/reopen", requireAdmin, async (r
   }
 
   const body = (req.body ?? {}) as Record<string, unknown>;
-  const reason = String(body.reason ?? "").trim() || "Fixture reopened by an administrator â€” please resubmit a screenshot.";
+  const reason = String(body.reason ?? "").trim() || "Fixture reopened by an administrator — please resubmit a screenshot.";
 
   const [reopened] = await db
     .update(matchResultSubmissionsTable)
@@ -1036,7 +1036,7 @@ router.post("/admin/match-result-submissions/:id/reopen", requireAdmin, async (r
         .where(eq(matchPlayerGamesTable.id, submission.playerGameId));
       await recalculateTeamScore(match.id);
       // recalculateTeamScore leaves the parent status untouched when no game has
-      // a score â€” if the parent was completed by this matchup and nothing scored
+      // a score — if the parent was completed by this matchup and nothing scored
       // remains, roll it back to scheduled so it no longer shows a final result.
       const remaining = await db
         .select({ homeScore: matchPlayerGamesTable.homeScore, awayScore: matchPlayerGamesTable.awayScore })
@@ -1090,7 +1090,7 @@ router.post("/admin/match-result-submissions/:id/reopen", requireAdmin, async (r
   return res.json(serializeSubmission(reopened));
 });
 
-// â”€â”€ Admin: audit log of every approve/reject action â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Admin: audit log of every approve/reject action ──────────────────────────
 router.get("/admin/match-result-audit", requireAdmin, async (req: Request, res: Response) => {
   const rows = await db
     .select({

@@ -18,6 +18,7 @@ import {
   GetTournamentBracketParams,
   GetTournamentMatchesParams,
 } from "@workspace/api-zod";
+import { resolveAndStoreTournamentWinner } from "../lib/tournament-winner";
 
 const router = Router();
 
@@ -67,8 +68,22 @@ router.get("/tournaments", async (req, res) => {
     .groupBy(tournamentParticipantsTable.tournamentId);
   const countMap = new Map(counts.map((row) => [row.tournamentId, Number(row.count)]));
 
+  // Never show "Winner: TBD" for a finished tournament — resolve the champion
+  // from the final (knock-out) or the standings (league) on first read.
+  const withWinners = await Promise.all(
+    tournaments.map(async (t) => {
+      if (t.winnerName || t.status === "upcoming") return t;
+      try {
+        const winner = await resolveAndStoreTournamentWinner(t);
+        return winner.name ? { ...t, winnerName: winner.name } : t;
+      } catch {
+        return t;
+      }
+    }),
+  );
+
   return res.json(
-    tournaments.map((t) => ({
+    withWinners.map((t) => ({
       ...t,
       currentParticipants: countMap.get(t.id) ?? 0,
       createdAt: t.createdAt.toISOString(),
@@ -91,8 +106,15 @@ router.post("/tournaments", async (req, res) => {
     return res.status(400).json({ error: "startDate is required for upcoming tournaments" });
   }
 
+  // A tournament created straight into "active" starts today — the creation date
+  // is its start date, so the UI never shows "Start Date: TBD".
+  const startDate =
+    body.data.startDate ??
+    (status === "active" || status === "completed" ? new Date().toISOString().slice(0, 10) : undefined);
+
   const [tournament] = await db.insert(tournamentsTable).values({
     ...body.data,
+    startDate,
     status,
     teamCount: body.data.teamCount ?? undefined,
     isClanTournament: body.data.isClanTournament ?? false,
@@ -181,10 +203,23 @@ router.get("/tournaments/:id", async (req, res) => {
 
   if (!tournament) return res.status(404).json({ error: "Tournament not found" });
 
+  // Resolve the champion on read so the header never shows "Winner: TBD" for a
+  // tournament whose results are already decided.
+  let winnerName = tournament.winnerName;
+  if (!winnerName && tournament.status !== "upcoming") {
+    try {
+      const winner = await resolveAndStoreTournamentWinner(tournament);
+      winnerName = winner.name ?? null;
+    } catch {
+      // Never fail the page just because the champion could not be derived.
+    }
+  }
+
   // Always report the live registered count (e.g. 0/16 → 1/16 after a join).
   const registered = await countParticipants(tournament.id);
   return res.json({
     ...tournament,
+    winnerName,
     currentParticipants: registered,
     createdAt: tournament.createdAt.toISOString(),
   });

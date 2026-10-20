@@ -6,7 +6,7 @@
  *      powered by `sharp`, already an api-server dependency and externalized by
  *      the build / lazily imported exactly like `lib/transcript.ts`).
  *   2. Read the text out of the screenshot with a real OCR engine
- *      (`detectMatchResultReading` in `matchResultOcr.ts` â€” tesseract.js running
+ *      (`detectMatchResultReading` in `matchResultOcr.ts` — tesseract.js running
  *      locally over WASM, no API key required). The engine is resolved lazily so
  *      a missing/broken engine degrades to "Not detected" instead of a crash.
  *   3. Map the recognised values onto the fixture's score + statistic fields.
@@ -14,7 +14,7 @@
  * IMPORTANT (honesty over hallucination):
  *   OCR is best-effort. A value is only ever populated when the engine actually
  *   recognised a numeric token with sufficient confidence. When a value cannot be
- *   read we MUST NOT invent a number â€” the field stays `null` (`"Not detected"`)
+ *   read we MUST NOT invent a number — the field stays `null` (`"Not detected"`)
  *   and the administrator confirms/corrects it on the review screen before
  *   approval. An unavailable engine only ever *removes* detected values; it never
  *   changes this fallback.
@@ -34,7 +34,7 @@ const MAX_DIMENSION = 12000; // guard against decompression bombs
 
 /**
  * Lazily load sharp the same way `lib/transcript.ts` does: a native-module
- * failure can then never crash the whole API server â€” only the upload endpoint
+ * failure can then never crash the whole API server — only the upload endpoint
  * that needs it returns an error.
  */
 async function loadSharp() {
@@ -77,7 +77,7 @@ export async function assertSafeImage(bytes: Buffer): Promise<{ format: string; 
   try {
     sharp = await loadSharp();
   } catch {
-    // The native module is unavailable â€” refuse the upload rather than storing an
+    // The native module is unavailable — refuse the upload rather than storing an
     // unverified file.
     throw new ImageValidationError("Image processing is unavailable on the server. Please try again later.");
   }
@@ -168,7 +168,7 @@ export interface DetectedResult {
   awayTackles: number | null;
   homeSaves: number | null;
   awaySaves: number | null;
-  // â”€â”€ OCR provenance (surfaced to the administrator beside the screenshot) â”€â”€â”€
+  // ── OCR provenance (surfaced to the administrator beside the screenshot) ───
   /** True when the OCR engine actually ran and produced a reading. */
   ocrAvailable: boolean;
   /** Which engine performed the recognition. */
@@ -176,7 +176,7 @@ export interface DetectedResult {
   /** Why recognition failed, when it did. */
   ocrError: string | null;
   ocrDurationMs: number;
-  /** Raw text the engine read â€” shown so the admin can audit the extraction. */
+  /** Raw text the engine read — shown so the admin can audit the extraction. */
   rawText: string;
   /** Names read either side of the score (fed to the player-name verification). */
   homeName: string | null;
@@ -184,7 +184,7 @@ export interface DetectedResult {
   /** Confidence (0-100) of each name reading; 0 when no name was read. */
   homeNameConfidence: number;
   awayNameConfidence: number;
-  /** Per-field engine confidence (0â€“100); uncertain cells are highlighted. */
+  /** Per-field engine confidence (0–100); uncertain cells are highlighted. */
   confidence: Record<string, number>;
   /** Per-field provenance, e.g. "page" | "digit-pass" | "score" | "none". */
   sources: Record<string, string>;
@@ -283,7 +283,7 @@ const MAX_PLAUSIBLE_STAT = 999;
 function normalizeLine(line: string): string {
   return line
     .replace(/[|_]/g, " ")
-    .replace(/[Â·â€¢]/g, " ")
+    .replace(/[·•]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -319,9 +319,9 @@ export function parseMatchStatsFromText(rawText: string): DetectedResult {
   let sawStatRow = false;
 
   for (const line of lines) {
-    // â”€â”€ Score (never take numbers off a statistics row) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Score (never take numbers off a statistics row) ──────────────────────
     if (!isStatLine(line) && detected.homeScore === null) {
-      const score = line.match(/\b(\d{1,2})\s*(?:[-â€“â€”:x]|\s-\s)\s*(\d{1,2})\b/i);
+      const score = line.match(/\b(\d{1,2})\s*(?:[-–—:x]|\s-\s)\s*(\d{1,2})\b/i);
       if (score) {
         const home = Number(score[1]);
         const away = Number(score[2]);
@@ -333,7 +333,7 @@ export function parseMatchStatsFromText(rawText: string): DetectedResult {
       }
     }
 
-    // â”€â”€ Statistics rows: label followed by home & away values â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ── Statistics rows: label followed by home & away values ────────────────
     for (const { field, patterns } of STAT_FIELD_PATTERNS) {
       if (!patterns.some((re) => re.test(line))) continue;
 
@@ -357,7 +357,7 @@ export function parseMatchStatsFromText(rawText: string): DetectedResult {
   if (!sawStatRow) missing.push("statistics");
 
   if (missing.length === 0) {
-    detected.notes.push("Score and statistics read from the screenshot â€” confirm before approving.");
+    detected.notes.push("Score and statistics read from the screenshot — confirm before approving.");
   } else {
     detected.notes.push(
       `Could not confidently read the ${missing.join(" and ")} from the screenshot.`,
@@ -366,7 +366,7 @@ export function parseMatchStatsFromText(rawText: string): DetectedResult {
   }
   return detected;
 }
-// â”€â”€ OCR reading â†’ fixture statistic mapping â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── OCR reading → fixture statistic mapping ─────────────────────────────────
 
 /** Maps each recognised statistic row onto its home/away detection fields. */
 const ROW_TO_FIELD: Record<CanonicalStat, { home: NumericField; away: NumericField }> = {
@@ -460,7 +460,7 @@ export function mapReadingToDetection(reading: OcrScreenshotReading): DetectedRe
   detected.homeNameConfidence = reading.homeNameConfidence;
   detected.awayNameConfidence = reading.awayNameConfidence;
 
-  // â”€â”€ Score â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Score ──────────────────────────────────────────────────────────────────
   detected.homeScore = bounded(reading.homeScore);
   detected.awayScore = bounded(reading.awayScore);
   detected.sources.homeScore = detected.homeScore === null ? "none" : "score";
@@ -468,7 +468,7 @@ export function mapReadingToDetection(reading: OcrScreenshotReading): DetectedRe
   if (detected.homeScore !== null) detected.confidence.homeScore = reading.homeScoreConfidence;
   if (detected.awayScore !== null) detected.confidence.awayScore = reading.awayScoreConfidence;
 
-  // â”€ Statistic rows â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─ Statistic rows ────────────────────────────────────────────────────────
   for (const row of reading.rows) {
     const fields = ROW_TO_FIELD[row.label];
     if (!fields) continue;
@@ -484,7 +484,7 @@ export function mapReadingToDetection(reading: OcrScreenshotReading): DetectedRe
     if (away !== null) detected.confidence[fields.away] = row.awayConfidence;
   }
 
-  // â”€â”€ Report every field the administrator has to complete â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Report every field the administrator has to complete ───────────────────
   for (const key of Object.keys(FIELD_LABEL)) {
     if (detected[key as NumericField] === null) detected.uncertainFields.push(key);
   }
@@ -497,7 +497,7 @@ export function mapReadingToDetection(reading: OcrScreenshotReading): DetectedRe
         : "Automatic reading was unavailable. Every value must be confirmed by hand.",
     );
   } else if (missing.length === 0) {
-    detected.notes.push("Score and statistics were read from the screenshot â€” confirm before approving.");
+    detected.notes.push("Score and statistics were read from the screenshot — confirm before approving.");
   } else {
     detected.notes.push(
       `Could not confidently read: ${missing.join(", ")}.`,
@@ -515,7 +515,7 @@ export function mapReadingToDetection(reading: OcrScreenshotReading): DetectedRe
  *
  * Values are only ever populated when the engine recognised a numeric token with
  * sufficient confidence; anything uncertain stays `null` ("Not detected") so no
- * number is ever invented. An unavailable engine still lets the upload succeed â€”
+ * number is ever invented. An unavailable engine still lets the upload succeed —
  * the administrator simply confirms every field by hand.
  */
 export async function detectMatchResultFromImage(
@@ -535,7 +535,7 @@ export async function detectMatchResultFromImage(
     return failed;
   }
 }
-/** Format a detected value for display â€” null renders as "Not detected". */
+/** Format a detected value for display — null renders as "Not detected". */
 export function displayDetected(value: number | null): string {
   return value === null ? "Not detected" : String(value);
 }

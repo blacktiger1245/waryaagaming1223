@@ -18,7 +18,7 @@ import {
   playerPoints,
   pointsToMarketValue,
 } from "@workspace/db";
-import { eq, desc, and, inArray, type AnyColumn, sql } from "drizzle-orm";
+import { eq, desc, and, inArray, or, type AnyColumn, sql } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { advanceKnockoutWinner, computeWinnerFromResult, syncKnockoutProgression } from "../lib/knockout";
 import { recalculateTeamScore } from "../lib/teamScore";
@@ -659,11 +659,20 @@ router.post("/admin/tournaments", requireAdmin, async (req, res) => {
       return res.status(400).json({ error: "startDate is required for upcoming tournaments" });
     }
 
+    // Creating a tournament as "active" (or completed) starts it today: the
+    // creation date becomes the start date instead of leaving it blank.
+    const resolvedStatus = String(status ?? "upcoming");
+    const resolvedStartDate = startDate
+      ? String(startDate)
+      : resolvedStatus === "active" || resolvedStatus === "completed"
+        ? new Date().toISOString().slice(0, 10)
+        : undefined;
+
     // 1. Create the tournament
     const [tournament] = await db.insert(tournamentsTable).values({
       name: String(name),
       description: description ? String(description) : undefined,
-      status: String(status ?? "upcoming"),
+      status: resolvedStatus,
       // Team tournaments use round-robin (league) and are unlimited in size
       format: String(tournamentType) === "team" ? "round-robin" : String(format ?? "single-elimination"),
       game: String(game ?? "eFootball"),
@@ -672,7 +681,7 @@ router.post("/admin/tournaments", requireAdmin, async (req, res) => {
         ? 9999
         : Number(teamCount ?? maxParticipants ?? 16),
       prizePool: String(prizePool ?? "$0"),
-      startDate: startDate ? String(startDate) : undefined,
+      startDate: resolvedStartDate,
       endDate: endDate ? String(endDate) : undefined,
       rules: rules ? String(rules) : undefined,
       streamUrl: streamUrl ? String(streamUrl) : undefined,
@@ -817,7 +826,7 @@ router.get("/admin/tournaments", requireAdmin, async (_req, res) => {
 
 registerEntityRoutes("tournaments", tournamentsTable);
 
-// â”€â”€ Dedicated admin match update â€” bypasses the generic CRUD route so we can
+// ── Dedicated admin match update — bypasses the generic CRUD route so we can
 // safely sanitize the payload, auto-compute the winner, and propagate knockout
 // advancement without risking an empty `.set()` call from unrelated fields.
 router.patch("/admin/matches/:id", requireAdmin, async (req, res) => {
@@ -1893,9 +1902,34 @@ router.post("/admin/matches/:id/player-games", requireAdmin, async (req, res) =>
   const matchId = Number(req.params.id);
   if (isNaN(matchId)) return res.status(400).json({ error: "Invalid id" });
   const { homePlayerName, awayPlayerName, homePlayerId, awayPlayerId } = req.body as Record<string, unknown>;
+
+  // Resolve a registered player from the typed name so the pairing is linked to
+  // a real profile (profiles/statistics need the id, not just a label).
+  async function resolveId(rawId: unknown, name: unknown): Promise<number | null> {
+    const numeric = rawId != null ? Number(rawId) : NaN;
+    if (Number.isInteger(numeric) && numeric > 0) return numeric;
+    const trimmed = typeof name === "string" ? name.trim() : "";
+    if (!trimmed) return null;
+    const [row] = await db
+      .select({ id: playersTable.id })
+      .from(playersTable)
+      .where(or(eq(playersTable.displayName, trimmed), eq(playersTable.username, trimmed)))
+      .limit(1);
+    return row?.id ?? null;
+  }
+
+  const resolvedHomeId = await resolveId(homePlayerId, homePlayerName);
+  const resolvedAwayId = await resolveId(awayPlayerId, awayPlayerName);
+
   const [inserted] = await db
     .insert(matchPlayerGamesTable)
-    .values({ matchId, homePlayerName: String(homePlayerName ?? ""), awayPlayerName: String(awayPlayerName ?? ""), homePlayerId: homePlayerId ? Number(homePlayerId) : null, awayPlayerId: awayPlayerId ? Number(awayPlayerId) : null })
+    .values({
+      matchId,
+      homePlayerName: String(homePlayerName ?? ""),
+      awayPlayerName: String(awayPlayerName ?? ""),
+      homePlayerId: resolvedHomeId,
+      awayPlayerId: resolvedAwayId,
+    })
     .returning();
   return res.json(inserted);
 });
@@ -1935,6 +1969,25 @@ router.patch("/admin/player-games/:id", requireAdmin, async (req, res) => {
   if (status !== undefined) updateData.status = String(status);
   for (const field of GAME_STAT_FIELDS) {
     if (req.body[field] !== undefined) updateData[field] = intOrNull(req.body[field]);
+  }
+
+  // When a name is (re)typed, re-link it to the matching player profile so the
+  // lineup stays connected to real player ids (needed for profile statistics).
+  async function resolvePlayerIdByName(name: string): Promise<number | null> {
+    const trimmed = name.trim();
+    if (!trimmed) return null;
+    const [row] = await db
+      .select({ id: playersTable.id })
+      .from(playersTable)
+      .where(or(eq(playersTable.displayName, trimmed), eq(playersTable.username, trimmed)))
+      .limit(1);
+    return row?.id ?? null;
+  }
+  if (homePlayerName !== undefined) {
+    updateData.homePlayerId = await resolvePlayerIdByName(String(homePlayerName));
+  }
+  if (awayPlayerName !== undefined) {
+    updateData.awayPlayerId = await resolvePlayerIdByName(String(awayPlayerName));
   }
 
   const [updated] = await db

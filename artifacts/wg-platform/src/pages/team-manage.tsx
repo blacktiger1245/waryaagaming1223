@@ -128,7 +128,7 @@ export default function TeamManagePage() {
   const { id: rawId } = useParams<{ id: string }>();
   const id = Number(rawId);
   const [, navigate] = useLocation();
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading, isAdmin } = useAuth();
   const { data: team, isLoading: teamLoading } = useGetTeam(id);
   const qc = useQueryClient();
 
@@ -150,9 +150,12 @@ export default function TeamManagePage() {
   const president = members.find((member) => member.id === (team as any)?.presidentId);
   // Role is computed server-side and exposed as `selfRole`; never trust the client.
   const role = (team as any)?.selfRole ?? null;
-  const isPlatformStaff = !!user && (user.username === "black_tiger" || user.role === "admin" || user.role === "owner");
+  const isPlatformStaff = !!user && (isAdmin || (user.username ?? "").toLowerCase() === "black_tiger");
   const isManager = !!user && (role === "president" || role === "coach" || isPlatformStaff);
   const isPresident = !!user && (role === "president" || isPlatformStaff);
+  // Captains may remove players from the roster (but cannot add players or
+  // change roles). Platform admins can do everything.
+  const canRemovePlayers = isManager || role === "captain";
   const pageSize = 5;
   const pageCount = Math.max(1, Math.ceil(members.length / pageSize));
   const visibleMembers = members.slice((page - 1) * pageSize, page * pageSize);
@@ -352,7 +355,7 @@ export default function TeamManagePage() {
       <div className="container mx-auto px-4 py-20 text-center">
         <Shield className="mx-auto mb-4 h-14 w-14 text-zinc-700" />
         <h1 className="text-2xl font-black text-white">Manager access required</h1>
-        <p className="mt-2 text-sm text-zinc-500">Only the President or Coach can manage clan settings and the roster.</p>
+        <p className="mt-2 text-sm text-zinc-500">The President or Coach can manage clan settings and the roster; the Captain can remove players.</p>
         <Button className="mt-5 gap-2" asChild><Link href={`/teams/${id}`}><ArrowLeft className="h-4 w-4" /> View clan profile</Link></Button>
       </div>
     );
@@ -432,8 +435,12 @@ export default function TeamManagePage() {
         </div>
 
         <div className="mt-4 flex flex-wrap gap-3">
-          <ActionButton icon={<UserPlus className="h-4 w-4" />} onClick={() => setAddPlayerOpen(true)} tone="yellow">Add Player</ActionButton>
-          <ActionButton icon={<Crown className="h-4 w-4" />} onClick={() => setPendingCaptainId(pendingCaptainId ? null : -1)}>Change Captain</ActionButton>
+          {isManager && (
+            <ActionButton icon={<UserPlus className="h-4 w-4" />} onClick={() => setAddPlayerOpen(true)} tone="yellow">Add Player</ActionButton>
+          )}
+          {isManager && (
+            <ActionButton icon={<Crown className="h-4 w-4" />} onClick={() => setPendingCaptainId(pendingCaptainId ? null : -1)}>Change Captain</ActionButton>
+          )}
           {isPresident && (
             <ActionButton icon={<Users className="h-4 w-4" />} onClick={() => setPendingCoachId(pendingCoachId ? null : -1)}>Change Coach</ActionButton>
           )}
@@ -488,13 +495,17 @@ export default function TeamManagePage() {
                   <span className="text-sm font-bold text-zinc-300"><span className="mr-2 text-[10px] font-bold uppercase text-zinc-600 sm:hidden">Rating</span>{member.rating ?? "—"}</span>
                   <span className="text-xs text-zinc-400"><span className="mr-2 text-[10px] font-bold uppercase text-zinc-600 sm:hidden">Joined</span>{member.createdAt ? new Date(member.createdAt).toLocaleDateString("en-CA") : "—"}</span>
                   <div>
-                    {removeId === member.id ? (
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => setRemoveId(null)} className="rounded border border-zinc-700 p-1.5 text-zinc-400 hover:text-white"><X className="h-3.5 w-3.5" /></button>
-                        <button onClick={() => removePlayer(member.id)} disabled={busy} className="rounded bg-red-500 px-2 py-1.5 text-[10px] font-black text-white disabled:opacity-50"><Check className="h-3.5 w-3.5" /></button>
-                      </div>
+                    {canRemovePlayers ? (
+                      removeId === member.id ? (
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => setRemoveId(null)} className="rounded border border-zinc-700 p-1.5 text-zinc-400 hover:text-white"><X className="h-3.5 w-3.5" /></button>
+                          <button onClick={() => removePlayer(member.id)} disabled={busy} className="rounded bg-red-500 px-2 py-1.5 text-[10px] font-black text-white disabled:opacity-50"><Check className="h-3.5 w-3.5" /></button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setRemoveId(member.id)} disabled={isPresidentMember || isCaptain || isCoach || busy} className="flex items-center gap-1.5 rounded border border-red-500/50 px-2.5 py-1.5 text-[10px] font-black text-red-400 transition-colors hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-30"><UserMinus className="h-3.5 w-3.5" /> Remove</button>
+                      )
                     ) : (
-                      <button onClick={() => setRemoveId(member.id)} disabled={isCaptain || busy} className="flex items-center gap-1.5 rounded border border-red-500/50 px-2.5 py-1.5 text-[10px] font-black text-red-400 transition-colors hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-30"><UserMinus className="h-3.5 w-3.5" /> Remove</button>
+                      <span className="text-xs text-zinc-600">—</span>
                     )}
                   </div>
                 </div>
@@ -533,10 +544,10 @@ export default function TeamManagePage() {
           </div>
         )}
 
-        {isPresident && (
+        {isPlatformStaff && (
           <div className="mt-10 border-t border-red-500/20 pt-6">
             <div className="flex flex-col justify-between gap-4 rounded-xl border border-red-500/20 bg-red-500/5 p-5 sm:flex-row sm:items-center">
-              <div><h2 className="font-black text-red-300">Danger zone</h2><p className="mt-1 text-sm text-zinc-500">Delete this team and release every player from its roster. Only the President can delete the team.</p></div>
+              <div><h2 className="font-black text-red-300">Danger zone</h2><p className="mt-1 text-sm text-zinc-500">Delete this team and release every player from its roster. Only a platform administrator can delete a team.</p></div>
               <AlertDialog>
                 <AlertDialogTrigger asChild><Button variant="outline" className="gap-2 border-red-500/50 text-red-400 hover:bg-red-500/10 hover:text-red-300"><Trash2 className="h-4 w-4" /> Delete Team</Button></AlertDialogTrigger>
                 <AlertDialogContent className="border-zinc-700 bg-zinc-900">

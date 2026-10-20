@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { playersTable, teamsTable, matchesTable, matchPlayerGamesTable } from "@workspace/db";
 import { tournamentsTable } from "@workspace/db";
-import { eq, ilike, desc, sql, or, and } from "drizzle-orm";
+import { eq, ilike, desc, sql, or, and, isNull, inArray } from "drizzle-orm";
 import {
   ListPlayersQueryParams,
   CreatePlayerBody,
@@ -316,7 +316,7 @@ router.get("/players/:id/match-history", async (req, res) => {
     .leftJoin(tournamentsTable, eq(matchesTable.tournamentId, tournamentsTable.id))
     .where(
       sql`(${matchesTable.participant1Id} = ${params.data.id} OR ${matchesTable.participant2Id} = ${params.data.id})
-          AND ${tournamentsTable.tournamentType} = 'solo'`
+          AND (${tournamentsTable.tournamentType} IS NULL OR ${tournamentsTable.tournamentType} <> 'team')`
     )
     .orderBy(desc(matchesTable.createdAt))
     .limit(50);
@@ -336,6 +336,19 @@ router.get("/players/:id/player-games", async (req, res) => {
 
   const [player] = await db.select().from(playersTable).where(eq(playersTable.id, params.data.id));
   if (!player) return res.status(404).json({ error: "Player not found" });
+
+  // Matchups reference players by id, but older/manual pairings may only have a
+  // name. Include those name-only rows so a player's profile still shows every
+  // duel they played (and normalise their id below).
+  const playerNames = [player.displayName, player.username].filter(
+    (value): value is string => typeof value === "string" && value.trim().length > 0,
+  );
+  const nameMatch = playerNames.length
+    ? or(
+        and(isNull(matchPlayerGamesTable.homePlayerId), inArray(matchPlayerGamesTable.homePlayerName, playerNames)),
+        and(isNull(matchPlayerGamesTable.awayPlayerId), inArray(matchPlayerGamesTable.awayPlayerName, playerNames)),
+      )
+    : undefined;
 
   const games = await db
     .select({
@@ -363,13 +376,23 @@ router.get("/players/:id/player-games", async (req, res) => {
     .where(
       or(
         eq(matchPlayerGamesTable.homePlayerId, params.data.id),
-        eq(matchPlayerGamesTable.awayPlayerId, params.data.id)
-      )
+        eq(matchPlayerGamesTable.awayPlayerId, params.data.id),
+        nameMatch,
+      ),
     )
     .orderBy(desc(matchesTable.createdAt))
     .limit(100);
 
-  return res.json(games);
+  const names = new Set(playerNames);
+  return res.json(
+    games.map((g) => ({
+      ...g,
+      // Attribute name-only rows to this player's actual id so every consumer
+      // (profile aggregates, MOTM checks) sees a consistent home/away side.
+      homePlayerId: g.homePlayerId ?? (g.homePlayerName && names.has(g.homePlayerName) ? player.id : null),
+      awayPlayerId: g.awayPlayerId ?? (g.awayPlayerName && names.has(g.awayPlayerName) ? player.id : null),
+    })),
+  );
 });
 
 // ── Coach profile stats ──────────────────────────────────────────────────────
