@@ -121,7 +121,6 @@ export default function PlayerCard({ player, overall, marketValue }: PlayerCardP
     ["Gaming Device", device ?? "Not Available"],
     ["KONAMI ID", p.konamiId ?? "Not Available"],
     ["Nationality", country ?? "Not Available"],
-    ["Blood Group", p.bloodGroup ?? "Not Available"],
   ];
 
   const logoSrc = `${import.meta.env.BASE_URL}waryaalogo-removebg-preview.png`;

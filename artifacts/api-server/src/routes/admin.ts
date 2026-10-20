@@ -22,6 +22,7 @@ import { eq, desc, and, inArray, type AnyColumn, sql } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { advanceKnockoutWinner, computeWinnerFromResult, syncKnockoutProgression } from "../lib/knockout";
 import { recalculateTeamScore } from "../lib/teamScore";
+import { syncStatsAfterFixture, refreshAllStats } from "../lib/stats-sync";
 
 const router = Router();
 
@@ -293,162 +294,17 @@ function registerEntityRoutes(path: string, table: PgTable & { id: AnyColumn }) 
         return;
       }
 
-      // ── Sync player stats + XP when a match is completed ────────────────
+      // ── Sync every stat that depends on this fixture ─────────────────────
       if (path === "matches") {
         const match = rows[0] as typeof matchesTable.$inferSelect;
         // Propagate knockout winners on any match update (enter OR edit a stage-2
         // result), so QF -> SF -> Final slot changes are recomputed and persisted.
         await advanceKnockoutWinner(match);
-        if (match.status === "completed") { (async () => {
-          // Skip player-stats sync for team-tournament matches:
-          // participant1Id/participant2Id are *team* IDs there, not player IDs,
-          // so running the sync would corrupt player rows whose IDs happen to
-          // collide with a team ID.
-          const [tournament] = match.tournamentId
-            ? await db.select({ tournamentType: tournamentsTable.tournamentType })
-                .from(tournamentsTable)
-                .where(eq(tournamentsTable.id, match.tournamentId))
-            : [null];
-          const isTeamMatch = tournament?.tournamentType === "team";
-
-          // participant1Id / participant2Id are player IDs directly (solo tournaments only)
-          const playerIds = isTeamMatch
-            ? []
-            : [match.participant1Id, match.participant2Id].filter((x): x is number => x != null);
-          if (playerIds.length > 0) {
-            // Fetch all completed matches once
-            const completedMatches = await db
-              .select({
-                participant1Id: matchesTable.participant1Id,
-                participant2Id: matchesTable.participant2Id,
-                participant1Score: matchesTable.participant1Score,
-                participant2Score: matchesTable.participant2Score,
-                winnerId: matchesTable.winnerId,
-                manOfTheMatchId: matchesTable.manOfTheMatchId,
-                participant1YellowCards: matchesTable.participant1YellowCards,
-                participant1RedCards: matchesTable.participant1RedCards,
-                participant2YellowCards: matchesTable.participant2YellowCards,
-                participant2RedCards: matchesTable.participant2RedCards,
-              })
-              .from(matchesTable)
-              .where(eq(matchesTable.status, "completed"));
-
-            for (const playerId of playerIds) {
-              // Tally stats from all completed matches
-              let matchesPlayed = 0;
-              let matchesWon = 0;
-              let cleanSheets = 0;
-              let goalsScored = 0;
-              let goalsConceded = 0;
-              let draws = 0;
-              let manOfTheMatch = 0;
-              let yellowCards = 0;
-              let redCards = 0;
-
-              for (const m of completedMatches) {
-                const asP1 = m.participant1Id === playerId;
-                const asP2 = m.participant2Id === playerId;
-                if (!asP1 && !asP2) continue;
-
-                matchesPlayed++;
-                const myScore  = asP1 ? (m.participant1Score ?? 0) : (m.participant2Score ?? 0);
-                const oppScore = asP1 ? (m.participant2Score ?? 0) : (m.participant1Score ?? 0);
-
-                goalsScored   += myScore;
-                goalsConceded += oppScore;
-
-                // Clean sheet: opponent scored 0
-                if (oppScore === 0) cleanSheets++;
-
-                // Man of the Match: credited when this player's participant slot is the MOTM
-                if (m.manOfTheMatchId != null) {
-                  if ((asP1 && m.manOfTheMatchId === m.participant1Id) ||
-                      (asP2 && m.manOfTheMatchId === m.participant2Id)) {
-                    manOfTheMatch++;
-                  }
-                }
-
-                // Cards
-                if (asP1) {
-                  yellowCards += m.participant1YellowCards ?? 0;
-                  redCards    += m.participant1RedCards    ?? 0;
-                } else {
-                  yellowCards += m.participant2YellowCards ?? 0;
-                  redCards    += m.participant2RedCards    ?? 0;
-                }
-
-                // Draw
-                if (myScore === oppScore) { draws++; continue; }
-
-                // Win: derive from scores (winnerId may be null)
-                const s1 = m.participant1Score ?? 0;
-                const s2 = m.participant2Score ?? 0;
-                const winnerPlayerId = m.winnerId != null
-                  ? m.winnerId
-                  : s1 > s2 ? m.participant1Id
-                  : s2 > s1 ? m.participant2Id
-                  : null;
-                if (winnerPlayerId === playerId) matchesWon++;
-              }
-
-              // Tournament wins (preserved, set by tournament sync below)
-              const [player] = await db
-                .select({ tournamentWins: playersTable.tournamentWins })
-                .from(playersTable)
-                .where(eq(playersTable.id, playerId));
-              const tournamentWins = player?.tournamentWins ?? 0;
-
-              const matchesLost = matchesPlayed - matchesWon;
-              const winRate = matchesWon * 0.4;
-              const lossRate = matchesLost * 0.4;
-              // Points are derived automatically from the player's statistics.
-              // Losses, Decider Wins and Tournament Wins award 0 points.
-              const points = playerPoints({
-                appearances: matchesPlayed,
-                wins: matchesWon,
-                cleanSheets,
-                goals: goalsScored,
-                motm: manOfTheMatch,
-                draws,
-              });
-              // Market Value is derived ONLY from TOTAL POINTS (in M coins).
-              const marketValue = pointsToMarketValue(points);
-
-              await db.update(playersTable).set({
-                points,
-                marketValue,
-                matchesPlayed,
-                matchesWon,
-                matchesLost,
-                winRate,
-                lossRate,
-                cleanSheets,
-                goalsScored,
-                goalsConceded,
-                draws,
-                manOfTheMatch,
-                yellowCards,
-                redCards,
-              }).where(eq(playersTable.id, playerId));
-            }
-
-            // ── Re-rank ALL players by points after every completed match ──
-            const allPlayers = await db
-              .select({ id: playersTable.id, points: playersTable.points, rank: playersTable.rank })
-              .from(playersTable)
-              .orderBy(desc(playersTable.points));
-
-            await Promise.all(
-              allPlayers.map((p, i) =>
-                db.update(playersTable).set({
-                  previousRank: p.rank > 0 && p.rank < 9999 ? p.rank : i + 1,
-                  rank: i + 1,
-                }).where(eq(playersTable.id, p.id))
-              )
-            );
-          }
-        })().catch((err) => req.log.error({ err }, "Background player stats sync failed"));
-        }
+        // Player profiles (appearances / goals / MOTM / points) and clan records
+        // are recomputed from the results — in the background so saving stays fast.
+        syncStatsAfterFixture(match).catch((err) =>
+          req.log.error({ err }, "Background player stats sync failed"),
+        );
       }
 
       // ── Sync tournament win XP when a tournament gets a winner ───────────
@@ -509,111 +365,15 @@ function registerEntityRoutes(path: string, table: PgTable & { id: AnyColumn }) 
   });
 }
 
-// â”€â”€ Background player stats sync after a completed match (solo tournaments only)
+// ── Background stats sync after a completed match ─────────────────────────────
+// Delegates to the canonical synchroniser, which also credits clan fixtures and
+// Man of the Match awards (never just solo matches).
 async function syncPlayerStatsAfterCompletedMatch(match: typeof matchesTable.$inferSelect, log: { error: (obj: unknown, msg: string) => void }) {
-  const [tournament] = match.tournamentId
-    ? await db.select({ tournamentType: tournamentsTable.tournamentType }).from(tournamentsTable).where(eq(tournamentsTable.id, match.tournamentId))
-    : [null];
-  if (tournament?.tournamentType === "team") return;
-
-  const playerIds = [match.participant1Id, match.participant2Id].filter((x): x is number => x != null);
-  if (playerIds.length === 0) return;
-
-  const completedMatches = await db
-    .select({
-      participant1Id: matchesTable.participant1Id,
-      participant2Id: matchesTable.participant2Id,
-      participant1Score: matchesTable.participant1Score,
-      participant2Score: matchesTable.participant2Score,
-      winnerId: matchesTable.winnerId,
-      manOfTheMatchId: matchesTable.manOfTheMatchId,
-      participant1YellowCards: matchesTable.participant1YellowCards,
-      participant1RedCards: matchesTable.participant1RedCards,
-      participant2YellowCards: matchesTable.participant2YellowCards,
-      participant2RedCards: matchesTable.participant2RedCards,
-    })
-    .from(matchesTable)
-    .where(eq(matchesTable.status, "completed"));
-
-  for (const playerId of playerIds) {
-    let matchesPlayed = 0;
-    let matchesWon = 0;
-    let cleanSheets = 0;
-    let goalsScored = 0;
-    let goalsConceded = 0;
-    let draws = 0;
-    let manOfTheMatch = 0;
-    let yellowCards = 0;
-    let redCards = 0;
-
-    for (const m of completedMatches) {
-      const asP1 = m.participant1Id === playerId;
-      const asP2 = m.participant2Id === playerId;
-      if (!asP1 && !asP2) continue;
-
-      matchesPlayed++;
-      const myScore  = asP1 ? (m.participant1Score ?? 0) : (m.participant2Score ?? 0);
-      const oppScore = asP1 ? (m.participant2Score ?? 0) : (m.participant1Score ?? 0);
-
-      goalsScored   += myScore;
-      goalsConceded += oppScore;
-      if (oppScore === 0) cleanSheets++;
-
-      if (m.manOfTheMatchId != null) {
-        if ((asP1 && m.manOfTheMatchId === m.participant1Id) ||
-            (asP2 && m.manOfTheMatchId === m.participant2Id)) {
-          manOfTheMatch++;
-        }
-      }
-
-      if (asP1) {
-        yellowCards += m.participant1YellowCards ?? 0;
-        redCards    += m.participant1RedCards    ?? 0;
-      } else {
-        yellowCards += m.participant2YellowCards ?? 0;
-        redCards    += m.participant2RedCards    ?? 0;
-      }
-
-      if (myScore === oppScore) { draws++; continue; }
-
-      const s1 = m.participant1Score ?? 0;
-      const s2 = m.participant2Score ?? 0;
-      const winnerPlayerId = m.winnerId != null
-        ? m.winnerId
-        : s1 > s2 ? m.participant1Id
-        : s2 > s1 ? m.participant2Id
-        : null;
-      if (winnerPlayerId === playerId) matchesWon++;
-    }
-
-    const [player] = await db.select({ tournamentWins: playersTable.tournamentWins }).from(playersTable).where(eq(playersTable.id, playerId));
-    const tournamentWins = player?.tournamentWins ?? 0;
-
-    const matchesLost = matchesPlayed - matchesWon;
-    const winRate = matchesWon * 0.4;
-    const lossRate = matchesLost * 0.4;
-    const points = playerPoints({ appearances: matchesPlayed, wins: matchesWon, cleanSheets, goals: goalsScored, motm: manOfTheMatch, draws });
-    const marketValue = pointsToMarketValue(points);
-
-    await db.update(playersTable).set({
-      points, marketValue, matchesPlayed, matchesWon, matchesLost, winRate, lossRate,
-      cleanSheets, goalsScored, goalsConceded, draws, manOfTheMatch, yellowCards, redCards, tournamentWins,
-    }).where(eq(playersTable.id, playerId));
+  try {
+    await syncStatsAfterFixture(match);
+  } catch (err) {
+    log.error({ err }, "Player stats sync failed");
   }
-
-  const allPlayers = await db
-    .select({ id: playersTable.id, points: playersTable.points, rank: playersTable.rank })
-    .from(playersTable)
-    .orderBy(desc(playersTable.points));
-
-  await Promise.all(
-    allPlayers.map((p, i) =>
-      db.update(playersTable).set({
-        previousRank: p.rank > 0 && p.rank < 9999 ? p.rank : i + 1,
-        rank: i + 1,
-      }).where(eq(playersTable.id, p.id))
-    )
-  );
 }
 
 registerEntityRoutes("players", playersTable);
@@ -1036,6 +796,23 @@ router.delete("/admin/categories/:id", requireAdmin, async (req, res) => {
   await db.update(tournamentsTable).set({ categoryId: null }).where(eq(tournamentsTable.categoryId, id));
   await db.delete(tournamentCategoriesTable).where(eq(tournamentCategoriesTable.id, id));
   return res.json({ ok: true });
+});
+
+// ── GET /admin/tournaments — list with the REAL registered-participant count ──
+// Must be registered before the generic CRUD routes so it wins the match.
+router.get("/admin/tournaments", requireAdmin, async (_req, res) => {
+  const rows = await db.select().from(tournamentsTable).orderBy(desc(tournamentsTable.id));
+  const counts = await db
+    .select({
+      tournamentId: tournamentParticipantsTable.tournamentId,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(tournamentParticipantsTable)
+    .groupBy(tournamentParticipantsTable.tournamentId);
+  const countMap = new Map(counts.map((c) => [c.tournamentId, Number(c.count)]));
+  return res.json(
+    rows.map((row) => ({ ...row, currentParticipants: countMap.get(row.id) ?? 0 })),
+  );
 });
 
 registerEntityRoutes("tournaments", tournamentsTable);
@@ -2168,6 +1945,9 @@ router.patch("/admin/player-games/:id", requireAdmin, async (req, res) => {
 
   if (!updated) return res.status(404).json({ error: "Player game not found" });
   await recalculateTeamScore(updated.matchId);
+  // Refresh the players' profiles (appearances/goals/MOTM/points) and clan record.
+  const [fixture] = await db.select().from(matchesTable).where(eq(matchesTable.id, updated.matchId));
+  if (fixture) await syncStatsAfterFixture(fixture);
   return res.json(updated);
 });
 
@@ -2177,7 +1957,15 @@ router.delete("/admin/player-games/:id", requireAdmin, async (req, res) => {
   const [deleted] = await db.delete(matchPlayerGamesTable).where(eq(matchPlayerGamesTable.id, id)).returning();
   if (!deleted) return res.status(404).json({ error: "Not found" });
   await recalculateTeamScore(deleted.matchId);
+  const [fixture] = await db.select().from(matchesTable).where(eq(matchesTable.id, deleted.matchId));
+  if (fixture) await syncStatsAfterFixture(fixture);
   return res.json({ ok: true });
+});
+
+// Rebuild every derived statistic (player profiles + clan records) on demand.
+router.post("/admin/stats/recompute", requireAdmin, async (_req, res) => {
+  const result = await refreshAllStats();
+  res.json({ ok: true, ...result });
 });
 
 router.get("/admin/stats", async (_req, res) => {

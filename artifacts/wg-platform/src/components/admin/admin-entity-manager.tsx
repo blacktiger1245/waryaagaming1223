@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,14 +19,14 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Plus, Pencil, Trash2, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Upload, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { apiUrl } from "@/lib/api";
+import { apiUrl, storageUrl } from "@/lib/api";
 
 export type AdminField = {
   name: string;
   label: string;
-  type?: "text" | "number" | "boolean" | "textarea" | "array";
+  type?: "text" | "number" | "boolean" | "textarea" | "array" | "image";
   required?: boolean;
 };
 
@@ -70,12 +70,99 @@ function buildDefaults(fields: AdminField[]): Record<string, unknown> {
   return defaults;
 }
 
+/** Upload an image straight through the API (no bucket CORS needed). */
+async function uploadImage(file: File): Promise<string> {
+  const res = await fetch(apiUrl("/api/storage/uploads/direct"), {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": file.type || "application/octet-stream" },
+    body: file,
+  });
+  const data = (await res.json().catch(() => null)) as { objectPath?: string; error?: string } | null;
+  if (!res.ok || !data?.objectPath) throw new Error(data?.error ?? "Failed to upload image");
+  return data.objectPath;
+}
+
+/**
+ * Drag-and-drop / click-to-browse image picker used by admin edit dialogs
+ * (e.g. a tournament's logo — no more pasting an image URL).
+ */
+function ImageDropZone({
+  value,
+  onFile,
+  onClear,
+  uploading,
+}: {
+  value: string | null;
+  onFile: (file: File) => void;
+  onClear: () => void;
+  uploading: boolean;
+}) {
+  const [dragging, setDragging] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const preview = storageUrl(value);
+
+  return (
+    <div
+      onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragging(false);
+        const file = e.dataTransfer.files?.[0];
+        if (file && file.type.startsWith("image/")) onFile(file);
+      }}
+      onClick={() => inputRef.current?.click()}
+      className={`relative flex flex-col items-center justify-center gap-2 h-40 rounded-xl border-2 border-dashed cursor-pointer transition-colors ${
+        dragging ? "border-primary bg-primary/10" : "border-border hover:border-primary/60 hover:bg-primary/5"
+      }`}
+    >
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); }}
+      />
+      {uploading ? (
+        <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="w-6 h-6 animate-spin text-primary" />
+          Uploading…
+        </div>
+      ) : preview ? (
+        <>
+          <img src={preview} alt="Preview" className="max-h-28 max-w-full rounded-lg object-contain" />
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onClear(); }}
+            className="absolute top-2 right-2 w-7 h-7 rounded-full bg-destructive text-white flex items-center justify-center"
+            aria-label="Remove image"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </>
+      ) : (
+        <>
+          <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center">
+            <Upload className="w-5 h-5 text-primary" />
+          </div>
+          <div className="text-center">
+            <p className="text-sm font-semibold">Drop image here</p>
+            <p className="text-xs text-muted-foreground mt-0.5">or click to browse · PNG, JPG, SVG</p>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function AdminEntityManager({ endpoint, title, fields, columns, hideAddButton }: Props) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Row | null>(null);
   const [form, setForm] = useState<Record<string, unknown>>(buildDefaults(fields));
+  const [uploadingField, setUploadingField] = useState<string | null>(null);
 
   const { data: rows, isLoading } = useQuery({
     queryKey: ["admin", endpoint],
@@ -146,6 +233,9 @@ export function AdminEntityManager({ endpoint, title, fields, columns, hideAddBu
           .split(",")
           .map((s) => s.trim())
           .filter(Boolean);
+      } else if (f.type === "image") {
+        // Clearing an existing image sends null so the column really empties.
+        payload[f.name] = raw === "" || raw == null ? (editing ? null : undefined) : raw;
       } else {
         payload[f.name] = raw === "" ? undefined : raw;
       }
@@ -247,6 +337,27 @@ export function AdminEntityManager({ endpoint, title, fields, columns, hideAddBu
                       data-testid={`input-${f.name}`}
                     />
                   </div>
+                ) : f.type === "image" ? (
+                  <ImageDropZone
+                    value={form[f.name] ? String(form[f.name]) : null}
+                    uploading={uploadingField === f.name}
+                    onFile={async (file) => {
+                      setUploadingField(f.name);
+                      try {
+                        const objectPath = await uploadImage(file);
+                        setForm((prev) => ({ ...prev, [f.name]: objectPath }));
+                      } catch (err) {
+                        toast({
+                          title: "Upload failed",
+                          description: err instanceof Error ? err.message : "Could not upload the image",
+                          variant: "destructive",
+                        });
+                      } finally {
+                        setUploadingField(null);
+                      }
+                    }}
+                    onClear={() => setForm((prev) => ({ ...prev, [f.name]: "" }))}
+                  />
                 ) : f.type === "textarea" ? (
                   <Textarea
                     value={String(form[f.name] ?? "")}

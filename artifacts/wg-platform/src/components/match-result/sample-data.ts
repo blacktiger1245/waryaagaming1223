@@ -97,5 +97,33 @@ const MATCHDAY_7: MatchResultData = {
   },
 };
 
-/** Both examples — the demo page switches between them. */
-export const SAMPLE_MATCH_RESULTS: MatchResultData[] = [GRAND_FINAL, MATCHDAY_7];
+/** Solo player-vs-player fixture — one duel, and no clan line for the MVP. */
+const SOLO_QUARTER_FINAL: MatchResultData = {
+  tournamentName: "Somali Solo Championship",
+  round: "Quarter Final",
+  matchNumber: 2,
+  verified: true,
+  teamA: { name: "Ismail Warsame", logoUrl: null, score: 4, totalGoals: 4 },
+  teamB: { name: "Deeq Hassan", logoUrl: null, score: 2, totalGoals: 2 },
+  individualScores: [
+    {
+      playerA: { name: "Ismail Warsame", avatarUrl: null, goals: 4, isWinner: true },
+      playerB: { name: "Deeq Hassan", avatarUrl: null, goals: 2, isWinner: false },
+    },
+  ],
+  motm: {
+    name: "Ismail Warsame",
+    // No clan: the result card and the MVP hero hide the clan line entirely.
+    teamName: "",
+    teamLogoUrl: null,
+    avatarUrl: null,
+    rating: 9.6,
+    goals: 4,
+    duelVsPlayer: { name: "Deeq Hassan", avatarUrl: null, goals: 2 },
+    goalPercentage: 67,
+    totalDuelGoals: 6,
+  },
+};
+
+/** Both team examples plus a solo one — the demo page switches between them. */
+export const SAMPLE_MATCH_RESULTS: MatchResultData[] = [GRAND_FINAL, MATCHDAY_7, SOLO_QUARTER_FINAL];

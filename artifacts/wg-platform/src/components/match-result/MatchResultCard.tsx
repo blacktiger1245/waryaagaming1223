@@ -9,6 +9,11 @@ export interface MatchResultCardProps {
   data: MatchResultData;
   /** Fired by the MOTM banner / “MVP AWARD” card to open the MOTM view. */
   onOpenMotm?: () => void;
+  /**
+   * Shape of the two side crests. Clan fixtures use squared crests; a solo
+   * player-vs-player fixture renders circular avatars via `"circle"`.
+   */
+  crestShape?: "square" | "circle";
   className?: string;
 }
 
@@ -42,30 +47,51 @@ function PlayerAvatar({
   );
 }
 
-/** Clan crest with a monogram fallback. */
-function TeamCrest({ name, logoUrl, size = 56 }: { name: string; logoUrl: string | null; size?: number }) {
+/** Clan crest — or a solo player avatar — with a monogram fallback. */
+function TeamCrest({
+  name,
+  logoUrl,
+  size = 56,
+  shape = "square",
+}: {
+  name: string;
+  logoUrl: string | null;
+  size?: number;
+  shape?: "square" | "circle";
+}) {
+  const radius = shape === "circle" ? "rounded-full" : "rounded-2xl";
   return logoUrl ? (
     <img
       src={logoUrl}
       alt={name}
       style={{ width: size, height: size, boxShadow: "0 0 26px -8px rgba(255,153,0,0.6)" }}
-      className="shrink-0 rounded-2xl border border-[#FF9900]/25 object-cover"
+      className={cn("shrink-0 border border-[#FF9900]/25 object-cover", radius)}
     />
   ) : (
     <span
       style={{ width: size, height: size, fontSize: Math.round(size * 0.38), boxShadow: "0 0 26px -10px rgba(255,153,0,0.5)" }}
-      className="flex shrink-0 items-center justify-center rounded-2xl border border-[#FF9900]/25 bg-[#1A1A1A] font-black text-[#FFB800]"
+      className={cn("flex shrink-0 items-center justify-center border border-[#FF9900]/25 bg-[#1A1A1A] font-black text-[#FFB800]", radius)}
     >
       {initialsOf(name)}
     </span>
   );
 }
 
-/** One side of the scoreline: crest + clan name + aggregated goals. */
-function TeamSide({ team, align, winner }: { team: MatchResultTeam; align: "left" | "right"; winner: boolean }) {
+/** One side of the scoreline: crest/avatar + name + aggregated goals. */
+function TeamSide({
+  team,
+  align,
+  winner,
+  shape,
+}: {
+  team: MatchResultTeam;
+  align: "left" | "right";
+  winner: boolean;
+  shape: "square" | "circle";
+}) {
   return (
     <div className={cn("flex min-w-0 items-center gap-3", align === "right" && "flex-row-reverse text-right")}>
-      <TeamCrest name={team.name} logoUrl={team.logoUrl} size={56} />
+      <TeamCrest name={team.name} logoUrl={team.logoUrl} size={56} shape={shape} />
       <div className="min-w-0">
         <div className={cn("truncate text-sm font-black uppercase tracking-wide sm:text-base", winner ? "text-[#FFB800]" : "text-zinc-200")}>
           {team.name}
@@ -118,11 +144,14 @@ function DuelRow({ duel }: { duel: MatchResultDuel }) {
  * both clan crests, the fixture score and aggregated goals → the individual duel
  * list → the MOTM banner whose “MVP AWARD” card opens View #2.
  */
-export function MatchResultCard({ data, onOpenMotm, className }: MatchResultCardProps) {
+export function MatchResultCard({ data, onOpenMotm, crestShape, className }: MatchResultCardProps) {
   const { teamA, teamB, individualScores, motm } = data;
   const verified = data.verified ?? true;
   const aWins = teamA.score > teamB.score;
   const bWins = teamB.score > teamA.score;
+  // A solo fixture (a single duel) shows both players as circular avatars unless
+  // the caller explicitly asks for squared clan crests.
+  const shape = crestShape ?? (individualScores.length <= 1 ? "circle" : "square");
 
   return (
     <section
@@ -151,7 +180,7 @@ export function MatchResultCard({ data, onOpenMotm, className }: MatchResultCard
       {/* ── Scoreboard ──────────────────────────────────────────────────────── */}
       <div className="mt-4 px-5 sm:px-7">
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-2xl border border-white/5 bg-[#141414]/80 px-3 py-5 sm:gap-6 sm:px-6">
-          <TeamSide team={teamA} align="left" winner={aWins} />
+          <TeamSide team={teamA} align="left" winner={aWins} shape={shape} />
           <div className="text-center">
             <div className="font-mono text-3xl font-black leading-none text-white tabular-nums sm:text-5xl">
               {teamA.score}
@@ -160,7 +189,7 @@ export function MatchResultCard({ data, onOpenMotm, className }: MatchResultCard
             </div>
             <div className="mt-2 text-[9px] font-black uppercase tracking-[0.22em] text-zinc-500">Final Score</div>
           </div>
-          <TeamSide team={teamB} align="right" winner={bWins} />
+          <TeamSide team={teamB} align="right" winner={bWins} shape={shape} />
         </div>
 
         <div className="mt-3 flex flex-wrap items-center justify-center gap-2 rounded-xl border border-[#FF9900]/25 bg-[#FF9900]/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em]">
@@ -172,29 +201,26 @@ export function MatchResultCard({ data, onOpenMotm, className }: MatchResultCard
         </div>
       </div>
 
-      {/* ── Individual scores ───────────────────────────────────────────────── */}
-      <div className="mt-6 px-5 sm:px-7">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <span className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.2em] text-[#FFB800]">
-            <Medal className="h-3.5 w-3.5" /> Individual Scores
-          </span>
-          <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-500">
-            {individualScores.length} {individualScores.length === 1 ? "Duel" : "Duels"}
-          </span>
-        </div>
+      {/* ── Individual scores (auto-hidden for a solo fixture, where the
+             scoreboard above already *is* the single duel) ─────────────────── */}
+      {individualScores.length > 1 && (
+        <div className="mt-6 px-5 sm:px-7">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <span className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.2em] text-[#FFB800]">
+              <Medal className="h-3.5 w-3.5" /> Individual Scores
+            </span>
+            <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-500">
+              {individualScores.length} Duels
+            </span>
+          </div>
 
-        {individualScores.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-white/10 px-4 py-6 text-center text-xs text-zinc-500">
-            No player duels recorded for this fixture.
-          </p>
-        ) : (
           <div className="space-y-2">
             {individualScores.map((duel, i) => (
               <DuelRow key={`${duel.playerA.name}-${duel.playerB.name}-${i}`} duel={duel} />
             ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* ── MOTM banner → View #2 ───────────────────────────────────────────── */}
       <div className="mt-6 px-5 pb-6 sm:px-7">
@@ -219,10 +245,14 @@ export function MatchResultCard({ data, onOpenMotm, className }: MatchResultCard
                 </span>
                 <div className="mt-0.5 truncate text-base font-black uppercase tracking-wide text-white">{motm.name}</div>
                 <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1">
-                  {motm.teamLogoUrl && <img src={motm.teamLogoUrl} alt="" className="h-4 w-4 rounded-sm object-cover" />}
-                  <span className="truncate text-[11px] font-black uppercase tracking-[0.14em] text-[#FF9900]">
-                    {motm.teamName}
-                  </span>
+                  {motm.teamName && (
+                    <>
+                      {motm.teamLogoUrl && <img src={motm.teamLogoUrl} alt="" className="h-4 w-4 rounded-sm object-cover" />}
+                      <span className="truncate text-[11px] font-black uppercase tracking-[0.14em] text-[#FF9900]">
+                        {motm.teamName}
+                      </span>
+                    </>
+                  )}
                   <span className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-400">
                     MVP
                   </span>

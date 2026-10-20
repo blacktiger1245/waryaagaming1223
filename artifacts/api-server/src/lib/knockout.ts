@@ -1,11 +1,17 @@
 import { db } from "@workspace/db";
-import { matchesTable } from "@workspace/db";
+import { matchesTable, tournamentsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { logger } from "./logger";
 
 export function isKnockoutRoundName(name: string | null | undefined): boolean {
   if (!name) return false;
   return /final|round of|quarter|semi|third place/i.test(name);
+}
+
+/** True for the tournament decider only (never the third-place play-off). */
+export function isFinalRoundName(name: string | null | undefined): boolean {
+  if (!name) return false;
+  return /final/i.test(name) && !/third/i.test(name);
 }
 
 export function resolveMatchWinner(
@@ -33,6 +39,17 @@ export function computeWinnerFromResult(
     winnerId?: number | null;
   },
 ): { winnerId?: number | null; winnerName?: string | null } {
+  // The scoreline is the single source of truth: entering "Legend Yahye 2 – 3
+  // Black Tiger" must always make Black Tiger the winner, even if a stale
+  // winner name was previously stored on the fixture.
+  const s1 = data.participant1Score ?? match.participant1Score;
+  const s2 = data.participant2Score ?? match.participant2Score;
+  if (s1 != null && s2 != null && s1 !== s2) {
+    if (s1 > s2 && match.participant1Id) return { winnerId: match.participant1Id, winnerName: match.participant1Name };
+    if (s2 > s1 && match.participant2Id) return { winnerId: match.participant2Id, winnerName: match.participant2Name };
+  }
+
+  // Level scores (e.g. decided on penalties) — honour an explicit pick.
   if (data.winnerId != null) {
     if (data.winnerId === match.participant1Id) return { winnerId: data.winnerId, winnerName: match.participant1Name };
     if (data.winnerId === match.participant2Id) return { winnerId: data.winnerId, winnerName: match.participant2Name };
@@ -41,12 +58,6 @@ export function computeWinnerFromResult(
   if (data.winnerName) {
     if (data.winnerName === match.participant1Name) return { winnerId: match.participant1Id, winnerName: data.winnerName };
     if (data.winnerName === match.participant2Name) return { winnerId: match.participant2Id, winnerName: data.winnerName };
-  }
-  const s1 = data.participant1Score ?? match.participant1Score;
-  const s2 = data.participant2Score ?? match.participant2Score;
-  if (s1 != null && s2 != null && s1 !== s2) {
-    if (s1 > s2 && match.participant1Id) return { winnerId: match.participant1Id, winnerName: match.participant1Name };
-    if (s2 > s1 && match.participant2Id) return { winnerId: match.participant2Id, winnerName: match.participant2Name };
   }
   return {};
 }
@@ -165,6 +176,22 @@ export async function advanceKnockoutWinner(match: typeof matchesTable.$inferSel
       "advanceKnockoutWinner: no winner to advance",
     );
     return;
+  }
+
+  // The final's winner IS the tournament champion. Persist the name automatically
+  // from the scoreline so an admin never has to type the winner by hand.
+  if (
+    fresh.nextMatchId == null &&
+    fresh.tournamentId != null &&
+    fresh.roundName != null &&
+    isFinalRoundName(fresh.roundName)
+  ) {
+    const championName = winner.name ?? fresh.winnerName ?? null;
+    await db
+      .update(tournamentsTable)
+      .set({ winnerName: championName })
+      .where(eq(tournamentsTable.id, fresh.tournamentId));
+    logger.info({ tournamentId: fresh.tournamentId, championName }, "advanceKnockoutWinner: tournament champion set from final");
   }
 
   if (fresh.nextMatchId == null || fresh.nextSlot == null) {

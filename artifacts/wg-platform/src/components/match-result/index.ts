@@ -13,6 +13,8 @@ export { MatchResultMOTM } from "./MatchResultMOTM";
 export type { MatchResultMOTMProps, MatchResultView } from "./MatchResultMOTM";
 export { buildMatchResultData } from "./from-api";
 export type { BuildMatchResultOptions, MatchResultApiFixture, MatchResultApiPlayerGame } from "./from-api";
+export { buildSoloMatchResultData } from "./from-solo";
+export type { BuildSoloMatchResultOptions, SoloMatchResultInput } from "./from-solo";
 export { SAMPLE_MATCH_RESULTS } from "./sample-data";
 export { formatRating, goalShare, initialsOf } from "./utils";
 export {

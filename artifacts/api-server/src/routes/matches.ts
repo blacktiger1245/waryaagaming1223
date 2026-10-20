@@ -7,10 +7,10 @@ import {
   playersTable,
   tournamentAdminsTable,
 } from "@workspace/db";
-import { playerPoints, pointsToMarketValue } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, aliasedTable } from "drizzle-orm";
 import { GetMatchParams, UpdateMatchParams, UpdateMatchBody } from "@workspace/api-zod";
 import { advanceKnockoutWinner, computeWinnerFromResult } from "../lib/knockout";
+import { syncStatsAfterFixture } from "../lib/stats-sync";
 
 const router = Router();
 
@@ -68,121 +68,11 @@ async function canManageMatchAssignment(
   return canEditMatchResult(req, match);
 }
 
-// Recompute a player's statistics from all completed matches — the canonical
-// ranking/stats system (same formulas as the admin player-stats sync). Only
-// runs for solo-tournament matches (participant ids are player ids).
+// Player statistics are maintained by the canonical synchroniser, which handles
+// solo matches (participant ids are players) AND clan fixtures (numbers come from
+// each player-vs-player game), plus MOTM awards for both competition shapes.
 export async function recomputePlayerStatsForCompletedMatch(match: typeof matchesTable.$inferSelect): Promise<void> {
-  if (match.status !== "completed") return;
-  const [tournament] = match.tournamentId
-    ? await db
-        .select({ tournamentType: tournamentsTable.tournamentType })
-        .from(tournamentsTable)
-        .where(eq(tournamentsTable.id, match.tournamentId))
-    : [null];
-  if (tournament?.tournamentType === "team") return;
-
-  const playerIds = [match.participant1Id, match.participant2Id].filter((x): x is number => x != null);
-  if (playerIds.length === 0) return;
-
-  const completedMatches = await db
-    .select({
-      participant1Id: matchesTable.participant1Id,
-      participant2Id: matchesTable.participant2Id,
-      participant1Score: matchesTable.participant1Score,
-      participant2Score: matchesTable.participant2Score,
-      winnerId: matchesTable.winnerId,
-      manOfTheMatchId: matchesTable.manOfTheMatchId,
-      participant1YellowCards: matchesTable.participant1YellowCards,
-      participant1RedCards: matchesTable.participant1RedCards,
-      participant2YellowCards: matchesTable.participant2YellowCards,
-      participant2RedCards: matchesTable.participant2RedCards,
-    })
-    .from(matchesTable)
-    .where(eq(matchesTable.status, "completed"));
-
-  for (const playerId of playerIds) {
-    let matchesPlayed = 0;
-    let matchesWon = 0;
-    let cleanSheets = 0;
-    let goalsScored = 0;
-    let goalsConceded = 0;
-    let draws = 0;
-    let manOfTheMatch = 0;
-    let yellowCards = 0;
-    let redCards = 0;
-
-    for (const m of completedMatches) {
-      const asP1 = m.participant1Id === playerId;
-      const asP2 = m.participant2Id === playerId;
-      if (!asP1 && !asP2) continue;
-
-      matchesPlayed++;
-      const myScore = asP1 ? (m.participant1Score ?? 0) : (m.participant2Score ?? 0);
-      const oppScore = asP1 ? (m.participant2Score ?? 0) : (m.participant1Score ?? 0);
-      goalsScored += myScore;
-      goalsConceded += oppScore;
-      if (oppScore === 0) cleanSheets++;
-
-      if (m.manOfTheMatchId != null) {
-        if ((asP1 && m.manOfTheMatchId === m.participant1Id) || (asP2 && m.manOfTheMatchId === m.participant2Id)) {
-          manOfTheMatch++;
-        }
-      }
-      if (asP1) {
-        yellowCards += m.participant1YellowCards ?? 0;
-        redCards += m.participant1RedCards ?? 0;
-      } else {
-        yellowCards += m.participant2YellowCards ?? 0;
-        redCards += m.participant2RedCards ?? 0;
-      }
-      if (myScore === oppScore) { draws++; continue; }
-
-      const s1 = m.participant1Score ?? 0;
-      const s2 = m.participant2Score ?? 0;
-      const winnerPlayerId = m.winnerId != null ? m.winnerId : s1 > s2 ? m.participant1Id : s2 > s1 ? m.participant2Id : null;
-      if (winnerPlayerId === playerId) matchesWon++;
-    }
-
-    const [player] = await db
-      .select({ tournamentWins: playersTable.tournamentWins })
-      .from(playersTable)
-      .where(eq(playersTable.id, playerId));
-    const tournamentWins = player?.tournamentWins ?? 0;
-
-    const matchesLost = matchesPlayed - matchesWon;
-    const winRate = matchesWon * 0.4;
-    const lossRate = matchesLost * 0.4;
-    const points = playerPoints({
-      appearances: matchesPlayed,
-      wins: matchesWon,
-      cleanSheets,
-      goals: goalsScored,
-      motm: manOfTheMatch,
-      draws,
-    });
-    const marketValue = pointsToMarketValue(points);
-
-    await db
-      .update(playersTable)
-      .set({
-        points,
-        marketValue,
-        matchesPlayed,
-        matchesWon,
-        matchesLost,
-        draws,
-        goalsScored,
-        goalsConceded,
-        cleanSheets,
-        manOfTheMatch,
-        yellowCards,
-        redCards,
-        winRate,
-        lossRate,
-        tournamentWins,
-      })
-      .where(eq(playersTable.id, playerId));
-  }
+  await syncStatsAfterFixture(match);
 }
 
 function serializeMatchRow(match: typeof matchesTable.$inferSelect, tournamentName: string | null) {
@@ -297,16 +187,43 @@ router.patch("/matches/:id", async (req, res) => {
   });
 });
 
-// Public: player games for a match (read-only)
+// Public: player games for a match (read-only).
+// Each matchup also carries both players' avatars so every fixture can render a
+// face next to the name (and the profile link on top of it).
 router.get("/matches/:id/player-games", async (req, res) => {
   const matchId = Number(req.params.id);
   if (isNaN(matchId)) return res.status(400).json({ error: "Invalid id" });
-  const games = await db
-    .select()
+
+  const homePlayer = aliasedTable(playersTable, "home_game_player");
+  const awayPlayer = aliasedTable(playersTable, "away_game_player");
+
+  const rows = await db
+    .select({
+      game: matchPlayerGamesTable,
+      homeAvatarUrl: homePlayer.avatarUrl,
+      homeDisplayName: homePlayer.displayName,
+      homeUsername: homePlayer.username,
+      awayAvatarUrl: awayPlayer.avatarUrl,
+      awayDisplayName: awayPlayer.displayName,
+      awayUsername: awayPlayer.username,
+    })
     .from(matchPlayerGamesTable)
+    .leftJoin(homePlayer, eq(matchPlayerGamesTable.homePlayerId, homePlayer.id))
+    .leftJoin(awayPlayer, eq(matchPlayerGamesTable.awayPlayerId, awayPlayer.id))
     .where(eq(matchPlayerGamesTable.matchId, matchId))
     .orderBy(matchPlayerGamesTable.id);
-  return res.json(games);
+
+  return res.json(
+    rows.map((row) => ({
+      ...row.game,
+      homeAvatarUrl: row.homeAvatarUrl ?? null,
+      homeDisplayName: row.homeDisplayName ?? null,
+      homeUsername: row.homeUsername ?? null,
+      awayAvatarUrl: row.awayAvatarUrl ?? null,
+      awayDisplayName: row.awayDisplayName ?? null,
+      awayUsername: row.awayUsername ?? null,
+    })),
+  );
 });
 
 // Staff: list all matches with their tournament name (admin / tournament-admin view).

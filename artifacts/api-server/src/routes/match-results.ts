@@ -14,6 +14,7 @@ import { detectMatchResultFromImage, validateUploadedImage, assertSafeImage, isN
 import { recomputePlayerStatsForCompletedMatch } from "./matches";
 import { advanceKnockoutWinner, computeWinnerFromResult } from "../lib/knockout";
 import { recalculateTeamScore } from "../lib/teamScore";
+import { syncStatsAfterFixture } from "../lib/stats-sync";
 
 const router = Router();
 const objectStorageService = new ObjectStorageService();
@@ -1062,6 +1063,14 @@ router.post("/admin/match-result-submissions/:id/reopen", requireAdmin, async (r
           resultSetAt: new Date(),
         })
         .where(eq(matchesTable.id, match.id));
+    }
+
+    // Refresh player profiles / clan records now that the result is rolled back.
+    const [afterReopen] = await db.select().from(matchesTable).where(eq(matchesTable.id, match.id));
+    if (afterReopen) {
+      syncStatsAfterFixture(afterReopen).catch((err: unknown) => {
+        req.log.error({ err }, "Stats sync failed after result reopen");
+      });
     }
   }
 

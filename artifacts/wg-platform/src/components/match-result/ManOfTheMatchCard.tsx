@@ -141,12 +141,14 @@ export function ManOfTheMatchCard({ data, onBack, className }: ManOfTheMatchCard
           )}
 
           {/* Dynamic floating badges */}
-          <div className="absolute left-3 top-3 flex max-w-[58%] items-center gap-2 rounded-xl border border-white/10 bg-black/55 px-2.5 py-1.5 backdrop-blur">
-            {motm.teamLogoUrl
-              ? <img src={motm.teamLogoUrl} alt="" className="h-5 w-5 shrink-0 rounded-sm object-cover" />
-              : <Shield className="h-4 w-4 shrink-0 text-[#FFB800]" />}
-            <span className="truncate text-[10px] font-black uppercase tracking-[0.14em] text-white">{motm.teamName}</span>
-          </div>
+          {motm.teamName && (
+            <div className="absolute left-3 top-3 flex max-w-[58%] items-center gap-2 rounded-xl border border-white/10 bg-black/55 px-2.5 py-1.5 backdrop-blur">
+              {motm.teamLogoUrl
+                ? <img src={motm.teamLogoUrl} alt="" className="h-5 w-5 shrink-0 rounded-sm object-cover" />
+                : <Shield className="h-4 w-4 shrink-0 text-[#FFB800]" />}
+              <span className="truncate text-[10px] font-black uppercase tracking-[0.14em] text-white">{motm.teamName}</span>
+            </div>
+          )}
 
           <div className="absolute right-3 top-3 rounded-xl border border-[#FF9900]/45 bg-black/60 px-3 py-1.5 text-center backdrop-blur">
             <div className="text-[8px] font-black uppercase tracking-[0.18em] text-[#FFB800]">Rating</div>
@@ -163,10 +165,12 @@ export function ManOfTheMatchCard({ data, onBack, className }: ManOfTheMatchCard
               <div className="text-2xl font-black uppercase leading-tight tracking-wide text-white sm:text-4xl">
                 {motm.name}
               </div>
-              <div className="mt-1.5 inline-flex items-center gap-2 text-[12px] font-black uppercase tracking-[0.2em] text-[#FF9900]">
-                {motm.teamLogoUrl && <img src={motm.teamLogoUrl} alt="" className="h-4 w-4 rounded-sm object-cover" />}
-                {motm.teamName}
-              </div>
+              {motm.teamName && (
+                <div className="mt-1.5 inline-flex items-center gap-2 text-[12px] font-black uppercase tracking-[0.2em] text-[#FF9900]">
+                  {motm.teamLogoUrl && <img src={motm.teamLogoUrl} alt="" className="h-4 w-4 rounded-sm object-cover" />}
+                  {motm.teamName}
+                </div>
+              )}
             </div>
           </div>
         </div>

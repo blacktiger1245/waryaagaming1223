@@ -273,10 +273,28 @@ function MatchFormDialog({
   }
 
   const { mutate, isPending } = useMutation({
-    mutationFn: () =>
-      isEdit
-        ? apiFetch(`/api/admin/matches/${existing!.id}`, { method: "PATCH", body: JSON.stringify(form) })
-        : apiFetch(`/api/admin/matches`, { method: "POST", body: JSON.stringify({ ...form, tournamentId }) }),
+    mutationFn: () => {
+      // The winner is NEVER typed by hand: it always follows the scoreline
+      // (e.g. Legend Yahye 2 – 3 Black Tiger → winner: Black Tiger).
+      const s1 = form.participant1Score;
+      const s2 = form.participant2Score;
+      const payload: Partial<Match> = { ...form };
+      if (s1 != null && s2 != null) {
+        if (s1 > s2) {
+          payload.winnerId = form.participant1Id ?? null;
+          payload.winnerName = form.participant1Name ?? null;
+        } else if (s2 > s1) {
+          payload.winnerId = form.participant2Id ?? null;
+          payload.winnerName = form.participant2Name ?? null;
+        } else {
+          payload.winnerId = null;
+          payload.winnerName = null;
+        }
+      }
+      return isEdit
+        ? apiFetch(`/api/admin/matches/${existing!.id}`, { method: "PATCH", body: JSON.stringify(payload) })
+        : apiFetch(`/api/admin/matches`, { method: "POST", body: JSON.stringify({ ...payload, tournamentId }) });
+    },
     onSuccess: () => {
       toast({ title: isEdit ? "Match updated" : "Match created" });
       qc.invalidateQueries({ queryKey: ["admin-tournament-matches", tournamentId] });
@@ -457,10 +475,29 @@ function MatchFormDialog({
             </div>
           </div>
 
-          {/* Winner */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Winner Name</label>
-            <Input value={form.winnerName ?? ""} placeholder="Leave blank if not decided" onChange={(e) => set("winnerName", e.target.value || null)} />
+          {/* Winner — derived automatically from the self-entered score */}
+          <div className="rounded-xl border border-border bg-muted/20 px-4 py-3">
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Winner</p>
+            {form.participant1Score != null && form.participant2Score != null ? (
+              form.participant1Score === form.participant2Score ? (
+                <p className="text-sm font-bold text-muted-foreground mt-1">
+                  Draw {form.participant1Score} – {form.participant2Score} · no winner
+                </p>
+              ) : (
+                <p className="text-sm font-black text-emerald-400 mt-1">
+                  {form.participant1Score > form.participant2Score
+                    ? form.participant1Name ?? "Participant 1"
+                    : form.participant2Name ?? "Participant 2"}
+                  <span className="ml-2 text-xs font-bold text-muted-foreground">
+                    ({form.participant1Score} – {form.participant2Score})
+                  </span>
+                </p>
+              )
+            ) : (
+              <p className="text-sm text-muted-foreground mt-1">
+                Enter both scores — the winner is set automatically.
+              </p>
+            )}
           </div>
 
           {/* MOTM + Cards — only when completed */}

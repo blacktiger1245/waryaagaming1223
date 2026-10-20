@@ -148,20 +148,24 @@ function aggSoloMatches(rows: any[], playerId: number): AggStats {
 
 function aggTeamGames(rows: any[], playerId: number): AggStats {
   const acc: AggStats = { ...ZERO_AGG };
+  const played = rows.filter((g) => g.homeScore != null && g.awayScore != null);
+  const motmMatches = new Set<number>();
   for (const g of rows) {
-    if (g.matchStatus !== "completed") continue;
+    if (g.manOfTheMatchId === playerId) motmMatches.add(g.matchId);
+  }
+  for (const g of played) {
     const isHome = g.homePlayerId === playerId;
     const my  = (isHome ? g.homeScore : g.awayScore) ?? 0;
     const opp = (isHome ? g.awayScore : g.homeScore) ?? 0;
     acc.goals    += my;
     acc.conceded += opp;
     if (opp === 0) acc.cleanSheets++;
-    if (g.manOfTheMatchId === playerId) acc.motm++;
     if (my > opp) { acc.wins++; if (my - opp === 1) acc.deciderWins++; }
     else if (my === opp) acc.draws++;
     else acc.losses++;
   }
-  acc.played = rows.filter((g) => g.matchStatus === "completed").length;
+  acc.motm = motmMatches.size;
+  acc.played = played.length;
   return acc;
 }
 
@@ -398,8 +402,8 @@ export default function PlayerDetailPage() {
           </div>
         </div>
 
-        {/* Row 2: Nationality + Blood Group */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 border-t border-border/50">
+        {/* Row 2: Nationality */}
+        <div className="pt-2 border-t border-border/50">
           <div className="space-y-1">
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <MapPin className="w-3.5 h-3.5" />
@@ -410,14 +414,6 @@ export default function PlayerDetailPage() {
                 ? <><CountryFlag country={player.country} className="h-5 w-7" />{player.country}</>
                 : "—"}
             </div>
-          </div>
-
-          <div className="space-y-1">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Droplets className="w-3.5 h-3.5" />
-              Blood Group
-            </div>
-            <div className="font-bold text-base">{p.bloodGroup ?? "—"}</div>
           </div>
         </div>
 

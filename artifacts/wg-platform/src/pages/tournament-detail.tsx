@@ -20,7 +20,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { TournamentBracket } from "@/components/tournament-bracket";
-import { apiUrl } from "@/lib/api";
+import { apiUrl, storageUrl } from "@/lib/api";
 
 const statusColors: Record<string, string> = {
   upcoming: "bg-primary/10 text-primary border-primary/30",
@@ -52,6 +52,8 @@ interface Standing {
 
 interface TournamentParticipant {
   id: number;
+  playerId?: number | null;
+  username?: string | null;
   teamId?: number | null;
   teamName?: string | null;
   teamLogoUrl?: string | null;
@@ -112,7 +114,7 @@ function buildStandings(matches: Match[]): Standing[] {
     .sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf || a.name.localeCompare(b.name));
 }
 
-function LeagueTable({ matches, totalTeams, logoMap = {} }: { matches: Match[]; totalTeams: number; logoMap?: Record<string, string | null> }) {
+function LeagueTable({ matches, totalTeams, logoMap = {}, profileHref, logoForId }: { matches: Match[]; totalTeams: number; logoMap?: Record<string, string | null>; profileHref?: (id: number) => string; logoForId?: (id: number) => string | null }) {
   const standings = buildStandings(matches);
 
   if (standings.length === 0) {
@@ -178,14 +180,23 @@ function LeagueTable({ matches, totalTeams, logoMap = {} }: { matches: Match[]; 
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2.5">
-                    {logoMap[s.name] ? (
-                      <img src={logoMap[s.name]!} alt={s.name} className="w-7 h-7 rounded-full object-cover shrink-0 ring-1 ring-border" />
+                    {(() => {
+                      const crest = logoForId?.(s.id) ?? logoMap[s.name];
+                      return crest ? (
+                        <img src={crest} alt={s.name} className="w-7 h-7 rounded-full object-cover shrink-0 ring-1 ring-border" />
+                      ) : (
+                        <div className="w-7 h-7 rounded-full bg-muted border border-border shrink-0 flex items-center justify-center text-[9px] font-black text-muted-foreground">
+                          {s.name.charAt(0)}
+                        </div>
+                      );
+                    })()}
+                    {profileHref ? (
+                      <Link href={profileHref(s.id)} title={`View ${s.name} profile`} className="font-bold text-foreground hover:text-primary hover:underline">
+                        {s.name}
+                      </Link>
                     ) : (
-                      <div className="w-7 h-7 rounded-full bg-muted border border-border shrink-0 flex items-center justify-center text-[9px] font-black text-muted-foreground">
-                        {s.name.charAt(0)}
-                      </div>
+                      <span className="font-bold text-foreground">{s.name}</span>
                     )}
-                    <span className="font-bold text-foreground">{s.name}</span>
                   </div>
                 </td>
                 <td className="px-3 py-3 text-center text-muted-foreground">{s.mp}</td>
@@ -216,13 +227,41 @@ function LeagueTable({ matches, totalTeams, logoMap = {} }: { matches: Match[]; 
 
 // â”€â”€â”€ Match Detail Dialog (public, read-only player matchups) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+// Small helper: a player's name that links to their public profile when known.
+function PlayerNameLink({
+  id,
+  name,
+  className,
+}: {
+  id?: number | null;
+  name?: string | null;
+  className?: string;
+}) {
+  const label = name || "—";
+  if (id == null) return <span className={className}>{label}</span>;
+  return (
+    <Link
+      href={`/players/${id}`}
+      onClick={(e) => e.stopPropagation()}
+      title={`View ${label} profile`}
+      className={`${className ?? ""} hover:underline`}
+    >
+      {label}
+    </Link>
+  );
+}
+
 interface PublicPlayerGame {
   id: number;
   matchId: number;
+  homePlayerId?: number | null;
+  awayPlayerId?: number | null;
   homePlayerName?: string | null;
   awayPlayerName?: string | null;
   homeScore?: number | null;
   awayScore?: number | null;
+  homeAvatarUrl?: string | null;
+  awayAvatarUrl?: string | null;
   status: string;
 }
 
@@ -393,10 +432,15 @@ function MatchDetailDialog({
                     transition={{ delay: idx * 0.03 }}
                     className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-2 py-2.5 rounded-xl hover:bg-muted/10 transition-colors"
                   >
-                    <div className="text-right">
-                      <span className={`text-sm font-bold ${hWin ? "text-emerald-400" : ""}`}>
-                        {game.homePlayerName || "â€”"}
+                    <div className="flex items-center justify-end gap-2 min-w-0">
+                      <span className={`text-sm font-bold truncate ${hWin ? "text-emerald-400" : ""}`}>
+                        {game.homePlayerName || "—"}
                       </span>
+                      {game.homeAvatarUrl ? (
+                        <img src={game.homeAvatarUrl} alt="" className="w-6 h-6 rounded-full object-cover shrink-0 ring-1 ring-border" />
+                      ) : (
+                        <div className="w-6 h-6 rounded-full bg-muted border border-border shrink-0" />
+                      )}
                     </div>
                     <div className="text-center min-w-[64px]">
                       {gDone ? (
@@ -407,9 +451,14 @@ function MatchDetailDialog({
                         <span className="text-muted-foreground text-xs font-bold">vs</span>
                       )}
                     </div>
-                    <div>
-                      <span className={`text-sm font-bold ${aWin ? "text-emerald-400" : ""}`}>
-                        {game.awayPlayerName || "â€”"}
+                    <div className="flex items-center gap-2 min-w-0">
+                      {game.awayAvatarUrl ? (
+                        <img src={game.awayAvatarUrl} alt="" className="w-6 h-6 rounded-full object-cover shrink-0 ring-1 ring-border" />
+                      ) : (
+                        <div className="w-6 h-6 rounded-full bg-muted border border-border shrink-0" />
+                      )}
+                      <span className={`text-sm font-bold truncate ${aWin ? "text-emerald-400" : ""}`}>
+                        {game.awayPlayerName || "—"}
                       </span>
                     </div>
                   </motion.div>
@@ -504,9 +553,18 @@ function PlayerGamesInline({
                   key={game.id}
                   className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-2 py-2 rounded-xl hover:bg-muted/10 transition-colors"
                 >
-                  <span className={`text-sm font-bold text-right truncate ${hWin ? "text-emerald-400" : ""}`}>
-                    {game.homePlayerName || "—"}
-                  </span>
+                  <div className="flex items-center justify-end gap-2 min-w-0">
+                    <PlayerNameLink
+                      id={game.homePlayerId}
+                      name={game.homePlayerName}
+                      className={`text-sm font-bold truncate ${hWin ? "text-emerald-400" : ""}`}
+                    />
+                    {game.homeAvatarUrl ? (
+                      <img src={game.homeAvatarUrl} alt="" className="w-6 h-6 rounded-full object-cover shrink-0 ring-1 ring-border" />
+                    ) : (
+                      <div className="w-6 h-6 rounded-full bg-muted border border-border shrink-0" />
+                    )}
+                  </div>
                   <div className="text-center min-w-[64px]">
                     {gDone ? (
                       <span className={`font-mono font-black text-base tabular-nums ${hWin || aWin ? "" : "text-muted-foreground"}`}>
@@ -516,9 +574,18 @@ function PlayerGamesInline({
                       <span className="text-muted-foreground text-xs font-bold">vs</span>
                     )}
                   </div>
-                  <span className={`text-sm font-bold text-left truncate ${aWin ? "text-emerald-400" : ""}`}>
-                    {game.awayPlayerName || "—"}
-                  </span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    {game.awayAvatarUrl ? (
+                      <img src={game.awayAvatarUrl} alt="" className="w-6 h-6 rounded-full object-cover shrink-0 ring-1 ring-border" />
+                    ) : (
+                      <div className="w-6 h-6 rounded-full bg-muted border border-border shrink-0" />
+                    )}
+                    <PlayerNameLink
+                      id={game.awayPlayerId}
+                      name={game.awayPlayerName}
+                      className={`text-sm font-bold truncate ${aWin ? "text-emerald-400" : ""}`}
+                    />
+                  </div>
                 </div>
               );
             })}
@@ -547,7 +614,7 @@ function PlayerGamesInline({
 
 // â”€â”€â”€ Register Button â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-function RegisterButton({ tournamentId, status, isFull, isClanTournament, playersPerTeam }: { tournamentId: number; status: string; isFull: boolean; isClanTournament?: boolean; playersPerTeam?: number | null }) {
+function RegisterButton({ tournamentId, status, isFull, isClanTournament }: { tournamentId: number; status: string; isFull: boolean; isClanTournament?: boolean; playersPerTeam?: number | null }) {
   const { user, isLoading: authLoading, loginWithDiscord } = useAuth();
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -575,8 +642,6 @@ function RegisterButton({ tournamentId, status, isFull, isClanTournament, player
   });
   const myRole = isClanTournament ? ((myTeam as any)?.selfRole ?? null) : null;
   const isTeamManager = myRole === "president" || myRole === "coach";
-  const [rosterOpen, setRosterOpen] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
   const { mutate: register, isPending } = useMutation({
     mutationFn: async () => {
@@ -587,7 +652,7 @@ function RegisterButton({ tournamentId, status, isFull, isClanTournament, player
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(isClanTournament ? { playerIds: selectedIds } : {}),
+        body: JSON.stringify({}),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null) as { error?: string } | null;
@@ -600,10 +665,10 @@ function RegisterButton({ tournamentId, status, isFull, isClanTournament, player
         title: isClanTournament ? "Your team is registered! 🏆" : "You're registered! 🎮",
         description: isClanTournament ? `${data.teamName ?? "Your team"} is in the tournament!` : `Welcome, ${data.displayName ?? data.playerName}`,
       });
-      setRosterOpen(false);
-      setSelectedIds([]);
       qc.invalidateQueries({ queryKey: ["tournament-registration", tournamentId] });
       qc.invalidateQueries({ queryKey: ["tournament", tournamentId] });
+      qc.invalidateQueries({ queryKey: ["tournament-participants", tournamentId] });
+      qc.invalidateQueries({ queryKey: ["tournaments"] });
     },
     onError: (err: Error) => {
       toast({ title: "Registration failed", description: err.message, variant: "destructive" });
@@ -663,58 +728,14 @@ function RegisterButton({ tournamentId, status, isFull, isClanTournament, player
   }
 
   return (
-    <>
     <Button
-      onClick={() => { if (isClanTournament && playersPerTeam) setRosterOpen(true); else register(); }}
+      onClick={() => register()}
       disabled={isPending}
+      title={isClanTournament ? "Registers your clan for this tournament" : undefined}
       className="gap-2 h-12 px-8 text-base font-bold bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-500 hover:to-pink-500 border-0"
     >
       {isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Registering…</> : <><Trophy className="w-4 h-4" /> {isClanTournament ? "Register My Team" : "Register Now"}</>}
     </Button>
-    {rosterOpen && (
-      <Dialog open onOpenChange={(v) => !v && setRosterOpen(false)}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-base font-black">Choose Your Line-up</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 mt-2">
-            <p className="text-xs text-muted-foreground">Select which players from your team will play in this tournament (player vs player). Maximum {playersPerTeam}.</p>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-black">Selected: {selectedIds.length} / {playersPerTeam}</span>
-              {selectedIds.length >= (playersPerTeam ?? 0) ? <span className="ml-1 text-red-400 text-xs font-bold">You reached the maximum of {playersPerTeam} players.</span> : null}
-            </div>
-            <div className="space-y-1 max-h-[40vh] overflow-y-auto">
-              {(myTeam?.members ?? []).map((m: any) => {
-                const selected = selectedIds.includes(m.id);
-                const reached = !selected && (playersPerTeam ?? 0) > 0 && selectedIds.length >= (playersPerTeam ?? 0);
-                return (
-                  <button key={m.id} type="button" disabled={reached} onClick={() => {
-                    if (selected) setSelectedIds(selectedIds.filter((x) => x !== m.id));
-                    else setSelectedIds([...selectedIds, m.id]);
-                  }} className={`w-full flex items-center gap-2.5 rounded-lg border px-3 py-2 text-left transition-colors ${selected ? "bg-primary/10 border-primary" : reached ? "opacity-40 border-border" : "border-border hover:border-border/70"}`}>
-                    {m.avatarUrl ? (
-                      <img src={m.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover ring-1 ring-border" />
-                    ) : (
-                      <div className="w-7 h-7 rounded-full bg-muted border border-border flex items-center justify-center text-[10px] font-black">{m.displayName?.charAt(0) || m.username?.charAt(0) || "?"}</div>
-                    )}
-                    <span className="font-bold text-sm truncate">{m.displayName || m.username}</span>
-                    <span className="ml-auto text-[10px] uppercase text-muted-foreground truncate">{m.teamRole}</span>
-                    {selected ? <CheckCircle2 className="w-4 h-4 text-primary shrink-0" /> : <UserPlus className="w-4 h-4 text-muted-foreground/70 shrink-0" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 pt-3">
-            <Button type="button" variant="outline" onClick={() => setRosterOpen(false)}>Cancel</Button>
-            <Button type="button" disabled={selectedIds.length === 0 || isPending} onClick={() => register()}>
-              {isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Registering…</> : <>Register {selectedIds.length} Player{selectedIds.length === 1 ? "" : "s"}</>}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    )}
-    </>
   );
 }
 
@@ -915,7 +936,7 @@ function buildGroupStandings(matches: Match[]) {
   return result.sort((a, b) => a.group.localeCompare(b.group));
 }
 
-function GroupStandings({ matches, logoMap = {} }: { matches: Match[]; logoMap?: Record<string, string | null> }) {
+function GroupStandings({ matches, logoMap = {}, profileHref, logoForId }: { matches: Match[]; logoMap?: Record<string, string | null>; profileHref?: (id: number) => string; logoForId?: (id: number) => string | null }) {
   const groups = useMemo(() => buildGroupStandings(matches), [matches]);
 
   if (groups.length === 0) {
@@ -953,14 +974,23 @@ function GroupStandings({ matches, logoMap = {} }: { matches: Match[]; logoMap?:
                   <td className="px-4 py-2 text-muted-foreground font-mono text-xs">{i + 1}</td>
                   <td className="px-4 py-2">
                     <div className="flex items-center gap-2">
-                      {logoMap[s.name] ? (
-                        <img src={logoMap[s.name]!} alt="" className="w-6 h-6 rounded-full object-cover shrink-0 ring-1 ring-border" />
+                      {(() => {
+                        const crest = logoForId?.(s.id) ?? logoMap[s.name];
+                        return crest ? (
+                          <img src={crest} alt="" className="w-6 h-6 rounded-full object-cover shrink-0 ring-1 ring-border" />
+                        ) : (
+                          <div className="w-6 h-6 rounded-full bg-muted border border-border shrink-0 flex items-center justify-center text-[9px] font-black text-muted-foreground">
+                            {s.name.charAt(0)}
+                          </div>
+                        );
+                      })()}
+                      {profileHref ? (
+                        <Link href={profileHref(s.id)} title={`View ${s.name} profile`} className="font-bold text-foreground hover:text-primary hover:underline">
+                          {s.name}
+                        </Link>
                       ) : (
-                        <div className="w-6 h-6 rounded-full bg-muted border border-border shrink-0 flex items-center justify-center text-[9px] font-black text-muted-foreground">
-                          {s.name.charAt(0)}
-                        </div>
+                        <span className="font-bold text-foreground">{s.name}</span>
                       )}
-                      <span className="font-bold text-foreground">{s.name}</span>
                     </div>
                   </td>
                   <td className="px-3 py-2 text-center text-muted-foreground">{s.mp}</td>
@@ -984,9 +1014,13 @@ function GroupStandings({ matches, logoMap = {} }: { matches: Match[]; logoMap?:
 function TournamentStatsView({
   stats,
   logoMap = {},
+  profileHref,
+  logoForId,
 }: {
   stats: Array<{ playerId: number; name: string; matches: number; wins: number; losses: number; draws: number; goalsFor: number; goalsAgainst: number; points: number }>;
   logoMap?: Record<string, string | null>;
+  profileHref?: (id: number) => string;
+  logoForId?: (id: number) => string | null;
 }) {
   if (stats.length === 0) {
     return (
@@ -1029,14 +1063,20 @@ function TournamentStatsView({
               </td>
               <td className="px-4 py-3">
                 <div className="flex items-center gap-2">
-                  {logoMap[s.name] ? (
-                    <img src={logoMap[s.name]!} alt="" className="w-7 h-7 rounded-full object-cover shrink-0 ring-1 ring-border" />
+                  {(logoForId?.(s.playerId) ?? logoMap[s.name]) ? (
+                    <img src={(logoForId?.(s.playerId) ?? logoMap[s.name])!} alt="" className="w-7 h-7 rounded-full object-cover shrink-0 ring-1 ring-border" />
                   ) : (
                     <div className="w-7 h-7 rounded-full bg-muted border border-border shrink-0 flex items-center justify-center text-[10px] font-black text-muted-foreground">
                       {s.name.charAt(0)}
                     </div>
                   )}
-                  <span className="font-bold text-foreground">{s.name}</span>
+                  {profileHref ? (
+                    <Link href={profileHref(s.playerId)} className="font-bold text-foreground hover:text-primary hover:underline" title={`View ${s.name} profile`}>
+                      {s.name}
+                    </Link>
+                  ) : (
+                    <span className="font-bold text-foreground">{s.name}</span>
+                  )}
                 </div>
               </td>
               <td className="px-3 py-3 text-center text-muted-foreground">{s.matches}</td>
@@ -1088,14 +1128,50 @@ export default function TournamentDetailPage() {
     enabled: !!id,
   });
 
+  // Participant id/name → logo (clan crest) or avatar (player) + profile link.
+  // Used by every fixture, table and bracket so a team/player is always shown
+  // with their image and can be clicked through to their profile.
+  const participantProfiles = useMemo(() => {
+    type Profile = { url: string | null; href: string | null; label: string };
+    const byId: Record<number, Profile> = {};
+    const byName: Record<string, Profile> = {};
+    (participants ?? []).forEach((p) => {
+      if (p.teamId != null) {
+        const entry: Profile = {
+          url: p.teamLogoUrl ?? null,
+          href: `/teams/${p.teamId}`,
+          label: p.teamName ?? "Team",
+        };
+        byId[p.teamId] = entry;
+        if (p.teamName) byName[p.teamName] = entry;
+      }
+      if (p.playerId != null) {
+        const entry: Profile = {
+          url: p.avatarUrl ?? null,
+          href: `/players/${p.playerId}`,
+          label: p.displayName || p.username || "Player",
+        };
+        byId[p.playerId] = entry;
+        if (p.displayName) byName[p.displayName] = entry;
+        if (p.username) byName[p.username] = entry;
+      }
+    });
+    return { byId, byName };
+  }, [participants]);
+
   const teamLogoMap = useMemo<Record<string, string | null>>(() => {
     const m: Record<string, string | null> = {};
-    participants.forEach((p) => {
-      const name = p.teamName ?? "";
-      if (name) m[name] = p.teamLogoUrl ?? null;
+    Object.entries(participantProfiles.byName).forEach(([name, profile]) => {
+      m[name] = profile.url;
     });
     return m;
-  }, [participants]);
+  }, [participantProfiles]);
+
+  function resolveParticipant(id: number | null | undefined, name: string | null | undefined) {
+    if (id != null && participantProfiles.byId[id]) return participantProfiles.byId[id];
+    if (name && participantProfiles.byName[name]) return participantProfiles.byName[name];
+    return { url: null as string | null, href: null as string | null, label: name ?? "TBD" };
+  }
 
   const teamRosterMap = useMemo<Record<number, TournamentParticipant["members"]>>(() => {
     const m: Record<number, TournamentParticipant["members"]> = {};
@@ -1167,11 +1243,20 @@ export default function TournamentDetailPage() {
             )}
           </div>
           <div className="flex flex-col md:flex-row md:items-end gap-6">
-            <div className="flex-1">
-              <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tight mb-4">{tournament.name}</h1>
-              {tournament.description && (
-                <p className="text-muted-foreground text-lg max-w-2xl">{tournament.description}</p>
+            <div className="flex items-center gap-4 flex-1 min-w-0">
+              {(tournament as unknown as { logoUrl?: string | null }).logoUrl && (
+                <img
+                  src={storageUrl((tournament as unknown as { logoUrl?: string | null }).logoUrl) ?? ""}
+                  alt={tournament.name}
+                  className="w-20 h-20 md:w-24 md:h-24 rounded-2xl object-cover shrink-0 ring-2 ring-border bg-black/20"
+                />
               )}
+              <div className="min-w-0">
+                <h1 className="text-4xl md:text-5xl font-black uppercase tracking-tight mb-4">{tournament.name}</h1>
+                {tournament.description && (
+                  <p className="text-muted-foreground text-lg max-w-2xl">{tournament.description}</p>
+                )}
+              </div>
             </div>
             {(!isTeamTournament || (tournament as unknown as { isClanTournament?: boolean }).isClanTournament) && (
               <div className="shrink-0">
@@ -1197,7 +1282,7 @@ export default function TournamentDetailPage() {
               label: isTeamTournament ? "Teams" : "Participants",
               value: tournament.maxParticipants >= 9999
                 ? String(tournament.currentParticipants)
-                : `${tournament.maxParticipants}/${tournament.maxParticipants}`,
+                : `${tournament.currentParticipants}/${tournament.maxParticipants}`,
               icon: isTeamTournament ? Shield : Users,
             },
             {
@@ -1246,32 +1331,52 @@ export default function TournamentDetailPage() {
                     {participants.map((p) => {
                       const isOpen = expandedTeam === p.id;
                       const members = p.members ?? [];
+                      const profileHref = p.teamId != null ? `/teams/${p.teamId}` : p.playerId != null ? `/players/${p.playerId}` : null;
+                      const displayName = p.teamName || p.displayName || "Unknown";
                       return (
                         <div key={p.id} className="rounded-xl border border-border bg-card overflow-hidden">
-                          <button
-                            type="button"
-                            onClick={() => setExpandedTeam(isOpen ? null : p.id)}
-                            className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors"
-                            aria-expanded={isOpen}
-                          >
-                            <div className="flex items-center gap-3 min-w-0">
-                              {p.teamLogoUrl || p.avatarUrl ? (
-                                <img src={p.teamLogoUrl || p.avatarUrl || ""} alt="" className="w-9 h-9 rounded-full object-cover shrink-0 ring-1 ring-border" />
-                              ) : (
+                          <div className="flex items-center gap-2 px-4 py-3">
+                            {profileHref ? (
+                              <Link
+                                href={profileHref}
+                                title={`View ${displayName} profile`}
+                                className="flex flex-1 min-w-0 items-center gap-3 rounded-lg px-1 py-0.5 transition-colors hover:text-primary"
+                              >
+                                {p.teamLogoUrl || p.avatarUrl ? (
+                                  <img src={p.teamLogoUrl || p.avatarUrl || ""} alt="" className="w-9 h-9 rounded-full object-cover shrink-0 ring-1 ring-border" />
+                                ) : (
+                                  <div className="w-9 h-9 rounded-full bg-muted border border-border shrink-0 flex items-center justify-center text-xs font-black text-muted-foreground">
+                                    {displayName.charAt(0)}
+                                  </div>
+                                )}
+                                <span className="font-bold truncate">{displayName}</span>
+                                {members.length > 0 && (
+                                  <span className="hidden sm:inline-flex items-center gap-1.5 text-xs text-muted-foreground ml-1">
+                                    <Users className="w-3.5 h-3.5" />
+                                    {members.length}
+                                  </span>
+                                )}
+                              </Link>
+                            ) : (
+                              <div className="flex flex-1 min-w-0 items-center gap-3">
                                 <div className="w-9 h-9 rounded-full bg-muted border border-border shrink-0 flex items-center justify-center text-xs font-black text-muted-foreground">
-                                  {(p.teamName || p.displayName || "?").charAt(0)}
+                                  {displayName.charAt(0)}
                                 </div>
-                              )}
-                              <span className="font-bold truncate">{p.teamName || p.displayName || "Unknown"}</span>
-                              {members.length > 0 && (
-                                <span className="hidden sm:inline-flex items-center gap-1.5 text-xs text-muted-foreground ml-1">
-                                  <Users className="w-3.5 h-3.5" />
-                                  {members.length}
-                                </span>
-                              )}
-                            </div>
-                            <ChevronRight className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${isOpen ? "rotate-90" : ""}`} />
-                          </button>
+                                <span className="font-bold truncate">{displayName}</span>
+                              </div>
+                            )}
+                            {members.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setExpandedTeam(isOpen ? null : p.id)}
+                                className="text-muted-foreground hover:text-foreground shrink-0"
+                                aria-expanded={isOpen}
+                                aria-label={isOpen ? "Hide squad" : "Show squad"}
+                              >
+                                <ChevronRight className={`w-4 h-4 transition-transform ${isOpen ? "rotate-90" : ""}`} />
+                              </button>
+                            )}
+                          </div>
 
                           {isOpen && (
                             <div className="border-t border-border px-4 py-4">
@@ -1280,7 +1385,12 @@ export default function TournamentDetailPage() {
                               ) : (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                                   {members.map((m) => (
-                                    <div key={m.id} className="flex items-center gap-2.5 rounded-lg bg-muted/40 border border-border px-2.5 py-2">
+                                    <Link
+                                      key={m.id}
+                                      href={`/players/${m.id}`}
+                                      title={`View ${m.displayName || m.username} profile`}
+                                      className="flex items-center gap-2.5 rounded-lg bg-muted/40 border border-border px-2.5 py-2 transition-colors hover:border-primary/50 hover:text-primary"
+                                    >
                                       {m.avatarUrl ? (
                                         <img src={m.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover shrink-0 ring-1 ring-border" />
                                       ) : (
@@ -1294,7 +1404,7 @@ export default function TournamentDetailPage() {
                                           {m.role && m.role !== "player" ? m.role : "Player"}
                                         </p>
                                       </div>
-                                    </div>
+                                    </Link>
                                   ))}
                                 </div>
                               )}
@@ -1326,7 +1436,13 @@ export default function TournamentDetailPage() {
                   {matches && matches.filter((m) => m.status === "completed").length} of {matches?.length ?? 0} matches played
                 </span>
               </div>
-              <LeagueTable matches={matches ?? []} totalTeams={tournament.currentParticipants} logoMap={teamLogoMap} />
+              <LeagueTable
+                matches={matches ?? []}
+                totalTeams={tournament.currentParticipants}
+                logoMap={teamLogoMap}
+                profileHref={(participantId) => (isTeamTournament ? `/teams/${participantId}` : `/players/${participantId}`)}
+                logoForId={(participantId) => participantProfiles.byId[participantId]?.url ?? null}
+              />
             </motion.div>
           )}
 
@@ -1335,14 +1451,19 @@ export default function TournamentDetailPage() {
               <div className="mb-4">
                 <h2 className="wg-section-title text-xl font-black uppercase tracking-tight">Group Standings</h2>
               </div>
-              <GroupStandings matches={matches ?? []} logoMap={teamLogoMap} />
+              <GroupStandings
+                matches={matches ?? []}
+                logoMap={teamLogoMap}
+                profileHref={(participantId) => (isTeamTournament ? `/teams/${participantId}` : `/players/${participantId}`)}
+                logoForId={(participantId) => participantProfiles.byId[participantId]?.url ?? null}
+              />
             </motion.div>
           )}
 
           {activeTab === "knockout" && (
             <motion.div key="knockout" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
               {bracket && bracket.rounds.length > 0 ? (
-                <TournamentBracket rounds={bracket.rounds} />
+                <TournamentBracket rounds={bracket.rounds} profiles={participantProfiles.byId} />
               ) : (
                 <div className="rounded-xl border border-border bg-card p-8 text-center text-muted-foreground">
                   <Swords className="w-10 h-10 mx-auto mb-3 opacity-30" />
@@ -1370,20 +1491,31 @@ export default function TournamentDetailPage() {
                           const live = match.status === "live";
                           const p1Win = done && match.winnerId === match.participant1Id;
                           const p2Win = done && match.winnerId === match.participant2Id;
-                          const logo1 = teamLogoMap[match.participant1Name ?? ""];
-                          const logo2 = teamLogoMap[match.participant2Name ?? ""];
+                          const p1 = resolveParticipant(match.participant1Id, match.participant1Name);
+                          const p2 = resolveParticipant(match.participant2Id, match.participant2Name);
                           return (
                             <div
                               key={match.id}
                               className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-border last:border-0 hover:bg-muted/10 transition-colors cursor-pointer group"
                               onClick={() => (isTeamTournament ? setExpandedMatch(expandedMatch === match.id ? null : match.id) : setSelectedMatch(match))}
                             >
-                              <div className="flex-1 flex items-center justify-end gap-2.5">
-                                <span className={`font-bold text-sm truncate text-right ${p1Win ? "text-emerald-400" : ""}`}>
-                                  {match.participant1Name ?? "TBD"}
-                                </span>
-                                {logo1 ? (
-                                  <img src={logo1} alt="" className={`w-9 h-9 rounded-full object-cover shrink-0 ring-2 ${p1Win ? "ring-emerald-500" : "ring-border"}`} />
+                              <div className="flex-1 flex items-center justify-end gap-2.5 min-w-0">
+                                {p1.href ? (
+                                  <Link
+                                    href={p1.href}
+                                    title={`View ${p1.label} profile`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className={`font-bold text-sm truncate text-right hover:underline ${p1Win ? "text-emerald-400" : ""}`}
+                                  >
+                                    {match.participant1Name ?? "TBD"}
+                                  </Link>
+                                ) : (
+                                  <span className={`font-bold text-sm truncate text-right ${p1Win ? "text-emerald-400" : ""}`}>
+                                    {match.participant1Name ?? "TBD"}
+                                  </span>
+                                )}
+                                {p1.url ? (
+                                  <img src={p1.url} alt="" className={`w-9 h-9 rounded-full object-cover shrink-0 ring-2 ${p1Win ? "ring-emerald-500" : "ring-border"}`} />
                                 ) : (
                                   <div className={`w-9 h-9 rounded-full bg-muted border shrink-0 flex items-center justify-center text-[10px] font-black text-muted-foreground ${p1Win ? "border-emerald-500" : "border-border"}`}>
                                     {(match.participant1Name ?? "?").charAt(0)}
@@ -1403,17 +1535,28 @@ export default function TournamentDetailPage() {
                                   <span className="text-muted-foreground text-xs font-bold">vs</span>
                                 )}
                               </div>
-                              <div className="flex-1 flex items-center gap-2.5">
-                                {logo2 ? (
-                                  <img src={logo2} alt="" className={`w-9 h-9 rounded-full object-cover shrink-0 ring-2 ${p2Win ? "ring-emerald-500" : "ring-border"}`} />
+                              <div className="flex-1 flex items-center gap-2.5 min-w-0">
+                                {p2.url ? (
+                                  <img src={p2.url} alt="" className={`w-9 h-9 rounded-full object-cover shrink-0 ring-2 ${p2Win ? "ring-emerald-500" : "ring-border"}`} />
                                 ) : (
                                   <div className={`w-9 h-9 rounded-full bg-muted border shrink-0 flex items-center justify-center text-[10px] font-black text-muted-foreground ${p2Win ? "border-emerald-500" : "border-border"}`}>
                                     {(match.participant2Name ?? "?").charAt(0)}
                                   </div>
                                 )}
-                                <span className={`font-bold text-sm truncate ${p2Win ? "text-emerald-400" : ""}`}>
-                                  {match.participant2Name ?? "TBD"}
-                                </span>
+                                {p2.href ? (
+                                  <Link
+                                    href={p2.href}
+                                    title={`View ${p2.label} profile`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className={`font-bold text-sm truncate hover:underline ${p2Win ? "text-emerald-400" : ""}`}
+                                  >
+                                    {match.participant2Name ?? "TBD"}
+                                  </Link>
+                                ) : (
+                                  <span className={`font-bold text-sm truncate ${p2Win ? "text-emerald-400" : ""}`}>
+                                    {match.participant2Name ?? "TBD"}
+                                  </span>
+                                )}
                               </div>
                               {isTeamTournament ? (
                                 <div
@@ -1456,7 +1599,12 @@ export default function TournamentDetailPage() {
                 <h2 className="wg-section-title text-xl font-black uppercase tracking-tight">Tournament Player Rankings</h2>
                 <p className="text-sm text-muted-foreground mt-1">Statistics calculated from completed matches in this tournament only.</p>
               </div>
-              <TournamentStatsView stats={tournamentStats} logoMap={teamLogoMap} />
+              <TournamentStatsView
+                stats={tournamentStats}
+                logoMap={teamLogoMap}
+                profileHref={(participantId) => (isTeamTournament ? `/teams/${participantId}` : `/players/${participantId}`)}
+                logoForId={(participantId) => participantProfiles.byId[participantId]?.url ?? null}
+              />
             </motion.div>
           )}
         </AnimatePresence>

@@ -21,6 +21,30 @@ import {
 
 const router = Router();
 
+/**
+ * Count the real number of registered participants for a tournament.
+ * The stored `current_participants` column is only a cached counter and can drift
+ * (deleted teams/players, legacy rows), so every read path derives the count from
+ * the `tournament_participants` table instead.
+ */
+async function countParticipants(tournamentId: number): Promise<number> {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(tournamentParticipantsTable)
+    .where(eq(tournamentParticipantsTable.tournamentId, tournamentId));
+  return Number(row?.count ?? 0);
+}
+
+/** Keep the cached counter in sync with reality (best effort, never throws). */
+async function syncParticipantCount(tournamentId: number): Promise<number> {
+  const count = await countParticipants(tournamentId);
+  await db
+    .update(tournamentsTable)
+    .set({ currentParticipants: count })
+    .where(eq(tournamentsTable.id, tournamentId));
+  return count;
+}
+
 router.get("/tournaments", async (req, res) => {
   const query = ListTournamentsQueryParams.safeParse(req.query);
   if (!query.success) return res.status(400).json({ error: "Invalid query" });
@@ -32,7 +56,24 @@ router.get("/tournaments", async (req, res) => {
     .where(status ? eq(tournamentsTable.status, status) : undefined)
     .orderBy(sql`COALESCE(${tournamentsTable.startDate}, '9999-12-31')`, tournamentsTable.createdAt);
 
-  return res.json(tournaments.map((t) => ({ ...t, createdAt: t.createdAt.toISOString() })));
+  // Derive the registered-participant count for every tournament in one query so
+  // the UI can always render "registered / max" (e.g. 0/16, 1/16, 2/16).
+  const counts = await db
+    .select({
+      tournamentId: tournamentParticipantsTable.tournamentId,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(tournamentParticipantsTable)
+    .groupBy(tournamentParticipantsTable.tournamentId);
+  const countMap = new Map(counts.map((row) => [row.tournamentId, Number(row.count)]));
+
+  return res.json(
+    tournaments.map((t) => ({
+      ...t,
+      currentParticipants: countMap.get(t.id) ?? 0,
+      createdAt: t.createdAt.toISOString(),
+    })),
+  );
 });
 
 router.post("/tournaments", async (req, res) => {
@@ -139,7 +180,14 @@ router.get("/tournaments/:id", async (req, res) => {
     .where(eq(tournamentsTable.id, params.data.id));
 
   if (!tournament) return res.status(404).json({ error: "Tournament not found" });
-  return res.json({ ...tournament, createdAt: tournament.createdAt.toISOString() });
+
+  // Always report the live registered count (e.g. 0/16 → 1/16 after a join).
+  const registered = await countParticipants(tournament.id);
+  return res.json({
+    ...tournament,
+    currentParticipants: registered,
+    createdAt: tournament.createdAt.toISOString(),
+  });
 });
 
 /**
@@ -198,7 +246,10 @@ async function registerTeamForTournament(
   const id = tournament.id;
   if (tournament.status === "completed" || tournament.status === "cancelled")
     return res.status(400).json({ error: "Tournament is no longer open for registration" });
-  if (tournament.currentParticipants >= tournament.maxParticipants)
+
+  // Capacity is checked against the real registered rows, never the cached column.
+  const registered = await countParticipants(id);
+  if (registered >= tournament.maxParticipants)
     return res.status(400).json({ error: "Tournament is full" });
 
   const uid = req.session?.userId;
@@ -232,26 +283,25 @@ async function registerTeamForTournament(
     );
   if (existing) return res.status(409).json({ error: "Your team is already registered" });
 
-  // Per-team player limit set by the admin: the coach must pick which players
-  // from the team will play (player vs player), up to that maximum.
+  // Optional playing roster (player vs player). Registration itself only needs the
+  // clan — the coach may add the line-up later, so an empty selection is accepted.
   const body = (req.body ?? {}) as { playerIds?: unknown };
   const playersPerTeam = tournament.playersPerTeam != null ? tournament.playersPerTeam : null;
   let playerIds: number[] = [];
   if (playersPerTeam != null && playersPerTeam > 0) {
     const raw = Array.isArray(body.playerIds) ? body.playerIds : [];
     playerIds = raw.filter((x): x is number => typeof x === "number" && Number.isInteger(x) && x > 0);
-    if (playerIds.length === 0) {
-      return res.status(400).json({ error: `Select at least one player from your team to play (up to ${playersPerTeam} player vs player).` });
-    }
     if (playerIds.length > playersPerTeam) {
       return res.status(400).json({ error: `You reached the maximum of ${playersPerTeam} players (player vs player). You selected ${playerIds.length}.` });
     }
-    const teamMembers = await db
-      .select({ id: playersTable.id })
-      .from(playersTable)
-      .where(and(eq(playersTable.teamId, team.id), inArray(playersTable.id, playerIds)));
-    if (teamMembers.length !== playerIds.length) {
-      return res.status(403).json({ error: "Some selected players are not on your team." });
+    if (playerIds.length > 0) {
+      const teamMembers = await db
+        .select({ id: playersTable.id })
+        .from(playersTable)
+        .where(and(eq(playersTable.teamId, team.id), inArray(playersTable.id, playerIds)));
+      if (teamMembers.length !== playerIds.length) {
+        return res.status(403).json({ error: "Some selected players are not on your team." });
+      }
     }
   }
   const [participant] = await db
@@ -259,10 +309,7 @@ async function registerTeamForTournament(
     .values({ tournamentId: id, type: "team", playerId: null, teamId: team.id })
     .returning();
 
-  await db
-    .update(tournamentsTable)
-    .set({ currentParticipants: tournament.currentParticipants + 1 })
-    .where(eq(tournamentsTable.id, id));
+  const newCount = await syncParticipantCount(id);
 
   // Store the coach's chosen playing roster (player vs player) for this team.
   if (playerIds.length > 0) {
@@ -281,6 +328,7 @@ async function registerTeamForTournament(
     seed: null,
     playersSelected: playerIds.length,
     playersPerTeam: playersPerTeam ?? null,
+    currentParticipants: newCount,
   });
 }
 
@@ -344,7 +392,9 @@ router.post("/tournaments/:id/register-me", async (req, res) => {
     }
   }
 
-  if (tournament.currentParticipants >= tournament.maxParticipants)
+  // Capacity is checked against the real registered rows, never the cached column.
+  const registered = await countParticipants(id);
+  if (registered >= tournament.maxParticipants)
     return res.status(400).json({ error: "Tournament is full" });
 
   // Find or create the player record for this Discord session user
@@ -384,16 +434,14 @@ router.post("/tournaments/:id/register-me", async (req, res) => {
     .values({ tournamentId: id, type: "player", playerId: player.id, teamId: null })
     .returning();
 
-  await db
-    .update(tournamentsTable)
-    .set({ currentParticipants: tournament.currentParticipants + 1 })
-    .where(eq(tournamentsTable.id, id));
+  const newCount = await syncParticipantCount(id);
 
   return res.status(201).json({
     ...participant,
     playerName: player.username,
     displayName: player.displayName,
     avatarUrl: player.avatarUrl,
+    currentParticipants: newCount,
   });
 });
 
@@ -421,10 +469,7 @@ router.post("/tournaments/:id/register", async (req, res) => {
     })
     .returning();
 
-  await db
-    .update(tournamentsTable)
-    .set({ currentParticipants: tournament.currentParticipants + 1 })
-    .where(eq(tournamentsTable.id, params.data.id));
+  const newCount = await syncParticipantCount(params.data.id);
 
   let playerName: string | null = null;
   let teamName: string | null = null;
@@ -448,6 +493,7 @@ router.post("/tournaments/:id/register", async (req, res) => {
     playerName,
     teamName,
     seed: null,
+    currentParticipants: newCount,
   });
 });
 

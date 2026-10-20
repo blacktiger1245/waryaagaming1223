@@ -493,18 +493,37 @@ export default function TeamDetailPage() {
   });
   const teamMatches = useMemo(() => rawTeamMatches ?? [], [rawTeamMatches]);
 
+  // Clan crests for every team so fixtures/results always show both logos.
+  const { data: allTeams = [] } = useQuery<any[]>({
+    queryKey: ["teams"],
+    queryFn: async () => {
+      const r = await fetch("/api/teams");
+      return r.ok ? r.json() : [];
+    },
+  });
+  const logoById = useMemo(() => {
+    const m = new Map<number, string | null>();
+    for (const t of allTeams) {
+      if (t.id != null) m.set(Number(t.id), t.logoUrl ?? null);
+    }
+    return m;
+  }, [allTeams]);
+
   // Selected match for player matchup dialog
   const [selectedMatch, setSelectedMatch] = useState<any | null>(null);
 
-  // Derive live W/D/L from actual match history
+  // Derive live W/D/L + goals from actual match history
   const liveStats = useMemo(() => {
-    let wins = 0, draws = 0, losses = 0;
+    let wins = 0, draws = 0, losses = 0, goalsFor = 0, goalsAgainst = 0;
     for (const m of teamMatches) {
+      const ts = m.participant1Id === id ? m.participant1Score : m.participant2Score;
+      const os = m.participant1Id === id ? m.participant2Score : m.participant1Score;
+      if (ts != null) goalsFor += ts;
+      if (os != null) goalsAgainst += os;
+
       if (m.winnerId === id) wins++;
       else if (m.winnerId && m.winnerId !== id) losses++;
       else if (m.participant1Score != null && m.participant2Score != null) {
-        const ts = m.participant1Id === id ? m.participant1Score : m.participant2Score;
-        const os = m.participant1Id === id ? m.participant2Score : m.participant1Score;
         if (ts > os) wins++;
         else if (ts < os) losses++;
         else draws++;
@@ -520,7 +539,7 @@ export default function TeamDetailPage() {
       if (ts != null && os != null) return ts > os ? "W" : ts < os ? "L" : "D";
       return null;
     }).filter(Boolean) as string[];
-    return { wins, draws, losses, played, wr, recentForm };
+    return { wins, draws, losses, played, wr, recentForm, goalsFor, goalsAgainst, goalDiff: goalsFor - goalsAgainst };
   }, [teamMatches, id]);
 
   // Derive unique tournament IDs from this team's match history
@@ -1176,9 +1195,19 @@ export default function TeamDetailPage() {
                               </div>
                               {/* Match-up */}
                               <div className="flex items-center gap-3">
+                                {logoById.get(id) ? (
+                                  <img src={logoById.get(id)!} alt={team.name} className="w-7 h-7 rounded-full object-cover border border-zinc-700 shrink-0" />
+                                ) : null}
                                 <span className="text-base font-black text-white truncate">{team.name}</span>
                                 <span className="text-xs font-black text-zinc-500 flex-shrink-0">vs</span>
                                 <span className="text-base font-black text-teal-400 truncate">{opponentName}</span>
+                                {logoById.get(Number(isP1 ? fixture.participant2Id : fixture.participant1Id)) ? (
+                                  <img
+                                    src={logoById.get(Number(isP1 ? fixture.participant2Id : fixture.participant1Id))!}
+                                    alt={opponentName}
+                                    className="w-7 h-7 rounded-full object-cover border border-zinc-700 shrink-0"
+                                  />
+                                ) : null}
                               </div>
                               {/* Date/time */}
                               {scheduledDate && (
@@ -1256,11 +1285,21 @@ export default function TeamDetailPage() {
                             </div>
                             {/* Match-up + score */}
                             <div className="flex items-center gap-3">
+                              {logoById.get(id) ? (
+                                <img src={logoById.get(id)!} alt={team.name} className="w-7 h-7 rounded-full object-cover border border-zinc-700 shrink-0" />
+                              ) : null}
                               <span className="text-base font-black text-white truncate">{team.name}</span>
                               <span className="text-sm font-black text-zinc-300 flex-shrink-0 tabular-nums">
                                 {teamScore ?? "—"} – {oppScore ?? "—"}
                               </span>
                               <span className="text-base font-black text-zinc-400 truncate">{opponentName}</span>
+                              {logoById.get(Number(isP1 ? match.participant2Id : match.participant1Id)) ? (
+                                <img
+                                  src={logoById.get(Number(isP1 ? match.participant2Id : match.participant1Id))!}
+                                  alt={opponentName}
+                                  className="w-7 h-7 rounded-full object-cover border border-zinc-700 shrink-0"
+                                />
+                              ) : null}
                             </div>
                             {/* Date */}
                             {scheduledDate && (
@@ -1297,7 +1336,7 @@ export default function TeamDetailPage() {
 
             {/* ── STATS ── */}
             {activeTab === "stats" && (() => {
-              const { wins, draws, losses, played: totalMatches, wr: wrNum } = liveStats;
+              const { wins, draws, losses, played: totalMatches, wr: wrNum, goalsFor, goalsAgainst, goalDiff } = liveStats;
               const wr = wrNum.toFixed(1);
               const members: any[] = team.members ?? [];
               const avgMatchesPerPlayer = members.length > 0
@@ -1311,8 +1350,8 @@ export default function TeamDetailPage() {
                 { name: "Losses", value: losses, color: "#f87171" },
               ];
               const goalsData = [
-                { name: "Goals For",     value: 0, color: "#60a5fa" },
-                { name: "Goals Against", value: 0, color: "#f87171" },
+                { name: "Goals For",     value: goalsFor,     color: "#60a5fa" },
+                { name: "Goals Against", value: goalsAgainst, color: "#f87171" },
               ];
               const chartTooltip = {
                 contentStyle: { background: "#18181b", border: "1px solid #3f3f46", borderRadius: 8, color: "#fff" },
@@ -1325,7 +1364,7 @@ export default function TeamDetailPage() {
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <StatCard label="Total Matches"   value={totalMatches} />
                     <StatCard label="Win Rate"        value={`${wr}%`} />
-                    <StatCard label="Goal Difference" value="—" />
+                    <StatCard label="Goal Difference" value={goalDiff > 0 ? `+${goalDiff}` : goalDiff} />
                     <StatCard label="Team Rating"     value={team.points} accent="text-teal-400" />
                   </div>
 
@@ -1370,9 +1409,9 @@ export default function TeamDetailPage() {
                         { label: "Total Wins",      value: wins },
                         { label: "Total Draws",     value: draws },
                         { label: "Total Losses",    value: losses },
-                        { label: "Goals For",       value: "—" },
-                        { label: "Goals Against",   value: "—" },
-                        { label: "Goal Difference", value: "—" },
+                        { label: "Goals For",       value: goalsFor },
+                        { label: "Goals Against",   value: goalsAgainst },
+                        { label: "Goal Difference", value: goalDiff > 0 ? `+${goalDiff}` : goalDiff },
                       ].map(({ label, value }) => (
                         <div key={label} className="border-b border-zinc-800 pb-3">
                           <p className="text-xs text-zinc-500 mb-0.5">{label}</p>
@@ -1563,7 +1602,7 @@ export default function TeamDetailPage() {
 
             {/* ── RANKING ── */}
             {activeTab === "ranking" && (() => {
-              const { wins, draws, losses, played: totalMatches, wr: wrNum, recentForm } = liveStats;
+              const { wins, draws, losses, played: totalMatches, wr: wrNum, recentForm, goalsFor, goalsAgainst, goalDiff } = liveStats;
               const wr = wrNum.toFixed(1);
               const formColor = (r: string) =>
                 r === "W" ? "bg-green-500" : r === "L" ? "bg-red-500" : "bg-yellow-500";
@@ -1574,9 +1613,9 @@ export default function TeamDetailPage() {
                 { label: "Wins",          value: wins },
                 { label: "Draws",         value: draws },
                 { label: "Losses",        value: losses },
-                { label: "Goals For",     value: "—" },
-                { label: "Goals Against", value: "—" },
-                { label: "Goal Diff",     value: "—" },
+                { label: "Goals For",     value: goalsFor },
+                { label: "Goals Against", value: goalsAgainst },
+                { label: "Goal Diff",     value: goalDiff > 0 ? `+${goalDiff}` : goalDiff },
                 { label: "Win %",         value: `${wr}%` },
                 { label: "Cup wins",      value: 0 },
               ];

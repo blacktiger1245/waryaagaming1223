@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/use-auth";
 import { useQueryClient } from "@tanstack/react-query";
 import { CountryPicker } from "@/components/country-picker";
-import { BLOOD_GROUPS } from "@/lib/profile-constants";
 
 export default function OnboardingPage() {
   const [, navigate] = useLocation();
@@ -17,7 +16,6 @@ export default function OnboardingPage() {
   const [gamingDevice, setGamingDevice] = useState<"mobile" | "pc" | "">("");
   const [deviceName, setDeviceName] = useState("");
   const [konamiId, setKonamiId] = useState("");
-  const [bloodGroup, setBloodGroup] = useState("");
   const [country, setCountry] = useState("");
   const [isFreeAgent, setIsFreeAgent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -45,7 +43,7 @@ export default function OnboardingPage() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gamingDevice, deviceName, konamiId, bloodGroup, country, isFreeAgent }),
+        body: JSON.stringify({ gamingDevice, deviceName, konamiId, country, isFreeAgent }),
       });
       if (!res.ok) {
         const data = (await res.json()) as { error?: string };
@@ -136,27 +134,6 @@ export default function OnboardingPage() {
               value={konamiId}
               onChange={(e) => setKonamiId(e.target.value)}
             />
-          </div>
-
-          {/* Blood Group */}
-          <div className="space-y-2">
-            <Label className="text-sm font-semibold uppercase tracking-wide">Blood Group</Label>
-            <div className="grid grid-cols-4 gap-2">
-              {BLOOD_GROUPS.map((bg) => (
-                <button
-                  key={bg}
-                  type="button"
-                  onClick={() => setBloodGroup(bg === bloodGroup ? "" : bg)}
-                  className={`rounded-md border px-2 py-2 text-sm font-semibold transition-colors focus:outline-none ${
-                    bloodGroup === bg
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border bg-background text-muted-foreground hover:border-primary/50"
-                  }`}
-                >
-                  {bg}
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* Country */}

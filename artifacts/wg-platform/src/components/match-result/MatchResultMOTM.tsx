@@ -16,6 +16,8 @@ export interface MatchResultMOTMProps {
   onViewChange?: (view: MatchResultView) => void;
   /** View shown on first paint (uncontrolled mode only). Default `"MATCH_RESULT"`. */
   initialView?: MatchResultView;
+  /** Squared clan crests (default) or circular avatars for a solo fixture. */
+  crestShape?: "square" | "circle";
   className?: string;
 }
 
@@ -39,6 +41,7 @@ export function MatchResultMOTM({
   view,
   onViewChange,
   initialView = "MATCH_RESULT",
+  crestShape,
   className,
 }: MatchResultMOTMProps) {
   const [internalView, setInternalView] = useState<MatchResultView>(initialView);
@@ -60,7 +63,7 @@ export function MatchResultMOTM({
             exit={fadeSlide.exit}
             transition={{ duration: 0.28, ease: "easeOut" }}
           >
-            <MatchResultCard data={data} onOpenMotm={() => goTo("MOTM")} />
+            <MatchResultCard data={data} crestShape={crestShape} onOpenMotm={() => goTo("MOTM")} />
           </motion.div>
         ) : (
           <motion.div

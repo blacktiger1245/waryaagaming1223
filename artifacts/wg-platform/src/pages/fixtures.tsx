@@ -6,12 +6,18 @@ import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CalendarDays, Circle, Radio, Shield, Trophy, Star,
   RefreshCw, ChevronRight, LayoutList, Clock, CheckCircle2, BarChart2,
-  ChevronDown, Check, Layers, Loader2, X, MonitorPlay, Swords, Download,
+  ChevronDown, Check, Layers, Loader2, X, MonitorPlay, Swords, Download, Crown,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { storageUrl } from "@/lib/api";
 import { useAuth } from "@/hooks/use-auth";
 import { ResultSubmission } from "@/components/result-submission";
+import {
+  MatchResultMOTM,
+  buildMatchResultData,
+  buildSoloMatchResultData,
+  type MatchResultData,
+} from "@/components/match-result";
 import { publishScreen, requestScreenStream, startBroadcast, fetchLiveBroadcasts, isScreenShareSupported, type PublishHandle, type LiveBroadcastInfo } from "@/lib/live";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -628,6 +634,7 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
   const [gamesLoading, setGamesLoading] = useState(false);
   const [gamesError, setGamesError] = useState(false);
   const [openGameId, setOpenGameId] = useState<number | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
   const { user, isAdmin } = useAuth();
 
   const goLiveButton = (() => {
@@ -668,9 +675,8 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
   const p1Title = p1Href ? `View ${m.participant1Name ?? "participant"} profile` : undefined;
   const p2Title = p2Href ? `View ${m.participant2Name ?? "participant"} profile` : undefined;
 
-  async function toggleGames() {
-    if (gamesOpen) { setGamesOpen(false); return; }
-    setGamesOpen(true);
+  /** Loads the player-vs-player rows once — shared by the PvP list and the report. */
+  async function loadGames() {
     if (games !== null || gamesLoading) return;
     setGamesLoading(true);
     setGamesError(false);
@@ -684,6 +690,70 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
       setGamesLoading(false);
     }
   }
+
+  async function toggleGames() {
+    if (gamesOpen) { setGamesOpen(false); return; }
+    setGamesOpen(true);
+    await loadGames();
+  }
+
+  /** Opens the Match Report & MVP panel (clan fixtures need their PvP rows). */
+  async function toggleReport() {
+    if (reportOpen) { setReportOpen(false); return; }
+    setReportOpen(true);
+    if (isTeamMatch) await loadGames();
+  }
+
+  /**
+   * The Match Report & MVP panel is rendered by the shared Match Result + MOTM
+   * card, so a SOLO player-vs-player fixture gets exactly the same result / MVP
+   * experience as a clan fixture:
+   *   • clan fixture → built from its player-vs-player rows (1v1 duel list);
+   *   • solo fixture → built from the fixture row itself (the match *is* the duel).
+   */
+  const report = useMemo<MatchResultData | null>(() => {
+    if (!hasScore) return null;
+    const built = isTeamMatch
+      ? buildMatchResultData({
+          fixture: {
+            tournamentName: m.tournamentName,
+            roundName: m.roundName,
+            round: m.round,
+            participant1Id: m.participant1Id,
+            participant1Name: m.participant1Name,
+            participant1Score: m.participant1Score,
+            participant2Id: m.participant2Id,
+            participant2Name: m.participant2Name,
+            participant2Score: m.participant2Score,
+            manOfTheMatchId: m.manOfTheMatchId,
+            manOfTheMatchName: m.manOfTheMatchName,
+          },
+          playerGames: games ?? [],
+          teamLogoMap: logoMap,
+          playerAvatarMap: logoMap,
+          matchNumber: m.id,
+          deriveMotmWhenMissing: true,
+        })
+      : buildSoloMatchResultData({
+          match: {
+            tournamentName: m.tournamentName,
+            roundName: m.roundName,
+            round: m.round,
+            participant1Id: m.participant1Id,
+            participant1Name: m.participant1Name,
+            participant1Score: m.participant1Score,
+            participant2Id: m.participant2Id,
+            participant2Name: m.participant2Name,
+            participant2Score: m.participant2Score,
+            manOfTheMatchId: m.manOfTheMatchId,
+            manOfTheMatchName: m.manOfTheMatchName,
+          },
+          avatarMap: logoMap,
+          matchNumber: m.id,
+        });
+    // Only a completed fixture may claim a verified result.
+    return built ? { ...built, verified: done } : null;
+  }, [hasScore, isTeamMatch, games, logoMap, m, done]);
 
   const captureRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState(false);
@@ -790,6 +860,19 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
         </span>
         <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
           {goLiveButton}
+          {hasScore && (
+            <button
+              onClick={toggleReport}
+              data-testid="button-toggle-match-report"
+              className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-wider transition-colors ${
+                reportOpen
+                  ? "border-[#FF9900]/60 bg-[#FF9900]/20 text-[#FFB800]"
+                  : "border-[#FF9900]/35 bg-[#FF9900]/10 text-[#FFB800] hover:border-[#FF9900]/60 hover:bg-[#FF9900]/20"
+              }`}
+            >
+              <Crown className="w-3 h-3" /> {reportOpen ? "Hide Report" : "Match Report & MVP"}
+            </button>
+          )}
           {isTeamMatch && (
             <>
               <span className="hidden items-center gap-1 text-[10px] font-black uppercase tracking-wider text-[#00E0FF] sm:inline-flex">
@@ -879,6 +962,26 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
         </div>
       )}
     
+      {/* ── Match Report & MVP — the same result/MOTM card for clan AND solo
+             fixtures, built from the fixture's own data. ─────────────────────── */}
+      {reportOpen && (
+        <div className="border-t border-[#1d2c4e]/40 px-3 py-3 sm:px-4" onClick={(e) => e.stopPropagation()}>
+          {isTeamMatch && gamesLoading ? (
+            <div className="flex items-center gap-2 text-[11px] text-zinc-500">
+              <Loader2 className="w-3 h-3 animate-spin" /> Loading match report…
+            </div>
+          ) : report ? (
+            <MatchResultMOTM data={report} />
+          ) : (
+            <p className="text-[11px] text-zinc-500">
+              {isTeamMatch && gamesError
+                ? "Could not load the player matchups for this report."
+                : "No match report available for this fixture yet."}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Hidden export node for PNG download */}
       <div style={{ position: "fixed", left: -100000, top: 0, pointerEvents: "none" }} aria-hidden>
         <div ref={captureRef} style={{ width: 780, background: "transparent" }}>
@@ -1315,6 +1418,29 @@ export default function FixturesPage() {
     },
   });
 
+  // ── Participants of every tournament ──────────────────────────────────────
+  // Every registered player (avatar) and clan (logo) is loaded so EVERY fixture
+  // in every tournament can show the right picture — not just top-ranked players.
+  const participantQueries = useQueries({
+    queries: tournaments.map((t) => ({
+      queryKey: ["tournament-participants", t.id],
+      queryFn: async (): Promise<any[]> => {
+        const r = await fetch(`/api/tournaments/${t.id}/participants`);
+        if (!r.ok) return [];
+        return r.json();
+      },
+      enabled: tournaments.length > 0,
+    })),
+  });
+
+  const participantDataKey = participantQueries.map((q) => q.dataUpdatedAt).join(",");
+  const allParticipants = useMemo(
+    () => participantQueries.flatMap((q) => q.data ?? []),
+    // Re-derive whenever any participant query finishes loading.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [participantDataKey],
+  );
+
   // ── Fetch team rankings for Top Team Winners ───────────────────────────────
   const { data: topTeams = [] } = useQuery<any[]>({
     queryKey: ["rankings-teams"],
@@ -1333,14 +1459,20 @@ export default function FixturesPage() {
   // ── Build participant-id → logo/avatar map ────────────────────────────────
   const logoMap = useMemo(() => {
     const map = new Map<number, string | null>();
+    // Registered participants first: guarantees EVERY fixture shows a crest or
+    // avatar for the team/player taking part.
+    for (const p of allParticipants) {
+      if (p.teamId != null && p.teamLogoUrl) map.set(Number(p.teamId), p.teamLogoUrl);
+      if (p.playerId != null && p.avatarUrl) map.set(Number(p.playerId), p.avatarUrl);
+    }
     for (const t of allTeams) {
-      if (t.id != null) map.set(t.id, t.logoUrl ?? null);
+      if (t.id != null) map.set(Number(t.id), t.logoUrl ?? map.get(Number(t.id)) ?? null);
     }
     for (const p of topPlayers) {
-      if (p.playerId != null) map.set(p.playerId, p.avatarUrl ?? null);
+      if (p.playerId != null) map.set(Number(p.playerId), p.avatarUrl ?? map.get(Number(p.playerId)) ?? null);
     }
     return map;
-  }, [allTeams, topPlayers]);
+  }, [allTeams, topPlayers, allParticipants]);
 
   // ── Build team-name → logo map (for TopPlayers team logos) ───────────────
   const teamNameLogoMap = useMemo(() => {

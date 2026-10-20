@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { ensureMatchBracketSchema, ensureAcademySchema, ensureShopSchema, ensureClanSchema, ensureClanTournamentSchema, ensurePlayerGameStatsSchema, ensureMatchResultSchema, ensurePlayerSocialSchema } from "./lib/ensure-schema";
 import { activateUpcomingTournaments } from "./lib/tournament-scheduler";
+import { refreshAllStats } from "./lib/stats-sync";
 
 // Replit's API artifact workflow supplies PORT=5000. Keep the same default
 // for direct `pnpm run dev` usage so the server does not fail before startup.
@@ -103,6 +104,10 @@ async function main() {
   await ensurePlayerGameStatsSchema();
   await ensureMatchResultSchema();
   await ensurePlayerSocialSchema();
+
+  // Rebuild every player's and clan's derived statistics once at boot so player
+  // profiles, clan records and rankings always match all completed results.
+  refreshAllStats().catch((err) => logger.warn({ err }, "Initial statistics refresh failed"));
 
   // Auto-activate upcoming tournaments whose start date has been reached.
   // Runs on boot and then every 5 minutes while the server is alive.

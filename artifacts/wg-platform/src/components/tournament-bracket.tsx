@@ -1,4 +1,5 @@
 import { useMemo, useRef, useLayoutEffect, useState, useCallback } from "react";
+import { Link } from "wouter";
 import { Trophy, Swords, Crown, Maximize, Minimize } from "lucide-react";
 import type { Match } from "@workspace/api-client-react";
 
@@ -16,8 +17,13 @@ interface BracketRound {
   matches: BracketMatch[];
 }
 
+/** Public profile for a participant id: crest/avatar + link to team/player page. */
+export type BracketProfile = { url?: string | null; href?: string | null; label?: string | null };
+
 interface TournamentBracketProps {
   rounds: BracketRound[];
+  /** participant id → crest/avatar + profile link. */
+  profiles?: Record<number, BracketProfile>;
 }
 
 interface ConnectorPath {
@@ -76,8 +82,18 @@ function canonicalRoundOrder(name: string): number {
   return 6;
 }
 
-function TeamAvatar({ name, isWinner }: { name: string | null; isWinner: boolean }) {
+function TeamAvatar({ name, isWinner, url }: { name: string | null; isWinner: boolean; url?: string | null }) {
   const initial = (name ?? "?")[0]?.toUpperCase() ?? "?";
+  const ring = isWinner ? "ring-amber-500/50" : "ring-white/10";
+  if (url) {
+    return (
+      <img
+        src={url}
+        alt={name ?? ""}
+        className={`w-6 h-6 rounded-md object-cover shrink-0 ring-1 ${ring}`}
+      />
+    );
+  }
   return (
     <div
       className={`flex items-center justify-center w-6 h-6 rounded-md text-[10px] font-black shrink-0 ${
@@ -97,12 +113,14 @@ function MatchCard({
   isFinal,
   style,
   matchRef,
+  profiles = {},
 }: {
   match: BracketMatch;
   label: string;
   isFinal: boolean;
   style: React.CSSProperties;
   matchRef: (el: HTMLDivElement | null) => void;
+  profiles?: Record<number, BracketProfile>;
 }) {
   const p1Name = match.participant1Name ?? "TBD";
   const p2Name = match.participant2Name ?? "TBD";
@@ -115,6 +133,9 @@ function MatchCard({
   const p2Winner = isCompleted && match.winnerId != null && match.winnerId === match.participant2Id;
   const p1Loser = isCompleted && match.winnerId != null && !p1Winner && match.participant1Id != null;
   const p2Loser = isCompleted && match.winnerId != null && !p2Winner && match.participant2Id != null;
+
+  const p1Profile = match.participant1Id != null ? profiles[match.participant1Id] : undefined;
+  const p2Profile = match.participant2Id != null ? profiles[match.participant2Id] : undefined;
 
   return (
     <div
@@ -149,20 +170,42 @@ function MatchCard({
       {/* Teams */}
       <div className="flex flex-col justify-center h-[52px]">
         <div className={`flex items-center justify-between px-3 h-[26px] ${p1Winner ? "text-emerald-400 font-bold" : p1Loser ? "text-muted-foreground opacity-60" : "text-foreground"}`}>
-          <div className="flex items-center gap-2 min-w-0">
-            <TeamAvatar name={p1Name} isWinner={p1Winner} />
-            <span className="text-xs truncate">{p1Name}</span>
-          </div>
+          {p1Profile?.href ? (
+            <Link
+              href={p1Profile.href}
+              title={`View ${p1Profile.label ?? p1Name} profile`}
+              className="flex items-center gap-2 min-w-0 hover:underline"
+            >
+              <TeamAvatar name={p1Name} isWinner={p1Winner} url={p1Profile.url} />
+              <span className="text-xs truncate">{p1Name}</span>
+            </Link>
+          ) : (
+            <div className="flex items-center gap-2 min-w-0">
+              <TeamAvatar name={p1Name} isWinner={p1Winner} url={p1Profile?.url} />
+              <span className="text-xs truncate">{p1Name}</span>
+            </div>
+          )}
           <div className="flex items-center gap-1">
             <span className="text-xs font-black tabular-nums">{p1Score}</span>
             {p1Winner && <Trophy className="w-3 h-3 text-amber-400" />}
           </div>
         </div>
         <div className={`flex items-center justify-between px-3 h-[26px] ${p2Winner ? "text-emerald-400 font-bold" : p2Loser ? "text-muted-foreground opacity-60" : "text-foreground"}`}>
-          <div className="flex items-center gap-2 min-w-0">
-            <TeamAvatar name={p2Name} isWinner={p2Winner} />
-            <span className="text-xs truncate">{p2Name}</span>
-          </div>
+          {p2Profile?.href ? (
+            <Link
+              href={p2Profile.href}
+              title={`View ${p2Profile.label ?? p2Name} profile`}
+              className="flex items-center gap-2 min-w-0 hover:underline"
+            >
+              <TeamAvatar name={p2Name} isWinner={p2Winner} url={p2Profile.url} />
+              <span className="text-xs truncate">{p2Name}</span>
+            </Link>
+          ) : (
+            <div className="flex items-center gap-2 min-w-0">
+              <TeamAvatar name={p2Name} isWinner={p2Winner} url={p2Profile?.url} />
+              <span className="text-xs truncate">{p2Name}</span>
+            </div>
+          )}
           <div className="flex items-center gap-1">
             <span className="text-xs font-black tabular-nums">{p2Score}</span>
             {p2Winner && <Trophy className="w-3 h-3 text-amber-400" />}
@@ -177,10 +220,12 @@ function ChampionCard({
   name,
   style,
   championRef,
+  profile,
 }: {
   name: string | null;
   style: React.CSSProperties;
   championRef: (el: HTMLDivElement | null) => void;
+  profile?: BracketProfile;
 }) {
   const resolved = name ?? "TBD";
   const determined = name != null;
@@ -197,10 +242,24 @@ function ChampionCard({
       style={style}
     >
       <div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-400 mb-3">Hall of Fame</div>
-      <div className={`rounded-full flex items-center justify-center mb-4 ${determined ? "bg-amber-500/20 text-amber-400" : "bg-white/5 text-muted-foreground"}`} style={{ width: 96, height: 96 }}>
-        {determined ? <Trophy className="w-12 h-12" /> : <Crown className="w-12 h-12" />}
+      <div className={`rounded-full overflow-hidden flex items-center justify-center mb-4 ${determined ? "bg-amber-500/20 text-amber-400" : "bg-white/5 text-muted-foreground"}`} style={{ width: 96, height: 96 }}>
+        {profile?.url ? (
+          <img src={profile.url} alt={resolved} className="w-full h-full object-cover" />
+        ) : determined ? (
+          <Trophy className="w-12 h-12" />
+        ) : (
+          <Crown className="w-12 h-12" />
+        )}
       </div>
-      <div className="text-2xl font-black text-white mb-1 truncate w-full">{resolved}</div>
+      <div className="text-2xl font-black text-white mb-1 truncate w-full">
+        {profile?.href ? (
+          <Link href={profile.href} className="hover:underline" title={`View ${resolved} profile`}>
+            {resolved}
+          </Link>
+        ) : (
+          resolved
+        )}
+      </div>
       <div className="text-xs font-bold uppercase tracking-widest text-amber-400/80">Tournament Champion</div>
     </div>
   );
@@ -275,13 +334,13 @@ function orderRounds(rounds: BracketRound[]): BracketRound[] {
   return ordered;
 }
 
-export function TournamentBracket({ rounds }: TournamentBracketProps) {
+export function TournamentBracket({ rounds, profiles = {} }: TournamentBracketProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const matchRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const championRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  const { orderedRounds, finalMatch, championName, matchById } = useMemo(() => {
+  const { orderedRounds, finalMatch, championName, championId, matchById } = useMemo(() => {
     const ordered = orderRounds(rounds);
     const map = new Map<number, BracketMatch>();
     ordered.forEach((r) => r.matches.forEach((m) => map.set(m.id, m)));
@@ -293,6 +352,7 @@ export function TournamentBracket({ rounds }: TournamentBracketProps) {
       null;
 
     let championName: string | null = null;
+    let championId: number | null = null;
     if (finalMatch && finalMatch.status === "completed" && finalMatch.winnerId != null) {
       if (finalMatch.winnerId === finalMatch.participant1Id) {
         championName = finalMatch.participant1Name ?? finalMatch.winnerName ?? "TBD";
@@ -301,9 +361,10 @@ export function TournamentBracket({ rounds }: TournamentBracketProps) {
       } else {
         championName = finalMatch.winnerName ?? "TBD";
       }
+      championId = finalMatch.winnerId;
     }
 
-    return { orderedRounds: ordered, finalMatch, championName, matchById: map };
+    return { orderedRounds: ordered, finalMatch, championName, championId, matchById: map };
   }, [rounds]);
 
   // ── LAYOUT ENGINE: deterministic Y positions derived from actual parent matches ──
@@ -527,6 +588,7 @@ export function TournamentBracket({ rounds }: TournamentBracketProps) {
                     isFinal={isFinalRoundName(match.roundName ?? "")}
                     style={{ left: pos.x, top: pos.y, width: CARD_W, height: CARD_H }}
                     matchRef={setMatchRef(match.id)}
+                    profiles={profiles}
                   />
                 );
               })
@@ -537,6 +599,7 @@ export function TournamentBracket({ rounds }: TournamentBracketProps) {
                 name={championName}
                 style={{ left: championPos.x, top: championPos.y, width: CHAMP_W, height: CHAMP_H }}
                 championRef={(el) => (championRef.current = el)}
+                profile={championId != null ? profiles[championId] : undefined}
               />
             )}
           </div>

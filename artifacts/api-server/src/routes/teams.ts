@@ -167,33 +167,33 @@ router.get("/players/discord-registered", async (_req, res) => {
 });
 
 // ── POST /teams/register (requires auth) ──────────────────────────────────────
-// The authenticated user automatically becomes the team President.
-// Coach and Captain are selected from registered players; other members go under
-// "Players". Roles are derived from the DB, never from the client body.
+// The authenticated user automatically becomes the team President, Captain and
+// Coach. Clan registration only needs a name and a logo; roles and the roster can
+// be arranged later from the clan management page.
 router.post("/teams/register", async (req, res) => {
   const userId = req.session?.userId;
   if (!userId) {
     return res.status(401).json({ error: "You must be logged in to register a team" });
   }
 
-  const { name, tag, description, logoUrl, coachId, captainId, playerIds } = req.body ?? {};
+  const { name, tag, description, logoUrl, coachId: rawCoachId, captainId: rawCaptainId, playerIds } = req.body ?? {};
 
   if (!name || typeof name !== "string" || name.trim().length < 2) {
     return res.status(400).json({ error: "Team name must be at least 2 characters" });
   }
-  if (typeof captainId !== "number" || typeof coachId !== "number") {
-    return res.status(400).json({ error: "Both a Coach and a Captain are required" });
-  }
+
+  // Captain/Coach are optional: a clan can be registered with just its name and
+  // logo, so the founder takes every leadership role by default.
+  const captainId = rawCaptainId == null ? userId : Number(rawCaptainId);
+  const coachId = rawCoachId == null ? userId : Number(rawCoachId);
   if (!Number.isInteger(captainId) || !Number.isInteger(coachId) || captainId <= 0 || coachId <= 0) {
     return res.status(400).json({ error: "Invalid Coach or Captain selection" });
   }
 
-  // The auth user is the President/owner and cannot be assigned another role.
-  if (coachId === userId || captainId === userId) {
+  // Coach and Captain are distinct only when both are explicitly chosen; the
+  // founder may hold all three roles (the default name+logo registration).
+  if (coachId !== captainId && (coachId === userId || captainId === userId)) {
     return res.status(400).json({ error: "The President must not also hold another team role" });
-  }
-  if (coachId === captainId) {
-    return res.status(400).json({ error: "Coach and Captain cannot be the same person" });
   }
 
   const extraIds: number[] = Array.isArray(playerIds)
