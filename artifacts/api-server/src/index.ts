@@ -1,6 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
-import { ensureMatchBracketSchema, ensureAcademySchema, ensureShopSchema, ensureClanSchema, ensureClanTournamentSchema, ensurePlayerGameStatsSchema, ensureMatchResultSchema, ensurePlayerSocialSchema } from "./lib/ensure-schema";
+import { ensureMatchBracketSchema, ensureAcademySchema, ensureShopSchema, ensureClanSchema, ensureClanTournamentSchema, ensurePlayerGameStatsSchema, ensureMatchResultSchema, ensurePlayerSocialSchema, ensureStripeSchema } from "./lib/ensure-schema";
 import { activateUpcomingTournaments } from "./lib/tournament-scheduler";
 import { refreshAllStats } from "./lib/stats-sync";
 
@@ -45,6 +45,9 @@ const DIAGNOSTIC_ENV_VARS: readonly string[] = [
   "R2_ACCESS_KEY_ID",
   "R2_SECRET_ACCESS_KEY",
   "R2_BUCKET_NAME",
+  // Stripe WG Coins checkout (lib/stripe.ts, routes/payments.ts)
+  "STRIPE_SECRET_KEY",
+  "STRIPE_WEBHOOK_SECRET",
 ];
 
 function logEnvironmentStatus(): void {
@@ -104,6 +107,7 @@ async function main() {
   await ensurePlayerGameStatsSchema();
   await ensureMatchResultSchema();
   await ensurePlayerSocialSchema();
+  await ensureStripeSchema();
 
   // Rebuild every player's and clan's derived statistics once at boot so player
   // profiles, clan records and rankings always match all completed results.

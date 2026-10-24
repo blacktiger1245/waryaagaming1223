@@ -12,6 +12,7 @@ Waryaa Gaming is the Esomali Sport Federation's official platform — tournament
 - Required env: `DATABASE_URL` — Postgres connection string (already provisioned); `SESSION_SECRET` — signs session cookies (already set as a secret; the API falls back to an insecure default if unset, so keep it set in every environment)
 - Storage env: `R2_ENDPOINT` and `R2_BUCKET_NAME` are set as shared env vars (bucket: `waryaagaming`, endpoint: Cloudflare R2 S3-compatible URL); `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` are Replit Secrets — generate from Cloudflare dashboard → R2 → Manage R2 API Tokens
 - Hosted frontend/API: the web build uses same-origin `/api` routing by default. If the frontend is hosted separately from the API, set the web build variable `VITE_API_URL` to the API origin (without a trailing slash), the API variable `FRONTEND_ORIGINS` to the exact frontend origin(s), comma-separated, and `COOKIE_SAME_SITE=none`. The API rejects credentialed requests from origins not matching the API origin or `FRONTEND_ORIGINS`.
+- Stripe (WG Coins checkout): set `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` on the API server (see `.env.example`) and register a webhook endpoint at `<API origin>/api/webhooks/stripe` in the Stripe dashboard for `checkout.session.completed` and `checkout.session.async_payment_succeeded`. `POST /api/payments/create-checkout-session` only returns a Checkout URL — WG Coins are credited exclusively by that signature-verified webhook. `VITE_STRIPE_PUBLISHABLE_KEY` is only needed if you later switch from hosted Checkout (redirect) to embedded Checkout/Elements.
 - Tournament owners can create tournaments from `/tournaments`, add Discord-registered tournament admins from the tournament detail page, and manage that tournament's staff without global admin access.
 - Discord onboarding includes a free-agent opt-in. Opted-in players with no team appear in `/marketplace`; coaches can add them to a team, and roster changes automatically remove them from the marketplace.
 
@@ -35,6 +36,8 @@ Waryaa Gaming is the Esomali Sport Federation's official platform — tournament
 ## Architecture decisions
 
 - Sessions use a manually-created `user_sessions` Postgres table with `createTableIfMissing: false` — see Gotchas.
+- Stripe webhook bodies must stay raw: `${API_PREFIX}/webhooks/stripe` is registered in `artifacts/api-server/src/app.ts` with `express.raw({ type: "application/json" })` BEFORE `express.json()`. Moving it below the JSON parser makes signature verification fail on every delivery.
+- Coin top-ups are idempotent by construction: `coin_transactions.stripe_session_id` is unique, so a redelivered webhook can never credit the same Checkout Session twice (`ensureStripeSchema()` in `src/lib/ensure-schema.ts` keeps that column/index present at boot).
 
 ## Product
 

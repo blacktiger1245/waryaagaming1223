@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { db, coinTransactionsTable, playersTable } from "@workspace/db";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 
 const router = Router();
 
@@ -61,38 +61,9 @@ router.get("/coins/transactions", async (req: Request, res: Response) => {
   });
 });
 
-// ── POST /coins/purchase ─────────────────────────────────────────────────────
-// NOTE: There is no real payment gateway wired into this project yet, so this
-// endpoint performs a *simulated* purchase: it credits the coins immediately
-// and records the transaction. Hook a real provider (Stripe/PayPal/…) in here
-// before going live with real money.
-router.post("/coins/purchase", async (req: Request, res: Response) => {
-  const me = req.session?.userId;
-  if (!me) { res.status(401).json({ error: "Login required" }); return; }
-
-  const body = (req.body ?? {}) as { packageId?: unknown };
-  const packageId = typeof body.packageId === "string" ? body.packageId : "";
-  const pkg = COIN_PACKAGES.find((p) => p.id === packageId);
-  if (!pkg) { res.status(400).json({ error: "Invalid coin package" }); return; }
-
-  const [updated] = await db
-    .update(playersTable)
-    .set({ coinBalance: sql`${playersTable.coinBalance} + ${pkg.coins}` })
-    .where(eq(playersTable.id, me))
-    .returning({ coinBalance: playersTable.coinBalance });
-  if (!updated) { res.status(404).json({ error: "Player not found" }); return; }
-
-  const [tx] = await db
-    .insert(coinTransactionsTable)
-    .values({ playerId: me, packageId: pkg.id, coins: pkg.coins, priceUsd: pkg.priceUsd })
-    .returning();
-
-  res.status(201).json({
-    ok: true,
-    balance: updated.coinBalance,
-    purchased: { coins: pkg.coins, priceUsd: pkg.priceUsd },
-    transactionId: tx.id,
-  });
-});
+// NOTE: Coin top-ups are handled by POST /payments/create-checkout-session and
+// the Stripe webhook in ./payments.ts — coins are only credited once Stripe
+// confirms the payment. The previous simulated /coins/purchase endpoint was
+// removed so a balance can never be topped up without paying.
 
 export default router;

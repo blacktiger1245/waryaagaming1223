@@ -7,6 +7,7 @@ import router from "./routes";
 import authRouter from "./routes/auth";
 import adminRouter from "./routes/admin";
 import academyRouter from "./routes/academy";
+import { stripeWebhookHandler } from "./routes/payments";
 import { logger } from "./lib/logger";
 import { banCheck } from "./middleware/ban-check";
 
@@ -87,6 +88,22 @@ app.use((req, res, next) => {
   })(req, res, next);
 });
 
+// The API prefix this server is proxied under. On Replit, path-based routing
+// exposes this service at /api (see artifact.toml `paths`), so it defaults to
+// "/api" and the frontend calls `/api/...`. Other hosts (Vercel/Railway/
+// Render/VPS) can set API_BASE_PATH="" to serve everything at the domain root.
+const API_PREFIX = (process.env["API_BASE_PATH"] ?? "/api").replace(/\/$/, "");
+
+// Stripe webhooks must be verified against the exact bytes Stripe signed, so
+// this route is registered with a raw body parser BEFORE express.json() below
+// (which would otherwise consume and re-serialise the payload, breaking the
+// signature check).
+app.post(
+  `${API_PREFIX}/webhooks/stripe`,
+  express.raw({ type: "application/json" }),
+  stripeWebhookHandler,
+);
+
 // Keep image bodies as Buffers for the direct upload endpoint. JSON requests
 // continue through the normal parser below.
 app.use(express.raw({ type: ["image/*", "video/*", "application/octet-stream"], limit: "10mb" }));
@@ -112,12 +129,6 @@ app.use(
     },
   }),
 );
-
-// The API prefix this server is proxied under. On Replit, path-based routing
-// exposes this service at /api (see artifact.toml `paths`), so it defaults to
-// "/api" and the frontend calls `/api/...`. Other hosts (Vercel/Railway/
-// Render/VPS) can set API_BASE_PATH="" to serve everything at the domain root.
-const API_PREFIX = (process.env["API_BASE_PATH"] ?? "/api").replace(/\/$/, "");
 
 // Reject mutations from banned accounts (runs before all route handlers)
 app.use(API_PREFIX, banCheck);

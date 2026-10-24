@@ -12,6 +12,12 @@ export const coinTransactionsTable = pgTable("coin_transactions", {
   packageId: text("package_id").notNull(),
   coins: integer("coins").notNull(),
   priceUsd: integer("price_usd").notNull(),
+  /**
+   * Stripe Checkout Session that paid for this top-up. Unique (and nullable, so
+   * non-Stripe rows are unaffected) so a repeated webhook delivery can never
+   * credit the same purchase twice.
+   */
+  stripeSessionId: text("stripe_session_id").unique(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

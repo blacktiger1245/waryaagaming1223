@@ -541,3 +541,52 @@ export async function ensureMatchResultSchema(): Promise<void> {
     logger.warn({ err }, "Could not ensure match-result schema");
   }
 }
+
+/**
+ * Stripe checkout support for WG Coins top-ups.
+ *
+ * `coin_transactions.stripe_session_id` records which Stripe Checkout Session
+ * paid for a purchase and is unique — that is what makes the
+ * `checkout.session.completed` webhook idempotent. Stripe delivers events at
+ * least once, so without this guard a redelivery would credit the coins twice.
+ * The column is nullable, so rows written by other flows are unaffected.
+ *
+ * Mirrors lib/db/src/schema/coins.ts and reuses the constraint name
+ * drizzle-kit generates for that column, so a later `drizzle-kit push` sees it
+ * as already applied. Additive and idempotent — safe to run on every boot.
+ */
+export async function ensureStripeSchema(): Promise<void> {
+  const statements = [
+    `CREATE TABLE IF NOT EXISTS "coin_transactions" (
+       "id" serial PRIMARY KEY,
+       "player_id" integer NOT NULL REFERENCES "players"("id") ON DELETE CASCADE,
+       "package_id" text NOT NULL,
+       "coins" integer NOT NULL,
+       "price_usd" integer NOT NULL,
+       "stripe_session_id" text,
+       "created_at" timestamp NOT NULL DEFAULT now(),
+       CONSTRAINT "coin_transactions_stripe_session_id_unique" UNIQUE ("stripe_session_id")
+     );`,
+    `ALTER TABLE "coin_transactions" ADD COLUMN IF NOT EXISTS "stripe_session_id" text;`,
+    `DO $$
+     BEGIN
+       IF NOT EXISTS (
+         SELECT 1 FROM pg_constraint
+         WHERE conname = 'coin_transactions_stripe_session_id_unique'
+           AND conrelid = 'coin_transactions'::regclass
+       ) THEN
+         ALTER TABLE "coin_transactions"
+           ADD CONSTRAINT "coin_transactions_stripe_session_id_unique" UNIQUE ("stripe_session_id");
+       END IF;
+     END
+     $$;`,
+  ];
+
+  try {
+    for (const sql of statements) {
+      await pool.query(sql);
+    }
+  } catch (err) {
+    logger.warn({ err }, "Could not ensure Stripe schema");
+  }
+}

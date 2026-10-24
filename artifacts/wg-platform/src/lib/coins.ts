@@ -31,11 +31,16 @@ export const coins = {
   balance: () => req<{ balance: number }>("/api/coins/balance"),
   packages: () => req<{ packages: CoinPackage[] }>("/api/coins/packages"),
   transactions: () => req<{ transactions: CoinTransaction[] }>("/api/coins/transactions"),
-  purchase: (packageId: string) =>
-    req<{ ok: boolean; balance: number; purchased: { coins: number; priceUsd: number } }>(
-      "/api/coins/purchase",
-      { method: "POST", body: JSON.stringify({ packageId }) },
-    ),
+  /**
+   * Starts a hosted Stripe Checkout Session for a coin package. The returned
+   * `url` is Stripe's payment page — redirect the browser to it. Coins are
+   * credited by the Stripe webhook once the payment succeeds, never here.
+   */
+  createCheckoutSession: (packageId: string) =>
+    req<{ url: string; sessionId: string }>("/api/payments/create-checkout-session", {
+      method: "POST",
+      body: JSON.stringify({ packageId }),
+    }),
 };
 
 export function formatCoins(n: number): string {
