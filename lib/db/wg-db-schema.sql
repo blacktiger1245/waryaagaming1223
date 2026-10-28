@@ -2,11 +2,14 @@
 -- Safe to run on a fresh database AND an existing one (adds missing columns only).
 
 -- 1. user_sessions (connect-pg-simple)
+-- NOTE: the legacy `WITH (OIDS=FALSE)` clause was removed — the `oids` storage
+-- parameter was dropped in PostgreSQL 12, so Neon (PG 16/17) rejects it with
+-- `ERROR: unrecognized parameter "oids"`.
 CREATE TABLE IF NOT EXISTS user_sessions (
   sid     varchar NOT NULL COLLATE "default",
   sess    json    NOT NULL,
   expire  timestamp(6) NOT NULL
-) WITH (OIDS=FALSE);
+);
 CREATE INDEX IF NOT EXISTS IDX_session_expire ON user_sessions (expire);
 
 -- 2. players

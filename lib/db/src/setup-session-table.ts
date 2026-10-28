@@ -24,7 +24,7 @@ await pool.query(`
     sid    VARCHAR      NOT NULL COLLATE "default",
     sess   JSON         NOT NULL,
     expire TIMESTAMP(6) NOT NULL
-  ) WITH (OIDS=FALSE);
+  );
 `);
 
 // Add primary key only when it doesn't already exist to make this idempotent.
