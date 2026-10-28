@@ -28,7 +28,7 @@ export function getStripe(): Stripe {
 
   if (!cachedClient) {
     cachedClient = new Stripe(secretKey);
-    logger.info("Stripe client initialised");
+    logger.info({ mode: getStripeMode() }, "Stripe client initialised");
   }
 
   return cachedClient;
@@ -37,4 +37,21 @@ export function getStripe(): Stripe {
 /** Signing secret used to verify incoming webhook payloads, if configured. */
 export function getStripeWebhookSecret(): string | null {
   return process.env["STRIPE_WEBHOOK_SECRET"] || null;
+}
+
+/**
+ * Mode of the configured secret key, derived from its prefix.
+ *
+ * `unknown` means the key is not a recognisable test/live key, and callers must
+ * then make no assumption about the mode. Restricted keys (`rk_live_…` /
+ * `rk_test_…`) are classified exactly like secret keys.
+ *
+ * Read from `process.env` at call time so a host that swaps test keys for live
+ * keys (and redeploys) is described correctly.
+ */
+export function getStripeMode(): "live" | "test" | "unknown" {
+  const secretKey = process.env["STRIPE_SECRET_KEY"] ?? "";
+  if (secretKey.startsWith("sk_live_") || secretKey.startsWith("rk_live_")) return "live";
+  if (secretKey.startsWith("sk_test_") || secretKey.startsWith("rk_test_")) return "test";
+  return "unknown";
 }

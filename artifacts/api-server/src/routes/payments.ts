@@ -3,7 +3,7 @@ import type Stripe from "stripe";
 import { db, coinTransactionsTable, playersTable } from "@workspace/db";
 import { and, eq, sql } from "drizzle-orm";
 import { COIN_PACKAGES } from "./coins";
-import { getStripe, getStripeWebhookSecret, isStripeConfigured } from "../lib/stripe";
+import { getStripe, getStripeMode, getStripeWebhookSecret, isStripeConfigured } from "../lib/stripe";
 import { logger } from "../lib/logger";
 
 const router = Router();
@@ -406,6 +406,9 @@ export function stripeWebhookStatusHandler(_req: Request, res: Response): void {
     configured: {
       stripeSecretKey: isStripeConfigured(),
       webhookSecret: Boolean(getStripeWebhookSecret()),
+      // `live`, `test`, or `unknown` when the key prefix is not recognisable.
+      // Answers "did the live switch actually take effect on this host?"
+      mode: getStripeMode(),
     },
   });
 }
@@ -468,6 +471,19 @@ export async function stripeWebhookHandler(req: Request, res: Response): Promise
   }
 
   console.log(`${WEBHOOK_LOG} verified event=${event.id} type=${event.type} livemode=${event.livemode}`);
+
+  // Never fulfil a purchase that belongs to the other Stripe mode: a live key
+  // must not credit leftover test-mode sessions (that would hand out free
+  // coins), and a test key must not credit live ones. `unknown` keys skip this
+  // check rather than risk blocking real payments.
+  const keyMode = getStripeMode();
+  if (keyMode !== "unknown" && event.livemode !== (keyMode === "live")) {
+    console.warn(
+      `${WEBHOOK_LOG} ignoring ${event.livemode ? "live" : "test"}-mode event ${event.id} — STRIPE_SECRET_KEY is a ${keyMode}-mode key. Switch the key, STRIPE_WEBHOOK_SECRET and the dashboard endpoint together, then redeliver this event.`,
+    );
+    res.json({ received: true, ignored: "mode-mismatch" });
+    return;
+  }
 
   try {
     const result = await handleVerifiedEvent(event);
