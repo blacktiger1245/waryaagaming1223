@@ -7,7 +7,7 @@ import router from "./routes";
 import authRouter from "./routes/auth";
 import adminRouter from "./routes/admin";
 import academyRouter from "./routes/academy";
-import { stripeWebhookHandler } from "./routes/payments";
+import { stripeWebhookHandler, stripeWebhookStatusHandler } from "./routes/payments";
 import { logger } from "./lib/logger";
 import { banCheck } from "./middleware/ban-check";
 
@@ -103,6 +103,10 @@ app.post(
   express.raw({ type: "application/json" }),
   stripeWebhookHandler,
 );
+
+// Stripe only ever POSTs here, but browsers and uptime checks open the URL with
+// GET — answer with the endpoint's configuration instead of the generic 404.
+app.get(`${API_PREFIX}/webhooks/stripe`, stripeWebhookStatusHandler);
 
 // Keep image bodies as Buffers for the direct upload endpoint. JSON requests
 // continue through the normal parser below.

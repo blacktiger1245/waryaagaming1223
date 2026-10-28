@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "wouter";
 import { Coins, Loader2, BadgeCheck, ShieldCheck } from "lucide-react";
@@ -16,11 +16,19 @@ export default function BuyCoinsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   // The package currently being handed to Stripe, so only that card spins.
   const [pendingPackageId, setPendingPackageId] = useState<string | null>(null);
+  // Set when Stripe sends the buyer back from a paid checkout. The webhook
+  // credits the coins a moment later, so the balance is polled briefly instead
+  // of leaving the buyer staring at an unchanged number.
+  const [awaitingCredit, setAwaitingCredit] = useState(false);
+  // Balance as it was when checkout started, so "the coins arrived" is detected
+  // by an increase rather than by the balance merely being non-zero.
+  const balanceBeforeCheckout = useRef<number | null>(null);
 
   const { data: balanceData, isLoading: balanceLoading } = useQuery({
     queryKey: ["coins", "balance"],
     queryFn: coins.balance,
     enabled: isLoggedIn,
+    refetchInterval: awaitingCredit ? 3000 : false,
   });
 
   const { data: packagesData, isLoading: packagesLoading } = useQuery({
@@ -51,6 +59,7 @@ export default function BuyCoinsPage() {
         title: "Payment received",
         description: "Your WG Coins appear in your balance as soon as Stripe confirms the payment.",
       });
+      setAwaitingCredit(true);
       qc.invalidateQueries({ queryKey: ["coins", "balance"] });
       qc.invalidateQueries({ queryKey: ["coins", "transactions"] });
     } else {
@@ -61,7 +70,35 @@ export default function BuyCoinsPage() {
     setSearchParams({}, { replace: true });
   }, [checkoutResult, qc, setSearchParams, toast]);
 
+  // Stop polling after a short window and say so, rather than spinning forever.
+  useEffect(() => {
+    if (!awaitingCredit) return;
+    const timeout = setTimeout(() => {
+      setAwaitingCredit(false);
+      toast({
+        title: "Still confirming",
+        description: "Stripe has not confirmed the payment yet. Your WG Coins will appear as soon as it does.",
+      });
+    }, 30_000);
+    return () => clearTimeout(timeout);
+  }, [awaitingCredit, toast]);
+
+  // The webhook credited the coins: report the new balance and refresh history.
+  useEffect(() => {
+    if (!awaitingCredit || balanceData?.balance == null) return;
+    const before = balanceBeforeCheckout.current;
+    if (before === null || balanceData.balance <= before) return;
+
+    setAwaitingCredit(false);
+    qc.invalidateQueries({ queryKey: ["coins", "transactions"] });
+    toast({
+      title: "WG Coins added",
+      description: `Your balance is now ${formatCoins(balanceData.balance)} WG Coins.`,
+    });
+  }, [awaitingCredit, balanceData?.balance, qc, toast]);
+
   const startCheckout = (packageId: string) => {
+    balanceBeforeCheckout.current = balanceData?.balance ?? null;
     setPendingPackageId(packageId);
     checkout.mutate(packageId);
   };
