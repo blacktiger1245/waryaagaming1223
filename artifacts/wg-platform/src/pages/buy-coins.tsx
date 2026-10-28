@@ -8,6 +8,12 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { coins, formatCoins } from "@/lib/coins";
 
+// How often the page asks the server whether the paid Checkout Session has been
+// credited yet, and how long it keeps asking before saying it is still waiting.
+// Stripe's webhook normally lands within a second or two of the redirect.
+const CREDIT_POLL_INTERVAL_MS = 2500;
+const CREDIT_POLL_TIMEOUT_MS = 30_000;
+
 // -- Page ---------------------------------------------------------------------------
 export default function BuyCoinsPage() {
   const { isLoggedIn, isLoading: authLoading } = useAuth();
@@ -16,19 +22,20 @@ export default function BuyCoinsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   // The package currently being handed to Stripe, so only that card spins.
   const [pendingPackageId, setPendingPackageId] = useState<string | null>(null);
-  // Set when Stripe sends the buyer back from a paid checkout. The webhook
-  // credits the coins a moment later, so the balance is polled briefly instead
-  // of leaving the buyer staring at an unchanged number.
-  const [awaitingCredit, setAwaitingCredit] = useState(false);
-  // Balance as it was when checkout started, so "the coins arrived" is detected
-  // by an increase rather than by the balance merely being non-zero.
-  const balanceBeforeCheckout = useRef<number | null>(null);
+  // The Checkout Session the buyer just came back from. Captured before the query
+  // string is cleared, so the credit check survives the URL cleanup.
+  const [paidSessionId, setPaidSessionId] = useState<string | null>(null);
+  // Purchases already reported to the buyer, so a re-render (or a re-mount) can
+  // never produce a second toast for the same Checkout Session.
+  const reportedSessions = useRef<Set<string>>(new Set());
+  // Credit-check window, keyed by Checkout Session. Showing a toast re-renders
+  // this component, so the effect below can re-run — the window must not move.
+  const creditCheckWindow = useRef<{ sessionId: string; deadline: number } | null>(null);
 
   const { data: balanceData, isLoading: balanceLoading } = useQuery({
     queryKey: ["coins", "balance"],
     queryFn: coins.balance,
     enabled: isLoggedIn,
-    refetchInterval: awaitingCredit ? 3000 : false,
   });
 
   const { data: packagesData, isLoading: packagesLoading } = useQuery({
@@ -48,57 +55,99 @@ export default function BuyCoinsPage() {
     },
   });
 
-  // Stripe sends the buyer back to /buy-coins?checkout=success|cancelled. The
-  // webhook credits the coins, so refresh the balance and history on return.
+  // Stripe sends the buyer back to
+  // /buy-coins?checkout=success&session_id=cs_... The webhook credits the coins a
+  // moment later, so the paid session id is captured here and the query string is
+  // dropped straight away (a refresh must not repeat any of this).
   const checkoutResult = searchParams.get("checkout");
+  const returnedSessionId = searchParams.get("session_id");
+
   useEffect(() => {
     if (checkoutResult !== "success" && checkoutResult !== "cancelled") return;
 
     if (checkoutResult === "success") {
-      toast({
-        title: "Payment received",
-        description: "Your WG Coins appear in your balance as soon as Stripe confirms the payment.",
-      });
-      setAwaitingCredit(true);
+      if (returnedSessionId) setPaidSessionId(returnedSessionId);
+      // The balance is only ever read from the server; the credit itself is
+      // confirmed below, against the Checkout Session that was paid.
       qc.invalidateQueries({ queryKey: ["coins", "balance"] });
       qc.invalidateQueries({ queryKey: ["coins", "transactions"] });
     } else {
       toast({ title: "Checkout cancelled", description: "No payment was taken." });
     }
 
-    // Drop the query string so a refresh does not repeat the toast.
+    // Drop the query string so a refresh does not repeat any of this.
     setSearchParams({}, { replace: true });
-  }, [checkoutResult, qc, setSearchParams, toast]);
+  }, [checkoutResult, returnedSessionId, qc, setSearchParams, toast]);
 
-  // Stop polling after a short window and say so, rather than spinning forever.
+  // Confirm the purchase against the Checkout Session it paid for, never against
+  // a balance snapshot: the webhook may already have credited the coins before
+  // this page rendered, which is exactly what used to produce a false "Still
+  // confirming". Polls until the session reports credited, then stops for good.
   useEffect(() => {
-    if (!awaitingCredit) return;
-    const timeout = setTimeout(() => {
-      setAwaitingCredit(false);
-      toast({
-        title: "Still confirming",
-        description: "Stripe has not confirmed the payment yet. Your WG Coins will appear as soon as it does.",
-      });
-    }, 30_000);
-    return () => clearTimeout(timeout);
-  }, [awaitingCredit, toast]);
+    if (!paidSessionId || !isLoggedIn) return;
+    // Already reported for this purchase (showing a toast re-renders this page
+    // and can re-run this effect) — there is nothing left to confirm.
+    if (reportedSessions.current.has(paidSessionId)) return;
 
-  // The webhook credited the coins: report the new balance and refresh history.
-  useEffect(() => {
-    if (!awaitingCredit || balanceData?.balance == null) return;
-    const before = balanceBeforeCheckout.current;
-    if (before === null || balanceData.balance <= before) return;
+    const sessionId = paidSessionId;
+    if (creditCheckWindow.current?.sessionId !== sessionId) {
+      creditCheckWindow.current = { sessionId, deadline: Date.now() + CREDIT_POLL_TIMEOUT_MS };
+    }
+    const deadline = creditCheckWindow.current.deadline;
 
-    setAwaitingCredit(false);
-    qc.invalidateQueries({ queryKey: ["coins", "transactions"] });
-    toast({
-      title: "WG Coins added",
-      description: `Your balance is now ${formatCoins(balanceData.balance)} WG Coins.`,
-    });
-  }, [awaitingCredit, balanceData?.balance, qc, toast]);
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    // Exactly one toast per purchase, no matter how often this effect re-runs.
+    const report = (title: string, description: string) => {
+      if (reportedSessions.current.has(sessionId)) return;
+      reportedSessions.current.add(sessionId);
+      toast({ title, description });
+    };
+
+    const poll = async () => {
+      let credited = false;
+      try {
+        const status = await coins.checkoutSessionStatus(sessionId);
+        credited = status.credited;
+        if (credited && !cancelled) {
+          qc.invalidateQueries({ queryKey: ["coins", "balance"] });
+          qc.invalidateQueries({ queryKey: ["coins", "transactions"] });
+          report(
+            "WG Coins added",
+            status.balance != null
+              ? `Your balance is now ${formatCoins(status.balance)} WG Coins.`
+              : `${formatCoins(status.coins ?? 0)} WG Coins were added to your balance.`,
+          );
+        }
+      } catch {
+        // A failed poll is not a failed payment — keep trying until the deadline.
+      }
+
+      if (cancelled || credited) return;
+
+      if (Date.now() >= deadline) {
+        report(
+          "Still confirming",
+          "Stripe has not confirmed this payment yet. Your WG Coins will appear as soon as it does.",
+        );
+        // Re-read the balance once more, in case the credit landed between polls.
+        qc.invalidateQueries({ queryKey: ["coins", "balance"] });
+        return;
+      }
+
+      timer = setTimeout(poll, CREDIT_POLL_INTERVAL_MS);
+    };
+
+    void poll();
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [paidSessionId, isLoggedIn, qc, toast]);
 
   const startCheckout = (packageId: string) => {
-    balanceBeforeCheckout.current = balanceData?.balance ?? null;
     setPendingPackageId(packageId);
     checkout.mutate(packageId);
   };

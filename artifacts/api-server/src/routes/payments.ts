@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import type Stripe from "stripe";
 import { db, coinTransactionsTable, playersTable } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { COIN_PACKAGES } from "./coins";
 import { getStripe, getStripeWebhookSecret, isStripeConfigured } from "../lib/stripe";
 import { logger } from "../lib/logger";
@@ -134,6 +134,67 @@ router.post("/payments/create-checkout-session", async (req: Request, res: Respo
     logger.error({ err, packageId: pkg.id }, "Could not create Stripe checkout session");
     res.status(502).json({ error: "Could not start checkout. Please try again." });
   }
+});
+
+// ── GET /payments/checkout-session/:sessionId ────────────────────────────────
+// Reports whether one Stripe Checkout Session has already been credited to the
+// signed-in player. `/buy-coins` polls this after returning from Checkout, so a
+// purchase is confirmed by the session it paid for instead of by comparing the
+// balance against a snapshot taken when the page loaded — the webhook may
+// already have credited the coins before the page even renders, which made the
+// old balance comparison report a false "still confirming".
+//
+// Scoped to the caller: the ledger row has to belong to `req.session.userId`,
+// so another player's session id just reports `credited: false` and reveals
+// nothing about their purchase. Read-only and idempotent.
+router.get("/payments/checkout-session/:sessionId", async (req: Request, res: Response) => {
+  const me = req.session?.userId;
+  if (!me) {
+    res.status(401).json({ error: "Login required" });
+    return;
+  }
+
+  const rawSessionId = req.params.sessionId;
+  const sessionId = typeof rawSessionId === "string" ? rawSessionId : "";
+  if (!sessionId.startsWith("cs_")) {
+    res.status(400).json({ error: "Invalid Checkout Session id" });
+    return;
+  }
+
+  const [credited] = await db
+    .select({
+      coins: coinTransactionsTable.coins,
+      packageId: coinTransactionsTable.packageId,
+      creditedAt: coinTransactionsTable.createdAt,
+    })
+    .from(coinTransactionsTable)
+    .where(
+      and(
+        eq(coinTransactionsTable.stripeSessionId, sessionId),
+        eq(coinTransactionsTable.playerId, me),
+      ),
+    );
+
+  if (!credited) {
+    res.json({ sessionId, credited: false });
+    return;
+  }
+
+  // The balance is read from the same server the webhook updated, so the client
+  // never has to infer it.
+  const [player] = await db
+    .select({ coinBalance: playersTable.coinBalance })
+    .from(playersTable)
+    .where(eq(playersTable.id, me));
+
+  res.json({
+    sessionId,
+    credited: true,
+    coins: credited.coins,
+    packageId: credited.packageId,
+    creditedAt: credited.creditedAt?.toISOString() ?? null,
+    balance: player?.coinBalance ?? null,
+  });
 });
 
 /**

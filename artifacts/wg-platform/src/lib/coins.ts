@@ -16,6 +16,22 @@ export interface CoinTransaction {
   createdAt: string | null;
 }
 
+/**
+ * Whether a Stripe Checkout Session has already been credited to the signed-in
+ * player. Coins are credited by the Stripe webhook, so the browser asks the
+ * server about the session it paid for instead of guessing from the balance.
+ */
+export interface CheckoutSessionStatus {
+  sessionId: string;
+  credited: boolean;
+  /** Coins credited for this session — present once `credited` is true. */
+  coins?: number;
+  packageId?: string;
+  creditedAt?: string | null;
+  /** Server-side balance at the moment of the check. */
+  balance?: number | null;
+}
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers);
   if (typeof init?.body === "string" && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
@@ -41,6 +57,13 @@ export const coins = {
       method: "POST",
       body: JSON.stringify({ packageId }),
     }),
+  /**
+   * Whether the given Checkout Session has already been credited to the
+   * signed-in player. Only the caller's own sessions are ever reported as
+   * credited. Read-only, so polling it is safe.
+   */
+  checkoutSessionStatus: (sessionId: string) =>
+    req<CheckoutSessionStatus>(`/api/payments/checkout-session/${encodeURIComponent(sessionId)}`),
 };
 
 export function formatCoins(n: number): string {
