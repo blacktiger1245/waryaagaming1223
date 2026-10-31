@@ -3,7 +3,14 @@ import type Stripe from "stripe";
 import { db, coinTransactionsTable, playersTable } from "@workspace/db";
 import { and, eq, sql } from "drizzle-orm";
 import { COIN_PACKAGES } from "./coins";
-import { getStripe, getStripeMode, getStripeWebhookSecret, isStripeConfigured } from "../lib/stripe";
+import {
+  getStripe,
+  getStripeMode,
+  getStripeSecretKeyFingerprint,
+  getStripeWebhookSecret,
+  getStripeWebhookSecretFingerprint,
+  isStripeConfigured,
+} from "../lib/stripe";
 import { logger } from "../lib/logger";
 
 const router = Router();
@@ -409,6 +416,14 @@ export function stripeWebhookStatusHandler(_req: Request, res: Response): void {
       // `live`, `test`, or `unknown` when the key prefix is not recognisable.
       // Answers "did the live switch actually take effect on this host?"
       mode: getStripeMode(),
+    },
+    // Public, non-secret fingerprints of what this process actually loaded
+    // (Stripe's own key prefixes plus the value length), so a test → live switch
+    // can be confirmed from a browser without a credential ever appearing in a
+    // response or a log.
+    fingerprints: {
+      stripeSecretKey: getStripeSecretKeyFingerprint(),
+      webhookSecret: getStripeWebhookSecretFingerprint(),
     },
   });
 }
