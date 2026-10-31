@@ -344,7 +344,15 @@ export default function HomePage() {
             <div className="grid md:grid-cols-3 gap-4">
               {!rankings
                 ? Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-xl" />)
-                : top3.map((player, i) => (
+                : top3.map((player, i) => {
+                    // "Wins" is the player's real completed-match wins — the same
+                    // figure the Full Rankings table shows. `tournamentWins` is the
+                    // trophy count, which is 0 for almost every player (that is why
+                    // the card always read "0 Wins / 0% Win Rate").
+                    const wins = (player as any).matchesWon ?? 0;
+                    const played = player.matchesPlayed ?? 0;
+                    const winRate = played > 0 ? wins / played : (player.winRate ?? 0);
+                    return (
                     <motion.div
                       key={player.playerId}
                       custom={i}
@@ -403,18 +411,19 @@ export default function HomePage() {
                               <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Points</div>
                             </div>
                             <div>
-                              <div className="text-sm font-black">{player.tournamentWins}</div>
+                              <div className="text-sm font-black">{wins}</div>
                               <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Wins</div>
                             </div>
                             <div>
-                              <div className="text-sm font-black">{(player.winRate * 100).toFixed(0)}%</div>
+                              <div className="text-sm font-black">{Math.round(winRate * 100)}%</div>
                               <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Win Rate</div>
                             </div>
                           </div>
                         </div>
                       </Link>
                     </motion.div>
-                  ))}
+                    );
+                  })}
             </div>
           </motion.div>
         </div>

@@ -310,6 +310,25 @@ export default function PlayerDetailPage() {
   const [overallScope, setOverallScope] = useState<"career" | number>("career");
   const [scopeOpen, setScopeOpen] = useState(false);
 
+  // Live points / market value derived from the same statistics the rankings use,
+  // so the profile header and player card never lag behind the ladder.
+  // NOTE: this hook must stay ABOVE the `isLoading` / `!player` early returns —
+  // calling it after them makes the profile run more hooks than the previous
+  // render as soon as the player data arrives (React error #310).
+  const displayPoints = useMemo(() => {
+    if (overallStats.played > 0) {
+      return playerPoints({
+        appearances: overallStats.played,
+        wins: overallStats.wins,
+        cleanSheets: overallStats.cleanSheets,
+        goals: overallStats.goals,
+        motm: overallStats.motm,
+        draws: overallStats.draws,
+      });
+    }
+    return player?.points ?? 0;
+  }, [overallStats, player]);
+
   if (isLoading) {
     return (
       <div className="container mx-auto px-4 py-16 space-y-4">
@@ -331,21 +350,6 @@ export default function PlayerDetailPage() {
     );
   }
 
-  // Live points / market value derived from the same statistics the rankings use,
-  // so the profile header and player card never lag behind the ladder.
-  const displayPoints = useMemo(() => {
-    if (overallStats.played > 0) {
-      return playerPoints({
-        appearances: overallStats.played,
-        wins: overallStats.wins,
-        cleanSheets: overallStats.cleanSheets,
-        goals: overallStats.goals,
-        motm: overallStats.motm,
-        draws: overallStats.draws,
-      });
-    }
-    return player?.points ?? 0;
-  }, [overallStats, player]);
   const displayMarketValue = marketValueLabel(pointsToMarketValue(displayPoints));
 
   const stars = starCount(displayPoints);

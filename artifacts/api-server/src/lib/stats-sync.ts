@@ -89,7 +89,16 @@ export async function recomputePlayerStats(
     .where(
       and(
         eq(matchesTable.status, "completed"),
-        or(isNull(matchesTable.tournamentId), eq(tournamentsTable.tournamentType, "solo")),
+        // A tournament with no type (legacy/manual rows) is NOT a clan
+        // tournament, so its fixtures are player-vs-player results. It must be
+        // listed explicitly: in SQL both `tournament_type = 'solo'` and
+        // `tournament_type <> 'team'` evaluate to NULL for those rows, which
+        // silently dropped every result recorded in such a tournament.
+        or(
+          isNull(matchesTable.tournamentId),
+          isNull(tournamentsTable.tournamentType),
+          eq(tournamentsTable.tournamentType, "solo"),
+        ),
         or(inArray(matchesTable.participant1Id, ids), inArray(matchesTable.participant2Id, ids)),
       ),
     );
@@ -379,7 +388,14 @@ export async function computeAllPlayerTallies(
   // ── Solo tournament fixtures (participant columns hold player ids) ────────
   const soloConditions = [
     eq(matchesTable.status, "completed"),
-    or(isNull(matchesTable.tournamentId), ne(tournamentsTable.tournamentType, "team")),
+    // Every fixture that is not a clan tournament counts as a player result.
+    // A NULL tournament_type (legacy/manual rows) has to be listed explicitly:
+    // in SQL `tournament_type <> 'team'` is NULL — not TRUE — for those rows.
+    or(
+      isNull(matchesTable.tournamentId),
+      isNull(tournamentsTable.tournamentType),
+      ne(tournamentsTable.tournamentType, "team"),
+    ),
   ];
   if (filter.tournamentIds) soloConditions.push(inArray(matchesTable.tournamentId, filter.tournamentIds));
   if (sinceExpr) soloConditions.push(sinceExpr);
@@ -397,25 +413,40 @@ export async function computeAllPlayerTallies(
     .where(and(...soloConditions));
 
   for (const m of soloRows) {
-    if (m.participant1Id == null || m.participant2Id == null) continue;
     const s1 = m.participant1Score ?? 0;
     const s2 = m.participant2Score ?? 0;
 
-    const a = forPlayer(m.participant1Id);
-    const b = forPlayer(m.participant2Id);
-    a.played++; b.played++;
-    a.goals += s1; a.conceded += s2;
-    b.goals += s2; b.conceded += s1;
-    if (s2 === 0) a.cleanSheets++;
-    if (s1 === 0) b.cleanSheets++;
+    // A bye / walkover only records the side that actually turned up, so each
+    // participant is credited individually — a null side simply scores nothing.
+    // (This mirrors the profile's match history, which counts the same fixture.)
+    const a = m.participant1Id != null ? forPlayer(m.participant1Id) : null;
+    const b = m.participant2Id != null ? forPlayer(m.participant2Id) : null;
+    if (!a && !b) continue;
+
+    if (a) {
+      a.played++;
+      a.goals += s1; a.conceded += s2;
+      if (s2 === 0) a.cleanSheets++;
+    }
+    if (b) {
+      b.played++;
+      b.goals += s2; b.conceded += s1;
+      if (s1 === 0) b.cleanSheets++;
+    }
 
     if (s1 === s2) {
-      a.draws++; b.draws++;
+      if (a) a.draws++;
+      if (b) b.draws++;
     } else if (m.winnerId != null) {
-      if (m.winnerId === m.participant1Id) { a.wins++; b.losses++; }
-      else if (m.winnerId === m.participant2Id) { b.wins++; a.losses++; }
-    } else if (s1 > s2) { a.wins++; b.losses++; }
-    else { b.wins++; a.losses++; }
+      if (m.winnerId === m.participant1Id) { if (a) a.wins++; if (b) b.losses++; }
+      else if (m.winnerId === m.participant2Id) { if (b) b.wins++; if (a) a.losses++; }
+    } else if (s1 > s2) {
+      if (a) a.wins++;
+      if (b) b.losses++;
+    } else {
+      if (b) b.wins++;
+      if (a) a.losses++;
+    }
   }
 
   // ── Clan duels (each player-vs-player game inside a clan fixture) ─────────
