@@ -20,6 +20,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { TournamentBracket } from "@/components/tournament-bracket";
+import { MatchReportPanel } from "@/components/match-result";
 import { apiUrl, storageUrl } from "@/lib/api";
 
 const statusColors: Record<string, string> = {
@@ -271,12 +272,17 @@ function MatchDetailDialog({
   logoMap,
   isTeamTournament,
   teamRosters = {},
+  tournamentName,
+  imageById,
 }: {
   match: Match;
   onClose: () => void;
   logoMap: Record<string, string | null>;
   isTeamTournament?: boolean;
   teamRosters: Record<number, TournamentParticipant["members"]>;
+  tournamentName?: string | null;
+  /** Participant id → crest/avatar for the Verified Result + MOTM card. */
+  imageById?: Map<number, string | null>;
 }) {
   const { data: games = [], isLoading } = useQuery<PublicPlayerGame[]>({
     queryKey: ["public-player-games", match.id],
@@ -349,6 +355,37 @@ function MatchDetailDialog({
             <p className="text-center text-xs text-muted-foreground mt-3 uppercase tracking-widest">{match.roundName}</p>
           )}
         </div>
+
+        {/* ── Verified Result + Man of the Match — the exact same card the
+               fixtures page renders, so a man-vs-man fixture reads identically
+               here (tournament knockout + fixture list). ─────────────────────── */}
+        {done && (
+          <div className="px-6 pt-5 shrink-0">
+            <MatchReportPanel
+              fixture={{
+                id: match.id,
+                status: match.status,
+                round: match.round,
+                roundName: match.roundName,
+                tournamentName,
+                participant1Id: match.participant1Id,
+                participant1Name: match.participant1Name,
+                participant1Score: match.participant1Score,
+                participant2Id: match.participant2Id,
+                participant2Name: match.participant2Name,
+                participant2Score: match.participant2Score,
+                // The generated Match type is stale: the API returns the MOTM
+                // columns, so they are read through a narrow cast.
+                manOfTheMatchId:
+                  (match as unknown as { manOfTheMatchId?: number | null }).manOfTheMatchId ?? null,
+                manOfTheMatchName:
+                  (match as unknown as { manOfTheMatchName?: string | null }).manOfTheMatchName ?? null,
+              }}
+              isTeamMatch={isTeamTournament}
+              imageById={imageById}
+            />
+          </div>
+        )}
 
         {/* Player matchups */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
@@ -1167,6 +1204,16 @@ export default function TournamentDetailPage() {
     return m;
   }, [participantProfiles]);
 
+  // Participant id → crest (clan) / avatar (player). Feeds the Match Report &
+  // MVP card so both sides and the MVP portrait always carry their image.
+  const imageById = useMemo(() => {
+    const m = new Map<number, string | null>();
+    Object.entries(participantProfiles.byId).forEach(([key, profile]) => {
+      m.set(Number(key), profile.url ?? null);
+    });
+    return m;
+  }, [participantProfiles]);
+
   function resolveParticipant(id: number | null | undefined, name: string | null | undefined) {
     if (id != null && participantProfiles.byId[id]) return participantProfiles.byId[id];
     if (name && participantProfiles.byName[name]) return participantProfiles.byName[name];
@@ -1478,7 +1525,11 @@ export default function TournamentDetailPage() {
           {activeTab === "knockout" && (
             <motion.div key="knockout" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
               {bracket && bracket.rounds.length > 0 ? (
-                <TournamentBracket rounds={bracket.rounds} profiles={participantProfiles.byId} />
+                <TournamentBracket
+                  rounds={bracket.rounds}
+                  profiles={participantProfiles.byId}
+                  onSelectMatch={(m) => setSelectedMatch(m)}
+                />
               ) : (
                 <div className="rounded-xl border border-border bg-card p-8 text-center text-muted-foreground">
                   <Swords className="w-10 h-10 mx-auto mb-3 opacity-30" />
@@ -1626,7 +1677,7 @@ export default function TournamentDetailPage() {
 
         {/* Match detail dialog */}
         {selectedMatch && (
-          <MatchDetailDialog match={selectedMatch} onClose={() => setSelectedMatch(null)} logoMap={teamLogoMap} isTeamTournament={isTeamTournament} teamRosters={teamRosterMap} />
+          <MatchDetailDialog match={selectedMatch} onClose={() => setSelectedMatch(null)} logoMap={teamLogoMap} isTeamTournament={isTeamTournament} teamRosters={teamRosterMap} tournamentName={tournament.name} imageById={imageById} />
         )}
       </motion.div>
     </div>

@@ -11,6 +11,8 @@ export { ManOfTheMatchCard } from "./ManOfTheMatchCard";
 export type { ManOfTheMatchCardProps } from "./ManOfTheMatchCard";
 export { MatchResultMOTM } from "./MatchResultMOTM";
 export type { MatchResultMOTMProps, MatchResultView } from "./MatchResultMOTM";
+export { MatchReportPanel } from "./MatchReportPanel";
+export type { MatchReportFixture, MatchReportPanelProps } from "./MatchReportPanel";
 export { buildMatchResultData } from "./from-api";
 export type { BuildMatchResultOptions, MatchResultApiFixture, MatchResultApiPlayerGame } from "./from-api";
 export { buildSoloMatchResultData } from "./from-solo";

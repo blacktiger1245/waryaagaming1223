@@ -24,6 +24,11 @@ interface TournamentBracketProps {
   rounds: BracketRound[];
   /** participant id → crest/avatar + profile link. */
   profiles?: Record<number, BracketProfile>;
+  /**
+   * Makes every bracket card clickable so a finished fixture can open its
+   * Verified Result + Man of the Match report (same card as the fixtures page).
+   */
+  onSelectMatch?: (match: BracketMatch) => void;
 }
 
 interface ConnectorPath {
@@ -114,6 +119,7 @@ function MatchCard({
   style,
   matchRef,
   profiles = {},
+  onSelect,
 }: {
   match: BracketMatch;
   label: string;
@@ -121,6 +127,8 @@ function MatchCard({
   style: React.CSSProperties;
   matchRef: (el: HTMLDivElement | null) => void;
   profiles?: Record<number, BracketProfile>;
+  /** Opens the fixture's Verified Result + MOTM report when supplied. */
+  onSelect?: () => void;
 }) {
   const p1Name = match.participant1Name ?? "TBD";
   const p2Name = match.participant2Name ?? "TBD";
@@ -141,6 +149,21 @@ function MatchCard({
     <div
       ref={matchRef}
       data-match-id={match.id}
+      {...(onSelect
+        ? {
+            onClick: onSelect,
+            role: "button" as const,
+            tabIndex: 0,
+            title: "View the verified result",
+            "aria-label": `View verified result for ${p1Name} vs ${p2Name}`,
+            onKeyDown: (e: React.KeyboardEvent) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onSelect();
+              }
+            },
+          }
+        : {})}
       className={`
         absolute rounded-xl border overflow-hidden transition-all duration-300
         ${isFinal
@@ -150,6 +173,7 @@ function MatchCard({
           : "border-[var(--card-border)] bg-card/90 backdrop-blur-sm shadow-[0_8px_24px_-16px_var(--card-glow)]"
         }
         hover:shadow-[0_12px_32px_-12px_var(--card-glow)] hover:border-[var(--acc)]/30
+        ${onSelect ? "cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--acc)]/60" : ""}
       `}
       style={style}
     >
@@ -175,6 +199,7 @@ function MatchCard({
               href={p1Profile.href}
               title={`View ${p1Profile.label ?? p1Name} profile`}
               className="flex items-center gap-2 min-w-0 hover:underline"
+              onClick={(e) => e.stopPropagation()}
             >
               <TeamAvatar name={p1Name} isWinner={p1Winner} url={p1Profile.url} />
               <span className="text-xs truncate">{p1Name}</span>
@@ -196,6 +221,7 @@ function MatchCard({
               href={p2Profile.href}
               title={`View ${p2Profile.label ?? p2Name} profile`}
               className="flex items-center gap-2 min-w-0 hover:underline"
+              onClick={(e) => e.stopPropagation()}
             >
               <TeamAvatar name={p2Name} isWinner={p2Winner} url={p2Profile.url} />
               <span className="text-xs truncate">{p2Name}</span>
@@ -334,7 +360,7 @@ function orderRounds(rounds: BracketRound[]): BracketRound[] {
   return ordered;
 }
 
-export function TournamentBracket({ rounds, profiles = {} }: TournamentBracketProps) {
+export function TournamentBracket({ rounds, profiles = {}, onSelectMatch }: TournamentBracketProps) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const matchRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const championRef = useRef<HTMLDivElement>(null);
@@ -589,6 +615,7 @@ export function TournamentBracket({ rounds, profiles = {} }: TournamentBracketPr
                     style={{ left: pos.x, top: pos.y, width: CARD_W, height: CARD_H }}
                     matchRef={setMatchRef(match.id)}
                     profiles={profiles}
+                    onSelect={onSelectMatch ? () => onSelectMatch(match) : undefined}
                   />
                 );
               })

@@ -787,12 +787,15 @@ function MatchCard({ m, logoMap, canShare, broadcasting, onStartLive, onCloseLiv
 
   return (
     <div
-      onClick={isTeamMatch ? toggleGames : undefined}
+      // Clan fixture → expand its 1v1 list; a solo man-vs-man fixture → open the
+      // Verified Result + MVP card (exactly what the report button toggles).
+      onClick={isTeamMatch ? toggleGames : hasScore ? toggleReport : undefined}
+      data-testid={!isTeamMatch && hasScore ? "card-match-report" : undefined}
       className={`group overflow-hidden rounded-2xl border transition-all ${
         live
           ? "border-[#FF2A5F]/50 bg-gradient-to-r from-[#1a1220] to-[#0d1424] shadow-[0_0_20px_rgba(255,42,95,0.2)]"
           : "border-[#1b2a4a]/80 bg-[#0f1628] hover:border-[#00F0FF]/40 hover:shadow-[0_0_22px_rgba(0,240,255,0.12)]"
-      } ${isTeamMatch ? "cursor-pointer" : ""}`}
+      } ${isTeamMatch || hasScore ? "cursor-pointer" : ""}`}
     >
       <div className="flex items-center justify-between gap-3 px-4 pt-2.5">
         <div className="flex items-center gap-2 min-w-0">
