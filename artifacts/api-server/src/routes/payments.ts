@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import type Stripe from "stripe";
-import { db, coinTransactionsTable, playersTable } from "@workspace/db";
-import { and, eq, sql } from "drizzle-orm";
+import { db, coinTransactionsTable, playersTable, teamsTable } from "@workspace/db";
+import { and, eq, or, sql } from "drizzle-orm";
 import { COIN_PACKAGES } from "./coins";
 import {
   getStripe,
@@ -85,6 +85,23 @@ router.post("/payments/create-checkout-session", async (req: Request, res: Respo
 
   if (!isStripeConfigured()) {
     res.status(503).json({ error: "Card payments are not configured yet" });
+    return;
+  }
+
+  // ── Clan-leadership gate ───────────────────────────────────────────────────
+  // WG Coins can only be bought by a user who has their own team: the President
+  // or Coach of a clan. Everyone else sees the packages locked on /buy-coins, and
+  // the rule is enforced here so it cannot be bypassed by calling the API directly.
+  const [leadingTeam] = await db
+    .select({ id: teamsTable.id })
+    .from(teamsTable)
+    .where(or(eq(teamsTable.presidentId, me), eq(teamsTable.coachId, me)))
+    .limit(1);
+  if (!leadingTeam) {
+    res.status(403).json({
+      error: "WG Coins can only be bought by a clan President or Coach.",
+      code: "clan_leader_required",
+    });
     return;
   }
 

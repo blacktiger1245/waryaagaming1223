@@ -204,15 +204,13 @@ export default function TeamsPage() {
                     Register Your Clan
                   </Button>
                 ) : registrationOpen ? (
-                  // Creating a clan needs the Clan President role, which is bought
-                  // with WG Coins — not everybody can just register one.
-                  <Button
-                    onClick={() => navigate("/buy-coins")}
-                    className="wg-btn-pill gap-2 font-bold uppercase tracking-wide"
-                    title="Creating a clan needs the Clan President role (buy it with WG Coins)"
-                  >
-                    Buy Clan President role
-                  </Button>
+                  // Creating a clan needs the Clan President role. It is not
+                  // something anyone can buy: coin top-ups are limited to clan
+                  // Presidents/Coaches, so this entitlement is granted by an admin
+                  // (POST /admin/players/:id/clan-role).
+                  <span className="max-w-[240px] text-right text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                    Creating a clan needs the Clan President role — ask an admin to grant it
+                  </span>
                 ) : (
                   <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
                     Clan registration is closed

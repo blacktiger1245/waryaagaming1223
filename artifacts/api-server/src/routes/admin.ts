@@ -2376,4 +2376,49 @@ router.get("/admin/clan-registrations/:id/logs", requireAdmin, async (req, res) 
   return res.json({ logs: rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })) });
 });
 
+// ── POST /admin/players/:id/clan-role — grant/revoke a clan-role entitlement ───
+// WG Coin top-ups are limited to clan Presidents/Coaches, so this is how a brand
+// new player is given the right to create a clan (or to coach one) without buying
+// coins. `role: null` clears the entitlement.
+router.post("/admin/players/:id/clan-role", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: "Invalid player id" });
+
+  const raw = (req.body as { role?: unknown } | null)?.role;
+  const role = raw === undefined || raw === null || raw === "" ? null : String(raw);
+  if (role !== null && role !== "president" && role !== "coach") {
+    return res.status(400).json({ error: "role must be 'president', 'coach' or null" });
+  }
+
+  const [player] = await db
+    .select({ id: playersTable.id })
+    .from(playersTable)
+    .where(eq(playersTable.id, id));
+  if (!player) return res.status(404).json({ error: "Player not found" });
+
+  const [updated] = await db
+    .update(playersTable)
+    .set({ clanRole: role })
+    .where(eq(playersTable.id, id))
+    .returning({ id: playersTable.id, clanRole: playersTable.clanRole });
+
+  return res.json({ ok: true, playerId: updated.id, clanRole: updated.clanRole });
+});
+
+// ── GET /admin/clan-roles — who currently holds a clan-role entitlement ────────
+router.get("/admin/clan-roles", requireAdmin, async (_req, res) => {
+  const rows = await db
+    .select({
+      id: playersTable.id,
+      username: playersTable.username,
+      displayName: playersTable.displayName,
+      clanRole: playersTable.clanRole,
+    })
+    .from(playersTable)
+    .where(inArray(playersTable.clanRole, ["president", "coach"]))
+    .orderBy(playersTable.username);
+
+  return res.json({ holders: rows });
+});
+
 export default router;
