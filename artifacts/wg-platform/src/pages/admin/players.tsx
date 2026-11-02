@@ -124,6 +124,32 @@ export default function AdminPlayersPage() {
     }
   }
 
+  // ── "Access Clan" ────────────────────────────────────────────────────────────
+  // The clan-role entitlement that lets a user create their own clan (Clan
+  // President). The state is read from GET /admin/clan-roles so the button is
+  // correct no matter what the players list returns.
+  const { data: clanRoleData } = useQuery<{ holders: { id: number; clanRole: string | null }[] }>({
+    queryKey: ["admin-clan-roles"],
+    queryFn: () => apiFetch("/api/admin/clan-roles"),
+  });
+  const clanRoleById = new Map((clanRoleData?.holders ?? []).map((h) => [h.id, h.clanRole]));
+
+  async function setClanAccess(playerId: number, role: "president" | null) {
+    setLoading(true); setError("");
+    try {
+      await apiFetch(`/api/admin/players/${playerId}/clan-role`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role }),
+      });
+      qc.invalidateQueries({ queryKey: ["admin-clan-roles"] });
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function banPlayer(playerId: number, duration: string, reason: string) {
     if (!reason.trim()) {
       setError("Please enter a reason for the ban.");
@@ -329,6 +355,23 @@ export default function AdminPlayersPage() {
                     >
                       <MonitorPlay className="w-3.5 h-3.5" />
                       {player.role === "sharescreen" ? "Remove ScreenShare" : "Allow ScreenShare"}
+                    </button>
+                    <button
+                      onClick={() => setClanAccess(player.id, clanRoleById.get(player.id) ? null : "president")}
+                      disabled={loading}
+                      title={
+                        clanRoleById.get(player.id)
+                          ? "Remove clan access"
+                          : "Give this user Access Clan — they can create their own clan"
+                      }
+                      className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors flex items-center gap-1.5 ${
+                        clanRoleById.get(player.id)
+                          ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300"
+                          : "text-zinc-400 hover:text-emerald-300 bg-zinc-800 border-zinc-700 hover:border-emerald-400/30"
+                      }`}
+                    >
+                      <BadgeCheck className="w-3.5 h-3.5" />
+                      {clanRoleById.get(player.id) ? "Remove Access Clan" : "Access Clan"}
                     </button>
                     {banned ? (
                       <button

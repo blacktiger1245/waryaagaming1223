@@ -659,6 +659,14 @@ router.post("/admin/tournaments", requireAdmin, async (req, res) => {
     } = req.body as Record<string, string | number | boolean | undefined>;
 
     if (!name) return res.status(400).json({ error: "Name is required" });
+
+    // A clan tournament must declare its entry fee explicitly, so one can never be
+    // created without a fee by accident. `0` is still a valid (free) entry fee.
+    if (Boolean(isClanTournament) && registrationFeeCents === undefined) {
+      return res.status(400).json({
+        error: "A clan tournament requires an entry fee — enter the amount (use 0 for a free entry).",
+      });
+    }
     if (String(status ?? "upcoming") === "upcoming" && !startDate) {
       return res.status(400).json({ error: "startDate is required for upcoming tournaments" });
     }

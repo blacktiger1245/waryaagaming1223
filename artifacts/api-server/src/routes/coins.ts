@@ -231,6 +231,49 @@ router.post("/coins/clan-roles/buy", async (req: Request, res: Response) => {
   }
 });
 
+// ── GET /coins/eligibility ───────────────────────────────────────────────────
+// Whether the signed-in player may buy WG Coins. This is the SAME rule
+// `POST /payments/create-checkout-session` enforces (clan President or Coach), so
+// the Buy Coins page can never disagree with the API about who may pay — which is
+// what made a real clan President see the packages locked.
+router.get("/coins/eligibility", async (req: Request, res: Response) => {
+  const me = req.session?.userId;
+  if (!me) {
+    res.json({ canBuyCoins: false, role: null, teamId: null, teamName: null, reason: "Login required" });
+    return;
+  }
+
+  const [team] = await db
+    .select({
+      id: teamsTable.id,
+      name: teamsTable.name,
+      presidentId: teamsTable.presidentId,
+      coachId: teamsTable.coachId,
+    })
+    .from(teamsTable)
+    .where(or(eq(teamsTable.presidentId, me), eq(teamsTable.coachId, me)))
+    .limit(1);
+
+  if (!team) {
+    res.json({
+      canBuyCoins: false,
+      role: null,
+      teamId: null,
+      teamName: null,
+      reason: "WG Coins can only be bought by a clan President or Coach.",
+    });
+    return;
+  }
+
+  res.json({
+    canBuyCoins: true,
+    role: team.presidentId === me ? "president" : "coach",
+    teamId: team.id,
+    teamName: team.name,
+    reason: null,
+  });
+});
+
 // NOTE: Coin top-ups are handled by POST /payments/create-checkout-session and
 // the Stripe webhook in ./payments.ts — coins are only credited once Stripe
 // confirms the payment. The previous simulated /coins/purchase endpoint was

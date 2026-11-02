@@ -522,6 +522,13 @@ function CreateTournamentDialog({
   const [teamCount, setTeamCount] = useState<number | "">("");
   const [playersPerTeam, setPlayersPerTeam] = useState<number | "">("");
   const [isClanTournament, setIsClanTournament] = useState(false);
+  // Paid clan-tournament entry fee. REQUIRED whenever this is a clan tournament,
+  // so a clan event can never be created without one (0 = a free entry). The EVC
+  // Plus fields are the manual mobile-money fallback for clans without a card.
+  const [entryFeeDollars, setEntryFeeDollars] = useState("");
+  const [evcPlusNumber, setEvcPlusNumber] = useState("");
+  const [evcPlusAccountName, setEvcPlusAccountName] = useState("");
+  const [evcPlusAmountText, setEvcPlusAmountText] = useState("");
   const [status, setStatus] = useState<"upcoming" | "active">("upcoming");
   const [saving, setSaving] = useState(false);
 
@@ -546,6 +553,10 @@ function CreateTournamentDialog({
     setTeamCount("");
     setPlayersPerTeam("");
     setIsClanTournament(false);
+    setEntryFeeDollars("");
+    setEvcPlusNumber("");
+    setEvcPlusAccountName("");
+    setEvcPlusAmountText("");
     setStatus("upcoming");
     setSaving(false);
   }
@@ -606,6 +617,15 @@ function CreateTournamentDialog({
       toast({ title: "Start date is required for upcoming tournaments", variant: "destructive" });
       return;
     }
+    // A clan tournament must state its entry fee — the API rejects it otherwise.
+    if (isClanTournament && !entryFeeDollars.trim()) {
+      toast({
+        title: "Enter the clan tournament entry fee",
+        description: "Type the amount in dollars (use 0 for a free entry).",
+        variant: "destructive",
+      });
+      return;
+    }
     setSaving(true);
     try {
       let logoUrl: string | undefined;
@@ -629,6 +649,16 @@ function CreateTournamentDialog({
           teamCount: tc,
           playersPerTeam: playersPerTeam !== "" ? Number(playersPerTeam) : undefined,
           isClanTournament,
+          // Entry fee is only sent for clan tournaments; the server requires it
+          // there and rejects the request when it is missing.
+          ...(isClanTournament
+            ? {
+                registrationFeeCents: Math.max(0, Math.round((Number(entryFeeDollars) || 0) * 100)),
+                evcPlusNumber: evcPlusNumber.trim() || undefined,
+                evcPlusAccountName: evcPlusAccountName.trim() || undefined,
+                evcPlusAmountText: evcPlusAmountText.trim() || undefined,
+              }
+            : {}),
         }),
       });
 
@@ -787,6 +817,44 @@ function CreateTournamentDialog({
                 </div>
                 <p className="text-xs text-muted-foreground">Clan tournaments restrict registration to clan members only.</p>
               </div>
+              {isClanTournament && (
+                <div className="space-y-4 rounded-xl border border-primary/30 bg-primary/5 p-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <DollarSign className="w-3.5 h-3.5" /> Entry fee (USD) <span className="text-destructive">*</span>
+                    </label>
+                    <Input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={entryFeeDollars}
+                      onChange={(e) => setEntryFeeDollars(e.target.value)}
+                      placeholder="e.g. 5 (use 0 for a free entry)"
+                      required
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Required for clan tournaments. A clan must pay this before it is registered — by card (Stripe) or by EVC Plus.
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">EVC Plus number (for the EVC Plus option)</label>
+                    <Input value={evcPlusNumber} onChange={(e) => setEvcPlusNumber(e.target.value)} placeholder="e.g. 0612345678" />
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">EVC Plus account name</label>
+                      <Input value={evcPlusAccountName} onChange={(e) => setEvcPlusAccountName(e.target.value)} placeholder="e.g. Waryaa Gaming" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Amount to send (text)</label>
+                      <Input value={evcPlusAmountText} onChange={(e) => setEvcPlusAmountText(e.target.value)} placeholder="e.g. 57,000 SoSh" />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Clans that pick EVC Plus see this number, send the money and tap &quot;I sent the money&quot;. You confirm it in Admin → Clan entry fees, which registers the clan automatically.
+                  </p>
+                </div>
+              )}
               {stage === "group-stage-knockout" && (
                 <>
                   <div className="space-y-1.5">

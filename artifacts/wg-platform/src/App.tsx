@@ -52,6 +52,7 @@ import RefereeMatchesPage from "@/pages/referee-matches";
 import AdminLoginPage from "@/pages/admin/login";
 import AdminDashboardPage from "@/pages/admin/dashboard";
 import AdminPlayersPage from "@/pages/admin/players";
+import AdminClanFeesPage from "@/pages/admin/clan-fees";
 import AdminTeamsPage from "@/pages/admin/teams";
 import AdminTournamentsPage from "@/pages/admin/tournaments";
 import AdminMatchesPage from "@/pages/admin/matches";
@@ -166,6 +167,7 @@ function AdminRouter() {
         <Route path="/admin/login" component={AdminLoginPage} />
         <Route path="/admin" component={AdminDashboardPage} />
         <Route path="/admin/players" component={AdminPlayersPage} />
+        <Route path="/admin/clan-fees" component={AdminClanFeesPage} />
         <Route path="/admin/teams" component={AdminTeamsPage} />
         <Route path="/admin/tournaments" component={AdminTournamentsPage} />
         <Route path="/admin/matches" component={AdminMatchesPage} />

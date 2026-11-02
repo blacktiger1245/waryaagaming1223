@@ -44,20 +44,25 @@ export default function BuyCoinsPage() {
   });
 
   // WG Coins are for clan leadership only: the President or Coach of a team (the
-  // users who have their own team). The server enforces this as well — this only
-  // drives the locked state and the explanation shown to everyone else.
-  const { data: myTeam, isLoading: myTeamLoading } = useQuery<any | null>({
-    queryKey: ["my-team"],
+  // users who have their own team). The SERVER decides this — the same rule
+  // POST /payments/create-checkout-session enforces — so this page can never
+  // disagree with the API about who is allowed to buy.
+  const { data: eligibility, isLoading: eligibilityLoading } = useQuery<{
+    canBuyCoins: boolean;
+    role: "president" | "coach" | null;
+    teamName: string | null;
+    reason: string | null;
+  }>({
+    queryKey: ["coins", "eligibility"],
     queryFn: async () => {
-      const res = await fetch("/api/teams/mine", { credentials: "include" });
-      if (!res.ok) return null;
+      const res = await fetch("/api/coins/eligibility", { credentials: "include" });
+      if (!res.ok) return { canBuyCoins: false, role: null, teamName: null, reason: null };
       return res.json();
     },
     enabled: isLoggedIn,
   });
-  const myRole = (myTeam as any)?.selfRole ?? null;
-  const isClanLeader = myRole === "president" || myRole === "coach";
-  const packagesLocked = isLoggedIn && !myTeamLoading && !isClanLeader;
+  const isClanLeader = eligibility?.canBuyCoins === true;
+  const packagesLocked = isLoggedIn && !eligibilityLoading && !isClanLeader;
 
   const checkout = useMutation({
     mutationFn: (packageId: string) => coins.createCheckoutSession(packageId),
@@ -235,14 +240,14 @@ export default function BuyCoinsPage() {
                 <p className="text-3xl font-black text-primary mt-3">{pkg.price}</p>
                 <Button
                   className="w-full mt-4 font-bold"
-                  disabled={!isLoggedIn || pending || myTeamLoading || !isClanLeader}
+                  disabled={!isLoggedIn || pending || eligibilityLoading || !isClanLeader}
                   onClick={() => startCheckout(pkg.id)}
                   data-testid={`button-buy-${pkg.id}`}
                 >
                   {pending ? <Loader2 className="w-4 h-4 animate-spin" /> : <BadgeCheck className="w-4 h-4" />}
                   {!isLoggedIn
                     ? "Login required"
-                    : myTeamLoading
+                    : eligibilityLoading
                       ? "Checking…"
                       : !isClanLeader
                         ? "Clan leaders only"
