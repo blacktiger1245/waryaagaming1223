@@ -8,8 +8,9 @@ import TeamDeviceModal from "@/components/team-device-modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useListTeams } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { storageUrl } from "@/lib/api";
+import { coins } from "@/lib/coins";
 import { accentForId, accentCardBackground } from "@/lib/accent-colors";
 
 function ClanCard({ team, index }: { team: any; index: number }) {
@@ -100,6 +101,51 @@ export default function TeamsPage() {
   });
   const registrationOpen = clanSettings?.serieARegistrationOpen || clanSettings?.serieBRegistrationOpen;
 
+  // Clan-role entitlement: only a player who bought the Clan President role may
+  // create a clan. The API enforces this as well — this only drives the UI.
+  const { data: clanRoles } = useQuery({
+    queryKey: ["coins", "clan-roles"],
+    queryFn: coins.clanRoles,
+    enabled: isLoggedIn,
+  });
+  const holdsPresidentRole = clanRoles?.clanRole === "president";
+
+  // Invitations sent to this player. Joining a clan is invitation-only, so this
+  // is where a player accepts a seat (there is no direct add any more).
+  const { data: invitesData } = useQuery<{ invites: any[] }>({
+    queryKey: ["team-invites", "mine"],
+    queryFn: async () => {
+      const res = await fetch("/api/teams/invites/mine", { credentials: "include" });
+      if (!res.ok) return { invites: [] };
+      return res.json();
+    },
+    enabled: isLoggedIn,
+  });
+  const pendingInvites = invitesData?.invites ?? [];
+
+  const respondInvite = useMutation({
+    mutationFn: async ({ id, decision }: { id: number; decision: "accept" | "decline" }) => {
+      const res = await fetch(`/api/teams/invites/${id}/respond`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error ?? "Could not answer the invitation");
+      return data;
+    },
+    onSuccess: async () => {
+      setLeaveError(null);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["team-invites", "mine"] }),
+        qc.invalidateQueries({ queryKey: ["my-team"] }),
+        qc.invalidateQueries({ queryKey: ["teams"] }),
+      ]);
+    },
+    onError: (err: Error) => setLeaveError(err.message),
+  });
+
   // Every clan is listed by default — the division tabs are optional filters.
   const allClans = teams ?? [];
   const serieA = allClans.filter((t) => (t as any).division !== "serie_b");
@@ -153,9 +199,19 @@ export default function TeamsPage() {
                       Leave Your Clan
                     </Button>
                   </div>
-                ) : registrationOpen ? (
+                ) : registrationOpen && holdsPresidentRole ? (
                   <Button onClick={() => navigate("/register-team")} className="wg-btn-pill gap-2 font-bold uppercase tracking-wide">
                     Register Your Clan
+                  </Button>
+                ) : registrationOpen ? (
+                  // Creating a clan needs the Clan President role, which is bought
+                  // with WG Coins — not everybody can just register one.
+                  <Button
+                    onClick={() => navigate("/buy-coins")}
+                    className="wg-btn-pill gap-2 font-bold uppercase tracking-wide"
+                    title="Creating a clan needs the Clan President role (buy it with WG Coins)"
+                  >
+                    Buy Clan President role
                   </Button>
                 ) : (
                   <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
@@ -177,6 +233,40 @@ export default function TeamsPage() {
             <div className="text-sm text-red-400 mt-3">⚠ {leaveError}</div>
           )}
         </div>
+
+        {isLoggedIn && pendingInvites.length > 0 && (
+          <div className="mb-8 space-y-3">
+            <h2 className="text-sm font-black uppercase tracking-widest text-primary">Clan invitations</h2>
+            {pendingInvites.map((inv) => (
+              <div
+                key={inv.id}
+                className="flex flex-col gap-3 rounded-xl border border-border bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="text-sm">
+                  <span className="font-bold">{inv.teamName}</span> invited you
+                  {inv.role === "coach" ? " as Coach" : ""} · {inv.seasons} season{inv.seasons === 1 ? "" : "s"}
+                  {inv.message ? <div className="mt-0.5 text-xs text-muted-foreground">{inv.message}</div> : null}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    className="font-bold"
+                    disabled={respondInvite.isPending}
+                    onClick={() => respondInvite.mutate({ id: inv.id, decision: "accept" })}
+                  >
+                    Accept
+                  </Button>
+                  <Button
+                    className="bg-transparent border border-border font-bold text-muted-foreground hover:bg-muted"
+                    disabled={respondInvite.isPending}
+                    onClick={() => respondInvite.mutate({ id: inv.id, decision: "decline" })}
+                  >
+                    Decline
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="relative mb-8 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />

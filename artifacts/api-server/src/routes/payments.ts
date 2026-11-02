@@ -11,6 +11,7 @@ import {
   getStripeWebhookSecretFingerprint,
   isStripeConfigured,
 } from "../lib/stripe";
+import { CLAN_REGISTRATION_KIND, fulfillClanRegistration } from "../lib/clan-registration";
 import { logger } from "../lib/logger";
 
 const router = Router();
@@ -331,6 +332,11 @@ async function fulfillCheckoutSession(session: Stripe.Checkout.Session): Promise
   return { status: "credited", playerId, coins: pkg.coins, balance };
 }
 
+/** True when this Checkout Session paid a clan-tournament entry fee, not coins. */
+function isClanRegistrationSession(session: Stripe.Checkout.Session): boolean {
+  return session.metadata?.["kind"] === CLAN_REGISTRATION_KIND;
+}
+
 /**
  * Routes one signature-verified Stripe event to the coin-crediting logic.
  *
@@ -355,11 +361,23 @@ async function handleVerifiedEvent(event: Stripe.Event): Promise<FulfilResult | 
         );
         return null;
       }
+      // A clan-tournament entry fee has its own idempotent fulfilment: it
+      // registers the clan instead of crediting coins.
+      if (isClanRegistrationSession(session)) {
+        await fulfillClanRegistration(session);
+        return null;
+      }
       return fulfillCheckoutSession(session);
     }
 
-    case "checkout.session.async_payment_succeeded":
-      return fulfillCheckoutSession(event.data.object);
+    case "checkout.session.async_payment_succeeded": {
+      const session = event.data.object;
+      if (isClanRegistrationSession(session)) {
+        await fulfillClanRegistration(session);
+        return null;
+      }
+      return fulfillCheckoutSession(session);
+    }
 
     case "payment_intent.succeeded": {
       // Safety net for endpoints subscribed to `payment_intent.succeeded`
@@ -383,6 +401,13 @@ async function handleVerifiedEvent(event: Stripe.Event): Promise<FulfilResult | 
         console.log(
           `${WEBHOOK_LOG} payment_intent=${paymentIntent.id} session=${session.id} payment_status=${session.payment_status} — not paid yet`,
         );
+        return null;
+      }
+
+      // Same safety net for clan-registration fees: an endpoint subscribed to
+      // `payment_intent.succeeded` still registers a clan that paid by card.
+      if (isClanRegistrationSession(session)) {
+        await fulfillClanRegistration(session);
         return null;
       }
 

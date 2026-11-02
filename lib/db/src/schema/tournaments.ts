@@ -31,6 +31,18 @@ export const tournamentsTable = pgTable("tournaments", {
   /** Max players a clan may register per team (null = no limit). */
   playersPerTeam: integer("players_per_team"),
   createdBy: integer("created_by"),
+  /**
+   * Clan-tournament entry fee in US cents. `0` (the default) keeps the old
+   * behaviour: registering a clan is free and the participant row is created
+   * immediately. Anything above 0 requires payment first (Stripe card or
+   * EVC Plus) — see `clan_tournament_registrations`.
+   */
+  registrationFeeCents: integer("registration_fee_cents").notNull().default(0),
+  /** EVC Plus number the clan sends the fee to (manual mobile-money path). */
+  evcPlusNumber: text("evc_plus_number"),
+  evcPlusAccountName: text("evc_plus_account_name"),
+  /** What to send by EVC Plus, e.g. "57,000 SoSh" — free text set by the admin. */
+  evcPlusAmountText: text("evc_plus_amount_text"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

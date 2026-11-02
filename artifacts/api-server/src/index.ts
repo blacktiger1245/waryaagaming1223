@@ -1,6 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
-import { ensureMatchBracketSchema, ensureAcademySchema, ensureShopSchema, ensureClanSchema, ensureClanTournamentSchema, ensurePlayerGameStatsSchema, ensureMatchResultSchema, ensurePlayerSocialSchema, ensureStripeSchema } from "./lib/ensure-schema";
+import { ensureMatchBracketSchema, ensureAcademySchema, ensureShopSchema, ensureClanSchema, ensureClanTournamentSchema, ensurePlayerGameStatsSchema, ensureMatchResultSchema, ensurePlayerSocialSchema, ensureStripeSchema, ensureClanRoleSchema, ensureClanRegistrationSchema } from "./lib/ensure-schema";
 import { activateUpcomingTournaments } from "./lib/tournament-scheduler";
 import { refreshAllStats } from "./lib/stats-sync";
 
@@ -108,6 +108,11 @@ async function main() {
   await ensureMatchResultSchema();
   await ensurePlayerSocialSchema();
   await ensureStripeSchema();
+  // Clan roles (the two things WG Coins can buy), coin spends and the
+  // invitation-only clan membership flow.
+  await ensureClanRoleSchema();
+  // Paid clan-tournament registration (entry fee + EVC Plus approval log).
+  await ensureClanRegistrationSchema();
 
   // Rebuild every player's and clan's derived statistics once at boot so player
   // profiles, clan records and rankings always match all completed results.

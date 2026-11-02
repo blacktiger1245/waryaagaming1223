@@ -209,7 +209,9 @@ export default function TeamManagePage() {
     }
   }
 
-  function addPlayer(playerId: number) {
+  // Membership is invitation-only: this SENDS AN INVITATION (the player must
+  // accept it before they join). The server no longer adds anyone directly.
+  function invitePlayer(playerId: number) {
     void mutateRoster(
       `/api/teams/${id}/members`,
       {
@@ -220,8 +222,27 @@ export default function TeamManagePage() {
       () => {
         setAddPlayerOpen(false);
         setAddSearch("");
+        qc.invalidateQueries({ queryKey: ["team-invites", id] });
       },
     );
+  }
+
+  // Invitations this clan is waiting on, so the manager can see who has been
+  // asked and withdraw an invitation that has not been answered yet.
+  const { data: inviteData } = useQuery<{ invites: any[] }>({
+    queryKey: ["team-invites", id],
+    queryFn: async () => {
+      const res = await fetch(`/api/teams/${id}/invites`, { credentials: "include" });
+      if (!res.ok) return { invites: [] };
+      return res.json();
+    },
+  });
+  const pendingInvites = inviteData?.invites ?? [];
+
+  function cancelInvite(inviteId: number) {
+    void mutateRoster(`/api/teams/invites/${inviteId}`, { method: "DELETE" }, () => {
+      qc.invalidateQueries({ queryKey: ["team-invites", id] });
+    });
   }
 
   function removePlayer(playerId: number) {
@@ -436,7 +457,7 @@ export default function TeamManagePage() {
 
         <div className="mt-4 flex flex-wrap gap-3">
           {isManager && (
-            <ActionButton icon={<UserPlus className="h-4 w-4" />} onClick={() => setAddPlayerOpen(true)} tone="yellow">Add Player</ActionButton>
+            <ActionButton icon={<UserPlus className="h-4 w-4" />} onClick={() => setAddPlayerOpen(true)} tone="yellow">Invite Player</ActionButton>
           )}
           {isManager && (
             <ActionButton icon={<Crown className="h-4 w-4" />} onClick={() => setPendingCaptainId(pendingCaptainId ? null : -1)}>Change Captain</ActionButton>
@@ -535,10 +556,24 @@ export default function TeamManagePage() {
         {addPlayerOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setAddPlayerOpen(false)}>
             <div className="w-full max-w-lg rounded-2xl border border-zinc-700 bg-zinc-900 p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
-              <div className="flex items-center justify-between"><h2 className="text-lg font-black text-white">Add Player</h2><button onClick={() => setAddPlayerOpen(false)} className="text-zinc-500 hover:text-white"><X className="h-5 w-5" /></button></div>
+              <div className="flex items-center justify-between"><h2 className="text-lg font-black text-white">Invite Player</h2><button onClick={() => setAddPlayerOpen(false)} className="text-zinc-500 hover:text-white"><X className="h-5 w-5" /></button></div>
+              <p className="mt-2 text-xs text-zinc-400">Send an invitation — the player joins only after they accept it on the Clans page.</p>
+              {pendingInvites.length > 0 && (
+                <div className="mt-4 rounded-xl border border-zinc-700 bg-zinc-800/50 p-3">
+                  <p className="text-[11px] font-black uppercase tracking-widest text-yellow-400">Waiting for an answer</p>
+                  <ul className="mt-2 space-y-1">
+                    {pendingInvites.map((inv) => (
+                      <li key={inv.id} className="flex items-center justify-between gap-2 text-sm text-white">
+                        <span>{inv.name}{inv.role === "coach" ? " (Coach seat)" : ""}</span>
+                        <button onClick={() => cancelInvite(inv.id)} disabled={busy} className="text-xs text-zinc-400 hover:text-red-400 disabled:opacity-50">Cancel</button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <div className="relative mt-4"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" /><input value={addSearch} onChange={(event) => setAddSearch(event.target.value)} placeholder="Search free agents..." className="w-full rounded-xl border border-zinc-700 bg-zinc-800 py-2.5 pl-9 pr-3 text-sm text-white outline-none focus:border-yellow-400" /></div>
               <div className="mt-4 max-h-72 space-y-1 overflow-y-auto">
-                {freeAgentsLoading ? <Skeleton className="h-12 rounded-xl" /> : filteredFreeAgents.length === 0 ? <p className="py-8 text-center text-sm text-zinc-500">No free agents found.</p> : filteredFreeAgents.map((player) => <button key={player.id} onClick={() => addPlayer(player.id)} disabled={busy} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left hover:bg-zinc-800 disabled:opacity-50"><PersonAvatar person={player} size="sm" /><span className="flex-1 text-sm font-bold text-white">{player.displayName ?? player.username}<span className="block text-xs font-normal text-zinc-500">@{player.username}</span></span><UserPlus className="h-4 w-4 text-yellow-400" /></button>)}
+                {freeAgentsLoading ? <Skeleton className="h-12 rounded-xl" /> : filteredFreeAgents.length === 0 ? <p className="py-8 text-center text-sm text-zinc-500">No free agents found.</p> : filteredFreeAgents.map((player) => <button key={player.id} onClick={() => invitePlayer(player.id)} disabled={busy} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left hover:bg-zinc-800 disabled:opacity-50"><PersonAvatar person={player} size="sm" /><span className="flex-1 text-sm font-bold text-white">{player.displayName ?? player.username}<span className="block text-xs font-normal text-zinc-500">@{player.username}</span></span><UserPlus className="h-4 w-4 text-yellow-400" /></button>)}
               </div>
             </div>
           </div>

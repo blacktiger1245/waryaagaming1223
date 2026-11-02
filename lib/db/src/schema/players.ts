@@ -57,6 +57,20 @@ export const playersTable = pgTable("players", {
   verified: boolean("verified").notNull().default(false),
   badges: text("badges").array().notNull().default([]),
   role: text("role").notNull().default("player"),
+  /**
+   * Purchased clan-role entitlement: null | 'president' | 'coach'.
+   *
+   * WG Coins can buy exactly two things — a **Clan President** role or a
+   * **Clan Coach** role — and this column is the record of that purchase.
+   * Creating a clan requires the `president` entitlement and consumes it (the
+   * player becomes that clan's `teams.president_id`); taking a coach seat
+   * requires the `coach` entitlement and consumes it the same way. Admins can
+   * also grant an entitlement directly (see POST /admin/players/:id/clan-role).
+   *
+   * It is deliberately separate from `role` (player/admin/owner/referee/…) so a
+   * platform role can never be bought.
+   */
+  clanRole: text("clan_role"),
   bannedUntil: timestamp("banned_until"),
   banReason: text("ban_reason"),
   bannedBy: text("banned_by"),

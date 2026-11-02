@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { teamsTable, playersTable, newsTable, matchesTable, tournamentsTable, playerTransfersTable, clanSettingsTable } from "@workspace/db";
-import { eq, ilike, isNotNull, inArray, desc, sql, or, aliasedTable } from "drizzle-orm";
+import { teamsTable, playersTable, newsTable, matchesTable, tournamentsTable, playerTransfersTable, clanSettingsTable, teamInvitesTable, seasonsTable } from "@workspace/db";
+import { eq, and, ilike, isNotNull, inArray, desc, sql, or, aliasedTable } from "drizzle-orm";
 import {
   ListTeamsQueryParams,
   GetTeamParams,
@@ -67,6 +67,13 @@ async function resolveTeamWithCheck(req: import("express").Request, teamId: numb
   const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
   const role = await resolveTeamRole(req, team);
   return { team, role };
+}
+
+/** Error carrying an HTTP status, thrown from inside a transaction. */
+function httpError(status: number, message: string): Error {
+  const err = new Error(message) as Error & { status?: number };
+  err.status = status;
+  return err;
 }
 
 async function playerBrief(id: number | null) {
@@ -176,6 +183,28 @@ router.post("/teams/register", async (req, res) => {
     return res.status(401).json({ error: "You must be logged in to register a team" });
   }
 
+  // ── Clan-role gate ─────────────────────────────────────────────────────────
+  // Creating a clan is NOT open to everyone: it requires the Clan President role,
+  // which is bought with WG Coins (POST /coins/clan-roles/buy). The entitlement is
+  // re-checked and consumed inside the transaction below, so two tabs cannot use
+  // one purchase to create two clans. Platform staff may still create clans for
+  // support reasons.
+  const staff = isPlatformStaff(req);
+  if (!staff) {
+    const [me] = await db
+      .select({ clanRole: playersTable.clanRole, teamId: playersTable.teamId })
+      .from(playersTable)
+      .where(eq(playersTable.id, userId));
+    if (!me) return res.status(404).json({ error: "Player not found" });
+    if (me.teamId != null) return res.status(409).json({ error: "You are already in a clan" });
+    if (me.clanRole !== "president") {
+      return res.status(403).json({
+        error: "Creating a clan needs the Clan President role — buy it with WG Coins from the Buy Coins page.",
+        code: "clan_president_role_required",
+      });
+    }
+  }
+
   const { name, tag, description, logoUrl, coachId: rawCoachId, captainId: rawCaptainId, playerIds } = req.body ?? {};
 
   if (!name || typeof name !== "string" || name.trim().length < 2) {
@@ -205,6 +234,25 @@ router.post("/teams/register", async (req, res) => {
 
   // Everyone in the new squad: President + Coach + Captain + Players.
   const allPlayerIds = Array.from(new Set([userId, coachId, captainId, ...extraIds]));
+
+  // An explicitly chosen Coach must hold the bought Clan Coach role (the founder
+  // holding every role by default does not need a second entitlement).
+  let consumeCoachEntitlement = false;
+  if (!staff && coachId !== userId) {
+    const [coach] = await db
+      .select({ clanRole: playersTable.clanRole, teamId: playersTable.teamId })
+      .from(playersTable)
+      .where(eq(playersTable.id, coachId));
+    if (!coach) return res.status(400).json({ error: "The selected Coach does not exist" });
+    if (coach.teamId != null) return res.status(409).json({ error: "The selected Coach is already in a clan" });
+    if (coach.clanRole !== "coach") {
+      return res.status(403).json({
+        error: "That player does not hold the Clan Coach role — they must buy it with WG Coins first.",
+        code: "clan_coach_role_required",
+      });
+    }
+    consumeCoachEntitlement = true;
+  }
 
   try {
     // New clans join the currently open division (Serie A first, then Serie B).
@@ -257,6 +305,16 @@ router.post("/teams/register", async (req, res) => {
         coachId,
       }).returning();
 
+      // Consume the bought entitlements: the President (and the Coach, when one
+      // was chosen) now hold real seats on the team row, so the entitlement can
+      // never be spent on a second clan.
+      if (!staff) {
+        await tx.update(playersTable).set({ clanRole: null }).where(eq(playersTable.id, userId));
+        if (consumeCoachEntitlement) {
+          await tx.update(playersTable).set({ clanRole: null }).where(eq(playersTable.id, coachId));
+        }
+      }
+
       const updated = await tx
         .update(playersTable)
         .set({ teamId: newTeam.id, isFreeAgent: false })
@@ -279,8 +337,12 @@ router.post("/teams/register", async (req, res) => {
   }
 });
 
-// ── POST /teams (legacy — kept for admin compatibility) ───────────────────────
+// ── POST /teams (legacy — platform staff only) ────────────────────────────────
+// Kept for admin compatibility, but it creates a clan with no President, so it
+// must never be reachable by an ordinary player. Clan creation for players goes
+// through POST /teams/register, which requires the bought Clan President role.
 router.post("/teams", async (req, res) => {
+  if (!isPlatformStaff(req)) return res.status(403).json({ error: "Only a platform administrator can create a clan directly" });
   const { name, tag, description, captainId } = req.body ?? {};
   if (!name) return res.status(400).json({ error: "name is required" });
   const [team] = await db.insert(teamsTable).values({
@@ -944,7 +1006,11 @@ router.delete("/teams/:id/members/:playerId", async (req, res) => {
   return res.json({ ok: true });
 });
 
-// ── POST /teams/:id/members  (captain only — add a free-agent player) ─────────
+// ── POST /teams/:id/members  (President/Coach — sends an INVITATION) ──────────
+// This used to put a player straight on the roster. Membership is now
+// invitation-only, so it creates a PENDING invite instead: the player joins only
+// when they accept it (POST /teams/invites/:id/respond). The URL is kept so an
+// older client cannot silently add anyone.
 router.post("/teams/:id/members", async (req, res) => {
   if (!req.session?.userId) return res.status(401).json({ error: "Login required" });
 
@@ -956,17 +1022,267 @@ router.post("/teams/:id/members", async (req, res) => {
 
   const role = await resolveTeamRole(req, team);
   if (role !== "president" && role !== "coach" && !isPlatformStaff(req))
-    return res.status(403).json({ error: "Only the President or Coach can add players" });
+    return res.status(403).json({ error: "Only the President or Coach can invite players" });
 
   const { playerId } = req.body ?? {};
   if (typeof playerId !== "number") return res.status(400).json({ error: "playerId is required" });
 
-  const [player] = await db.select().from(playersTable).where(eq(playersTable.id, playerId));
-  if (!player) return res.status(404).json({ error: "Player not found" });
-  if (player.teamId != null) return res.status(409).json({ error: "Player is already on a team" });
+  return createTeamInvite(req, res, { teamId, playerId, role: "player", seasons: 1 });
+});
 
-  await db.update(playersTable).set({ teamId, isFreeAgent: false }).where(eq(playersTable.id, playerId));
-  await db.insert(playerTransfersTable).values({ playerId, fromTeamId: null, toTeamId: teamId });
+/**
+ * Create a PENDING clan invitation.
+ *
+ * Shared by POST /teams/:id/invites and the legacy POST /teams/:id/members.
+ * Membership is invitation-only: nothing here touches `players.team_id` — the
+ * player joins only when they accept (POST /teams/invites/:id/respond). A Coach
+ * seat additionally requires the invited player to hold the bought Clan Coach
+ * role, because that entitlement is exactly what the WG Coins purchase grants.
+ */
+async function createTeamInvite(
+  req: import("express").Request,
+  res: import("express").Response,
+  opts: { teamId: number; playerId: number; role: "player" | "coach"; seasons: number; message?: string | null },
+): Promise<import("express").Response> {
+  const me = req.session?.userId;
+  if (!me) return res.status(401).json({ error: "Login required" });
+
+  const seasons = opts.seasons === 2 ? 2 : 1;
+  const role: "player" | "coach" = opts.role === "coach" ? "coach" : "player";
+
+  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, opts.teamId));
+  if (!team) return res.status(404).json({ error: "Team not found" });
+
+  const myRole = await resolveTeamRole(req, team);
+  if (myRole !== "president" && myRole !== "coach" && !isPlatformStaff(req))
+    return res.status(403).json({ error: "Only the President or Coach can invite players" });
+
+  if (opts.playerId === me) return res.status(400).json({ error: "You cannot invite yourself" });
+
+  const [player] = await db.select().from(playersTable).where(eq(playersTable.id, opts.playerId));
+  if (!player) return res.status(404).json({ error: "Player not found" });
+  if (player.teamId != null) return res.status(409).json({ error: "That player is already in a clan" });
+
+  if (role === "coach" && player.clanRole !== "coach" && !isPlatformStaff(req)) {
+    return res.status(403).json({
+      error: "That player does not hold the Clan Coach role — they must buy it with WG Coins before they can coach a clan.",
+      code: "clan_coach_role_required",
+    });
+  }
+
+  const [invite] = await db
+    .insert(teamInvitesTable)
+    .values({
+      teamId: opts.teamId,
+      invitedPlayerId: opts.playerId,
+      invitedById: me,
+      role,
+      seasons,
+      message: opts.message ?? null,
+    })
+    .onConflictDoNothing()
+    .returning();
+
+  // No row means the partial unique index rejected it: a pending invitation for
+  // this player already exists, so nothing was created twice.
+  if (!invite) {
+    return res.status(409).json({ error: "That player already has a pending invitation from your clan" });
+  }
+
+  return res.status(201).json({
+    ok: true,
+    pending: true,
+    invite: { ...invite, createdAt: invite.createdAt.toISOString() },
+  });
+}
+
+// ── POST /teams/:id/invites  (President/Coach — invite a player) ──────────────
+router.post("/teams/:id/invites", async (req, res) => {
+  const teamId = Number(req.params.id);
+  if (isNaN(teamId)) return res.status(400).json({ error: "Invalid team id" });
+
+  const body = (req.body ?? {}) as { playerId?: unknown; role?: unknown; seasons?: unknown; message?: unknown };
+  if (typeof body.playerId !== "number") return res.status(400).json({ error: "playerId is required" });
+
+  return createTeamInvite(req, res, {
+    teamId,
+    playerId: body.playerId,
+    role: body.role === "coach" ? "coach" : "player",
+    seasons: Number(body.seasons) === 2 ? 2 : 1,
+    message: typeof body.message === "string" ? body.message.trim().slice(0, 300) : null,
+  });
+});
+
+// ── GET /teams/:id/invites  (President/Coach — a clan's pending invitations) ──
+router.get("/teams/:id/invites", async (req, res) => {
+  const teamId = Number(req.params.id);
+  if (isNaN(teamId)) return res.status(400).json({ error: "Invalid team id" });
+
+  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
+  if (!team) return res.status(404).json({ error: "Team not found" });
+
+  const myRole = await resolveTeamRole(req, team);
+  if (myRole !== "president" && myRole !== "coach" && !isPlatformStaff(req))
+    return res.status(403).json({ error: "Only the President or Coach can view invitations" });
+
+  const rows = await db
+    .select({
+      id: teamInvitesTable.id,
+      role: teamInvitesTable.role,
+      seasons: teamInvitesTable.seasons,
+      message: teamInvitesTable.message,
+      createdAt: teamInvitesTable.createdAt,
+      playerId: playersTable.id,
+      username: playersTable.username,
+      displayName: playersTable.displayName,
+      avatarUrl: playersTable.avatarUrl,
+    })
+    .from(teamInvitesTable)
+    .innerJoin(playersTable, eq(playersTable.id, teamInvitesTable.invitedPlayerId))
+    .where(and(eq(teamInvitesTable.teamId, teamId), eq(teamInvitesTable.status, "pending")))
+    .orderBy(desc(teamInvitesTable.createdAt));
+
+  return res.json({
+    invites: rows.map((r) => ({ ...r, name: r.displayName ?? r.username, createdAt: r.createdAt.toISOString() })),
+  });
+});
+
+// ── GET /teams/invites/mine  (invited player — my pending invitations) ────────
+router.get("/teams/invites/mine", async (req, res) => {
+  const me = req.session?.userId;
+  if (!me) return res.status(401).json({ error: "Login required" });
+
+  const rows = await db
+    .select({
+      id: teamInvitesTable.id,
+      teamId: teamInvitesTable.teamId,
+      role: teamInvitesTable.role,
+      seasons: teamInvitesTable.seasons,
+      message: teamInvitesTable.message,
+      createdAt: teamInvitesTable.createdAt,
+      teamName: teamsTable.name,
+      teamLogoUrl: teamsTable.logoUrl,
+    })
+    .from(teamInvitesTable)
+    .innerJoin(teamsTable, eq(teamsTable.id, teamInvitesTable.teamId))
+    .where(and(eq(teamInvitesTable.invitedPlayerId, me), eq(teamInvitesTable.status, "pending")))
+    .orderBy(desc(teamInvitesTable.createdAt));
+
+  return res.json({ invites: rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })) });
+});
+
+// ── POST /teams/invites/:id/respond  (invited player — accept / decline) ──────
+// Accepting is what performs the join. The invite row is locked and the whole
+// thing runs in one transaction, so a double tap can never add the player twice
+// and two pending invites can never both be accepted.
+router.post("/teams/invites/:id/respond", async (req, res) => {
+  const me = req.session?.userId;
+  if (!me) return res.status(401).json({ error: "Login required" });
+
+  const inviteId = Number(req.params.id);
+  if (!Number.isInteger(inviteId)) return res.status(400).json({ error: "Invalid invitation id" });
+
+  const decision = (req.body as { decision?: unknown } | null)?.decision;
+  if (decision !== "accept" && decision !== "decline")
+    return res.status(400).json({ error: "decision must be 'accept' or 'decline'" });
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      const locked = await tx.execute(
+        sql`SELECT id, team_id, invited_player_id, role, seasons, status FROM team_invites WHERE id = ${inviteId} FOR UPDATE`,
+      );
+      type InviteRow = { id: number; team_id: number; invited_player_id: number; role: string; seasons: number; status: string };
+      const invite = ((locked as unknown as { rows: InviteRow[] }).rows ?? [])[0];
+      if (!invite) throw httpError(404, "Invitation not found");
+      if (invite.invited_player_id !== me) throw httpError(403, "This invitation is not yours");
+      if (invite.status !== "pending") throw httpError(409, "This invitation has already been answered");
+
+      const [team] = await tx.select().from(teamsTable).where(eq(teamsTable.id, invite.team_id));
+      if (!team) throw httpError(404, "The clan no longer exists");
+
+      if (decision === "decline") {
+        await tx
+          .update(teamInvitesTable)
+          .set({ status: "declined", respondedAt: new Date() })
+          .where(eq(teamInvitesTable.id, inviteId));
+        return { joined: false, teamId: team.id, teamName: team.name };
+      }
+
+      const [player] = await tx.select().from(playersTable).where(eq(playersTable.id, me));
+      if (!player) throw httpError(404, "Player not found");
+      if (player.teamId != null) throw httpError(409, "You are already in a clan");
+
+      // A Coach seat consumes the bought Clan Coach role and takes the real seat.
+      if (invite.role === "coach") {
+        if (player.clanRole !== "coach") {
+          throw httpError(403, "Taking the Coach seat needs the Clan Coach role — buy it with WG Coins first.");
+        }
+        await tx.update(teamsTable).set({ coachId: me }).where(eq(teamsTable.id, team.id));
+        await tx.update(playersTable).set({ clanRole: null }).where(eq(playersTable.id, me));
+      }
+
+      await tx.update(playersTable).set({ teamId: team.id, isFreeAgent: false }).where(eq(playersTable.id, me));
+      await tx.insert(playerTransfersTable).values({ playerId: me, fromTeamId: null, toTeamId: team.id });
+
+      // Sign the contract: record the offered length and the season it was signed
+      // in (the same rules the agent-chat invitation flow uses).
+      const [currentSeason] = await tx
+        .select({ id: seasonsTable.id })
+        .from(seasonsTable)
+        .where(eq(seasonsTable.isCurrent, true))
+        .limit(1);
+      await tx
+        .update(playersTable)
+        .set({
+          contractSeasons: invite.seasons,
+          contractSeasonsLeft: invite.seasons,
+          contractSignedSeasonId: currentSeason?.id ?? null,
+        })
+        .where(eq(playersTable.id, me));
+
+      await tx
+        .update(teamInvitesTable)
+        .set({ status: "accepted", respondedAt: new Date() })
+        .where(eq(teamInvitesTable.id, inviteId));
+
+      // One clan per player: every other pending invitation is now moot.
+      await tx
+        .update(teamInvitesTable)
+        .set({ status: "cancelled", respondedAt: new Date() })
+        .where(and(eq(teamInvitesTable.invitedPlayerId, me), eq(teamInvitesTable.status, "pending")));
+
+      return { joined: true, teamId: team.id, teamName: team.name, role: invite.role, seasons: invite.seasons };
+    });
+
+    return res.json({ ok: true, ...result });
+  } catch (err) {
+    const status = (err as { status?: number }).status ?? 500;
+    if (status === 500) console.error("[teams] invite response failed", err);
+    return res.status(status).json({ error: err instanceof Error ? err.message : "Could not answer the invitation" });
+  }
+});
+
+// ── DELETE /teams/invites/:id  (President/Coach — cancel a pending invite) ────
+router.delete("/teams/invites/:id", async (req, res) => {
+  const me = req.session?.userId;
+  if (!me) return res.status(401).json({ error: "Login required" });
+
+  const inviteId = Number(req.params.id);
+  if (!Number.isInteger(inviteId)) return res.status(400).json({ error: "Invalid invitation id" });
+
+  const [invite] = await db.select().from(teamInvitesTable).where(eq(teamInvitesTable.id, inviteId));
+  if (!invite) return res.status(404).json({ error: "Invitation not found" });
+
+  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, invite.teamId));
+  const myRole = await resolveTeamRole(req, team);
+  if (myRole !== "president" && myRole !== "coach" && !isPlatformStaff(req))
+    return res.status(403).json({ error: "Only the President or Coach can cancel invitations" });
+
+  await db
+    .update(teamInvitesTable)
+    .set({ status: "cancelled", respondedAt: new Date() })
+    .where(and(eq(teamInvitesTable.id, inviteId), eq(teamInvitesTable.status, "pending")));
+
   return res.json({ ok: true });
 });
 

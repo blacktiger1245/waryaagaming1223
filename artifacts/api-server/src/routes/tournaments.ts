@@ -7,8 +7,11 @@ import {
   playersTable,
   teamsTable,
   tournamentAdminsTable,
+  clanRegistrationsTable,
 } from "@workspace/db";
-import { eq, and, sql, inArray } from "drizzle-orm";
+import { eq, and, desc, sql, inArray } from "drizzle-orm";
+import { getStripe, isStripeConfigured } from "../lib/stripe";
+import { CLAN_REGISTRATION_KIND, registerTeamParticipant } from "../lib/clan-registration";
 import {
   ListTournamentsQueryParams,
   CreateTournamentBody,
@@ -317,6 +320,23 @@ async function registerTeamForTournament(
       )
     );
   if (existing) return res.status(409).json({ error: "Your team is already registered" });
+
+  // ── Entry fee ──────────────────────────────────────────────────────────────
+  // A paid clan tournament is never registered for free: the clan must pay first
+  // (Stripe card → the webhook registers it automatically, or EVC Plus → an admin
+  // approves the transfer). Nothing is inserted here, so an unpaid clan can never
+  // take a slot.
+  if (tournament.registrationFeeCents > 0) {
+    return res.status(402).json({
+      error: "This tournament has an entry fee — choose a payment method to register your clan.",
+      code: "registration_fee_required",
+      feeCents: tournament.registrationFeeCents,
+      methods: [
+        { id: "stripe", label: "Debit / Credit card", available: isStripeConfigured() },
+        { id: "evcplus", label: "EVC Plus", available: Boolean(tournament.evcPlusNumber) },
+      ],
+    });
+  }
 
   // Optional playing roster (player vs player). Registration itself only needs the
   // clan — the coach may add the line-up later, so an empty selection is accepted.
@@ -729,6 +749,363 @@ router.get("/tournaments/:id/stats", async (req, res) => {
   );
 
   return res.json(result);
+});
+
+/**
+ * Origin (scheme + host, no trailing slash) of the SPA, used for Stripe's
+ * success/cancel URLs. Prefers the values this deployment already documents
+ * (`FRONTEND_ORIGINS`, then `BASE_URL`) and falls back to the request origin.
+ */
+function resolveFrontendOrigin(req: import("express").Request): string {
+  const configured = (process.env["FRONTEND_ORIGINS"] ?? "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean)[0];
+
+  for (const candidate of [configured, process.env["BASE_URL"]]) {
+    if (!candidate) continue;
+    try {
+      return new URL(candidate).origin;
+    } catch {
+      // Malformed value — try the next source instead of failing the request.
+    }
+  }
+
+  const proto = (req.headers["x-forwarded-proto"] as string | undefined)?.split(",")[0]?.trim() ?? req.protocol;
+  const host = (req.headers["x-forwarded-host"] as string | undefined)?.split(",")[0]?.trim() ?? req.get("host");
+  return host ? `${proto}://${host}` : "";
+}
+
+/**
+ * Resolve the caller's clan for a clan-tournament registration, enforcing the
+ * President/Coach rule from the DB. Returns null (after answering) on any refusal.
+ */
+async function resolveRegisteringTeam(
+  req: import("express").Request,
+  res: import("express").Response,
+  tournament: typeof tournamentsTable.$inferSelect,
+): Promise<{ team: typeof teamsTable.$inferSelect; player: typeof playersTable.$inferSelect } | null> {
+  if (tournament.status === "completed" || tournament.status === "cancelled") {
+    res.status(400).json({ error: "Tournament is no longer open for registration" });
+    return null;
+  }
+
+  const registered = await countParticipants(tournament.id);
+  if (registered >= tournament.maxParticipants) {
+    res.status(400).json({ error: "Tournament is full" });
+    return null;
+  }
+
+  const uid = req.session?.userId;
+  if (uid == null) {
+    res.status(401).json({ error: "Login with Discord first" });
+    return null;
+  }
+
+  const [player] = await db.select().from(playersTable).where(eq(playersTable.id, uid));
+  if (!player) {
+    res.status(400).json({ error: "Player profile not found" });
+    return null;
+  }
+  if (!player.teamId) {
+    res.status(403).json({ error: "You are not on a team — only a team President or Coach can register their team" });
+    return null;
+  }
+
+  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, player.teamId));
+  if (!team) {
+    res.status(400).json({ error: "Team not found" });
+    return null;
+  }
+
+  const isPresident = team.presidentId === player.id;
+  const isCoach = (team as { coachId?: number | null }).coachId === player.id;
+  if (!isPresident && !isCoach) {
+    res.status(403).json({ error: "Only the team President or Coach can register the team" });
+    return null;
+  }
+
+  return { team, player };
+}
+
+// ── POST /tournaments/:id/register-team/stripe ───────────────────────────────
+// Card path for a paid clan tournament. Creates (or reuses) the clan's unpaid
+// registration and returns a hosted Stripe Checkout URL. The clan is registered
+// by the `checkout.session.completed` webhook — never by the browser — so a
+// cancelled or unpaid checkout changes nothing.
+router.post("/tournaments/:id/register-team/stripe", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!req.session?.userId) return res.status(401).json({ error: "Login with Discord first" });
+
+  const [tournament] = await db.select().from(tournamentsTable).where(eq(tournamentsTable.id, id));
+  if (!tournament) return res.status(404).json({ error: "Tournament not found" });
+  if (!tournament.isClanTournament) return res.status(400).json({ error: "This is not a clan tournament" });
+  if (tournament.registrationFeeCents <= 0) {
+    return res.status(400).json({ error: "This tournament has no entry fee — register your clan for free" });
+  }
+  if (!isStripeConfigured()) return res.status(503).json({ error: "Card payments are not configured yet" });
+
+  const ctx = await resolveRegisteringTeam(req, res, tournament);
+  if (!ctx) return;
+
+  const [already] = await db
+    .select({ id: tournamentParticipantsTable.id })
+    .from(tournamentParticipantsTable)
+    .where(
+      and(
+        eq(tournamentParticipantsTable.tournamentId, id),
+        eq(tournamentParticipantsTable.teamId, ctx.team.id),
+      ),
+    );
+  if (already) return res.status(409).json({ error: "Your team is already registered" });
+
+  // Reuse an existing unpaid registration instead of creating a second one, so
+  // retrying the checkout can never produce two entry fees.
+  const [existing] = await db
+    .select()
+    .from(clanRegistrationsTable)
+    .where(
+      and(
+        eq(clanRegistrationsTable.tournamentId, id),
+        eq(clanRegistrationsTable.teamId, ctx.team.id),
+        eq(clanRegistrationsTable.method, "stripe"),
+        sql`${clanRegistrationsTable.status} <> 'approved'`,
+      ),
+    )
+    .limit(1);
+
+  const registration =
+    existing ??
+    (
+      await db
+        .insert(clanRegistrationsTable)
+        .values({
+          tournamentId: id,
+          teamId: ctx.team.id,
+          requestedById: ctx.player.id,
+          method: "stripe",
+          status: "awaiting_payment",
+          feeCents: tournament.registrationFeeCents,
+        })
+        .returning()
+    )[0];
+
+  const origin = resolveFrontendOrigin(req);
+
+  try {
+    const session = await getStripe().checkout.sessions.create({
+      mode: "payment",
+      client_reference_id: String(ctx.player.id),
+      // `kind` is what routes the webhook to the clan-registration fulfilment
+      // instead of the coin top-up path.
+      metadata: {
+        kind: CLAN_REGISTRATION_KIND,
+        registrationId: String(registration.id),
+        tournamentId: String(id),
+        teamId: String(ctx.team.id),
+        userId: String(ctx.player.id),
+      },
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: "usd",
+            unit_amount: tournament.registrationFeeCents,
+            product_data: {
+              name: `${tournament.name} — clan entry fee`,
+              description: `Entry fee for ${ctx.team.name}`,
+            },
+          },
+        },
+      ],
+      success_url: `${origin}/tournament/${id}?registration=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/tournament/${id}?registration=cancelled`,
+    });
+
+    if (!session.url) {
+      return res.status(502).json({ error: "Stripe did not return a checkout URL" });
+    }
+
+    await db
+      .update(clanRegistrationsTable)
+      .set({ stripeSessionId: session.id })
+      .where(eq(clanRegistrationsTable.id, registration.id));
+
+    return res.json({
+      url: session.url,
+      sessionId: session.id,
+      registrationId: registration.id,
+      feeCents: tournament.registrationFeeCents,
+    });
+  } catch (err) {
+    console.error("[clan-registration] could not create the checkout session", err);
+    return res.status(502).json({ error: "Could not start the card payment. Please try again." });
+  }
+});
+
+// ── POST /tournaments/:id/register-team/evc ──────────────────────────────────
+// EVC Plus path. EVC Plus has no API, so this only creates (or reuses) the clan's
+// unpaid registration and hands back the number + amount to send.
+router.post("/tournaments/:id/register-team/evc", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!req.session?.userId) return res.status(401).json({ error: "Login with Discord first" });
+
+  const [tournament] = await db.select().from(tournamentsTable).where(eq(tournamentsTable.id, id));
+  if (!tournament) return res.status(404).json({ error: "Tournament not found" });
+  if (!tournament.isClanTournament) return res.status(400).json({ error: "This is not a clan tournament" });
+  if (tournament.registrationFeeCents <= 0) return res.status(400).json({ error: "This tournament has no entry fee" });
+  if (!tournament.evcPlusNumber) return res.status(503).json({ error: "EVC Plus is not configured for this tournament" });
+
+  const ctx = await resolveRegisteringTeam(req, res, tournament);
+  if (!ctx) return;
+
+  const [already] = await db
+    .select({ id: tournamentParticipantsTable.id })
+    .from(tournamentParticipantsTable)
+    .where(
+      and(
+        eq(tournamentParticipantsTable.tournamentId, id),
+        eq(tournamentParticipantsTable.teamId, ctx.team.id),
+      ),
+    );
+  if (already) return res.status(409).json({ error: "Your team is already registered" });
+
+  const [existing] = await db
+    .select()
+    .from(clanRegistrationsTable)
+    .where(
+      and(
+        eq(clanRegistrationsTable.tournamentId, id),
+        eq(clanRegistrationsTable.teamId, ctx.team.id),
+        eq(clanRegistrationsTable.method, "evcplus"),
+        sql`${clanRegistrationsTable.status} IN ('awaiting_payment','pending_review')`,
+      ),
+    )
+    .limit(1);
+
+  const registration =
+    existing ??
+    (
+      await db
+        .insert(clanRegistrationsTable)
+        .values({
+          tournamentId: id,
+          teamId: ctx.team.id,
+          requestedById: ctx.player.id,
+          method: "evcplus",
+          status: "awaiting_payment",
+          feeCents: tournament.registrationFeeCents,
+        })
+        .returning()
+    )[0];
+
+  return res.json({
+    registrationId: registration.id,
+    status: registration.status,
+    feeCents: tournament.registrationFeeCents,
+    evcPlusNumber: tournament.evcPlusNumber,
+    evcPlusAccountName: tournament.evcPlusAccountName,
+    evcPlusAmountText: tournament.evcPlusAmountText,
+  });
+});
+
+// ── POST /tournaments/:id/register-team/evc/sent ─────────────────────────────
+// "I sent the money": the clan reports the transfer. The registration moves to
+// `pending_review` and NO participant row is created — an admin must approve it
+// (POST /admin/clan-registrations/:id/approve), which registers the clan and
+// writes the audit-log entry.
+router.post("/tournaments/:id/register-team/evc/sent", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!req.session?.userId) return res.status(401).json({ error: "Login with Discord first" });
+
+  const [tournament] = await db.select().from(tournamentsTable).where(eq(tournamentsTable.id, id));
+  if (!tournament) return res.status(404).json({ error: "Tournament not found" });
+  if (!tournament.isClanTournament) return res.status(400).json({ error: "This is not a clan tournament" });
+
+  const ctx = await resolveRegisteringTeam(req, res, tournament);
+  if (!ctx) return;
+
+  const rawNote = (req.body as { note?: unknown } | null)?.note;
+  const note = typeof rawNote === "string" ? rawNote.trim().slice(0, 300) : null;
+
+  const [registration] = await db
+    .select()
+    .from(clanRegistrationsTable)
+    .where(
+      and(
+        eq(clanRegistrationsTable.tournamentId, id),
+        eq(clanRegistrationsTable.teamId, ctx.team.id),
+        eq(clanRegistrationsTable.method, "evcplus"),
+        sql`${clanRegistrationsTable.status} <> 'approved'`,
+      ),
+    )
+    .orderBy(desc(clanRegistrationsTable.id))
+    .limit(1);
+
+  if (!registration) return res.status(404).json({ error: "Start the EVC Plus registration first" });
+  if (registration.status === "pending_review") {
+    return res.json({ ok: true, status: "pending_review", alreadySubmitted: true });
+  }
+  if (registration.status === "rejected") {
+    return res.status(409).json({ error: "This registration was rejected — contact a tournament admin" });
+  }
+
+  await db
+    .update(clanRegistrationsTable)
+    .set({ status: "pending_review", payerNote: note })
+    .where(eq(clanRegistrationsTable.id, registration.id));
+
+  return res.json({ ok: true, status: "pending_review" });
+});
+
+// ── GET /tournaments/:id/registration-status ─────────────────────────────────
+// The caller's clan state for one tournament: whether the clan is registered, and
+// the latest fee registration (used after the Stripe redirect and to render the
+// "waiting for admin approval" banner).
+router.get("/tournaments/:id/registration-status", async (req, res) => {
+  const id = Number(req.params.id);
+  const me = req.session?.userId;
+  if (!me) return res.status(401).json({ error: "Login with Discord first" });
+
+  const [player] = await db
+    .select({ teamId: playersTable.teamId })
+    .from(playersTable)
+    .where(eq(playersTable.id, me));
+  if (!player?.teamId) return res.json({ registered: false, teamId: null, registration: null });
+
+  const [participant] = await db
+    .select({ id: tournamentParticipantsTable.id })
+    .from(tournamentParticipantsTable)
+    .where(
+      and(
+        eq(tournamentParticipantsTable.tournamentId, id),
+        eq(tournamentParticipantsTable.teamId, player.teamId),
+      ),
+    );
+
+  const [registration] = await db
+    .select()
+    .from(clanRegistrationsTable)
+    .where(
+      and(
+        eq(clanRegistrationsTable.tournamentId, id),
+        eq(clanRegistrationsTable.teamId, player.teamId),
+      ),
+    )
+    .orderBy(desc(clanRegistrationsTable.id))
+    .limit(1);
+
+  return res.json({
+    registered: Boolean(participant),
+    teamId: player.teamId,
+    registration: registration
+      ? {
+          ...registration,
+          createdAt: registration.createdAt.toISOString(),
+          reviewedAt: registration.reviewedAt?.toISOString() ?? null,
+        }
+      : null,
+  });
 });
 
 export default router;

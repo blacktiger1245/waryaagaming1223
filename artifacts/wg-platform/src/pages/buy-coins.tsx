@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
-import { coins, formatCoins } from "@/lib/coins";
+import { coins, formatCoins, type ClanRoleId } from "@/lib/coins";
 
 // How often the page asks the server whether the paid Checkout Session has been
 // credited yet, and how long it keeps asking before saying it is still waiting.
@@ -183,6 +183,8 @@ export default function BuyCoinsPage() {
         </Card>
       )}
 
+      {isLoggedIn && <ClanRolesSection />}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {packagesLoading && (
           <div className="col-span-full flex justify-center py-10">
@@ -256,5 +258,72 @@ function PurchaseHistory() {
         </li>
       ))}
     </ul>
+  );
+}
+
+/**
+ * The ONLY two things WG Coins can buy: a **Clan President** role (required to
+ * create a clan) and a **Clan Coach** role (required to take a clan's Coach
+ * seat). Everything else is rejected by the API, and the deduction is atomic
+ * server-side, so a balance can never go negative.
+ */
+function ClanRolesSection() {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({ queryKey: ["coins", "clan-roles"], queryFn: coins.clanRoles });
+
+  const buy = useMutation({
+    mutationFn: (item: ClanRoleId) => coins.buyClanRole(item),
+    onSuccess: async (res) => {
+      toast({
+        title: "Clan role unlocked",
+        description: `You now hold the ${res.clanRole === "president" ? "Clan President" : "Clan Coach"} role. Balance: ${formatCoins(res.balance)} coins.`,
+      });
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["coins", "clan-roles"] }),
+        qc.invalidateQueries({ queryKey: ["coins", "balance"] }),
+      ]);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Could not buy the role", description: err.message, variant: "destructive" });
+    },
+  });
+
+  if (isLoading) return null;
+  const roles = data?.roles ?? [];
+  if (roles.length === 0) return null;
+
+  return (
+    <div className="mt-10">
+      <h2 className="mb-1 text-sm font-black uppercase tracking-widest text-primary">Clan roles</h2>
+      <p className="mb-3 text-xs text-muted-foreground">
+        WG Coins buy exactly two things: a <strong>Clan President</strong> role (lets you create your own clan)
+        or a <strong>Clan Coach</strong> role (lets you take a clan&apos;s Coach seat). Nothing else uses coins.
+      </p>
+      {data?.reason && <p className="mb-3 text-xs text-amber-400">{data.reason}</p>}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {roles.map((role) => {
+          const held = data?.clanRole === role.clanRole;
+          const pending = buy.isPending && buy.variables === role.id;
+          return (
+            <Card key={role.id} className="border-border">
+              <CardContent className="flex flex-col pt-6">
+                <p className="text-xl font-black text-foreground">{role.label}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{role.blurb}</p>
+                <p className="mt-3 text-2xl font-black text-primary">{formatCoins(role.coins)} coins</p>
+                <Button
+                  className="mt-3 w-full font-bold"
+                  disabled={held || !role.affordable || !data?.canBuy || pending}
+                  onClick={() => buy.mutate(role.id)}
+                >
+                  {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <BadgeCheck className="h-4 w-4" />}
+                  {held ? "Already yours" : role.affordable ? "Buy role" : "Not enough coins"}
+                </Button>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
   );
 }

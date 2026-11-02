@@ -651,7 +651,7 @@ function PlayerGamesInline({
 
 // ─── Register Button ──────────────────────────────────────────────────────────
 
-function RegisterButton({ tournamentId, status, isFull, isClanTournament }: { tournamentId: number; status: string; isFull: boolean; isClanTournament?: boolean; playersPerTeam?: number | null }) {
+function RegisterButton({ tournamentId, status, isFull, isClanTournament, registrationFeeCents }: { tournamentId: number; status: string; isFull: boolean; isClanTournament?: boolean; playersPerTeam?: number | null; registrationFeeCents?: number }) {
   const { user, isLoading: authLoading, loginWithDiscord } = useAuth();
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -764,6 +764,13 @@ function RegisterButton({ tournamentId, status, isFull, isClanTournament }: { to
     );
   }
 
+  // A clan tournament with an entry fee is never registered for free: the
+  // President/Coach must settle the fee first (card via Stripe, or EVC Plus with
+  // admin approval). That flow lives in its own component.
+  if (isClanTournament && isTeamManager && (registrationFeeCents ?? 0) > 0) {
+    return <ClanFeeRegisterButton tournamentId={tournamentId} feeCents={registrationFeeCents ?? 0} />;
+  }
+
   return (
     <Button
       onClick={() => register()}
@@ -773,6 +780,165 @@ function RegisterButton({ tournamentId, status, isFull, isClanTournament }: { to
     >
       {isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Registering…</> : <><Trophy className="w-4 h-4" /> {isClanTournament ? "Register My Team" : "Register Now"}</>}
     </Button>
+  );
+}
+
+/**
+ * Registration for a clan tournament that charges an entry fee.
+ *
+ * The President/Coach picks a payment method first:
+ *   • Debit / Credit card → Stripe's hosted Checkout page. The Stripe webhook
+ *     registers the clan the instant the payment succeeds, so no admin action is
+ *     needed (card details are never entered on this site).
+ *   • EVC Plus → the number and amount are shown, the clan sends the money and
+ *     taps "I sent the money". The registration stays PENDING until a tournament
+ *     admin confirms the transfer, which then registers the clan automatically.
+ */
+function ClanFeeRegisterButton({ tournamentId, feeCents }: { tournamentId: number; feeCents: number }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [evc, setEvc] = useState<any | null>(null);
+  const [note, setNote] = useState("");
+
+  const { data: statusData } = useQuery<{ registered: boolean; registration: any | null }>({
+    queryKey: ["clan-registration-status", tournamentId],
+    queryFn: async () => {
+      const res = await fetch(`/api/tournaments/${tournamentId}/registration-status`, { credentials: "include" });
+      if (!res.ok) return { registered: false, registration: null };
+      return res.json();
+    },
+  });
+
+  const startStripe = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/tournaments/${tournamentId}/register-team/stripe`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error ?? "Could not start the card payment");
+      return data as { url: string };
+    },
+    // Hosted Checkout: hand the browser over to Stripe's payment page.
+    onSuccess: (data) => { window.location.href = data.url; },
+    onError: (err: Error) => toast({ title: "Card payment failed to start", description: err.message, variant: "destructive" }),
+  });
+
+  const startEvc = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/tournaments/${tournamentId}/register-team/evc`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error ?? "EVC Plus is not available for this tournament");
+      return data;
+    },
+    onSuccess: (data) => setEvc(data),
+    onError: (err: Error) => toast({ title: "EVC Plus unavailable", description: err.message, variant: "destructive" }),
+  });
+
+  const markSent = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/tournaments/${tournamentId}/register-team/evc/sent`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error ?? "Could not submit your payment");
+      return data;
+    },
+    onSuccess: async () => {
+      toast({ title: "Payment submitted", description: "A tournament admin will verify your transfer and register your clan." });
+      setOpen(false);
+      setEvc(null);
+      await qc.invalidateQueries({ queryKey: ["clan-registration-status", tournamentId] });
+    },
+    onError: (err: Error) => toast({ title: "Could not submit", description: err.message, variant: "destructive" }),
+  });
+
+  const feeLabel = `$${(feeCents / 100).toFixed(2)}`;
+
+  if (statusData?.registered) {
+    return (
+      <Button disabled className="gap-2 h-12 px-6 text-base font-bold bg-emerald-600/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-600/20 cursor-default">
+        <CheckCircle2 className="w-4 h-4" /> Your Clan is Registered
+      </Button>
+    );
+  }
+
+  const pending = statusData?.registration?.status === "pending_review";
+
+  return (
+    <>
+      <Button
+        onClick={() => setOpen(true)}
+        disabled={pending}
+        className="gap-2 h-12 px-8 text-base font-bold bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-500 hover:to-pink-500 border-0"
+      >
+        {pending
+          ? <><Loader2 className="w-4 h-4 animate-spin" /> Waiting for approval</>
+          : <><Trophy className="w-4 h-4" /> Register &amp; Pay {feeLabel}</>}
+      </Button>
+
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setOpen(false)}>
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6" onClick={(event) => event.stopPropagation()}>
+            <h2 className="text-lg font-black">Clan entry fee: {feeLabel}</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Choose how your clan will pay. You are registering your whole clan.
+            </p>
+
+            {!evc ? (
+              <div className="mt-4 grid gap-3">
+                <Button className="justify-start font-bold" disabled={startStripe.isPending} onClick={() => startStripe.mutate()}>
+                  {startStripe.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trophy className="w-4 h-4" />} Debit / Credit card
+                </Button>
+                <Button
+                  className="justify-start font-bold bg-transparent border border-border text-foreground hover:bg-muted"
+                  disabled={startEvc.isPending}
+                  onClick={() => startEvc.mutate()}
+                >
+                  {startEvc.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trophy className="w-4 h-4" />} EVC Plus
+                </Button>
+              </div>
+            ) : (
+              <div className="mt-4 space-y-3 text-sm">
+                <p className="text-muted-foreground">Send the entry fee to this EVC Plus number:</p>
+                <div className="rounded-xl border border-border bg-muted/40 p-3">
+                  <p className="text-lg font-black">{evc.evcPlusNumber}</p>
+                  {evc.evcPlusAccountName ? <p className="text-xs text-muted-foreground">{evc.evcPlusAccountName}</p> : null}
+                  <p className="mt-2 font-bold">{evc.evcPlusAmountText || feeLabel}</p>
+                </div>
+                <input
+                  value={note}
+                  onChange={(event) => setNote(event.target.value)}
+                  placeholder="Reference / the name you sent from (optional)"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+                <Button className="w-full font-bold" disabled={markSent.isPending} onClick={() => markSent.mutate()}>
+                  {markSent.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />} I sent the money
+                </Button>
+                <p className="text-[11px] text-muted-foreground">
+                  Your registration stays pending until a tournament admin confirms the transfer — then your clan is registered automatically.
+                </p>
+              </div>
+            )}
+
+            <button onClick={() => setOpen(false)} className="mt-4 w-full text-xs text-muted-foreground hover:text-foreground">
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -1313,6 +1479,7 @@ export default function TournamentDetailPage() {
                   isFull={tournament.maxParticipants < 9999 && tournament.currentParticipants >= tournament.maxParticipants}
                   isClanTournament={Boolean((tournament as unknown as { isClanTournament?: boolean }).isClanTournament)}
                   playersPerTeam={(tournament as unknown as { playersPerTeam?: number | null }).playersPerTeam}
+                  registrationFeeCents={(tournament as unknown as { registrationFeeCents?: number }).registrationFeeCents}
                 />
               </div>
             )}

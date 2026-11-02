@@ -590,3 +590,106 @@ export async function ensureStripeSchema(): Promise<void> {
     logger.warn({ err }, "Could not ensure Stripe schema");
   }
 }
+
+/**
+ * Clan roles, coin spends and clan invitations.
+ *
+ * `players.clan_role` records a BOUGHT clan-role entitlement (`president` /
+ * `coach`) — the only two things WG Coins can buy. `coin_spends` is the matching
+ * ledger, and `team_invites` is the invitation a player must accept before they
+ * can join a clan (there is no direct-add path any more).
+ *
+ * Mirrors lib/db/src/schema/{players,coins,team_invites}.ts. Additive and
+ * idempotent — safe to run on every boot and on every schema revision.
+ */
+export async function ensureClanRoleSchema(): Promise<void> {
+  const statements = [
+    `ALTER TABLE "players" ADD COLUMN IF NOT EXISTS "clan_role" text;`,
+    `CREATE TABLE IF NOT EXISTS "coin_spends" (
+       "id" serial PRIMARY KEY,
+       "player_id" integer NOT NULL REFERENCES "players"("id") ON DELETE CASCADE,
+       "item" text NOT NULL,
+       "coins" integer NOT NULL,
+       "created_at" timestamp NOT NULL DEFAULT now()
+     );`,
+    `CREATE TABLE IF NOT EXISTS "team_invites" (
+       "id" serial PRIMARY KEY,
+       "team_id" integer NOT NULL REFERENCES "teams"("id") ON DELETE CASCADE,
+       "invited_player_id" integer NOT NULL REFERENCES "players"("id") ON DELETE CASCADE,
+       "invited_by_id" integer REFERENCES "players"("id") ON DELETE SET NULL,
+       "role" text NOT NULL DEFAULT 'player',
+       "seasons" integer NOT NULL DEFAULT 1,
+       "status" text NOT NULL DEFAULT 'pending',
+       "message" text,
+       "created_at" timestamp NOT NULL DEFAULT now(),
+       "responded_at" timestamp
+     );`,
+    // At most ONE pending invitation per clan+player, so a President cannot spam
+    // duplicates and an accept can never be applied twice.
+    `CREATE UNIQUE INDEX IF NOT EXISTS "team_invites_pending_unique"
+       ON "team_invites" ("team_id", "invited_player_id") WHERE "status" = 'pending';`,
+    `CREATE INDEX IF NOT EXISTS "team_invites_player_idx"
+       ON "team_invites" ("invited_player_id", "status");`,
+  ];
+
+  try {
+    for (const sql of statements) {
+      await pool.query(sql);
+    }
+  } catch (err) {
+    logger.warn({ err }, "Could not ensure clan role schema");
+  }
+}
+
+/**
+ * Paid clan-tournament registration: the entry fee on the tournament plus the
+ * registration + audit tables. `registration_fee_cents = 0` keeps free entry.
+ *
+ * Mirrors lib/db/src/schema/clan_registrations.ts. Additive and idempotent.
+ */
+export async function ensureClanRegistrationSchema(): Promise<void> {
+  const statements = [
+    `ALTER TABLE "tournaments" ADD COLUMN IF NOT EXISTS "registration_fee_cents" integer NOT NULL DEFAULT 0;`,
+    `ALTER TABLE "tournaments" ADD COLUMN IF NOT EXISTS "evc_plus_number" text;`,
+    `ALTER TABLE "tournaments" ADD COLUMN IF NOT EXISTS "evc_plus_account_name" text;`,
+    `ALTER TABLE "tournaments" ADD COLUMN IF NOT EXISTS "evc_plus_amount_text" text;`,
+    `CREATE TABLE IF NOT EXISTS "clan_tournament_registrations" (
+       "id" serial PRIMARY KEY,
+       "tournament_id" integer NOT NULL REFERENCES "tournaments"("id") ON DELETE CASCADE,
+       "team_id" integer NOT NULL REFERENCES "teams"("id") ON DELETE CASCADE,
+       "requested_by_id" integer REFERENCES "players"("id") ON DELETE SET NULL,
+       "method" text NOT NULL,
+       "status" text NOT NULL DEFAULT 'awaiting_payment',
+       "fee_cents" integer NOT NULL DEFAULT 0,
+       "stripe_session_id" text,
+       "payer_note" text,
+       "reviewed_by_id" integer REFERENCES "players"("id") ON DELETE SET NULL,
+       "reviewed_at" timestamp,
+       "review_note" text,
+       "created_at" timestamp NOT NULL DEFAULT now(),
+       CONSTRAINT "clan_tournament_registrations_stripe_session_id_unique"
+         UNIQUE ("stripe_session_id")
+     );`,
+    `CREATE INDEX IF NOT EXISTS "clan_registrations_tournament_idx"
+       ON "clan_tournament_registrations" ("tournament_id", "status");`,
+    `CREATE TABLE IF NOT EXISTS "clan_registration_logs" (
+       "id" serial PRIMARY KEY,
+       "registration_id" integer NOT NULL REFERENCES "clan_tournament_registrations"("id") ON DELETE CASCADE,
+       "tournament_id" integer NOT NULL,
+       "team_id" integer NOT NULL,
+       "admin_id" integer REFERENCES "players"("id") ON DELETE SET NULL,
+       "admin_name" text NOT NULL,
+       "action" text NOT NULL,
+       "note" text,
+       "created_at" timestamp NOT NULL DEFAULT now()
+     );`,
+  ];
+
+  try {
+    for (const sql of statements) {
+      await pool.query(sql);
+    }
+  } catch (err) {
+    logger.warn({ err }, "Could not ensure clan registration schema");
+  }
+}

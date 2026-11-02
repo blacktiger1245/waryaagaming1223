@@ -17,10 +17,13 @@ import {
   playerTransfersTable,
   playerPoints,
   pointsToMarketValue,
+  clanRegistrationsTable,
+  clanRegistrationLogsTable,
 } from "@workspace/db";
 import { eq, desc, and, inArray, or, type AnyColumn, sql } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { advanceKnockoutWinner, computeWinnerFromResult, syncKnockoutProgression } from "../lib/knockout";
+import { registerTeamParticipant } from "../lib/clan-registration";
 import { recalculateTeamScore } from "../lib/teamScore";
 import { syncStatsAfterFixture, refreshAllStats } from "../lib/stats-sync";
 
@@ -652,6 +655,7 @@ router.post("/admin/tournaments", requireAdmin, async (req, res) => {
       hostedBy, tournamentType = "solo", seasonId,
       categoryId, groupCount, qualifyCount, thirdPlaceMatch,
       teamCount, isClanTournament, playersPerTeam,
+      registrationFeeCents, evcPlusNumber, evcPlusAccountName, evcPlusAmountText,
     } = req.body as Record<string, string | number | boolean | undefined>;
 
     if (!name) return res.status(400).json({ error: "Name is required" });
@@ -696,6 +700,17 @@ router.post("/admin/tournaments", requireAdmin, async (req, res) => {
       teamCount: teamCount !== undefined ? Number(teamCount) : undefined,
       isClanTournament: isClanTournament !== undefined ? Boolean(isClanTournament) : false,
       playersPerTeam: playersPerTeam !== undefined ? Number(playersPerTeam) : undefined,
+      // Paid clan-tournament entry fee. `0` keeps free registration; anything
+      // above 0 makes the clan pay (Stripe card or EVC Plus) before it is
+      // registered. The EVC Plus fields are the manual mobile-money instructions
+      // shown to the clan that chose that method.
+      registrationFeeCents:
+        registrationFeeCents !== undefined && Number.isFinite(Number(registrationFeeCents))
+          ? Math.max(0, Math.trunc(Number(registrationFeeCents)))
+          : undefined,
+      evcPlusNumber: evcPlusNumber ? String(evcPlusNumber).trim() : undefined,
+      evcPlusAccountName: evcPlusAccountName ? String(evcPlusAccountName).trim() : undefined,
+      evcPlusAmountText: evcPlusAmountText ? String(evcPlusAmountText).trim() : undefined,
       createdBy: req.session.userId ?? undefined,
     }).returning();
 
@@ -2229,6 +2244,136 @@ router.post("/admin/tournaments/:id/seed-participants", requireAdmin, async (req
     totalParticipants: c,
     players: createdPlayers,
   });
+});
+
+// ── GET /admin/clan-registrations — entry fees awaiting a decision ────────────
+// Defaults to the EVC Plus transfers the clans have reported (`pending_review`).
+// Stripe registrations approve themselves through the webhook and appear here
+// only for the audit trail.
+router.get("/admin/clan-registrations", requireAdmin, async (req, res) => {
+  const status = typeof req.query.status === "string" ? req.query.status : "pending_review";
+
+  const rows = await db
+    .select({
+      id: clanRegistrationsTable.id,
+      tournamentId: clanRegistrationsTable.tournamentId,
+      tournamentName: tournamentsTable.name,
+      teamId: clanRegistrationsTable.teamId,
+      teamName: teamsTable.name,
+      method: clanRegistrationsTable.method,
+      status: clanRegistrationsTable.status,
+      feeCents: clanRegistrationsTable.feeCents,
+      payerNote: clanRegistrationsTable.payerNote,
+      stripeSessionId: clanRegistrationsTable.stripeSessionId,
+      requestedById: clanRegistrationsTable.requestedById,
+      createdAt: clanRegistrationsTable.createdAt,
+    })
+    .from(clanRegistrationsTable)
+    .leftJoin(tournamentsTable, eq(tournamentsTable.id, clanRegistrationsTable.tournamentId))
+    .leftJoin(teamsTable, eq(teamsTable.id, clanRegistrationsTable.teamId))
+    .where(status === "all" ? undefined : eq(clanRegistrationsTable.status, status))
+    .orderBy(desc(clanRegistrationsTable.createdAt))
+    .limit(200);
+
+  return res.json({ registrations: rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })) });
+});
+
+// ── POST /admin/clan-registrations/:id/approve ───────────────────────────────
+// Confirms an EVC Plus transfer. The clan is registered immediately (exactly
+// once — `registerTeamParticipant` reuses an existing participant row) and the
+// decision is written to `clan_registration_logs`, so "the admin accepted my
+// money" can always be verified afterwards.
+router.post("/admin/clan-registrations/:id/approve", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: "Invalid registration id" });
+
+  const rawNote = (req.body as { note?: unknown } | null)?.note;
+  const note = typeof rawNote === "string" ? rawNote.trim().slice(0, 300) : null;
+
+  const [registration] = await db.select().from(clanRegistrationsTable).where(eq(clanRegistrationsTable.id, id));
+  if (!registration) return res.status(404).json({ error: "Registration not found" });
+  if (registration.status === "approved") {
+    return res.json({ ok: true, alreadyApproved: true, status: "approved" });
+  }
+
+  const [tournament] = await db
+    .select({ id: tournamentsTable.id })
+    .from(tournamentsTable)
+    .where(eq(tournamentsTable.id, registration.tournamentId));
+  if (!tournament) return res.status(404).json({ error: "Tournament not found" });
+
+  await db
+    .update(clanRegistrationsTable)
+    .set({
+      status: "approved",
+      reviewedById: req.session.userId ?? null,
+      reviewedAt: new Date(),
+      reviewNote: note ?? "EVC Plus transfer confirmed",
+    })
+    .where(eq(clanRegistrationsTable.id, id));
+
+  const { created, currentParticipants } = await registerTeamParticipant(
+    registration.tournamentId,
+    registration.teamId,
+  );
+
+  await db.insert(clanRegistrationLogsTable).values({
+    registrationId: id,
+    tournamentId: registration.tournamentId,
+    teamId: registration.teamId,
+    adminId: req.session.userId ?? null,
+    adminName: req.session.username ?? "admin",
+    action: "approved",
+    note: note ?? "EVC Plus transfer confirmed",
+  });
+
+  return res.json({ ok: true, status: "approved", registeredNow: created, currentParticipants });
+});
+
+// ── POST /admin/clan-registrations/:id/reject ────────────────────────────────
+router.post("/admin/clan-registrations/:id/reject", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: "Invalid registration id" });
+
+  const rawNote = (req.body as { note?: unknown } | null)?.note;
+  const note = typeof rawNote === "string" ? rawNote.trim().slice(0, 300) : null;
+
+  const [registration] = await db.select().from(clanRegistrationsTable).where(eq(clanRegistrationsTable.id, id));
+  if (!registration) return res.status(404).json({ error: "Registration not found" });
+  if (registration.status === "approved") {
+    return res.status(409).json({ error: "Already approved — remove the clan from the tournament instead." });
+  }
+
+  await db
+    .update(clanRegistrationsTable)
+    .set({ status: "rejected", reviewedById: req.session.userId ?? null, reviewedAt: new Date(), reviewNote: note })
+    .where(eq(clanRegistrationsTable.id, id));
+
+  await db.insert(clanRegistrationLogsTable).values({
+    registrationId: id,
+    tournamentId: registration.tournamentId,
+    teamId: registration.teamId,
+    adminId: req.session.userId ?? null,
+    adminName: req.session.username ?? "admin",
+    action: "rejected",
+    note,
+  });
+
+  return res.json({ ok: true, status: "rejected" });
+});
+
+// ── GET /admin/clan-registrations/:id/logs ───────────────────────────────────
+router.get("/admin/clan-registrations/:id/logs", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: "Invalid registration id" });
+
+  const rows = await db
+    .select()
+    .from(clanRegistrationLogsTable)
+    .where(eq(clanRegistrationLogsTable.registrationId, id))
+    .orderBy(desc(clanRegistrationLogsTable.createdAt));
+
+  return res.json({ logs: rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })) });
 });
 
 export default router;
