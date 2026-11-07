@@ -29,6 +29,12 @@ interface Tournament {
   tournamentType?: string | null;
   format?: string | null;
   groupCount?: number | null;
+  /** Clan (team) tournaments register clans instead of individual players. */
+  isClanTournament?: boolean | null;
+  /** Max players a clan may field (the "player vs player" limit); null = no limit. */
+  playersPerTeam?: number | null;
+  /** Number of clans the admin chose when creating the tournament. */
+  teamCount?: number | null;
 }
 
 interface Match {
@@ -1503,10 +1509,44 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
 
   // ── Detect tournament type ────────────────────────────────────────────────
   const isTeamTournament = tournament.tournamentType === "team";
+  // A clan tournament is a team tournament OR one flagged as a clan tournament
+  // (`isClanTournament`) — this matches how the rest of the app detects clans.
+  const seedsClans = isTeamTournament || Boolean(tournament.isClanTournament);
   // Clan (team) tournaments are always two-stage: 1st Stage = table rounds
   // (round robin), 2nd Stage = Knock-out bracket from the final table.
   const isClanTwoStage = isTeamTournament;
   const showStageTabs = isGroupKnockout || isClanTwoStage;
+
+  // Seed CLANS into a clan (team) tournament: enrolls the registered clans as
+  // participants (up to the number of clans the admin chose) and fills each
+  // clan's player-vs-player line-up up to the per-team limit the admin chose.
+  const clanCap =
+    tournament.teamCount && tournament.teamCount > 0
+      ? tournament.teamCount
+      : tournament.maxParticipants && tournament.maxParticipants < 9999
+        ? tournament.maxParticipants
+        : null;
+  const clanSlotsLeft = clanCap != null ? Math.max(0, clanCap - participants.length) : null;
+  const { mutate: seedClans, isPending: seedingClansPending } = useMutation({
+    mutationFn: (count: number) =>
+      apiFetch(`/api/admin/tournaments/${tournament.id}/seed-clans`, {
+        method: "POST",
+        body: JSON.stringify({ count }),
+      }),
+    onSuccess: (data: { registered: number; rosterPlayers?: number; playersPerTeam?: number | null; totalParticipants: number; message?: string }) => {
+      toast({
+        title: data.registered > 0 ? `Seeded ${data.registered} clans!` : "No new clans to seed",
+        description:
+          data.registered > 0
+            ? `${data.playersPerTeam ? `${data.rosterPlayers ?? 0} players added to the line-ups (max ${data.playersPerTeam} per clan). ` : ""}Total: ${data.totalParticipants} clans.`
+            : data.message ?? "Every clan is already registered.",
+      });
+      qc.invalidateQueries({ queryKey: ["admin-tournament-participants", tournament.id] });
+      qc.invalidateQueries({ queryKey: ["admin-tournament-matches", tournament.id] });
+      qc.invalidateQueries({ queryKey: ["admin", "tournaments"] });
+    },
+    onError: (err: Error) => toast({ title: "Seeding failed", description: err.message, variant: "destructive" }),
+  });
 
   // ── Detect group-stage mode ────────────────────────────────────────────────
   const isGroupStage =
@@ -1646,16 +1686,36 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-2 font-bold border-cyan-500/40 text-cyan-400 hover:border-cyan-500 hover:text-cyan-400"
-            onClick={() => { if (remainingSlots <= 0) { alert("Tournament is already full."); return; } if (confirm(`Register ${remainingSlots} fake players to this tournament? (${tournament.currentParticipants}/${tournament.maxParticipants} filled)`)) seedParticipants(remainingSlots); }}
-            disabled={seedingPending}
-          >
-            {seedingPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Users className="w-4 h-4" />}
-            Seed Players
-          </Button>
+          {seedsClans ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-2 font-bold border-cyan-500/40 text-cyan-400 hover:border-cyan-500 hover:text-cyan-400"
+              onClick={() => {
+                if (clanSlotsLeft === 0) { alert("Tournament is already full."); return; }
+                const playerLimit = tournament.playersPerTeam ? ` Each clan gets up to ${tournament.playersPerTeam} players (player vs player).` : "";
+                const msg = clanSlotsLeft != null
+                  ? `Register the next ${clanSlotsLeft} clan${clanSlotsLeft > 1 ? "s" : ""} to this tournament? (${participants.length}/${clanCap} clans filled).${playerLimit}`
+                  : `Register all available clans to this tournament? (${participants.length} registered).${playerLimit}`;
+                if (confirm(msg)) seedClans(clanSlotsLeft ?? 0);
+              }}
+              disabled={seedingClansPending}
+            >
+              {seedingClansPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Users className="w-4 h-4" />}
+              Seed Clans
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-2 font-bold border-cyan-500/40 text-cyan-400 hover:border-cyan-500 hover:text-cyan-400"
+              onClick={() => { if (remainingSlots <= 0) { alert("Tournament is already full."); return; } if (confirm(`Register ${remainingSlots} fake players to this tournament? (${tournament.currentParticipants}/${tournament.maxParticipants} filled)`)) seedParticipants(remainingSlots); }}
+              disabled={seedingPending}
+            >
+              {seedingPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Users className="w-4 h-4" />}
+              Seed Players
+            </Button>
+          )}
           <Button size="sm" variant="outline" className="gap-2 font-bold" onClick={() => setGenerateOpen(true)}>
             <Sparkles className="w-4 h-4" /> {isTeamTournament ? "Generate Match (Clan Teams)" : "Generate"}
           </Button>

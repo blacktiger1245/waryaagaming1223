@@ -20,7 +20,7 @@ import {
   clanRegistrationsTable,
   clanRegistrationLogsTable,
 } from "@workspace/db";
-import { eq, desc, and, inArray, or, type AnyColumn, sql } from "drizzle-orm";
+import { eq, desc, and, inArray, notInArray, or, type AnyColumn, sql } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { advanceKnockoutWinner, computeWinnerFromResult, syncKnockoutProgression } from "../lib/knockout";
 import { registerTeamParticipant } from "../lib/clan-registration";
@@ -2251,6 +2251,133 @@ router.post("/admin/tournaments/:id/seed-participants", requireAdmin, async (req
     registered: registered.length,
     totalParticipants: c,
     players: createdPlayers,
+  });
+});
+
+// ─── Seed clans into a clan tournament (admin only) ──────────────────────────
+// Registers the clans (teams) that are not yet enrolled as participants of a
+// clan (team) tournament, up to the number of clans the admin chose when
+// creating it (`team_count`, falling back to a finite `max_participants`).
+//
+// When the tournament declares a per-team player limit (`players_per_team` —
+// the "player vs player" cap), each seeded clan's line-up is filled with at most
+// that many players (President → Coach → Captain first, then the rest of the
+// squad). Safe to re-run: clans already registered are skipped and duplicate
+// line-up rows are ignored.
+router.post("/admin/tournaments/:id/seed-clans", requireAdmin, async (req, res) => {
+  const tournamentId = Number(req.params.id);
+  if (Number.isNaN(tournamentId)) return res.status(400).json({ error: "Invalid tournament id" });
+
+  const [tournament] = await db.select().from(tournamentsTable).where(eq(tournamentsTable.id, tournamentId));
+  if (!tournament) return res.status(404).json({ error: "Tournament not found" });
+  if (tournament.tournamentType !== "team" && !tournament.isClanTournament) {
+    return res.status(400).json({ error: "Seed clans is only available for clan (team) tournaments" });
+  }
+
+  // The clan cap the admin chose. Team tournaments store 9999 for an unlimited
+  // size, so that value is treated as "no cap".
+  const clanCap =
+    tournament.teamCount && tournament.teamCount > 0
+      ? tournament.teamCount
+      : tournament.maxParticipants && tournament.maxParticipants < 9999
+        ? tournament.maxParticipants
+        : null;
+
+  const [{ c: registeredCount }] = await db
+    .select({ c: sql<number>`count(*)::int` })
+    .from(tournamentParticipantsTable)
+    .where(eq(tournamentParticipantsTable.tournamentId, tournamentId));
+
+  const freeSlots = clanCap == null ? Number.POSITIVE_INFINITY : Math.max(0, clanCap - Number(registeredCount));
+  if (freeSlots <= 0) {
+    return res.status(400).json({
+      error: "Tournament is already full",
+      totalParticipants: Number(registeredCount),
+      clanCap,
+    });
+  }
+
+  // Clans that are not enrolled in this tournament yet, oldest first (stable).
+  const usedRows = await db
+    .select({ teamId: tournamentParticipantsTable.teamId })
+    .from(tournamentParticipantsTable)
+    .where(eq(tournamentParticipantsTable.tournamentId, tournamentId));
+  const usedTeamIds = usedRows.map((r) => r.teamId).filter((id): id is number => id != null);
+
+  const candidates = await db
+    .select({ id: teamsTable.id, name: teamsTable.name })
+    .from(teamsTable)
+    .where(usedTeamIds.length > 0 ? notInArray(teamsTable.id, usedTeamIds) : undefined)
+    .orderBy(teamsTable.id);
+
+  const requested = Number(req.body?.count);
+  const limit = Number.isFinite(requested) && requested > 0 ? Math.min(requested, freeSlots) : freeSlots;
+  const toRegister = candidates.slice(0, Number.isFinite(limit) ? limit : candidates.length);
+
+  if (toRegister.length === 0) {
+    return res.json({
+      registered: 0,
+      rosterPlayers: 0,
+      totalParticipants: Number(registeredCount),
+      clanCap,
+      message: "No new clans to register",
+    });
+  }
+
+  await db
+    .insert(tournamentParticipantsTable)
+    .values(toRegister.map((t) => ({ tournamentId, type: "team" as const, playerId: null, teamId: t.id })));
+
+  // Optional line-up: seed the player-vs-player roster capped at players_per_team.
+  let rosterPlayers = 0;
+  const playersPerTeam = tournament.playersPerTeam != null ? tournament.playersPerTeam : null;
+  if (playersPerTeam != null && playersPerTeam > 0) {
+    for (const team of toRegister) {
+      const [detail] = await db
+        .select({ presidentId: teamsTable.presidentId, coachId: teamsTable.coachId, captainId: teamsTable.captainId })
+        .from(teamsTable)
+        .where(eq(teamsTable.id, team.id));
+
+      const leaders = [detail?.presidentId, detail?.coachId, detail?.captainId].filter(
+        (id): id is number => typeof id === "number" && id > 0,
+      );
+      const members = await db
+        .select({ id: playersTable.id })
+        .from(playersTable)
+        .where(eq(playersTable.teamId, team.id))
+        .orderBy(playersTable.id);
+
+      // President, Coach and Captain first, then the rest — never duplicated.
+      const ordered: number[] = [];
+      for (const id of [...leaders, ...members.map((m) => m.id)]) {
+        if (!ordered.includes(id)) ordered.push(id);
+      }
+      const lineup = ordered.slice(0, playersPerTeam);
+
+      for (const playerId of lineup) {
+        await db.execute(
+          sql`INSERT INTO "tournament_team_rosters" ("tournament_id", "team_id", "player_id")
+              VALUES (${tournamentId}, ${team.id}, ${playerId})
+              ON CONFLICT ("tournament_id", "team_id", "player_id") DO NOTHING`,
+        );
+        rosterPlayers += 1;
+      }
+    }
+  }
+
+  const [{ c }] = await db
+    .select({ c: sql<number>`count(*)::int` })
+    .from(tournamentParticipantsTable)
+    .where(eq(tournamentParticipantsTable.tournamentId, tournamentId));
+  await db.update(tournamentsTable).set({ currentParticipants: Number(c) }).where(eq(tournamentsTable.id, tournamentId));
+
+  return res.json({
+    registered: toRegister.length,
+    rosterPlayers,
+    playersPerTeam,
+    totalParticipants: Number(c),
+    clanCap,
+    clans: toRegister,
   });
 });
 
