@@ -1509,12 +1509,14 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
 
   // ── Detect tournament type ────────────────────────────────────────────────
   const isTeamTournament = tournament.tournamentType === "team";
-  // A clan tournament is a team tournament OR one flagged as a clan tournament
-  // (`isClanTournament`) — this matches how the rest of the app detects clans.
-  const seedsClans = isTeamTournament || Boolean(tournament.isClanTournament);
+  const isClanTournament = Boolean(tournament.isClanTournament);
+  // Clan tournaments register clans just like team tournaments — even when they
+  // were stored with the default ("solo") type. This matches how the rest of the
+  // app detects clans: `isClanTournament === true || tournamentType === "team"`.
+  const seedsClans = isTeamTournament || isClanTournament;
   // Clan (team) tournaments are always two-stage: 1st Stage = table rounds
   // (round robin), 2nd Stage = Knock-out bracket from the final table.
-  const isClanTwoStage = isTeamTournament;
+  const isClanTwoStage = seedsClans;
   const showStageTabs = isGroupKnockout || isClanTwoStage;
 
   // Seed CLANS into a clan (team) tournament: enrolls the registered clans as
@@ -1550,7 +1552,7 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
 
   // ── Detect group-stage mode ────────────────────────────────────────────────
   const isGroupStage =
-    !isTeamTournament &&
+    !isClanTwoStage &&
     (tournament.format === "group-stage-knockout" ||
       tournament.format === "group-stage" ||
       matches.some((m) => m.roundName?.startsWith("Group ")));
@@ -1678,9 +1680,9 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
                 {tournament.status}
               </Badge>
               <span className="text-xs text-muted-foreground">
-                {isTeamTournament
-                  ? `${tournament.currentParticipants} teams`
-                  : `${tournament.maxParticipants}/${tournament.maxParticipants} players`}
+                {seedsClans
+                  ? `${tournament.currentParticipants}/${clanCap ?? tournament.maxParticipants} teams`
+                  : `${tournament.currentParticipants}/${tournament.maxParticipants} players`}
               </span>
             </div>
           </div>
@@ -1717,7 +1719,7 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
             </Button>
           )}
           <Button size="sm" variant="outline" className="gap-2 font-bold" onClick={() => setGenerateOpen(true)}>
-            <Sparkles className="w-4 h-4" /> {isTeamTournament ? "Generate Match (Clan Teams)" : "Generate"}
+            <Sparkles className="w-4 h-4" /> {seedsClans ? "Generate Match (Clan Teams)" : "Generate"}
           </Button>
           {(isGroupKnockout || isClanTwoStage) && (
             <Button
@@ -1824,7 +1826,7 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
       </AnimatePresence>
 
       {/* ── TEAM TOURNAMENT: League table + matchday fixtures ── */}
-      {isTeamTournament && !isLoading && (
+      {isClanTwoStage && !isLoading && (
         <div className="space-y-8">
           {(!isClanTwoStage || stageTab === "group") && (<>
           {/* League Table */}
@@ -1839,22 +1841,61 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
             </div>
 
             {matches.length === 0 ? (
-              <div className="text-center py-12 border border-dashed border-border rounded-xl text-muted-foreground">
-                <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                <p className="font-bold text-sm">No schedule yet</p>
-                <p className="text-xs mt-1">
-                  {isClanTwoStage
-                    ? "Generate the 1st Stage table rounds — every clan plays every other clan."
-                    : "Click Generate to create the full league schedule."}
-                </p>
-                <Button
-                  size="sm"
-                  className="mt-4 gap-2 bg-blue-600 hover:bg-blue-500 text-white font-black"
-                  onClick={() => setGenerateOpen(true)}
-                  disabled={generateOpen}
-                >
-                  <Sparkles className="w-4 h-4" /> Generate Match (Clan Teams)
-                </Button>
+              <div className="py-10 px-6 border border-dashed border-border rounded-xl text-muted-foreground">
+                <div className="text-center">
+                  <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                  <p className="font-bold text-sm">No schedule yet</p>
+                  <p className="text-xs mt-1">
+                    {isClanTwoStage
+                      ? "Generate the 1st Stage table rounds — every clan plays every other clan."
+                      : "Click Generate to create the full league schedule."}
+                  </p>
+                </div>
+
+                {/* Enrolled clans/teams — shown BEFORE the schedule is generated. */}
+                <div className="mt-6 max-w-md mx-auto text-left">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5" />
+                    {isClanTwoStage ? "Enrolled Clans" : "Enrolled Teams"} ({participants.length}
+                    {seedsClans && clanCap ? `/${clanCap}` : ""})
+                  </p>
+                  {participants.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-border p-4 text-center text-xs">
+                      No {isClanTwoStage ? "clans" : "teams"} registered yet — use "Seed Clans" above.
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-border overflow-hidden">
+                      {participants.map((p, i) => {
+                        const name = p.teamName ?? p.displayName ?? p.username ?? `Team ${p.teamId ?? p.id}`;
+                        const logo = p.teamLogoUrl ?? p.avatarUrl;
+                        return (
+                          <div key={p.id} className={`flex items-center gap-3 px-3 py-2 border-b border-border last:border-0 ${i % 2 === 0 ? "bg-card" : ""}`}>
+                            <span className="text-[10px] text-muted-foreground font-mono w-5 text-right shrink-0">{i + 1}</span>
+                            {logo ? (
+                              <img src={logo} alt="" className="w-6 h-6 rounded-full object-cover shrink-0" />
+                            ) : (
+                              <div className="w-6 h-6 rounded-full bg-muted shrink-0 flex items-center justify-center text-[9px] font-black text-muted-foreground">
+                                {name.charAt(0)}
+                              </div>
+                            )}
+                            <span className="text-sm font-bold truncate text-foreground">{name}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-center mt-6">
+                  <Button
+                    size="sm"
+                    className="gap-2 bg-blue-600 hover:bg-blue-500 text-white font-black"
+                    onClick={() => setGenerateOpen(true)}
+                    disabled={generateOpen}
+                  >
+                    <Sparkles className="w-4 h-4" /> Generate Match (Clan Teams)
+                  </Button>
+                </div>
               </div>
             ) : (
               <>
@@ -2079,7 +2120,7 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
       )}
 
       {/* ── SOLO TOURNAMENT: original group/bracket view ── */}
-      {!isTeamTournament && (
+      {!isClanTwoStage && (
         isLoading ? (
           <div className="space-y-3">
             {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
@@ -2452,7 +2493,7 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
       )}
 
       {/* Dialogs */}
-      {isTeamTournament
+      {isClanTwoStage
         ? <LeagueGenerateDialog open={generateOpen} onClose={() => setGenerateOpen(false)} tournament={tournament} />
         : <SoloGenerateDialog open={generateOpen} onClose={() => setGenerateOpen(false)} tournament={tournament} />
       }
@@ -2614,8 +2655,16 @@ function TournamentPicker({ onSelect }: { onSelect: (t: Tournament) => void }) {
                     <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Prize</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-xs font-black">{t.maxParticipants}/{t.maxParticipants}</div>
-                    <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Players</div>
+                    {(() => {
+                      const isClan = t.tournamentType === "team" || Boolean(t.isClanTournament);
+                      const total = isClan ? (t.teamCount ?? t.maxParticipants) : t.maxParticipants;
+                      return (
+                        <>
+                          <div className="text-xs font-black">{t.currentParticipants}/{total}</div>
+                          <div className="text-[9px] text-muted-foreground uppercase tracking-wider">{isClan ? "Teams" : "Players"}</div>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>

@@ -1894,12 +1894,38 @@ router.post("/admin/matches/:id/player-games/generate", requireAdmin, async (req
   const awayTeamId = match.participant2Id;
   if (!homeTeamId || !awayTeamId) return res.status(400).json({ error: "Match has no team participants" });
 
-  const [homePlayers, awayPlayers] = await Promise.all([
+  const [homeSquad, awaySquad] = await Promise.all([
     db.select({ id: playersTable.id, displayName: playersTable.displayName, username: playersTable.username })
-      .from(playersTable).where(eq(playersTable.teamId, homeTeamId)),
+      .from(playersTable).where(eq(playersTable.teamId, homeTeamId)).orderBy(playersTable.id),
     db.select({ id: playersTable.id, displayName: playersTable.displayName, username: playersTable.username })
-      .from(playersTable).where(eq(playersTable.teamId, awayTeamId)),
+      .from(playersTable).where(eq(playersTable.teamId, awayTeamId)).orderBy(playersTable.id),
   ]);
+
+  // Prefer each clan's registered line-up — the players the President/Coach chose
+  // when registering ("player vs player"), capped by the tournament's limit.
+  // Fall back to the whole squad when a clan has no saved line-up.
+  const rosterRaw = (await db.execute(
+    sql`SELECT "team_id", "player_id" FROM "tournament_team_rosters"
+        WHERE "tournament_id" = ${match.tournamentId}
+          AND "team_id" IN (${homeTeamId}, ${awayTeamId})`,
+  )) as unknown;
+  const rosterRows: Array<{ team_id: number; player_id: number }> = Array.isArray(rosterRaw)
+    ? (rosterRaw as Array<{ team_id: number; player_id: number }>)
+    : ((rosterRaw as { rows?: Array<{ team_id: number; player_id: number }> } | null)?.rows ?? []);
+
+  const pickLineup = (squad: typeof homeSquad, teamId: number) => {
+    const lineupIds = rosterRows
+      .filter((r) => Number(r.team_id) === teamId)
+      .map((r) => Number(r.player_id));
+    if (lineupIds.length === 0) return squad;
+    const ordered = lineupIds
+      .map((id) => squad.find((p) => p.id === id))
+      .filter((p): p is (typeof squad)[number] => Boolean(p));
+    return ordered.length > 0 ? ordered : squad;
+  };
+
+  const homePlayers = pickLineup(homeSquad, homeTeamId);
+  const awayPlayers = pickLineup(awaySquad, awayTeamId);
 
   if (homePlayers.length === 0 || awayPlayers.length === 0) {
     return res.status(400).json({ error: "One or both teams have no registered players" });

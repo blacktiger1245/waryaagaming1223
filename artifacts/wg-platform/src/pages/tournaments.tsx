@@ -201,9 +201,16 @@ export default function TournamentsPage() {
                           <div className="text-right">
                             <div className="flex items-center gap-0.5 text-sm font-black justify-end">
                               <Users className="w-3 h-3 text-muted-foreground" />
-                              {t.maxParticipants >= 9999 ? t.currentParticipants : `${t.currentParticipants}/${t.maxParticipants}`}
+                              {(() => {
+                                const tt = t as any;
+                                const isClan = tt.tournamentType === "team" || tt.isClanTournament === true;
+                                const total = isClan ? (tt.teamCount ?? t.maxParticipants) : t.maxParticipants;
+                                return total >= 9999 ? t.currentParticipants : `${t.currentParticipants}/${total}`;
+                              })()}
                             </div>
-                            <div className="text-[9px] text-muted-foreground uppercase tracking-wider">Players</div>
+                            <div className="text-[9px] text-muted-foreground uppercase tracking-wider">
+                              {(t as any).tournamentType === "team" || (t as any).isClanTournament ? "Teams" : "Players"}
+                            </div>
                           </div>
                         </div>
                       </div>

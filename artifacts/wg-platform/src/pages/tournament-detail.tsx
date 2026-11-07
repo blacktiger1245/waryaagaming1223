@@ -13,6 +13,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { useGetTournament, useGetTournamentBracket, useGetTournamentMatches } from "@workspace/api-client-react";
 import type { Match } from "@workspace/api-client-react";
@@ -651,10 +652,12 @@ function PlayerGamesInline({
 
 // ─── Register Button ──────────────────────────────────────────────────────────
 
-function RegisterButton({ tournamentId, status, isFull, isClanTournament, registrationFeeCents }: { tournamentId: number; status: string; isFull: boolean; isClanTournament?: boolean; playersPerTeam?: number | null; registrationFeeCents?: number }) {
+function RegisterButton({ tournamentId, status, isFull, isClanTournament, playersPerTeam, registrationFeeCents }: { tournamentId: number; status: string; isFull: boolean; isClanTournament?: boolean; playersPerTeam?: number | null; registrationFeeCents?: number }) {
   const { user, isLoading: authLoading, loginWithDiscord } = useAuth();
   const qc = useQueryClient();
   const { toast } = useToast();
+  const [pickOpen, setPickOpen] = useState(false);
+  const [selectedPlayers, setSelectedPlayers] = useState<number[]>([]);
 
   const { data: regData, isLoading: regLoading } = useQuery({
     queryKey: ["tournament-registration", tournamentId],
@@ -681,7 +684,7 @@ function RegisterButton({ tournamentId, status, isFull, isClanTournament, regist
   const isTeamManager = myRole === "president" || myRole === "coach";
 
   const { mutate: register, isPending } = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (playerIds: number[]) => {
       const url = isClanTournament
         ? `/api/tournaments/${tournamentId}/register-team`
         : `/api/tournaments/${tournamentId}/register-me`;
@@ -689,7 +692,7 @@ function RegisterButton({ tournamentId, status, isFull, isClanTournament, regist
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify(isClanTournament ? { playerIds } : {}),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null) as { error?: string } | null;
@@ -702,6 +705,7 @@ function RegisterButton({ tournamentId, status, isFull, isClanTournament, regist
         title: isClanTournament ? "Your team is registered! 🏆" : "You're registered! 🎮",
         description: isClanTournament ? `${data.teamName ?? "Your team"} is in the tournament!` : `Welcome, ${data.displayName ?? data.playerName}`,
       });
+      setPickOpen(false);
       qc.invalidateQueries({ queryKey: ["tournament-registration", tournamentId] });
       qc.invalidateQueries({ queryKey: ["tournament", tournamentId] });
       qc.invalidateQueries({ queryKey: ["tournament-participants", tournamentId] });
@@ -711,6 +715,22 @@ function RegisterButton({ tournamentId, status, isFull, isClanTournament, regist
       toast({ title: "Registration failed", description: err.message, variant: "destructive" });
     },
   });
+
+  // Clan tournament with a per-team limit: the President/Coach must pick the
+  // line-up (player vs player) before registering — capped by the admin's limit.
+  const lineupLimit = playersPerTeam && playersPerTeam > 0 ? playersPerTeam : null;
+  const needsLineup = Boolean(isClanTournament && isTeamManager && lineupLimit);
+  const teamMembers: Array<{ id: number; displayName?: string | null; username?: string | null; avatarUrl?: string | null; teamRole?: string | null }> =
+    Array.isArray(myTeam?.members) ? myTeam.members : [];
+  function togglePlayer(id: number) {
+    setSelectedPlayers((prev) =>
+      prev.includes(id)
+        ? prev.filter((x) => x !== id)
+        : lineupLimit && prev.length >= lineupLimit
+          ? prev
+          : [...prev, id],
+    );
+  }
 
   const canRegister = status === "upcoming" || status === "active";
   const teamManagerLoading = !!isClanTournament && !!user && myTeamLoading;
@@ -772,14 +792,90 @@ function RegisterButton({ tournamentId, status, isFull, isClanTournament, regist
   }
 
   return (
-    <Button
-      onClick={() => register()}
-      disabled={isPending}
-      title={isClanTournament ? "Registers your clan for this tournament" : undefined}
-      className="gap-2 h-12 px-8 text-base font-bold bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-500 hover:to-pink-500 border-0"
-    >
-      {isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Registering…</> : <><Trophy className="w-4 h-4" /> {isClanTournament ? "Register My Team" : "Register Now"}</>}
-    </Button>
+    <>
+      <Button
+        onClick={() => (needsLineup ? setPickOpen(true) : register([]))}
+        disabled={isPending}
+        title={isClanTournament ? "Registers your clan for this tournament" : undefined}
+        className="gap-2 h-12 px-8 text-base font-bold bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-500 hover:to-pink-500 border-0"
+      >
+        {isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Registering…</> : <><Trophy className="w-4 h-4" /> {isClanTournament ? "Register My Team" : "Register Now"}</>}
+      </Button>
+
+      {/* Player-vs-player line-up picker — capped by the admin's players-per-team limit. */}
+      {needsLineup && (
+        <Dialog open={pickOpen} onOpenChange={setPickOpen}>
+          <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Users className="w-5 h-5 text-primary" /> Choose your players
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-3 py-1">
+              <p className="text-xs text-muted-foreground">
+                Select up to <span className="font-bold text-foreground">{lineupLimit}</span> players (player vs player).
+                Selected{" "}
+                <span className={selectedPlayers.length > (lineupLimit ?? 0) ? "font-bold text-destructive" : "font-bold text-foreground"}>
+                  {selectedPlayers.length}/{lineupLimit}
+                </span>.
+              </p>
+
+              {teamMembers.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                  Your clan has no players yet.
+                </div>
+              ) : (
+                <div className="rounded-xl border border-border overflow-hidden">
+                  {teamMembers.map((m, i) => {
+                    const name = m.displayName ?? m.username ?? `Player ${m.id}`;
+                    const checked = selectedPlayers.includes(m.id);
+                    const atLimit = lineupLimit != null && selectedPlayers.length >= lineupLimit;
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => togglePlayer(m.id)}
+                        disabled={!checked && atLimit}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 border-b border-border last:border-0 text-left transition-colors ${
+                          checked ? "bg-primary/10" : i % 2 === 0 ? "bg-card" : ""
+                        } ${!checked && atLimit ? "opacity-40 cursor-not-allowed" : "hover:bg-muted/20"}`}
+                      >
+                        {m.avatarUrl ? (
+                          <img src={m.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
+                        ) : (
+                          <div className="w-7 h-7 rounded-full bg-muted shrink-0 flex items-center justify-center text-[9px] font-black text-muted-foreground">
+                            {name.charAt(0)}
+                          </div>
+                        )}
+                        <span className="flex-1 text-sm font-bold truncate">{name}</span>
+                        {m.teamRole && m.teamRole !== "player" && (
+                          <Badge variant="outline" className="text-[9px] uppercase tracking-wider">{m.teamRole}</Badge>
+                        )}
+                        {checked
+                          ? <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+                          : <span className="w-4 h-4 rounded border border-border shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPickOpen(false)} disabled={isPending}>Cancel</Button>
+              <Button
+                onClick={() => register(selectedPlayers)}
+                disabled={isPending || selectedPlayers.length === 0 || (lineupLimit != null && selectedPlayers.length > lineupLimit)}
+                className="gap-2 min-w-[140px]"
+              >
+                {isPending ? <><Loader2 className="w-4 h-4 animate-spin" /> Registering…</> : <><Trophy className="w-4 h-4" /> Register Team</>}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
   );
 }
 
