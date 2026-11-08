@@ -230,6 +230,11 @@ export async function ensureShopSchema(): Promise<void> {
  */
 export async function ensureClanSchema(): Promise<void> {
   const statements = [
+    // A clan can legitimately have no Captain (the Captain left, or ownership
+    // was transferred to them). `captain_id` was created NOT NULL, which made
+    // POST /teams/:id/leave fail with a not-null violation for Captains, so the
+    // seat is dropped to nullable here for databases created before the change.
+    `ALTER TABLE "teams" ALTER COLUMN "captain_id" DROP NOT NULL`,
     `ALTER TABLE "teams" ADD COLUMN IF NOT EXISTS "division" text NOT NULL DEFAULT 'serie_a'`,
     `UPDATE "teams" SET "division" = 'serie_a' WHERE "division" IS NULL OR "division" = ''`,
     `ALTER TABLE "teams" ADD COLUMN IF NOT EXISTS "banned_until" timestamp`,

@@ -113,7 +113,7 @@ CREATE TABLE IF NOT EXISTS "public"."teams" (
 	"logo_url" text,
 	"division" text DEFAULT 'serie_a' NOT NULL,
 	"president_id" integer,
-	"captain_id" integer NOT NULL,
+	"captain_id" integer,
 	"coach_id" integer,
 	"wins" integer DEFAULT 0 NOT NULL,
 	"losses" integer DEFAULT 0 NOT NULL,

@@ -10,8 +10,13 @@ export const teamsTable = pgTable("teams", {
   /** League division: 'serie_a' | 'serie_b'. */
   division: text("division").notNull().default("serie_a"),
   // Leadership roles (players table holds membership via team_id).
+  // All three are optional: the President must transfer ownership before
+  // leaving, the Coach and Captain seats empty out when their holder leaves or
+  // is re-roled. A clan with no Captain is a normal state (the President or
+  // Coach can appoint a new one), so `captain_id` must stay nullable — making
+  // it NOT NULL made POST /teams/:id/leave fail for every Captain.
   presidentId: integer("president_id"),
-  captainId: integer("captain_id").notNull(),
+  captainId: integer("captain_id"),
   coachId: integer("coach_id"),
   wins: integer("wins").notNull().default(0),
   losses: integer("losses").notNull().default(0),

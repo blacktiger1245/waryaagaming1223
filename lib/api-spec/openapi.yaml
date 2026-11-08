@@ -691,7 +691,7 @@ components:
         logoUrl:
           type: ["string", "null"]
         captainId:
-          type: integer
+          type: ["integer", "null"]
         captainName:
           type: string
         wins:

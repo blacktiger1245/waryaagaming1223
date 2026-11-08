@@ -61,7 +61,8 @@ export interface Team {
   tag?: string | null;
   /** @nullable */
   logoUrl?: string | null;
-  captainId?: number;
+  /** @nullable */
+  captainId?: number | null;
   captainName?: string;
   wins: number;
   losses: number;

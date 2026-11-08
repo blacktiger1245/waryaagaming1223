@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS teams (
   tag text,
   logo_url text,
   president_id integer,
-  captain_id integer NOT NULL,
+  captain_id integer,
   coach_id integer,
   wins integer DEFAULT 0 NOT NULL,
   losses integer DEFAULT 0 NOT NULL,

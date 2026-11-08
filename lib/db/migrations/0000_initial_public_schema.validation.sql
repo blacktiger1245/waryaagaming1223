@@ -127,7 +127,7 @@ WITH expected(t, c, ty, nn) AS (VALUES
     ('teams', 'logo_url', 'text', 'YES'),
     ('teams', 'division', 'text', 'NO'),
     ('teams', 'president_id', 'integer', 'YES'),
-    ('teams', 'captain_id', 'integer', 'NO'),
+    ('teams', 'captain_id', 'integer', 'YES'),
     ('teams', 'coach_id', 'integer', 'YES'),
     ('teams', 'wins', 'integer', 'NO'),
     ('teams', 'losses', 'integer', 'NO'),
