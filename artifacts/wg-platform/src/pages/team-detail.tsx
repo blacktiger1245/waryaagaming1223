@@ -21,9 +21,10 @@ import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useQueries, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useUpload } from "@workspace/object-storage-web";
-import { storageUrl } from "@/lib/api";
+import { storageUrl, fetchRecruitCandidates, type RecruitCandidate } from "@/lib/api";
 import { social, type TeamChatMessage } from "@/lib/social";
 import ClubCard from "@/components/club-card";
+import { AgentChatDialog } from "@/components/agent-chat";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell,
@@ -627,22 +628,22 @@ export default function TeamDetailPage() {
   const [mgmtLoading,      setMgmtLoading]      = useState(false);
   const [mgmtError,        setMgmtError]        = useState("");
   const [addSearch,        setAddSearch]        = useState("");
+  // Player the coach/president is negotiating with (opened from Add Player).
+  const [chatPlayer,       setChatPlayer]       = useState<{
+    id: number;
+    username: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+  } | null>(null);
 
-  // Free agents — players with no team (loaded only when add-player panel is open)
-  const { data: freeAgents = [], isLoading: freeAgentsLoading } = useQuery<any[]>({
-    queryKey: ["free-agents"],
-    queryFn: async () => {
-      const r = await fetch("/api/players/marketplace", { credentials: "include" });
-      if (!r.ok) return [];
-      const all: any[] = await r.json();
-      return all.filter((p: any) => p.teamId == null);
-    },
+  // Every player this clan could sign (its own squad excluded), searchable by
+  // name. Signing is a chat: contract offer → player agrees → the clan pays his
+  // Market Value in WG Coins.
+  const { data: recruitCandidates = [], isLoading: candidatesLoading } = useQuery<RecruitCandidate[]>({
+    queryKey: ["recruit-candidates", id, addSearch],
+    queryFn: () => fetchRecruitCandidates(id, addSearch),
     enabled: addPlayerOpen,
   });
-
-  const filteredFreeAgents = freeAgents.filter((p: any) =>
-    !addSearch || (p.displayName ?? p.username ?? "").toLowerCase().includes(addSearch.toLowerCase())
-  );
 
   async function kickPlayer(playerId: number) {
     setMgmtLoading(true); setMgmtError("");
@@ -656,20 +657,16 @@ export default function TeamDetailPage() {
     } finally { setMgmtLoading(false); }
   }
 
-  async function addPlayer(playerId: number) {
-    setMgmtLoading(true); setMgmtError("");
-    try {
-      const r = await fetch(`/api/teams/${id}/members`, {
-        method: "POST", credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ playerId }),
-      });
-      const d = await r.json();
-      if (!r.ok) { setMgmtError(d.error ?? "Failed to add player"); return; }
-      setAddPlayerOpen(false); setAddSearch("");
-      qc.invalidateQueries({ queryKey: ["team", id] });
-      qc.invalidateQueries({ queryKey: ["team-transfers", id] });
-    } finally { setMgmtLoading(false); }
+  // Adding a player opens the chat with him: the manager offers a contract, the
+  // player agrees, and the clan pays his Market Value before he joins.
+  function openPlayerChat(player: RecruitCandidate) {
+    setMgmtError("");
+    setChatPlayer({
+      id: player.id,
+      username: player.username,
+      displayName: player.displayName ?? player.name,
+      avatarUrl: player.avatarUrl,
+    });
   }
 
   async function changeCaptain(playerId: number) {
@@ -1731,30 +1728,36 @@ export default function TeamDetailPage() {
                             <input
                               value={addSearch}
                               onChange={e => setAddSearch(e.target.value)}
-                              placeholder="Search free agents…"
+                              placeholder="Search players by name…"
                               className="w-full bg-zinc-800 border border-zinc-700 rounded-xl pl-9 pr-4 py-2.5 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-teal-500"
                             />
                           </div>
-                          {freeAgentsLoading ? (
+                          {candidatesLoading ? (
                             <p className="text-xs text-zinc-500 text-center py-4">Loading…</p>
-                          ) : filteredFreeAgents.length === 0 ? (
-                            <p className="text-xs text-zinc-600 text-center py-4">No free agents found</p>
+                          ) : recruitCandidates.length === 0 ? (
+                            <p className="text-xs text-zinc-600 text-center py-4">No players found</p>
                           ) : (
                             <div className="space-y-1 max-h-64 overflow-y-auto">
-                              {filteredFreeAgents.map((p: any) => (
+                              {recruitCandidates.map((p) => (
                                 <div key={p.id} className="flex items-center gap-3 px-3 py-2.5 bg-zinc-800/60 rounded-xl">
                                   <div className="w-8 h-8 rounded-full bg-zinc-700 overflow-hidden flex items-center justify-center flex-shrink-0">
                                     {p.avatarUrl
                                       ? <img src={p.avatarUrl} alt="" className="w-full h-full object-cover" />
-                                      : <span className="text-xs font-black text-zinc-400">{(p.displayName ?? p.username ?? "?")[0].toUpperCase()}</span>}
+                                      : <span className="text-xs font-black text-zinc-400">{(p.displayName ?? p.username ?? "?").charAt(0).toUpperCase()}</span>}
                                   </div>
-                                  <span className="text-sm font-bold flex-1 truncate">{p.displayName ?? p.username}</span>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-bold truncate">{p.displayName ?? p.username}</p>
+                                    <p className="text-[11px] text-zinc-500 truncate">
+                                      @{p.username} · {p.points} pts · {p.teamName ? `${p.teamName}${p.theirClanRole === "president" ? " (President)" : ""}` : "Free agent"}
+                                    </p>
+                                  </div>
+                                  <span className="text-xs font-black text-yellow-400 shrink-0">{p.marketValue}M</span>
                                   <button
-                                    onClick={() => addPlayer(p.id)}
+                                    onClick={() => openPlayerChat(p)}
                                     disabled={mgmtLoading}
                                     className="text-xs font-black text-teal-400 bg-teal-400/10 hover:bg-teal-400/20 border border-teal-400/20 px-3 py-1 rounded-lg transition-colors disabled:opacity-50"
                                   >
-                                    Add
+                                    Chat
                                   </button>
                                 </div>
                               ))}
@@ -1763,6 +1766,10 @@ export default function TeamDetailPage() {
                         </div>
                       )}
                     </div>
+                  )}
+
+                  {chatPlayer && (
+                    <AgentChatDialog agentPlayer={chatPlayer} onClose={() => setChatPlayer(null)} />
                   )}
 
                   {/* ── Roster management (coach actions) ─────────────────── */}

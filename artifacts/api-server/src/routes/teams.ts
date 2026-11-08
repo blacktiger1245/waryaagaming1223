@@ -526,6 +526,17 @@ router.post("/teams/:id/players", async (req, res) => {
     return res.status(403).json({ error: "Only the President or Coach can add players" });
   }
 
+  // Legacy direct add: this used to put players straight on the roster with no
+  // consent and no fee, which both the invitation-only rule and the paid-signing
+  // rule forbid. Platform staff keep it as a support override; everyone else
+  // signs players through the chat contract flow.
+  if (!isPlatformStaff(req)) {
+    return res.status(409).json({
+      error: "Players are signed from the chat: open \"Add Player\", pick the player and send the contract offer.",
+      code: "paid_transfer_required",
+    });
+  }
+
   const conflictIds = [team.presidentId, team.coachId, team.captainId];
   if (ids.some((id) => conflictIds.includes(id))) {
     return res.status(400).json({ error: "Cannot add a player who already holds a team role" });
@@ -1006,6 +1017,95 @@ router.delete("/teams/:id/members/:playerId", async (req, res) => {
   return res.json({ ok: true });
 });
 
+// ── GET /teams/:id/recruit-candidates  (President/Coach — signing targets) ────
+// Backs the "Add Player" browser: EVERY player is listed (not only free agents),
+// searchable by name or username, each with the Market Value that signing him
+// costs. The clan's own members are excluded, and the response says which clan a
+// player belongs to and which seat he holds there — so a manager knows he is
+// about to sign someone away from a rival, and that a clan President can only be
+// signed after he hands his own club over.
+router.get("/teams/:id/recruit-candidates", async (req, res) => {
+  if (!req.session?.userId) return res.status(401).json({ error: "Login required" });
+
+  const teamId = Number(req.params.id);
+  if (isNaN(teamId)) return res.status(400).json({ error: "Invalid team id" });
+
+  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
+  if (!team) return res.status(404).json({ error: "Team not found" });
+
+  const role = await resolveTeamRole(req, team);
+  if (role !== "president" && role !== "coach" && !isPlatformStaff(req))
+    return res.status(403).json({ error: "Only the President or Coach can sign players" });
+
+  const rawSearch = typeof req.query.search === "string" ? req.query.search.trim() : "";
+  const search = rawSearch.slice(0, 60);
+
+  const rows = await db
+    .select({
+      id: playersTable.id,
+      username: playersTable.username,
+      displayName: playersTable.displayName,
+      avatarUrl: playersTable.avatarUrl,
+      country: playersTable.country,
+      points: playersTable.points,
+      rating: playersTable.rating,
+      marketValue: playersTable.marketValue,
+      teamId: playersTable.teamId,
+      teamName: teamsTable.name,
+      teamPresidentId: teamsTable.presidentId,
+      teamCoachId: teamsTable.coachId,
+      teamCaptainId: teamsTable.captainId,
+    })
+    .from(playersTable)
+    .leftJoin(teamsTable, eq(teamsTable.id, playersTable.teamId))
+    .where(
+      and(
+        eq(playersTable.isActive, true),
+        // Never offer a clan its own player back.
+        or(sql`${playersTable.teamId} IS NULL`, sql`${playersTable.teamId} <> ${teamId}`),
+        search
+          ? or(ilike(playersTable.username, `%${search}%`), ilike(playersTable.displayName, `%${search}%`))
+          : undefined,
+      ),
+    )
+    .orderBy(desc(playersTable.points), desc(playersTable.marketValue))
+    .limit(120);
+
+  return res.json({
+    candidates: rows.map((r) => {
+      const theirClanRole =
+        r.teamId == null
+          ? null
+          : r.teamPresidentId === r.id
+            ? "president"
+            : r.teamCoachId === r.id
+              ? "coach"
+              : r.teamCaptainId === r.id
+                ? "captain"
+                : "player";
+      const marketValueM = Math.max(0, Number(r.marketValue ?? 0));
+      return {
+        id: r.id,
+        username: r.username,
+        displayName: r.displayName,
+        name: r.displayName ?? r.username,
+        avatarUrl: r.avatarUrl,
+        country: r.country,
+        points: r.points,
+        rating: r.rating,
+        marketValue: marketValueM,
+        // Signing fee in WG Coins (Market Value is quoted in millions).
+        feeCoins: marketValueM * 1_000_000,
+        isFreeAgent: r.teamId == null,
+        teamId: r.teamId,
+        teamName: r.teamName,
+        theirClanRole,
+        canBeSigned: theirClanRole !== "president",
+      };
+    }),
+  });
+});
+
 // ── POST /teams/:id/members  (President/Coach — sends an INVITATION) ──────────
 // This used to put a player straight on the roster. Membership is now
 // invitation-only, so it creates a PENDING invite instead: the player joins only
@@ -1062,6 +1162,24 @@ async function createTeamInvite(
   const [player] = await db.select().from(playersTable).where(eq(playersTable.id, opts.playerId));
   if (!player) return res.status(404).json({ error: "Player not found" });
   if (player.teamId != null) return res.status(409).json({ error: "That player is already in a clan" });
+
+  // A player is signed for his Market Value in WG Coins, and that deal is closed
+  // in the chat (offer → player agrees → the clan pays). An invitation that added
+  // him for free would sidestep the fee, so a "player" invitation is refused here
+  // and the manager is pointed at the contract offer. A Coach-seat invitation is
+  // untouched: that seat is paid for by the player buying the Clan Coach role.
+  if (role === "player" && !isPlatformStaff(req)) {
+    const marketValueM = Math.max(0, Number(player.marketValue ?? 0));
+    const feeCoins = marketValueM * 1_000_000;
+    if (feeCoins > 0) {
+      return res.status(409).json({
+        error: `Signing ${player.displayName ?? player.username} costs ${marketValueM}M WG Coins (his Market Value). Open the chat with him from "Add Player" and send the contract offer — he joins as soon as the fee is paid.`,
+        code: "paid_transfer_required",
+        feeCoins,
+        marketValueM,
+      });
+    }
+  }
 
   if (role === "coach" && player.clanRole !== "coach" && !isPlatformStaff(req)) {
     return res.status(403).json({

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowLeft, Check, CheckCheck, Send, UserPlus, X } from "lucide-react";
+import { ArrowLeft, Check, CheckCheck, Coins, Send, UserPlus, X } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -11,6 +11,9 @@ import {
   sendConversationMessage,
   sendTeamInvite,
   parseWgSystemMessage,
+  payTransferFee,
+  coinsInMillions,
+  COINS_PER_MARKET_VALUE_M,
   type AgentChannelContext,
   type AgentChatMessage,
   type AgentChatParticipant,
@@ -18,6 +21,7 @@ import {
   type AgentChatThread,
   type WgInvitePayload,
   type WgInviteResultPayload,
+  type WgTransferPaidPayload,
 } from "@/lib/agent-chat";
 
 function formatMessageTime(iso: string): string {
@@ -98,33 +102,52 @@ function ChatMessageBubble({ message, mine }: { message: AgentChatMessage; mine:
 const CHAT_POLL_MS = 3000;
 
 /**
- * Invite card rendered inside a team invitation message. On the invited
- * player's (agent) side it shows Agree / Reject while still pending; on the
- * President/Coach side (and once resolved) it shows the invitation status.
+ * Contract-offer card rendered inside a team invitation message.
+ *
+ * The player (agent) side shows Agree / Reject while the offer is unanswered.
+ * Once the player has agreed, the President/Coach (buyer) side shows the
+ * "Agree & pay" button that charges the player's Market Value in WG Coins and
+ * signs him; both sides see the fee the whole time.
  */
 function InviteCard({
   invite,
-  messageId,
   meRole,
   pending,
   busy,
+  balance,
+  awaitingPayment,
+  paid,
   onAgree,
   onReject,
+  onPay,
+  paying,
 }: {
   invite: WgInvitePayload;
-  messageId: number;
   meRole: AgentChatRole;
   pending: boolean;
   busy: boolean;
+  /** Buyer side only: the clan's WG Coin balance, used to warn before paying. */
+  balance?: number;
+  /** The player agreed, but the fee is still unpaid. */
+  awaitingPayment?: boolean;
+  /** The signing fee has been paid — the player is on the roster. */
+  paid?: boolean;
   onAgree?: (inviteId: number) => void;
   onReject?: (inviteId: number) => void;
+  onPay?: (inviteId: number) => void;
+  paying?: boolean;
 }) {
   const isAgentSide = meRole === "agent";
+  const seasons = invite.seasons ?? 1;
+  const feeLabel = invite.feeCoins > 0 ? `${coinsInMillions(invite.feeCoins)} WG Coins` : "Free";
+  const canAfford = typeof balance !== "number" || balance >= invite.feeCoins;
   return (
     <div className="max-w-[82%] rounded-2xl border border-[#2a3f6b] bg-gradient-to-br from-[#16203a] to-[#101a30] px-3 py-2.5 text-sm shadow-sm">
       <div className="mb-1.5 flex items-center gap-1.5">
         <UserPlus className="h-4 w-4 text-[#2b7bff]" />
-        <span className="text-[10px] font-bold uppercase tracking-wider text-[#8fa3c8]">Team Invitation</span>
+        <span className="text-[10px] font-bold uppercase tracking-wider text-[#8fa3c8]">
+          {invite.feeCoins > 0 ? "Paid contract offer" : "Team invitation"}
+        </span>
       </div>
       {pending ? (
         <>
@@ -132,8 +155,13 @@ function InviteCard({
             Do you agree to join my team <span className="font-bold text-[#5aa2ff]">{invite.teamName}</span>?
           </p>
           <p className="mt-1 text-xs text-[#ffd66e]">
-            Contract offer: <span className="font-bold">{invite.seasons ?? 1} season{(invite.seasons ?? 1) > 1 ? "s" : ""}</span> — the
+            Contract offer: <span className="font-bold">{seasons} season{seasons > 1 ? "s" : ""}</span> — the
             contract expires after that many seasons.
+          </p>
+          <p className="mt-1 flex items-center gap-1 text-xs text-[#8fe6c8]">
+            <Coins className="h-3 w-3" />
+            Signing fee: <span className="font-bold">{feeLabel}</span>
+            {invite.feeCoins > 0 ? ` — ${invite.teamName} pays your Market Value (${invite.marketValueM}M) to complete it.` : null}
           </p>
           {isAgentSide ? (
             <div className="mt-2.5 flex gap-2">
@@ -158,6 +186,35 @@ function InviteCard({
             <p className="mt-1 text-xs text-[#8fa3c8]">Waiting for the player to respond...</p>
           )}
         </>
+      ) : paid ? (
+        <p className="flex items-center gap-1 text-xs text-[#8fe6c8]">
+          <Check className="h-3 w-3" /> Paid — this player has been signed for {feeLabel}.
+        </p>
+      ) : awaitingPayment ? (
+        isAgentSide ? (
+          <p className="text-xs text-[#ffd66e]">
+            You agreed to join {invite.teamName}. They still have to pay your {feeLabel} signing fee to complete it.
+          </p>
+        ) : (
+          <div>
+            <p className="text-xs text-[#8fe6c8]">The player agreed to your offer. Pay the fee to complete the signing.</p>
+            <button
+              type="button"
+              disabled={paying || !canAfford}
+              onClick={() => onPay?.(invite.inviteId)}
+              className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg bg-gradient-to-br from-[#ffd66e] to-[#f0a91f] py-2 text-xs font-black text-[#2a1c00] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Coins className="h-3.5 w-3.5" />
+              {paying ? "Paying..." : `Agree & pay ${feeLabel}`}
+            </button>
+            {!canAfford && (
+              <p className="mt-1 text-[11px] text-[#ff9d9d]">
+                Not enough WG Coins — this signing costs {coinsInMillions(invite.feeCoins)} and you have{" "}
+                {coinsInMillions(balance ?? 0)}. Buy coins to complete it.
+              </p>
+            )}
+          </div>
+        )
       ) : isAgentSide ? (
         <p className="text-xs text-[#8fa3c8]">This invitation has already been answered.</p>
       ) : (
@@ -173,7 +230,16 @@ function ResultCard({ result, meRole }: { result: WgInviteResultPayload; meRole:
   let title: string;
   let body: string;
   let tone: string;
-  if (iAmAgent) {
+  const feeLabel = `${coinsInMillions(result.feeCoins)} WG Coins`;
+  if (result.accepted && result.awaitingPayment) {
+    // The player said yes to a paid signing: the clan still has to pay his
+    // Market Value before he actually joins.
+    title = iAmAgent ? "Offer accepted" : "The player agreed!";
+    body = iAmAgent
+      ? `You agreed to join ${result.teamName}. They still have to pay your ${feeLabel} signing fee to complete it.`
+      : `${result.agentName} agreed to join ${result.teamName}. Pay the ${feeLabel} signing fee to complete the signing.`;
+    tone = "from-[#3a2f12] to-[#2a220d] border-[#8a6d1f]";
+  } else if (iAmAgent) {
     if (result.accepted) {
       title = "Congratulations!";
       body = `You joined the team ${result.teamName}.`;
@@ -198,6 +264,24 @@ function ResultCard({ result, meRole }: { result: WgInviteResultPayload; meRole:
     <div className={`max-w-[82%] rounded-2xl border bg-gradient-to-br px-4 py-2.5 text-sm shadow-sm ${tone}`}>
       <p className="font-bold text-[#eaf0fb]">{title}</p>
       <p className="mt-0.5 text-xs text-[#c7d4ee]">{body}</p>
+    </div>
+  );
+}
+
+/** Bubble shown once a signing fee has been paid and the player has moved. */
+function PaidCard({ record, meRole }: { record: WgTransferPaidPayload; meRole: AgentChatRole }) {
+  const iAmAgent = meRole === "agent";
+  return (
+    <div className="max-w-[82%] rounded-2xl border border-[#1f7a4a] bg-gradient-to-br from-[#0f3320] to-[#0b2a19] px-4 py-2.5 text-sm shadow-sm">
+      <p className="flex items-center gap-1.5 font-bold text-[#eaf0fb]">
+        <Coins className="h-4 w-4 text-[#8fe6c8]" />
+        {iAmAgent ? "You have been signed!" : "Transfer completed"}
+      </p>
+      <p className="mt-0.5 text-xs text-[#c7d4ee]">
+        {record.playerName} joined {record.teamName}
+        {record.fromTeamName ? ` from ${record.fromTeamName}` : ""} for {coinsInMillions(record.feeCoins)} WG Coins
+        {iAmAgent ? "" : ` — paid by ${record.buyerName}`}.
+      </p>
     </div>
   );
 }
@@ -228,6 +312,7 @@ export function ChatPane({
   const [inviteSeasons, setInviteSeasons] = useState<1 | 2>(1);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [respondingId, setRespondingId] = useState<number | null>(null);
+  const [payingId, setPayingId] = useState<number | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   // Fetch the current user's leadership context (for the invite button).
@@ -274,13 +359,20 @@ export function ChatPane({
   const meRole: AgentChatRole = thread?.meRole ?? "player";
 
   const messages = thread?.messages ?? [];
-  // Invite ids already answered by a result message in this thread.
-  const resolvedInviteIds = new Set<number>();
+  // Answers to each offer, and the offers whose signing fee has been paid.
+  const inviteResults = new Map<number, WgInviteResultPayload>();
+  const paidInviteIds = new Set<number>();
   for (const m of messages) {
     const sys = parseWgSystemMessage(m.text);
-    if (sys?.kind === "wg_invite_result") resolvedInviteIds.add(sys.inviteId);
+    if (sys?.kind === "wg_invite_result") inviteResults.set(sys.inviteId, sys);
+    if (sys?.kind === "wg_transfer_paid") paidInviteIds.add(sys.inviteId);
   }
   const canInvite = meRole === "player" && !!channel?.isLeader && !!channel.teamId;
+  // What signing the player in this conversation costs, and whether the clan can
+  // afford it right now — the fee is the player's Market Value in WG Coins.
+  const signingFeeCoins = Math.max(0, Number(participant?.marketValue ?? 0)) * COINS_PER_MARKET_VALUE_M;
+  const myBalance = channel?.coinBalance ?? 0;
+  const canAffordSigning = myBalance >= signingFeeCoins;
 
   const send = async () => {
     const text = draft.trim();
@@ -327,6 +419,24 @@ export function ChatPane({
       setInviteError(err instanceof Error ? err.message : "Could not respond to the invitation");
     } finally {
       setRespondingId(null);
+    }
+  };
+
+  // Buyer side: pay the player's Market Value, which signs him for the clan.
+  const payInvite = async (inviteId: number) => {
+    if (payingId != null) return;
+    setPayingId(inviteId);
+    setInviteError(null);
+    try {
+      await payTransferFee(inviteId);
+      const data = await fetchConversationMessages(conversationId);
+      setThread(data);
+      // The fee came out of the balance shown next to the offer button.
+      await fetchAgentChannelContext().then(setChannel).catch(() => {});
+    } catch (err) {
+      setInviteError(err instanceof Error ? err.message : "Could not complete this signing");
+    } finally {
+      setPayingId(null);
     }
   };
 
@@ -383,19 +493,28 @@ export function ChatPane({
               );
             }
             if (sys.kind === "wg_invite") {
+              const answer = inviteResults.get(sys.inviteId);
+              const paid = paidInviteIds.has(sys.inviteId);
               return (
                 <div key={message.id} className="flex justify-start">
                   <InviteCard
                     invite={sys}
-                    messageId={message.id}
                     meRole={meRole}
-                    pending={!resolvedInviteIds.has(sys.inviteId)}
+                    pending={!answer && !paid}
+                    paid={paid}
+                    awaitingPayment={Boolean(answer?.accepted && answer.awaitingPayment)}
+                    balance={channel?.coinBalance}
                     busy={respondingId === sys.inviteId}
+                    paying={payingId === sys.inviteId}
                     onAgree={(id) => answerInvite(id, "accept")}
                     onReject={(id) => answerInvite(id, "reject")}
+                    onPay={payInvite}
                   />
                 </div>
               );
+            }
+            if (sys.kind === "wg_transfer_paid") {
+              return <PaidCard key={message.id} record={sys} meRole={meRole} />;
             }
             return <ResultCard key={message.id} result={sys} meRole={meRole} />;
           })}
@@ -431,10 +550,14 @@ export function ChatPane({
             <button
               type="button"
               onClick={sendInvite}
-              disabled={inviting || sending}
-              title={`Invite to join ${channel?.teamName ?? "my team"} (${inviteSeasons} season contract)`}
+              disabled={inviting || sending || !canAffordSigning}
+              title={
+                canAffordSigning
+                  ? `Offer a ${inviteSeasons}-season contract to join ${channel?.teamName ?? "my team"} — signing fee ${coinsInMillions(signingFeeCoins)} WG Coins`
+                  : `Not enough WG Coins: this signing costs ${coinsInMillions(signingFeeCoins)} and your balance is ${coinsInMillions(myBalance)}`
+              }
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#2a3f6b] bg-[#14223f] text-[#5aa2ff] transition-colors hover:bg-[#1a2c50] hover:text-[#8fc0ff] disabled:cursor-not-allowed disabled:opacity-40"
-              aria-label="Invite to join my team"
+              aria-label="Send contract offer"
             >
               <UserPlus className="h-5 w-5" />
             </button>
@@ -454,6 +577,13 @@ export function ChatPane({
         )}
         {inviteError && (
           <p className="mt-1.5 text-[11px] text-[#ff9d9d]">{inviteError}</p>
+        )}
+        {canInvite && signingFeeCoins > 0 && (
+          <p className="mt-1.5 flex items-center gap-1 text-[11px] text-[#7f93b8]">
+            <Coins className="h-3 w-3" />
+            Signing {participant?.displayName ?? participant?.username ?? "this player"} costs{" "}
+            {coinsInMillions(signingFeeCoins)} WG Coins — your balance is {coinsInMillions(myBalance)}.
+          </p>
         )}
       </div>
     </div>

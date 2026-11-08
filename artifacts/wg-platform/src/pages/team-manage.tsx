@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useLocation, useParams } from "wouter";
 import {
   ArrowLeft,
@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Crown,
+  MessageCircle,
   Search,
   Shield,
   ShieldCheck,
@@ -21,7 +22,8 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getGetTeamQueryKey, useGetTeam } from "@workspace/api-client-react";
 import { useAuth } from "@/hooks/use-auth";
-import { apiUrl, storageUrl, uploadTeamLogo } from "@/lib/api";
+import { apiUrl, fetchRecruitCandidates, storageUrl, uploadTeamLogo, type RecruitCandidate } from "@/lib/api";
+import { AgentChatDialog } from "@/components/agent-chat";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -134,6 +136,13 @@ export default function TeamManagePage() {
 
   const [addPlayerOpen, setAddPlayerOpen] = useState(false);
   const [addSearch, setAddSearch] = useState("");
+  // Player the manager is chatting with (opened from the Add Player browser).
+  const [chatPlayer, setChatPlayer] = useState<{
+    id: number;
+    username: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+  } | null>(null);
   const [pendingCaptainId, setPendingCaptainId] = useState<number | null>(null);
   const [pendingCoachId, setPendingCoachId] = useState<number | null>(null);
   const [transferOwnershipOpen, setTransferOwnershipOpen] = useState(false);
@@ -160,25 +169,14 @@ export default function TeamManagePage() {
   const pageCount = Math.max(1, Math.ceil(members.length / pageSize));
   const visibleMembers = members.slice((page - 1) * pageSize, page * pageSize);
 
-  const { data: freeAgents = [], isLoading: freeAgentsLoading } = useQuery<TeamMember[]>({
-    queryKey: ["free-agents", "team-manage"],
-    queryFn: async () => {
-      const response = await fetch("/api/players/marketplace", { credentials: "include" });
-      if (!response.ok) return [];
-      const players = await response.json();
-      return players.filter((player: TeamMember & { teamId?: number | null }) => player.teamId == null);
-    },
-    enabled: addPlayerOpen && isManager,
+  // EVERY player the clan could sign (its own squad excluded), searchable by name
+  // or username. A player nobody can sign for free: clicking one opens the chat,
+  // where the contract offer is sent and paid for.
+  const { data: candidates = [], isLoading: candidatesLoading } = useQuery<RecruitCandidate[]>({
+    queryKey: ["recruit-candidates", id, addSearch],
+    queryFn: () => fetchRecruitCandidates(id, addSearch),
+    enabled: addPlayerOpen && isManager && Number.isFinite(id) && id > 0,
   });
-
-  const filteredFreeAgents = useMemo(
-    () =>
-      freeAgents.filter((player) =>
-        !addSearch ||
-        (player.displayName ?? player.username).toLowerCase().includes(addSearch.toLowerCase()),
-      ),
-    [addSearch, freeAgents],
-  );
 
   async function mutateRoster(
     url: string,
@@ -209,22 +207,17 @@ export default function TeamManagePage() {
     }
   }
 
-  // Membership is invitation-only: this SENDS AN INVITATION (the player must
-  // accept it before they join). The server no longer adds anyone directly.
-  function invitePlayer(playerId: number) {
-    void mutateRoster(
-      `/api/teams/${id}/members`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ playerId }),
-      },
-      () => {
-        setAddPlayerOpen(false);
-        setAddSearch("");
-        qc.invalidateQueries({ queryKey: ["team-invites", id] });
-      },
-    );
+  // Signing is a chat: the manager offers a contract, the player agrees, and the
+  // clan pays the player's Market Value in WG Coins before he joins. Opening the
+  // chat is therefore the only way to add a player.
+  function openPlayerChat(player: RecruitCandidate) {
+    setAddPlayerOpen(false);
+    setChatPlayer({
+      id: player.id,
+      username: player.username,
+      displayName: player.displayName ?? player.name,
+      avatarUrl: player.avatarUrl,
+    });
   }
 
   // Invitations this clan is waiting on, so the manager can see who has been
@@ -457,7 +450,7 @@ export default function TeamManagePage() {
 
         <div className="mt-4 flex flex-wrap gap-3">
           {isManager && (
-            <ActionButton icon={<UserPlus className="h-4 w-4" />} onClick={() => setAddPlayerOpen(true)} tone="yellow">Invite Player</ActionButton>
+            <ActionButton icon={<UserPlus className="h-4 w-4" />} onClick={() => setAddPlayerOpen(true)} tone="yellow">Add Player</ActionButton>
           )}
           {isManager && (
             <ActionButton icon={<Crown className="h-4 w-4" />} onClick={() => setPendingCaptainId(pendingCaptainId ? null : -1)}>Change Captain</ActionButton>
@@ -553,11 +546,15 @@ export default function TeamManagePage() {
           <RolePicker title="Transfer ownership (new President)" members={members.filter((member) => member.id !== (team as any).presidentId)} onClose={() => setTransferOwnershipOpen(false)} onChoose={(playerId) => changePresident(playerId)} busy={busy} />
         )}
 
+        {chatPlayer && (
+          <AgentChatDialog agentPlayer={chatPlayer} onClose={() => setChatPlayer(null)} />
+        )}
+
         {addPlayerOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setAddPlayerOpen(false)}>
             <div className="w-full max-w-lg rounded-2xl border border-zinc-700 bg-zinc-900 p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
-              <div className="flex items-center justify-between"><h2 className="text-lg font-black text-white">Invite Player</h2><button onClick={() => setAddPlayerOpen(false)} className="text-zinc-500 hover:text-white"><X className="h-5 w-5" /></button></div>
-              <p className="mt-2 text-xs text-zinc-400">Send an invitation — the player joins only after they accept it on the Clans page.</p>
+              <div className="flex items-center justify-between"><h2 className="text-lg font-black text-white">Add Player</h2><button onClick={() => setAddPlayerOpen(false)} className="text-zinc-500 hover:text-white"><X className="h-5 w-5" /></button></div>
+              <p className="mt-2 text-xs text-zinc-400">Every player is listed here. Pick one to open a chat, offer a contract and pay his Market Value in WG Coins — he joins as soon as he agrees and the fee is paid.</p>
               {pendingInvites.length > 0 && (
                 <div className="mt-4 rounded-xl border border-zinc-700 bg-zinc-800/50 p-3">
                   <p className="text-[11px] font-black uppercase tracking-widest text-yellow-400">Waiting for an answer</p>
@@ -571,9 +568,27 @@ export default function TeamManagePage() {
                   </ul>
                 </div>
               )}
-              <div className="relative mt-4"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" /><input value={addSearch} onChange={(event) => setAddSearch(event.target.value)} placeholder="Search free agents..." className="w-full rounded-xl border border-zinc-700 bg-zinc-800 py-2.5 pl-9 pr-3 text-sm text-white outline-none focus:border-yellow-400" /></div>
+              <div className="relative mt-4"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" /><input value={addSearch} onChange={(event) => setAddSearch(event.target.value)} placeholder="Search players by name..." className="w-full rounded-xl border border-zinc-700 bg-zinc-800 py-2.5 pl-9 pr-3 text-sm text-white outline-none focus:border-yellow-400" /></div>
               <div className="mt-4 max-h-72 space-y-1 overflow-y-auto">
-                {freeAgentsLoading ? <Skeleton className="h-12 rounded-xl" /> : filteredFreeAgents.length === 0 ? <p className="py-8 text-center text-sm text-zinc-500">No free agents found.</p> : filteredFreeAgents.map((player) => <button key={player.id} onClick={() => invitePlayer(player.id)} disabled={busy} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left hover:bg-zinc-800 disabled:opacity-50"><PersonAvatar person={player} size="sm" /><span className="flex-1 text-sm font-bold text-white">{player.displayName ?? player.username}<span className="block text-xs font-normal text-zinc-500">@{player.username}</span></span><UserPlus className="h-4 w-4 text-yellow-400" /></button>)}
+                {candidatesLoading ? <Skeleton className="h-12 rounded-xl" /> : candidates.length === 0 ? <p className="py-8 text-center text-sm text-zinc-500">No players found.</p> : candidates.map((player) => (
+                  <button key={player.id} onClick={() => openPlayerChat(player)} disabled={busy} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left hover:bg-zinc-800 disabled:opacity-50">
+                    <PersonAvatar person={player} size="sm" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-bold text-white">{player.displayName ?? player.username}</span>
+                      <span className="block truncate text-xs font-normal text-zinc-500">
+                        @{player.username} · {player.points} pts ·{" "}
+                        {player.teamName
+                          ? `${player.teamName}${player.theirClanRole === "president" ? " (President)" : ""}`
+                          : "Free agent"}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-right">
+                      <span className="block text-xs font-black text-yellow-400">{player.marketValue}M</span>
+                      <span className="block text-[10px] font-bold uppercase text-zinc-500">WG Coins</span>
+                    </span>
+                    <MessageCircle className="h-4 w-4 shrink-0 text-yellow-400" />
+                  </button>
+                ))}
               </div>
             </div>
           </div>

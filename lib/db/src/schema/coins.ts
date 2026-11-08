@@ -27,10 +27,10 @@ export type CoinTransaction = typeof coinTransactionsTable.$inferSelect;
  * Coin SPENDS — the counterpart to `coin_transactions` (which only ever records
  * top-ups).
  *
- * WG Coins can buy exactly TWO things (see CLAN_ROLE_PURCHASES in
- * `routes/coins.ts`): a Clan President role and a Clan Coach role. Every
- * completed purchase is recorded here for auditing, and the row is written in
- * the same transaction that deducts the coins and grants the entitlement, so a
+ * Two kinds of purchase write a row here: the clan roles bought on the Buy Coins
+ * page (`item` = 'clan-president' | 'clan-coach') and signing a player for his
+ * Market Value from a chat contract (`item` = 'player-transfer'). Every completed
+ * purchase is written in the same transaction that deducts the coins, so a
  * balance can never be reduced without a matching ledger entry.
  */
 export const coinSpendsTable = pgTable("coin_spends", {

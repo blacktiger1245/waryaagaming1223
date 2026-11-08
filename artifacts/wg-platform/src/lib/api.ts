@@ -77,3 +77,44 @@ export async function fetchReferees(): Promise<Referee[]> {
   if (!res.ok) throw new Error("Failed to load referees");
   return res.json() as Promise<Referee[]>;
 }
+
+/** A player a clan can sign, as returned by `/teams/:id/recruit-candidates`. */
+export interface RecruitCandidate {
+  id: number;
+  username: string;
+  displayName: string | null;
+  name: string;
+  avatarUrl: string | null;
+  country: string | null;
+  points: number;
+  rating: number;
+  /** Market Value in M coins — what signing this player costs. */
+  marketValue: number;
+  /** The same price in WG Coins. */
+  feeCoins: number;
+  isFreeAgent: boolean;
+  teamId: number | null;
+  teamName: string | null;
+  /** The seat he holds in the clan he is in right now (null = free agent). */
+  theirClanRole: "president" | "coach" | "captain" | "player" | null;
+  /** False for a clan President, who must hand over his own club first. */
+  canBeSigned: boolean;
+}
+
+/**
+ * Every player this clan could sign (its own squad excluded), searchable by name
+ * or username. Signing still needs the player to accept a contract offer in the
+ * chat and the clan to pay his Market Value in WG Coins.
+ */
+export async function fetchRecruitCandidates(teamId: number, search = ""): Promise<RecruitCandidate[]> {
+  const term = search.trim();
+  const query = term ? `?search=${encodeURIComponent(term)}` : "";
+  const res = await fetch(apiUrl(`/api/teams/${teamId}/recruit-candidates${query}`), {
+    credentials: "include",
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw new Error((data as { error?: string } | null)?.error ?? "Failed to load players");
+  }
+  return (data as { candidates?: RecruitCandidate[] } | null)?.candidates ?? [];
+}

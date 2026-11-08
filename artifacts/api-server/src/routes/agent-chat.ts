@@ -7,6 +7,7 @@ import {
   teamsTable,
   playerTransfersTable,
   seasonsTable,
+  coinSpendsTable,
 } from "@workspace/db";
 import {
   eq,
@@ -37,7 +38,14 @@ function isOnline(lastSeen: Date | null | undefined): boolean {
 }
 
 function participantJson(
-  p: { id: number; username: string; displayName: string | null; avatarUrl: string | null; country: string | null },
+  p: {
+    id: number;
+    username: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+    country: string | null;
+    marketValue?: number | null;
+  },
   online: boolean,
 ) {
   return {
@@ -47,7 +55,42 @@ function participantJson(
     avatarUrl: p.avatarUrl,
     country: p.country,
     online,
+    // The player's Market Value (in M coins) is what a signing costs, so the
+    // chat can price the contract offer before it is sent.
+    marketValue: Number(p.marketValue ?? 0),
   };
+}
+
+/**
+ * Market Value is measured in M (millions) of WG Coins — the same unit as the
+ * coin packages and the clan-role prices — so a player listed at 120 has a
+ * signing fee of 120,000,000 WG Coins.
+ */
+const COINS_PER_MARKET_VALUE_M = 1_000_000;
+
+/** Signing fee, in WG Coins, for a player whose Market Value is `m` millions. */
+function signingFeeCoins(marketValueM: number | null | undefined): number {
+  const value = Math.max(0, Math.floor(Number(marketValueM ?? 0)));
+  return value * COINS_PER_MARKET_VALUE_M;
+}
+
+/** Locked player row, read with raw SQL so the balance can be checked safely. */
+type LockedPlayerRow = {
+  id: number;
+  username: string;
+  display_name: string | null;
+  team_id: number | null;
+  coin_balance: number;
+  market_value: number;
+};
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** Error carrying an HTTP status, thrown from inside a transaction. */
+function httpError(status: number, message: string): Error {
+  const err = new Error(message) as Error & { status?: number };
+  err.status = status;
+  return err;
 }
 
 
@@ -55,6 +98,11 @@ function participantJson(
 // We reuse the message TEXT column to carry structured invite/result payloads so
 // the feature needs no schema migration. Regular messages are plain text; invite
 // and result "cards" are serialized JSON starting with a sentinel kind.
+//
+// Signing a player costs their Market Value in WG Coins (`feeCoins`), so a
+// completed deal is three cards: the offer (`wg_invite`), the player's answer
+// (`wg_invite_result`) and — once the clan has paid the fee — the transfer
+// confirmation (`wg_transfer_paid`).
 
 interface WgInvitePayload {
   kind: "wg_invite";
@@ -64,6 +112,10 @@ interface WgInvitePayload {
   presidentName: string;
   /** Contract length in seasons offered with this invitation (1 or 2). */
   seasons: number;
+  /** Market Value of the player, in M coins — the price of the offer. */
+  marketValueM: number;
+  /** Signing fee in WG Coins the offering clan must pay (0 = free signing). */
+  feeCoins: number;
 }
 
 interface WgInviteResultPayload {
@@ -72,15 +124,51 @@ interface WgInviteResultPayload {
   accepted: boolean;
   teamName: string;
   agentName: string;
+  /** Signing fee that still has to be paid before the player joins (0 = free). */
+  feeCoins: number;
+  /** Accepted, but the clan has not paid the fee yet — the player is not signed. */
+  awaitingPayment: boolean;
+  /** The clan the player belonged to when he accepted (null = he was a free agent). */
+  fromTeamId: number | null;
 }
 
-type WgSystemPayload = WgInvitePayload | WgInviteResultPayload;
+/** Written once the clan has paid the fee and the player has joined. */
+interface WgTransferPaidPayload {
+  kind: "wg_transfer_paid";
+  inviteId: number;
+  teamId: number;
+  teamName: string;
+  playerId: number;
+  playerName: string;
+  buyerName: string;
+  feeCoins: number;
+  fromTeamName: string | null;
+}
+
+type WgSystemPayload = WgInvitePayload | WgInviteResultPayload | WgTransferPaidPayload;
 
 function parseSystemMessage(text: string): WgSystemPayload | null {
   try {
     const parsed = JSON.parse(text);
-    if (parsed && (parsed.kind === "wg_invite" || parsed.kind === "wg_invite_result")) {
-      return parsed as WgSystemPayload;
+    if (!parsed || typeof parsed.kind !== "string") return null;
+    if (parsed.kind === "wg_invite") {
+      // Offers written before paid signings existed carry no fee fields.
+      return {
+        ...parsed,
+        marketValueM: Number(parsed.marketValueM ?? 0),
+        feeCoins: Number(parsed.feeCoins ?? 0),
+      } as WgInvitePayload;
+    }
+    if (parsed.kind === "wg_invite_result") {
+      return {
+        ...parsed,
+        feeCoins: Number(parsed.feeCoins ?? 0),
+        awaitingPayment: Boolean(parsed.awaitingPayment),
+        fromTeamId: parsed.fromTeamId ?? null,
+      } as WgInviteResultPayload;
+    }
+    if (parsed.kind === "wg_transfer_paid") {
+      return { ...parsed, feeCoins: Number(parsed.feeCoins ?? 0) } as WgTransferPaidPayload;
     }
   } catch {
     /* not a system message */
@@ -97,7 +185,13 @@ function friendlySystemText(m: { text: string; senderRole: string | null }): str
   const sys = parseSystemMessage(m.text);
   if (!sys) return null;
   if (sys.kind === "wg_invite") {
-    return `Invitation to join ${sys.teamName}`;
+    return `Contract offer from ${sys.teamName}`;
+  }
+  if (sys.kind === "wg_transfer_paid") {
+    return `${sys.playerName} joined ${sys.teamName}`;
+  }
+  if (sys.awaitingPayment) {
+    return `${sys.agentName} agreed — the signing fee has to be paid`;
   }
   return sys.accepted
     ? `${sys.agentName} accepted the invitation to ${sys.teamName}`
@@ -476,11 +570,18 @@ router.get("/agent-chat/me", async (req: Request, res: Response) => {
   if (!me) { res.status(401).json({ error: "Login required" }); return; }
 
   const leader = await resolveLeaderContext(me);
+  // The balance travels with the leadership context so the chat can show a
+  // President/Coach whether a signing fee is affordable before he offers it.
+  const [wallet] = await db
+    .select({ coinBalance: playersTable.coinBalance })
+    .from(playersTable)
+    .where(eq(playersTable.id, me));
   res.json({
     isLeader: leader !== null,
     role: leader?.role ?? null,
     teamId: leader?.teamId ?? null,
     teamName: leader?.teamName ?? null,
+    coinBalance: Number(wallet?.coinBalance ?? 0),
   });
 });
 
@@ -503,7 +604,11 @@ router.post("/agent-chat/conversations/:id/invite", async (req: Request, res: Re
   }
 
   const [meRow] = await db
-    .select({ displayName: playersTable.displayName, username: playersTable.username })
+    .select({
+      displayName: playersTable.displayName,
+      username: playersTable.username,
+      coinBalance: playersTable.coinBalance,
+    })
     .from(playersTable)
     .where(eq(playersTable.id, me));
   const presidentName = meRow?.displayName ?? meRow?.username ?? me.toString();
@@ -516,6 +621,38 @@ router.post("/agent-chat/conversations/:id/invite", async (req: Request, res: Re
     return;
   }
 
+  // Signing costs the player's Market Value in WG Coins. The price is resolved
+  // here, from the database — never from the client — and the clan must already
+  // hold enough coins, because the fee is charged when the player agrees.
+  const [target] = await db
+    .select({
+      id: playersTable.id,
+      username: playersTable.username,
+      displayName: playersTable.displayName,
+      teamId: playersTable.teamId,
+      marketValue: playersTable.marketValue,
+    })
+    .from(playersTable)
+    .where(eq(playersTable.id, conv.agentPlayerId));
+  if (!target) { res.status(404).json({ error: "Player not found" }); return; }
+  if (target.teamId === leader.teamId) {
+    res.status(409).json({ error: "That player is already in your clan" });
+    return;
+  }
+
+  const marketValueM = Math.max(0, Number(target.marketValue ?? 0));
+  const feeCoins = signingFeeCoins(marketValueM);
+  const myBalance = Number(meRow?.coinBalance ?? 0);
+  if (feeCoins > 0 && myBalance < feeCoins) {
+    res.status(402).json({
+      error: `Not enough WG Coins: signing ${target.displayName ?? target.username} costs ${marketValueM}M and your balance is ${Math.floor(myBalance / COINS_PER_MARKET_VALUE_M)}M. Buy WG Coins first.`,
+      code: "insufficient_coins",
+      feeCoins,
+      balance: myBalance,
+    });
+    return;
+  }
+
   const payload: WgInvitePayload = {
     kind: "wg_invite",
     inviteId: -1,
@@ -523,6 +660,8 @@ router.post("/agent-chat/conversations/:id/invite", async (req: Request, res: Re
     teamName: leader.teamName,
     presidentName,
     seasons,
+    marketValueM,
+    feeCoins,
   };
 
   const [inserted] = await db
@@ -594,6 +733,11 @@ router.post("/agent-chat/invites/:messageId/respond", async (req: Request, res: 
   }
 
   const accepted = decision === "accept";
+  const feeCoins = sys.feeCoins;
+  // A paid signing is only AGREED to here — the player still has to be signed by
+  // the clan paying his Market Value (POST /agent-chat/invites/:messageId/pay).
+  const awaitingPayment = accepted && feeCoins > 0;
+  let fromTeamId: number | null = null;
 
   if (accepted) {
     // Verify the destination team still exists.
@@ -601,34 +745,60 @@ router.post("/agent-chat/invites/:messageId/respond", async (req: Request, res: 
     if (!team) { res.status(404).json({ error: "The team no longer exists" }); return; }
     const [target] = await db.select().from(playersTable).where(eq(playersTable.id, me));
     if (!target) { res.status(404).json({ error: "Player not found" }); return; }
-    if (target.teamId != null) {
-      res.status(409).json({ error: "You are already on a team" });
+    if (target.teamId === sys.teamId) {
+      res.status(409).json({ error: "You are already in that clan" });
       return;
     }
-    await db
-      .update(playersTable)
-      .set({ teamId: sys.teamId, isFreeAgent: false })
-      .where(eq(playersTable.id, me));
-    await db
-      .insert(playerTransfersTable)
-      .values({ playerId: me, fromTeamId: null, toTeamId: sys.teamId });
 
-    // Sign the contract: record the offered length and the season it was
-    // signed in. Each time an admin ends the current season the remaining
-    // count is decremented; at 0 the player becomes a free agent again.
-    const [currentSeason] = await db
-      .select({ id: seasonsTable.id })
-      .from(seasonsTable)
-      .where(eq(seasonsTable.isCurrent, true))
-      .limit(1);
-    await db
-      .update(playersTable)
-      .set({
-        contractSeasons: sys.seasons,
-        contractSeasonsLeft: sys.seasons,
-        contractSignedSeasonId: currentSeason?.id ?? null,
-      })
-      .where(eq(playersTable.id, me));
+    if (awaitingPayment) {
+      // The player may be under contract with another clan: agreeing means he
+      // moves once the fee is paid. The clan he is leaving is recorded, so a
+      // stale offer can never sign him after he has moved somewhere else.
+      fromTeamId = target.teamId ?? null;
+      if (target.teamId != null) {
+        const [current] = await db
+          .select({ name: teamsTable.name, presidentId: teamsTable.presidentId })
+          .from(teamsTable)
+          .where(eq(teamsTable.id, target.teamId));
+        if (current && current.presidentId === me) {
+          res.status(403).json({
+            error: `You are the President of ${current.name} — transfer ownership before another clan can sign you.`,
+            code: "clan_president_cannot_be_signed",
+          });
+          return;
+        }
+      }
+    } else {
+      // Free signings stay as they were: only a player without a clan can join.
+      if (target.teamId != null) {
+        res.status(409).json({ error: "You are already on a team" });
+        return;
+      }
+      await db
+        .update(playersTable)
+        .set({ teamId: sys.teamId, isFreeAgent: false })
+        .where(eq(playersTable.id, me));
+      await db
+        .insert(playerTransfersTable)
+        .values({ playerId: me, fromTeamId: null, toTeamId: sys.teamId });
+
+      // Sign the contract: record the offered length and the season it was
+      // signed in. Each time an admin ends the current season the remaining
+      // count is decremented; at 0 the player becomes a free agent again.
+      const [currentSeason] = await db
+        .select({ id: seasonsTable.id })
+        .from(seasonsTable)
+        .where(eq(seasonsTable.isCurrent, true))
+        .limit(1);
+      await db
+        .update(playersTable)
+        .set({
+          contractSeasons: sys.seasons,
+          contractSeasonsLeft: sys.seasons,
+          contractSignedSeasonId: currentSeason?.id ?? null,
+        })
+        .where(eq(playersTable.id, me));
+    }
   }
 
   const [meRow] = await db
@@ -643,6 +813,9 @@ router.post("/agent-chat/invites/:messageId/respond", async (req: Request, res: 
     accepted,
     teamName: sys.teamName,
     agentName,
+    feeCoins,
+    awaitingPayment,
+    fromTeamId,
   };
 
   const [resMsg] = await db
@@ -657,6 +830,194 @@ router.post("/agent-chat/invites/:messageId/respond", async (req: Request, res: 
     .where(eq(agentConversationsTable.id, conv.id));
 
   res.status(201).json({ ...messageJson(resMsg), sys: result });
+});
+
+// ── POST /agent-chat/invites/:messageId/pay (buyer side) ─────────────────────
+// Signs a player who has already agreed to a contract offer. The fee is the
+// player's Market Value in WG Coins (resolved server-side when the offer was
+// sent), it is charged to the President/Coach who made the offer, and the player
+// joins the clan — all in ONE transaction, so a double tap can never charge twice
+// or sign twice. Repeat payments are impossible by construction as well: the
+// completed deal is recorded as a `wg_transfer_paid` card in the thread.
+router.post("/agent-chat/invites/:messageId/pay", async (req: Request, res: Response) => {
+  const me = req.session?.userId;
+  if (!me) { res.status(401).json({ error: "Login required" }); return; }
+
+  const messageId = Number(req.params.messageId);
+  if (!Number.isInteger(messageId)) { res.status(400).json({ error: "Invalid message id" }); return; }
+
+  try {
+    const paid = await db.transaction(async (tx) => {
+      // Lock the offer first: two concurrent taps are serialised here.
+      const lockedInvite = await tx.execute(
+        sql`SELECT id, conversation_id, text FROM agent_messages WHERE id = ${messageId} FOR UPDATE`,
+      );
+      const inviteRow = ((lockedInvite as unknown as {
+        rows: { id: number; conversation_id: number; text: string }[];
+      }).rows ?? [])[0];
+      if (!inviteRow) throw httpError(404, "Contract offer not found");
+
+      const offer = parseSystemMessage(inviteRow.text);
+      if (!offer || offer.kind !== "wg_invite") throw httpError(400, "That message is not a contract offer");
+      if (offer.feeCoins <= 0) throw httpError(400, "This offer is a free signing — nothing to pay");
+
+      const [conv] = await tx
+        .select()
+        .from(agentConversationsTable)
+        .where(eq(agentConversationsTable.id, inviteRow.conversation_id));
+      if (!conv) throw httpError(404, "Conversation not found");
+      if (conv.playerId !== me) throw httpError(403, "Only the clan that made the offer can pay it");
+
+      // The caller must still lead the clan the offer came from.
+      const [myTeam] = await tx
+        .select({ id: teamsTable.id })
+        .from(teamsTable)
+        .where(or(eq(teamsTable.presidentId, me), eq(teamsTable.coachId, me)))
+        .limit(1);
+      if (!myTeam || myTeam.id !== offer.teamId) {
+        throw httpError(403, "You are no longer the President or Coach of that clan");
+      }
+
+      // Re-read the thread: the player's answer and any completed payment.
+      const thread = await tx
+        .select({ text: agentMessagesTable.text })
+        .from(agentMessagesTable)
+        .where(eq(agentMessagesTable.conversationId, conv.id));
+
+      let accepted: WgInviteResultPayload | null = null;
+      let alreadyPaid = false;
+      for (const row of thread) {
+        const sys = parseSystemMessage(row.text);
+        if (!sys) continue;
+        if (sys.kind === "wg_invite_result" && sys.inviteId === offer.inviteId && sys.accepted) accepted = sys;
+        if (sys.kind === "wg_transfer_paid" && sys.inviteId === offer.inviteId) alreadyPaid = true;
+      }
+      if (alreadyPaid) throw httpError(409, "This transfer has already been paid for");
+      if (!accepted) throw httpError(409, "The player has not agreed to this offer yet");
+
+      // Lock the money row (the buyer) and the player being signed.
+      const lockedBuyer = await tx.execute(
+        sql`SELECT id, coin_balance FROM players WHERE id = ${me} FOR UPDATE`,
+      );
+      const buyer = ((lockedBuyer as unknown as { rows: { id: number; coin_balance: number }[] }).rows ?? [])[0];
+      if (!buyer) throw httpError(404, "Player not found");
+
+      const lockedTarget = await tx.execute(
+        sql`SELECT id, username, display_name, team_id, coin_balance, market_value FROM players WHERE id = ${conv.agentPlayerId} FOR UPDATE`,
+      );
+      const player = ((lockedTarget as unknown as { rows: LockedPlayerRow[] }).rows ?? [])[0];
+      if (!player) throw httpError(404, "Player not found");
+
+      if (player.team_id === offer.teamId) throw httpError(409, "That player is already in your clan");
+      // The offer only stays valid while the player is where he was when he
+      // agreed: still a free agent, or still at the clan he agreed to leave.
+      if (player.team_id != null && accepted.fromTeamId !== player.team_id) {
+        throw httpError(409, "This offer is out of date — the player has changed clans. Send a new offer.");
+      }
+
+      const balance = Number(buyer.coin_balance ?? 0);
+      if (balance < offer.feeCoins) {
+        throw httpError(
+          402,
+          `Not enough WG Coins: this signing costs ${offer.marketValueM}M and your balance is ${Math.floor(balance / COINS_PER_MARKET_VALUE_M)}M. Buy WG Coins to complete it.`,
+        );
+      }
+
+      // A player leaving another clan: release the seat he held there, so the
+      // clan he leaves never keeps a Captain/Coach pointing at someone who left.
+      let fromTeamName: string | null = null;
+      if (player.team_id != null) {
+        const [previous] = await tx.select().from(teamsTable).where(eq(teamsTable.id, player.team_id));
+        if (previous) {
+          fromTeamName = previous.name;
+          if (previous.presidentId === player.id) {
+            throw httpError(403, "That player is a clan President — they must transfer ownership before they can be signed.");
+          }
+          if (previous.coachId === player.id || previous.captainId === player.id) {
+            await tx
+              .update(teamsTable)
+              .set({
+                coachId: previous.coachId === player.id ? null : previous.coachId,
+                captainId: previous.captainId === player.id ? null : previous.captainId,
+              })
+              .where(eq(teamsTable.id, previous.id));
+          }
+        }
+      }
+
+      // Charge the fee, sign the contract and move the player — atomically.
+      await tx
+        .update(playersTable)
+        .set({ coinBalance: sql`${playersTable.coinBalance} - ${offer.feeCoins}` })
+        .where(eq(playersTable.id, me));
+      await tx.insert(coinSpendsTable).values({ playerId: me, item: "player-transfer", coins: offer.feeCoins });
+
+      const [currentSeason] = await tx
+        .select({ id: seasonsTable.id })
+        .from(seasonsTable)
+        .where(eq(seasonsTable.isCurrent, true))
+        .limit(1);
+
+      await tx
+        .update(playersTable)
+        .set({
+          teamId: offer.teamId,
+          isFreeAgent: false,
+          contractSeasons: offer.seasons,
+          contractSeasonsLeft: offer.seasons,
+          contractSignedSeasonId: currentSeason?.id ?? null,
+        })
+        .where(eq(playersTable.id, player.id));
+
+      await tx
+        .insert(playerTransfersTable)
+        .values({ playerId: player.id, fromTeamId: player.team_id, toTeamId: offer.teamId });
+
+      const [buyerRow] = await tx
+        .select({
+          displayName: playersTable.displayName,
+          username: playersTable.username,
+          coinBalance: playersTable.coinBalance,
+        })
+        .from(playersTable)
+        .where(eq(playersTable.id, me));
+
+      const record: WgTransferPaidPayload = {
+        kind: "wg_transfer_paid",
+        inviteId: offer.inviteId,
+        teamId: offer.teamId,
+        teamName: offer.teamName,
+        playerId: player.id,
+        playerName: player.display_name ?? player.username,
+        buyerName: buyerRow?.displayName ?? buyerRow?.username ?? me.toString(),
+        feeCoins: offer.feeCoins,
+        fromTeamName,
+      };
+
+      const [message] = await tx
+        .insert(agentMessagesTable)
+        .values({ conversationId: conv.id, senderPlayerId: me, senderRole: "system", text: JSON.stringify(record) })
+        .returning();
+
+      const now = new Date();
+      await tx
+        .update(agentConversationsTable)
+        .set({ updatedAt: now, playerLastSeenAt: now, unreadByAgent: sql`${agentConversationsTable.unreadByAgent} + 1` })
+        .where(eq(agentConversationsTable.id, conv.id));
+
+      return {
+        message,
+        record,
+        balance: Number(buyerRow?.coinBalance ?? balance - offer.feeCoins),
+      };
+    });
+
+    res.status(201).json({ ...messageJson(paid.message), sys: paid.record, balance: paid.balance });
+  } catch (err) {
+    const status = (err as { status?: number }).status ?? 500;
+    if (status === 500) console.error("[agent-chat] transfer payment failed", err);
+    res.status(status).json({ error: err instanceof Error ? err.message : "Could not pay for this signing" });
+  }
 });
 
 export default router;

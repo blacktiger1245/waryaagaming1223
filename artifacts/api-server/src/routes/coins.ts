@@ -62,13 +62,19 @@ router.get("/coins/transactions", async (req: Request, res: Response) => {
 });
 
 /**
- * The ONLY two things WG Coins can buy.
+ * The clan-role purchases — the items sold on the Buy Coins page.
  *
  * Prices are server-side constants — the client only ever sends an `item` id, so
  * a price can never be dictated by the browser. Buying one grants the matching
  * `players.clan_role` entitlement, which is what allows a player to create a clan
- * (President) or to take a clan's Coach seat. Nothing else in the app accepts
- * coins, and no other endpoint may deduct `players.coin_balance`.
+ * (President) or to take a clan's Coach seat.
+ *
+ * WG Coins are ALSO spent on signing players: a President/Coach pays the player's
+ * Market Value when a contract offer has been accepted
+ * (POST /agent-chat/invites/:messageId/pay, `coin_spends.item = 'player-transfer'`).
+ * That price comes from `players.market_value` on the server as well, and the
+ * signing flow is the only other place in the app that may deduct
+ * `players.coin_balance`.
  */
 export const CLAN_ROLE_PURCHASES = [
   {

@@ -9,6 +9,8 @@ export interface AgentChatParticipant {
   avatarUrl: string | null;
   country: string | null;
   online: boolean;
+  /** Market Value in M coins — the price of signing this player. */
+  marketValue?: number;
 }
 
 export interface AgentChatLastMessage {
@@ -54,6 +56,8 @@ export interface AgentChannelContext {
   role: "president" | "coach" | null;
   teamId: number | null;
   teamName: string | null;
+  /** The caller's WG Coin balance — pays a player's Market Value on a signing. */
+  coinBalance: number;
 }
 
 export interface WgInvitePayload {
@@ -64,6 +68,10 @@ export interface WgInvitePayload {
   presidentName: string;
   /** Contract length in seasons offered with this invitation (1 or 2). */
   seasons: number;
+  /** Market Value of the player, in M coins. */
+  marketValueM: number;
+  /** Signing fee in WG Coins the clan pays (0 = free signing). */
+  feeCoins: number;
 }
 
 export interface WgInviteResultPayload {
@@ -72,20 +80,64 @@ export interface WgInviteResultPayload {
   accepted: boolean;
   teamName: string;
   agentName: string;
+  /** Signing fee that still has to be paid (0 = free signing). */
+  feeCoins: number;
+  /** Accepted, but the clan has not paid yet — the player is not signed. */
+  awaitingPayment: boolean;
+  fromTeamId: number | null;
 }
 
-export type WgSystemPayload = WgInvitePayload | WgInviteResultPayload;
+/** Card written once a signing fee has been paid and the player has joined. */
+export interface WgTransferPaidPayload {
+  kind: "wg_transfer_paid";
+  inviteId: number;
+  teamId: number;
+  teamName: string;
+  playerId: number;
+  playerName: string;
+  buyerName: string;
+  feeCoins: number;
+  fromTeamName: string | null;
+}
+
+export type WgSystemPayload = WgInvitePayload | WgInviteResultPayload | WgTransferPaidPayload;
+
+/** WG Coins per one unit of Market Value (which is quoted in millions). */
+export const COINS_PER_MARKET_VALUE_M = 1_000_000;
+
+/** Format a WG Coin amount the way fees are quoted, e.g. 120000000 -> "120M". */
+export function coinsInMillions(coins: number): string {
+  const millions = Math.round((Number(coins || 0) / COINS_PER_MARKET_VALUE_M) * 100) / 100;
+  return `${millions}M`;
+}
 
 /**
- * Detect team-invite / invite-result system messages. Plain chat messages (and
- * any other text) return null.
+ * Detect team-invite / invite-result / paid-transfer system messages. Plain chat
+ * messages (and any other text) return null.
  */
 export function parseWgSystemMessage(text: string): WgSystemPayload | null {
   if (typeof text !== "string" || !text.startsWith("{")) return null;
   try {
     const parsed = JSON.parse(text) as WgSystemPayload;
-    if (parsed && (parsed.kind === "wg_invite" || parsed.kind === "wg_invite_result")) {
-      return parsed;
+    if (!parsed || typeof parsed.kind !== "string") return null;
+    if (parsed.kind === "wg_invite") {
+      // Offers written before paid signings existed carry no fee fields.
+      return {
+        ...parsed,
+        marketValueM: Number(parsed.marketValueM ?? 0),
+        feeCoins: Number(parsed.feeCoins ?? 0),
+      };
+    }
+    if (parsed.kind === "wg_invite_result") {
+      return {
+        ...parsed,
+        feeCoins: Number(parsed.feeCoins ?? 0),
+        awaitingPayment: Boolean(parsed.awaitingPayment),
+        fromTeamId: parsed.fromTeamId ?? null,
+      };
+    }
+    if (parsed.kind === "wg_transfer_paid") {
+      return { ...parsed, feeCoins: Number(parsed.feeCoins ?? 0) };
     }
   } catch {
     /* ignore */
@@ -120,6 +172,17 @@ export function respondToInvite(
     method: "POST",
     body: JSON.stringify({ decision }),
   });
+}
+
+/**
+ * Pay the signing fee of an offer the player has already accepted (buyer side).
+ * The server charges the player's Market Value in WG Coins and signs the player;
+ * this only needs the invitation message id.
+ */
+export function payTransferFee(
+  inviteId: number,
+): Promise<{ id: number; sys: WgTransferPaidPayload; balance: number }> {
+  return chatRequest(`/api/agent-chat/invites/${inviteId}/pay`, { method: "POST" });
 }
 
 async function chatRequest<T>(path: string, init?: RequestInit): Promise<T> {
