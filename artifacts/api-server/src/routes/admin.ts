@@ -1870,29 +1870,20 @@ router.get("/admin/tournaments/:id/matches", requireAdmin, async (req, res) => {
 
 // ─── Player Games (individual matchups inside a team match) ───────────────────
 
-// GET player games for a match
-router.get("/admin/matches/:id/player-games", requireAdmin, async (req, res) => {
-  const matchId = Number(req.params.id);
-  if (isNaN(matchId)) return res.status(400).json({ error: "Invalid id" });
-  const games = await db
-    .select()
-    .from(matchPlayerGamesTable)
-    .where(eq(matchPlayerGamesTable.matchId, matchId))
-    .orderBy(matchPlayerGamesTable.id);
-  return res.json(games);
-});
-
-// POST generate player pairings from team rosters
-router.post("/admin/matches/:id/player-games/generate", requireAdmin, async (req, res) => {
-  const matchId = Number(req.params.id);
-  if (isNaN(matchId)) return res.status(400).json({ error: "Invalid id" });
-
-  const [match] = await db.select().from(matchesTable).where(eq(matchesTable.id, matchId));
-  if (!match) return res.status(404).json({ error: "Match not found" });
-
+/**
+ * Build the player-vs-player pairings for a clan fixture from each clan's
+ * registered line-up (`tournament_team_rosters`), falling back to the whole
+ * squad when a clan saved no line-up. The two line-ups are zipped index by index
+ * and capped at the shorter side, so a 5-player clan facing a 3-player clan
+ * produces 3 games. Shared by the "generate pairings" button and the hand-built
+ * clan fixtures (POST /admin/tournaments/:id/clan-matches).
+ */
+async function buildClanPairings(
+  match: typeof matchesTable.$inferSelect,
+): Promise<Array<typeof matchPlayerGamesTable.$inferInsert>> {
   const homeTeamId = match.participant1Id;
   const awayTeamId = match.participant2Id;
-  if (!homeTeamId || !awayTeamId) return res.status(400).json({ error: "Match has no team participants" });
+  if (!homeTeamId || !awayTeamId) return [];
 
   const [homeSquad, awaySquad] = await Promise.all([
     db.select({ id: playersTable.id, displayName: playersTable.displayName, username: playersTable.username })
@@ -1926,24 +1917,164 @@ router.post("/admin/matches/:id/player-games/generate", requireAdmin, async (req
 
   const homePlayers = pickLineup(homeSquad, homeTeamId);
   const awayPlayers = pickLineup(awaySquad, awayTeamId);
-
-  if (homePlayers.length === 0 || awayPlayers.length === 0) {
-    return res.status(400).json({ error: "One or both teams have no registered players" });
-  }
-
-  await db.delete(matchPlayerGamesTable).where(eq(matchPlayerGamesTable.matchId, matchId));
+  if (homePlayers.length === 0 || awayPlayers.length === 0) return [];
 
   const count = Math.min(homePlayers.length, awayPlayers.length);
-  const toInsert = Array.from({ length: count }, (_, i) => ({
-    matchId,
+  return Array.from({ length: count }, (_, i) => ({
+    matchId: match.id,
     homePlayerId: homePlayers[i].id,
     homePlayerName: homePlayers[i].displayName ?? homePlayers[i].username ?? `Player ${homePlayers[i].id}`,
     awayPlayerId: awayPlayers[i].id,
     awayPlayerName: awayPlayers[i].displayName ?? awayPlayers[i].username ?? `Player ${awayPlayers[i].id}`,
   }));
+}
 
+// GET player games for a match
+router.get("/admin/matches/:id/player-games", requireAdmin, async (req, res) => {
+  const matchId = Number(req.params.id);
+  if (isNaN(matchId)) return res.status(400).json({ error: "Invalid id" });
+  const games = await db
+    .select()
+    .from(matchPlayerGamesTable)
+    .where(eq(matchPlayerGamesTable.matchId, matchId))
+    .orderBy(matchPlayerGamesTable.id);
+  return res.json(games);
+});
+
+// POST generate player pairings from team rosters
+router.post("/admin/matches/:id/player-games/generate", requireAdmin, async (req, res) => {
+  const matchId = Number(req.params.id);
+  if (isNaN(matchId)) return res.status(400).json({ error: "Invalid id" });
+
+  const [match] = await db.select().from(matchesTable).where(eq(matchesTable.id, matchId));
+  if (!match) return res.status(404).json({ error: "Match not found" });
+  if (!match.participant1Id || !match.participant2Id) {
+    return res.status(400).json({ error: "Match has no team participants" });
+  }
+
+  const toInsert = await buildClanPairings(match);
+  if (toInsert.length === 0) {
+    return res.status(400).json({ error: "One or both teams have no registered players" });
+  }
+
+  await db.delete(matchPlayerGamesTable).where(eq(matchPlayerGamesTable.matchId, matchId));
   const inserted = await db.insert(matchPlayerGamesTable).values(toInsert).returning();
   return res.json(inserted);
+});
+
+// ─── Clan fixtures created by hand (no auto-generation) ───────────────────────
+// The admin picks Team A vs Team B in the "Add Match" dialog; the two clans'
+// players are then paired up automatically, player vs player. Used for BOTH
+// stages: stage 1 (the league table) and stage 2 (the knock-out bracket).
+router.post("/admin/tournaments/:id/clan-matches", requireAdmin, async (req, res) => {
+  const tournamentId = Number(req.params.id);
+  if (isNaN(tournamentId)) return res.status(400).json({ error: "Invalid id" });
+
+  const [tournament] = await db.select().from(tournamentsTable).where(eq(tournamentsTable.id, tournamentId));
+  if (!tournament) return res.status(404).json({ error: "Tournament not found" });
+  if (tournament.tournamentType !== "team" && !tournament.isClanTournament) {
+    return res.status(400).json({ error: "Hand-built matches are only available for clan (team) tournaments" });
+  }
+
+  const body = (req.body ?? {}) as {
+    participant1Id?: unknown;
+    participant2Id?: unknown;
+    stage?: unknown;
+    round?: unknown;
+    roundName?: unknown;
+    scheduledAt?: unknown;
+    streamUrl?: unknown;
+  };
+
+  const stage = Number(body.stage) === 2 ? 2 : 1;
+
+  const toTeamId = (v: unknown): number | null => {
+    const n = Number(v);
+    return Number.isInteger(n) && n > 0 ? n : null;
+  };
+  const team1Id = toTeamId(body.participant1Id);
+  const team2Id = toTeamId(body.participant2Id);
+
+  // Stage 1 (the league table) always needs two clans. Stage 2 (knock-out) may
+  // be drawn with one or both sides still undecided ("TBD") and filled in later.
+  if (stage === 1 && (team1Id == null || team2Id == null)) {
+    return res.status(400).json({ error: "Select both clans for a 1st Stage match" });
+  }
+  if (team1Id != null && team2Id != null && team1Id === team2Id) {
+    return res.status(400).json({ error: "A clan cannot be matched against itself" });
+  }
+
+  // Every clan used in the fixture must already be enrolled in the tournament.
+  const participantIds = [team1Id, team2Id].filter((id): id is number => id != null);
+  const enrolled = participantIds.length > 0
+    ? await db
+        .select({ teamId: tournamentParticipantsTable.teamId, teamName: teamsTable.name })
+        .from(tournamentParticipantsTable)
+        .leftJoin(teamsTable, eq(tournamentParticipantsTable.teamId, teamsTable.id))
+        .where(and(
+          eq(tournamentParticipantsTable.tournamentId, tournamentId),
+          inArray(tournamentParticipantsTable.teamId, participantIds),
+        ))
+    : [];
+  const nameFor = (id: number | null): string | null =>
+    id == null ? null : enrolled.find((r) => r.teamId === id)?.teamName ?? `Team ${id}`;
+  if (team1Id != null && !enrolled.some((r) => r.teamId === team1Id)) {
+    return res.status(400).json({ error: "The home clan must be registered in this tournament" });
+  }
+  if (team2Id != null && !enrolled.some((r) => r.teamId === team2Id)) {
+    return res.status(400).json({ error: "The away clan must be registered in this tournament" });
+  }
+
+  // Round number: an explicit value wins, otherwise the fixture continues the
+  // current stage's numbering. Knock-out rounds are numbered after the last
+  // table round so the bracket keeps its QF → SF → Final order.
+  let round: number | null =
+    Number.isInteger(Number(body.round)) && Number(body.round) > 0 ? Number(body.round) : null;
+  if (round == null) {
+    const [{ maxRound }] = await db
+      .select({ maxRound: sql<number>`coalesce(max(${matchesTable.round}), 0)::int` })
+      .from(matchesTable)
+      .where(
+        stage === 2
+          ? eq(matchesTable.tournamentId, tournamentId)
+          : and(eq(matchesTable.tournamentId, tournamentId), eq(matchesTable.stage, 1)),
+      );
+    round = Number(maxRound) + 1;
+  }
+
+  const roundName =
+    typeof body.roundName === "string" && body.roundName.trim()
+      ? body.roundName.trim()
+      : stage === 2
+        ? "Knock-out"
+        : `Matchday ${round}`;
+
+  const [match] = await db
+    .insert(matchesTable)
+    .values({
+      tournamentId,
+      round,
+      roundName,
+      stage,
+      status: "scheduled",
+      participant1Id: team1Id,
+      participant1Name: nameFor(team1Id),
+      participant2Id: team2Id,
+      participant2Name: nameFor(team2Id),
+      scheduledAt: typeof body.scheduledAt === "string" && body.scheduledAt ? body.scheduledAt : null,
+      streamUrl: typeof body.streamUrl === "string" && body.streamUrl ? body.streamUrl : null,
+    })
+    .returning();
+
+  // Auto-set the player-vs-player pairings from the two clans' line-ups.
+  let playerGames = 0;
+  const pairings = await buildClanPairings(match);
+  if (pairings.length > 0) {
+    const inserted = await db.insert(matchPlayerGamesTable).values(pairings).returning();
+    playerGames = inserted.length;
+  }
+
+  return res.status(201).json({ ...match, playerGames });
 });
 
 // POST add a single player pairing manually

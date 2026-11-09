@@ -240,26 +240,57 @@ function stageOfMatch(m: { stage?: number | null; roundName?: string | null }): 
 }
 
 // ── Match Form Dialog ──────────────────────────────────────────────────────────
+// Knock-out rounds the admin can pick from when hand-building the 2nd Stage
+// bracket. `offset` keeps the bracket ordered (QF → SF → Final) after the last
+// 1st Stage matchday, so `round = stage1MaxRound + offset`.
+const KNOCKOUT_ROUNDS = [
+  { name: "Round of 16", offset: 1 },
+  { name: "Quarter Final", offset: 2 },
+  { name: "Semi Final", offset: 3 },
+  { name: "Final", offset: 4 },
+  { name: "Third Place", offset: 5 },
+] as const;
+
 function MatchFormDialog({
   open,
   onClose,
   tournamentId,
   tournamentType,
+  isClanTournament,
+  initialStage = 1,
+  nextMatchday = 1,
+  stage1MaxRound = 0,
   existing,
 }: {
   open: boolean;
   onClose: () => void;
   tournamentId: number;
   tournamentType?: string | null;
+  /** Clan (team) tournaments run a 1st Stage table then a 2nd Stage bracket. */
+  isClanTournament?: boolean;
+  /** Stage pre-selected when the dialog opens (follows the active stage tab). */
+  initialStage?: 1 | 2;
+  /** Next free 1st Stage matchday (round) number for a brand-new fixture. */
+  nextMatchday?: number;
+  /** Highest 1st Stage round — 2nd Stage rounds are numbered after it. */
+  stage1MaxRound?: number;
   existing?: Match;
 }) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const isEdit = !!existing;
-  const isTeam = tournamentType === "team";
+  // Clan tournaments register clans even when stored with the default ("solo")
+  // type, so team-style participant picking applies to both.
+  const isTeam = tournamentType === "team" || Boolean(isClanTournament);
 
   const [form, setForm] = useState<Partial<Match>>(
-    existing ?? { tournamentId, round: 1, status: "scheduled" }
+    existing ?? {
+      tournamentId,
+      round: initialStage === 2 ? stage1MaxRound + KNOCKOUT_ROUNDS[1].offset : nextMatchday,
+      roundName: initialStage === 2 ? KNOCKOUT_ROUNDS[1].name : "",
+      stage: initialStage,
+      status: "scheduled",
+    }
   );
 
   function set(k: keyof Match, v: unknown) {
@@ -297,12 +328,41 @@ function MatchFormDialog({
           payload.winnerName = null;
         }
       }
-      return isEdit
-        ? apiFetch(`/api/admin/matches/${existing!.id}`, { method: "PATCH", body: JSON.stringify(payload) })
-        : apiFetch(`/api/admin/matches`, { method: "POST", body: JSON.stringify({ ...payload, tournamentId }) });
+      if (isEdit) {
+        return apiFetch(`/api/admin/matches/${existing!.id}`, { method: "PATCH", body: JSON.stringify(payload) });
+      }
+      // Clan (team) fixtures are built by hand: pick clan vs clan and their
+      // players are paired up player-vs-player automatically — no auto-generated
+      // schedule. Stage 1 = league table, Stage 2 = knock-out bracket.
+      if (isTeam) {
+        return apiFetch(`/api/admin/tournaments/${tournamentId}/clan-matches`, {
+          method: "POST",
+          body: JSON.stringify({
+            participant1Id: payload.participant1Id ?? null,
+            participant2Id: payload.participant2Id ?? null,
+            stage: payload.stage ?? 1,
+            round: payload.round,
+            roundName: payload.roundName ?? null,
+            scheduledAt: payload.scheduledAt ?? null,
+            streamUrl: payload.streamUrl ?? null,
+          }),
+        });
+      }
+      return apiFetch(`/api/admin/matches`, { method: "POST", body: JSON.stringify({ ...payload, tournamentId }) });
     },
-    onSuccess: () => {
-      toast({ title: isEdit ? "Match updated" : "Match created" });
+    onSuccess: (data: unknown) => {
+      const created = data as { playerGames?: number } | null;
+      if (!isEdit && isTeam && created?.playerGames != null) {
+        toast({
+          title: "Match created",
+          description:
+            created.playerGames > 0
+              ? `${created.playerGames} player-vs-player pairing${created.playerGames === 1 ? "" : "s"} set automatically.`
+              : "No player line-ups found for one or both clans — add pairings from the match's Player Games panel.",
+        });
+      } else {
+        toast({ title: isEdit ? "Match updated" : "Match created" });
+      }
       qc.invalidateQueries({ queryKey: ["admin-tournament-matches", tournamentId] });
       onClose();
     },
@@ -341,6 +401,13 @@ function MatchFormDialog({
   }
 
   function setTeamParticipant(side: 1 | 2, teamIdStr: string) {
+    // An empty value clears the side — used by the 2nd Stage knock-out bracket,
+    // where a tie can be drawn before both clans are known ("TBD").
+    if (teamIdStr === "") {
+      if (side === 1) setForm((f) => ({ ...f, participant1Id: null, participant1Name: null }));
+      else setForm((f) => ({ ...f, participant2Id: null, participant2Name: null }));
+      return;
+    }
     const team = registeredTeams.find((p) => String(p.teamId) === teamIdStr);
     if (!team) return;
     const name = team.teamName ?? team.displayName ?? team.username ?? `Team ${team.teamId}`;
@@ -379,17 +446,87 @@ function MatchFormDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          {/* Round */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Stage — clan (team) tournaments run a 1st Stage league table and a
+              2nd Stage knock-out bracket. Every fixture is added by hand. */}
+          {isTeam && !isEdit && (
             <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Round #</label>
-              <Input type="number" value={form.round ?? 1} min={1} onChange={(e) => set("round", Number(e.target.value))} />
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Stage</label>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, stage: 1, round: nextMatchday, roundName: "" }))}
+                  className={`py-2 rounded-lg text-[11px] font-bold transition-all border flex items-center justify-center gap-1.5 ${
+                    (form.stage ?? 1) === 1
+                      ? "bg-primary/20 border-primary text-primary"
+                      : "border-border text-muted-foreground hover:border-primary/40"
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5" /> 1st Stage — League Table
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setForm((f) => ({
+                      ...f,
+                      stage: 2,
+                      round: stage1MaxRound + KNOCKOUT_ROUNDS[1].offset,
+                      roundName: KNOCKOUT_ROUNDS[1].name,
+                    }))
+                  }
+                  className={`py-2 rounded-lg text-[11px] font-bold transition-all border flex items-center justify-center gap-1.5 ${
+                    form.stage === 2
+                      ? "bg-amber-500/20 border-amber-500 text-amber-400"
+                      : "border-border text-muted-foreground hover:border-amber-500/40"
+                  }`}
+                >
+                  <Swords className="w-3.5 h-3.5" /> 2nd Stage — Knock-out
+                </button>
+              </div>
             </div>
+          )}
+
+          {/* Round / Knock-out round */}
+          {isTeam && !isEdit && form.stage === 2 ? (
             <div className="space-y-1.5">
-              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Round Name</label>
-              <Input value={form.roundName ?? ""} placeholder="e.g. Quarter Final" onChange={(e) => set("roundName", e.target.value)} />
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Knock-out Round</label>
+              <select
+                className="w-full h-9 rounded-md border border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                value={form.roundName ?? KNOCKOUT_ROUNDS[1].name}
+                onChange={(e) => {
+                  const picked = KNOCKOUT_ROUNDS.find((r) => r.name === e.target.value);
+                  setForm((f) => ({ ...f, roundName: e.target.value, round: stage1MaxRound + (picked?.offset ?? 1) }));
+                }}
+              >
+                {KNOCKOUT_ROUNDS.map((r) => (
+                  <option key={r.name} value={r.name}>{r.name}</option>
+                ))}
+              </select>
+              <p className="text-[10px] text-muted-foreground">
+                Round {form.round ?? 1} · the winner advances to the next knock-out round.
+              </p>
             </div>
-          </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  {isTeam ? "Matchday #" : "Round #"}
+                </label>
+                <Input type="number" value={form.round ?? 1} min={1} onChange={(e) => set("round", Number(e.target.value))} />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Round Name</label>
+                <Input value={form.roundName ?? ""} placeholder={isTeam ? "e.g. Matchday 1" : "e.g. Quarter Final"} onChange={(e) => set("roundName", e.target.value)} />
+              </div>
+            </div>
+          )}
+
+          {/* Clan fixtures auto-create the player-vs-player pairings. */}
+          {isTeam && !isEdit && (
+            <p className="text-[10px] text-muted-foreground rounded-lg px-3 py-2 bg-muted/30">
+              Pick two clans — the players of each clan are paired up automatically
+              (player vs player). Open the match afterwards to enter the individual scores.
+            </p>
+          )}
 
           {/* Status */}
           <div className="space-y-1.5">
@@ -810,11 +947,19 @@ function PlayerGamesDialog({
     if (!open) { setLocalScores({}); setAddRow(false); setNewHome(""); setNewAway(""); }
   }, [open]);
 
-  // Auto-generate pairings from rosters when dialog opens and none exist yet
+  // Auto-generate pairings from rosters when dialog opens and none exist yet.
+  // Only for a fixture with both clans known — a knock-out tie drawn with a
+  // "TBD" side has nothing to pair yet.
   const autoGeneratedRef = useRef(false);
   useEffect(() => {
     if (!open) { autoGeneratedRef.current = false; return; }
-    if (!isLoading && games.length === 0 && !autoGeneratedRef.current) {
+    if (
+      !isLoading &&
+      games.length === 0 &&
+      !autoGeneratedRef.current &&
+      match.participant1Id != null &&
+      match.participant2Id != null
+    ) {
       autoGeneratedRef.current = true;
       generatePairings();
     }
@@ -1391,7 +1536,11 @@ function SoloGenerateDialog({
 function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament; onBack: () => void }) {
   const qc = useQueryClient();
   const { toast } = useToast();
-  const [createOpen, setCreateOpen] = useState(false);
+  // Which stage the "Add Match" dialog opens on (null = closed). Following the
+  // active stage tab means the admin adds 1st Stage (table) or 2nd Stage
+  // (knock-out) fixtures right where they are looking.
+  const [createStage, setCreateStage] = useState<1 | 2 | null>(null);
+  const createOpen = createStage != null;
   const [generateOpen, setGenerateOpen] = useState(false);
   const [editing, setEditing] = useState<Match | undefined>();
   const [playerGamesMatch, setPlayerGamesMatch] = useState<Match | undefined>();
@@ -1409,6 +1558,15 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
   // Knock-out = stage 2. Rounds of the same stage never bleed into the other.
   const groupStageMatches = useMemo(() => matches.filter((m) => stageOfMatch(m) === 1), [matches]);
   const knockoutMatches = useMemo(() => matches.filter((m) => stageOfMatch(m) === 2), [matches]);
+
+  // Round bookkeeping for the hand-built clan fixtures: 1st Stage fixtures are
+  // numbered from the next free matchday; 2nd Stage (knock-out) rounds are
+  // numbered after the last table round so QF → SF → Final stay in order.
+  const stage1MaxRound = useMemo(
+    () => groupStageMatches.reduce((max, m) => Math.max(max, m.round ?? 0), 0),
+    [groupStageMatches],
+  );
+  const nextMatchday = stage1MaxRound + 1;
 
   const { data: participants = [] } = useQuery<Participant[]>({
     queryKey: ["admin-tournament-participants", tournament.id],
@@ -1570,11 +1728,14 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
   const sortedGroups = Object.keys(groupBuckets).sort();
 
   // ── Standings computation ──────────────────────────────────────────────────
-  function computeStandings(groupMatches: Match[]) {
+  function computeStandings(groupMatches: Match[], seedNames: string[] = []) {
     const table: Record<string, { mp: number; w: number; d: number; l: number; gf: number; ga: number; pts: number }> = {};
     const ensure = (name: string) => {
       if (!table[name]) table[name] = { mp: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 };
     };
+    // Seed every enrolled clan so a clan that has no fixture yet still shows in
+    // the league table (0 played) instead of vanishing from it.
+    seedNames.forEach(ensure);
     groupMatches.forEach((m) => {
       const p1 = m.participant1Name ?? "TBD";
       const p2 = m.participant2Name ?? "TBD";
@@ -1718,10 +1879,15 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
               Seed Players
             </Button>
           )}
-          <Button size="sm" variant="outline" className="gap-2 font-bold" onClick={() => setGenerateOpen(true)}>
-            <Sparkles className="w-4 h-4" /> {seedsClans ? "Generate Match (Clan Teams)" : "Generate"}
-          </Button>
-          {(isGroupKnockout || isClanTwoStage) && (
+          {/* Clan (team) tournaments are built fixture by fixture with "Add
+              Match" — no auto-generated schedule. Solo tournaments keep their
+              generator buttons. */}
+          {!seedsClans && (
+            <Button size="sm" variant="outline" className="gap-2 font-bold" onClick={() => setGenerateOpen(true)}>
+              <Sparkles className="w-4 h-4" /> Generate
+            </Button>
+          )}
+          {!seedsClans && isGroupKnockout && (
             <Button
               size="sm"
               variant="outline"
@@ -1733,14 +1899,18 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
               Generate Knockout
             </Button>
           )}
-          <Button size="sm" className="gap-2 font-bold" onClick={() => setCreateOpen(true)}>
+          <Button
+            size="sm"
+            className="gap-2 font-bold"
+            onClick={() => setCreateStage(stageTab === "knockout" ? 2 : 1)}
+          >
             <Plus className="w-4 h-4" /> Add Match
           </Button>
         </div>
       </div>
 
       {/* Stage / view tabs — Round Robin + Knock-out shows two clear stages */}
-      {matches.length > 0 && (
+      {(matches.length > 0 || isClanTwoStage) && (
         <div className="space-y-2">
           {showStageTabs && (
             <div className="flex gap-1 p-1 rounded-xl bg-muted/40 border border-border w-fit">
@@ -1752,7 +1922,7 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <Users className="w-3.5 h-3.5" /> {isClanTwoStage ? "1st Stage — Table Rounds" : "1st Stage — Group Stage"}
+                <Users className="w-3.5 h-3.5" /> {isClanTwoStage ? "1st Stage — League Table" : "1st Stage — Group Stage"}
               </button>
               <button
                 onClick={() => setStageTab("knockout")}
@@ -1833,22 +2003,21 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
           <div>
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-black uppercase tracking-widest text-foreground">League Table</h3>
-              {matches.length > 0 && (
+              {groupStageMatches.length > 0 && (
                 <span className="text-xs text-muted-foreground">
-                  {matches.filter((m) => m.status === "completed").length}/{matches.length} played
+                  {groupStageMatches.filter((m) => m.status === "completed").length}/{groupStageMatches.length} played
                 </span>
               )}
             </div>
 
-            {matches.length === 0 ? (
+            {groupStageMatches.length === 0 ? (
               <div className="py-10 px-6 border border-dashed border-border rounded-xl text-muted-foreground">
                 <div className="text-center">
                   <Sparkles className="w-8 h-8 mx-auto mb-2 opacity-20" />
                   <p className="font-bold text-sm">No schedule yet</p>
                   <p className="text-xs mt-1">
-                    {isClanTwoStage
-                      ? "Generate the 1st Stage table rounds — every clan plays every other clan."
-                      : "Click Generate to create the full league schedule."}
+                    Add each 1st Stage match by hand — pick a clan vs a clan and
+                    their players are paired up automatically (player vs player).
                   </p>
                 </div>
 
@@ -1890,10 +2059,9 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
                   <Button
                     size="sm"
                     className="gap-2 bg-blue-600 hover:bg-blue-500 text-white font-black"
-                    onClick={() => setGenerateOpen(true)}
-                    disabled={generateOpen}
+                    onClick={() => setCreateStage(1)}
                   >
-                    <Sparkles className="w-4 h-4" /> Generate Match (Clan Teams)
+                    <Plus className="w-4 h-4" /> Add 1st Stage Match
                   </Button>
                 </div>
               </div>
@@ -1912,8 +2080,8 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
                       </tr>
                     </thead>
                     <tbody>
-                      {computeStandings(matches).map((row, i) => {
-                        const total = computeStandings(matches).length;
+                      {computeStandings(groupStageMatches, Object.keys(teamLogoMap)).map((row, i) => {
+                        const total = computeStandings(groupStageMatches, Object.keys(teamLogoMap)).length;
                         const promotionEnd = Math.ceil(total * 0.25);
                         const europaEnd = Math.ceil(total * 0.40);
                         const relegStart = total - Math.floor(total * 0.15);
@@ -1965,13 +2133,13 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
             )}
           </div>
 
-          {/* Matchday Fixtures */}
-          {matches.length > 0 && (
+          {/* Matchday Fixtures — 1st Stage table rounds only */}
+          {groupStageMatches.length > 0 && (
             <div>
               <h3 className="text-sm font-black uppercase tracking-widest text-foreground mb-3">Fixtures</h3>
               <div className="space-y-2">
-                {sortedRounds.map((rNum) => {
-                  const rMatches = rounds[rNum];
+                {stage1RoundKeys.map((rNum) => {
+                  const rMatches = stage1Rounds[rNum];
                   return (
                     <div key={rNum} className="rounded-xl border border-border overflow-hidden">
                       <div className="flex items-center justify-between px-4 py-2 bg-muted/30 border-b border-border">
@@ -2071,47 +2239,57 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
               <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-5">
                 <h3 className="font-black text-amber-400 text-sm">2nd Stage — Knock-out</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Top clans from the 1st Stage table enter the Knock-out bracket. Edit any pairing with the pencil on each match — including undecided ones.
+                  Top clans from the 1st Stage table enter the Knock-out bracket. Add each tie
+                  with "Add Match" (Quarter Final, Semi Final, Final) — a tie can be drawn
+                  before both clans are known and finished later with the pencil.
                 </p>
               </div>
               {knockoutMatches.length === 0 ? (
                 <div className="text-center py-12 border border-dashed border-border rounded-xl text-muted-foreground">
                   <Swords className="w-8 h-8 mx-auto mb-2 opacity-20" />
                   <p className="font-bold text-sm">No knock-out bracket yet</p>
-                  <p className="text-xs mt-1">Play out the 1st Stage table rounds, then generate the bracket.</p>
+                  <p className="text-xs mt-1">
+                    Play out the 1st Stage table rounds, then add each knock-out tie
+                    by hand — Quarter Final, Semi Final and the Final.
+                  </p>
                   <Button
                     size="sm"
                     className="mt-4 gap-2 border-amber-500/40 text-amber-400 font-black"
                     variant="outline"
-                    onClick={() => generateKnockout()}
-                    disabled={knockoutPending}
+                    onClick={() => setCreateStage(2)}
                   >
-                    {knockoutPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                    {knockoutPending ? "Generating…" : "Generate Knock-out"}
+                    <Plus className="w-4 h-4" /> Add Knock-out Match
                   </Button>
                 </div>
               ) : (
-                <div className="space-y-6">
-                  {knockoutRoundGroups.map(({ name, matches: koMatches }) => (
-                    <div key={name} className="rounded-xl border border-border overflow-hidden">
-                      <div className="flex items-center justify-between px-4 py-2 bg-muted/30 border-b border-border">
-                        <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">{name}</span>
-                        <span className="text-[10px] text-muted-foreground">
-                          {koMatches.filter((m) => m.status === "completed").length}/{koMatches.length} played
-                        </span>
+                /* Knock-out bracket — one column per round. Every tie is added
+                   by hand with "Add Match"; the winner advances to the next round. */
+                <div className="overflow-x-auto pb-2">
+                  <div className="flex gap-5 min-w-max">
+                    {knockoutRoundGroups.map(({ name, matches: koMatches }, colIdx) => (
+                      <div key={name} className="w-[300px] shrink-0">
+                        <div className="flex items-center justify-between mb-2 px-1">
+                          <span className="text-xs font-black uppercase tracking-widest text-amber-400">{name}</span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {koMatches.filter((m) => m.status === "completed").length}/{koMatches.length} played
+                          </span>
+                        </div>
+                        <div className={`space-y-3 ${colIdx === 0 ? "" : "pt-6"}`}>
+                          {koMatches.map((match) => (
+                            <div key={match.id} className="rounded-xl border border-border bg-card overflow-hidden">
+                              <ClanKnockoutRow
+                                match={match}
+                                teamLogoMap={teamLogoMap}
+                                onEdit={() => setEditing(match)}
+                                onDelete={() => { if (confirm("Delete this match?")) deleteMatch(match.id); }}
+                                onOpen={() => setPlayerGamesMatch(match)}
+                              />
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      {koMatches.map((match) => (
-                        <ClanKnockoutRow
-                          key={match.id}
-                          match={match}
-                          teamLogoMap={teamLogoMap}
-                          onEdit={() => setEditing(match)}
-                          onDelete={() => { if (confirm("Delete this match?")) deleteMatch(match.id); }}
-                          onOpen={() => setPlayerGamesMatch(match)}
-                        />
-                      ))}
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -2505,18 +2683,27 @@ function TournamentMatchEditor({ tournament, onBack }: { tournament: Tournament;
           teamLogoMap={teamLogoMap}
         />
       )}
-      <MatchFormDialog
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        tournamentId={tournament.id}
-        tournamentType={tournament.tournamentType}
-      />
+      {createOpen && createStage != null && (
+        <MatchFormDialog
+          open
+          onClose={() => setCreateStage(null)}
+          tournamentId={tournament.id}
+          tournamentType={tournament.tournamentType}
+          isClanTournament={isClanTournament}
+          initialStage={createStage}
+          nextMatchday={nextMatchday}
+          stage1MaxRound={stage1MaxRound}
+        />
+      )}
       {editing && (
         <MatchFormDialog
           open={!!editing}
           onClose={() => setEditing(undefined)}
           tournamentId={tournament.id}
           tournamentType={tournament.tournamentType}
+          isClanTournament={isClanTournament}
+          nextMatchday={nextMatchday}
+          stage1MaxRound={stage1MaxRound}
           existing={editing}
         />
       )}
