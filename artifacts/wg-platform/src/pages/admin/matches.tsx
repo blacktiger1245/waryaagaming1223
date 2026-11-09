@@ -7,6 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -384,37 +391,53 @@ function MatchFormDialog({
     enabled: isTeam && open,
   });
 
-  // Pick the best selection value for a side: prefer matching by team ID,
-  // fall back to matching by name (covers legacy rows without IDs).
+  // The clans actually enrolled in this tournament: participants whose row
+  // carries a real teamId. Player-type rows (e.g. "Seed Players" or someone
+  // registering themselves) have teamId = null and are skipped — previously they
+  // rendered as disabled options with an empty value, which made every clan in
+  // the picker un-clickable.
+  const clanOptions = useMemo(() => {
+    const seen = new Set<number>();
+    const out: { teamId: number; name: string }[] = [];
+    for (const p of registeredTeams) {
+      if (p.teamId == null || seen.has(p.teamId)) continue;
+      seen.add(p.teamId);
+      out.push({
+        teamId: p.teamId,
+        name: p.teamName ?? p.displayName ?? p.username ?? `Team ${p.teamId}`,
+      });
+    }
+    return out;
+  }, [registeredTeams]);
+  const playerOnlyCount = useMemo(
+    () => registeredTeams.filter((p) => p.teamId == null).length,
+    [registeredTeams],
+  );
+
+  // Radix Select needs a real value; "" shows the placeholder (nothing picked).
   function selectedTeamValue(side: 1 | 2): string {
     const id = side === 1 ? form.participant1Id : form.participant2Id;
     const name = side === 1 ? form.participant1Name : form.participant2Name;
     if (id != null) {
-      const byId = registeredTeams.find((p) => p.teamId != null && p.teamId === id);
+      const byId = clanOptions.find((c) => c.teamId === id);
       if (byId) return String(byId.teamId);
     }
+    // Legacy rows stored before teams had ids: match on the stored name.
     if (name) {
-      const byName = registeredTeams.find((p) => (p.teamName ?? p.displayName ?? p.username) === name);
-      if (byName?.teamId != null) return String(byName.teamId);
+      const byName = clanOptions.find((c) => c.name === name);
+      if (byName) return String(byName.teamId);
     }
-    return name ?? "";
+    return name ? "tbd" : "";
   }
 
-  function setTeamParticipant(side: 1 | 2, teamIdStr: string) {
-    // An empty value clears the side — used by the 2nd Stage knock-out bracket,
-    // where a tie can be drawn before both clans are known ("TBD").
-    if (teamIdStr === "") {
-      if (side === 1) setForm((f) => ({ ...f, participant1Id: null, participant1Name: null }));
-      else setForm((f) => ({ ...f, participant2Id: null, participant2Name: null }));
-      return;
-    }
-    const team = registeredTeams.find((p) => String(p.teamId) === teamIdStr);
-    if (!team) return;
-    const name = team.teamName ?? team.displayName ?? team.username ?? `Team ${team.teamId}`;
+  function setTeamParticipant(side: 1 | 2, value: string) {
+    // "tbd" clears the side — used by the 2nd Stage knock-out bracket, where a
+    // tie can be drawn before both clans are known.
+    const team = clanOptions.find((c) => String(c.teamId) === value);
     if (side === 1) {
-      setForm((f) => ({ ...f, participant1Id: team.teamId, participant1Name: name }));
+      setForm((f) => ({ ...f, participant1Id: team?.teamId ?? null, participant1Name: team?.name ?? null }));
     } else {
-      setForm((f) => ({ ...f, participant2Id: team.teamId, participant2Name: name }));
+      setForm((f) => ({ ...f, participant2Id: team?.teamId ?? null, participant2Name: team?.name ?? null }));
     }
   }
 
@@ -489,18 +512,22 @@ function MatchFormDialog({
           {isTeam && !isEdit && form.stage === 2 ? (
             <div className="space-y-1.5">
               <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Knock-out Round</label>
-              <select
-                className="w-full h-9 rounded-md border border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              <Select
                 value={form.roundName ?? KNOCKOUT_ROUNDS[1].name}
-                onChange={(e) => {
-                  const picked = KNOCKOUT_ROUNDS.find((r) => r.name === e.target.value);
-                  setForm((f) => ({ ...f, roundName: e.target.value, round: stage1MaxRound + (picked?.offset ?? 1) }));
+                onValueChange={(v) => {
+                  const picked = KNOCKOUT_ROUNDS.find((r) => r.name === v);
+                  setForm((f) => ({ ...f, roundName: v, round: stage1MaxRound + (picked?.offset ?? 1) }));
                 }}
               >
-                {KNOCKOUT_ROUNDS.map((r) => (
-                  <option key={r.name} value={r.name}>{r.name}</option>
-                ))}
-              </select>
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="— Select round —" />
+                </SelectTrigger>
+                <SelectContent>
+                  {KNOCKOUT_ROUNDS.map((r) => (
+                    <SelectItem key={r.name} value={r.name}>{r.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <p className="text-[10px] text-muted-foreground">
                 Round {form.round ?? 1} · the winner advances to the next knock-out round.
               </p>
@@ -549,6 +576,19 @@ function MatchFormDialog({
             </div>
           </div>
 
+          {/* Guidance when there is nothing to pick yet — the old picker showed a
+              permanent "Loading teams…" with greyed-out, un-clickable options. */}
+          {isTeam && !isEdit && clanOptions.length === 0 && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-[11px] text-amber-300">
+              <p className="font-black uppercase tracking-wider">No clans registered yet</p>
+              <p className="mt-1">
+                This tournament has no clans enrolled, so there is nothing to choose.
+                {playerOnlyCount > 0 && ` ${playerOnlyCount} player entr${playerOnlyCount === 1 ? "y was" : "ies were"} registered instead — a clan tournament needs clans.`}
+                {" "}Go back and use <span className="font-black">Seed Clans</span>, or have the clans register first.
+              </p>
+            </div>
+          )}
+
           {/* Participants */}
           <div className="rounded-xl border border-border p-4 space-y-3">
             <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Participant 1</p>
@@ -558,21 +598,23 @@ function MatchFormDialog({
                   {isTeam ? "Team (registered)" : "Name"}
                 </label>
                 {isTeam ? (
-                  <select
-                    className="w-full h-9 rounded-md border border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  <Select
                     value={selectedTeamValue(1)}
-                    onChange={(e) => setTeamParticipant(1, e.target.value)}
+                    onValueChange={(v) => setTeamParticipant(1, v)}
+                    disabled={clanOptions.length === 0}
                   >
-                    <option value="">{registeredTeams.length === 0 ? "Loading teams…" : "— Select team —"}</option>
-                    {registeredTeams.map((p) => {
-                      const nm = p.teamName ?? p.displayName ?? p.username ?? `Team ${p.teamId ?? p.id}`;
-                      return (
-                        <option key={p.id} value={String(p.teamId ?? "")} disabled={p.teamId == null}>
-                          {nm}
-                        </option>
-                      );
-                    })}
-                  </select>
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="— Select clan —" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="tbd">— TBD —</SelectItem>
+                      {clanOptions.map((c) => (
+                        <SelectItem key={c.teamId} value={String(c.teamId)}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 ) : (
                   <Input value={form.participant1Name ?? ""} placeholder="Player / Team" onChange={(e) => set("participant1Name", e.target.value)} />
                 )}
@@ -592,21 +634,23 @@ function MatchFormDialog({
                   {isTeam ? "Team (registered)" : "Name"}
                 </label>
                 {isTeam ? (
-                  <select
-                    className="w-full h-9 rounded-md border border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  <Select
                     value={selectedTeamValue(2)}
-                    onChange={(e) => setTeamParticipant(2, e.target.value)}
+                    onValueChange={(v) => setTeamParticipant(2, v)}
+                    disabled={clanOptions.length === 0}
                   >
-                    <option value="">{registeredTeams.length === 0 ? "Loading teams…" : "— Select team —"}</option>
-                    {registeredTeams.map((p) => {
-                      const nm = p.teamName ?? p.displayName ?? p.username ?? `Team ${p.teamId ?? p.id}`;
-                      return (
-                        <option key={p.id} value={String(p.teamId ?? "")} disabled={p.teamId == null}>
-                          {nm}
-                        </option>
-                      );
-                    })}
-                  </select>
+                    <SelectTrigger className="h-9">
+                      <SelectValue placeholder="— Select clan —" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="tbd">— TBD —</SelectItem>
+                      {clanOptions.map((c) => (
+                        <SelectItem key={c.teamId} value={String(c.teamId)}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 ) : (
                   <Input value={form.participant2Name ?? ""} placeholder="Player / Team" onChange={(e) => set("participant2Name", e.target.value)} />
                 )}
