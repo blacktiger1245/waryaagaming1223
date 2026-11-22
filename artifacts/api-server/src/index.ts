@@ -3,6 +3,8 @@ import { logger } from "./lib/logger";
 import { ensureMatchBracketSchema, ensureAcademySchema, ensureShopSchema, ensureClanSchema, ensureClanTournamentSchema, ensurePlayerGameStatsSchema, ensureMatchResultSchema, ensurePlayerSocialSchema, ensureStripeSchema, ensureClanRoleSchema, ensureClanRegistrationSchema } from "./lib/ensure-schema";
 import { activateUpcomingTournaments } from "./lib/tournament-scheduler";
 import { refreshAllStats } from "./lib/stats-sync";
+import { markReady, markFailed, recordStage } from "./lib/readiness";
+import { describeDbError, isTransientDbError, type StartupTaskOutcome } from "./lib/startup-tasks";
 
 // Replit's API artifact workflow supplies PORT=5000. Keep the same default
 // for direct `pnpm run dev` usage so the server does not fail before startup.
@@ -94,48 +96,157 @@ function logEnvironmentStatus(): void {
   }
 }
 
-async function main() {
-  logEnvironmentStatus();
+/**
+ * Required startup initialization — the same additive, idempotent schema
+ * patches that already ran on every boot. The result is now tracked so the
+ * readiness state can be reported accurately.
+ */
+const REQUIRED_STARTUP_TASKS: ReadonlyArray<{
+  name: string;
+  run: () => Promise<StartupTaskOutcome>;
+}> = [
+  { name: "ensureMatchBracketSchema", run: ensureMatchBracketSchema },
+  { name: "ensureAcademySchema", run: ensureAcademySchema },
+  { name: "ensureShopSchema", run: ensureShopSchema },
+  { name: "ensureClanSchema", run: ensureClanSchema },
+  { name: "ensureClanTournamentSchema", run: ensureClanTournamentSchema },
+  { name: "ensurePlayerGameStatsSchema", run: ensurePlayerGameStatsSchema },
+  { name: "ensureMatchResultSchema", run: ensureMatchResultSchema },
+  { name: "ensurePlayerSocialSchema", run: ensurePlayerSocialSchema },
+  { name: "ensureStripeSchema", run: ensureStripeSchema },
+  { name: "ensureClanRoleSchema", run: ensureClanRoleSchema },
+  { name: "ensureClanRegistrationSchema", run: ensureClanRegistrationSchema },
+];
 
-  // Apply additive bracket schema patches (guarded, idempotent) before the
-  // server accepts requests so match generation can persist stage + links.
-  await ensureMatchBracketSchema();
-  await ensureAcademySchema();
-  await ensureShopSchema();
-  await ensureClanSchema();
-  await ensureClanTournamentSchema();
-  await ensurePlayerGameStatsSchema();
-  await ensureMatchResultSchema();
-  await ensurePlayerSocialSchema();
-  await ensureStripeSchema();
-  // Clan roles (the two things WG Coins can buy), coin spends and the
-  // invitation-only clan membership flow.
-  await ensureClanRoleSchema();
-  // Paid clan-tournament registration (entry fee + EVC Plus approval log).
-  await ensureClanRegistrationSchema();
+/**
+ * Retry policy: a TRANSIENT database connectivity failure (dropped connection,
+ * connect/query timeout, failover) is retried with backoff. A PERMANENT
+ * SQL/schema error (syntax error, undefined column, constraint violation) is
+ * surfaced immediately — retrying it would only delay the failure.
+ */
+const TRANSIENT_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 2_000;
 
-  // Rebuild every player's and clan's derived statistics once at boot so player
-  // profiles, clan records and rankings always match all completed results.
+const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function runStartupTask(
+  name: string,
+  run: () => Promise<StartupTaskOutcome>,
+): Promise<boolean> {
+  const startedAt = Date.now();
+  let lastError: unknown = null;
+
+  for (let attempt = 1; attempt <= TRANSIENT_ATTEMPTS; attempt++) {
+    let error: unknown = null;
+    let ok = false;
+
+    try {
+      const outcome = await run();
+      if (outcome.ok) {
+        ok = true;
+      } else {
+        error = outcome.error;
+      }
+    } catch (err) {
+      error = err; // defensive: a task that throws is handled identically
+    }
+
+    if (ok) {
+      const durationMs = Date.now() - startedAt;
+      recordStage(name, true, durationMs);
+      logger.info({ stage: name, durationMs }, "Startup task complete");
+      return true;
+    }
+
+    lastError = error;
+    const info = describeDbError(error);
+    const transient = isTransientDbError(error);
+
+    // Permanent SQL/schema error → do not retry; surface the exact stage now
+    // (code only — never the connection string or any credential).
+    if (!transient) {
+      logger.error(
+        { stage: name, attempt, transient: false, code: info.code, errorName: info.name, error: info.message },
+        "Startup task failed with a permanent SQL/schema error — not retrying",
+      );
+      recordStage(name, false, Date.now() - startedAt);
+      return false;
+    }
+
+    if (attempt < TRANSIENT_ATTEMPTS) {
+      logger.warn(
+        { stage: name, attempt, maxAttempts: TRANSIENT_ATTEMPTS, transient: true, code: info.code, error: info.message },
+        "Transient startup task failure — retrying",
+      );
+      await delay(RETRY_DELAY_MS);
+    }
+  }
+
+  const finalInfo = describeDbError(lastError);
+  logger.error(
+    { stage: name, attempts: TRANSIENT_ATTEMPTS, transient: true, code: finalInfo.code, errorName: finalInfo.name, error: finalInfo.message },
+    "Startup task failed after retries — application will not become ready",
+  );
+  recordStage(name, false, Date.now() - startedAt);
+  return false;
+}
+
+async function initializeApplication(): Promise<void> {
+  for (const task of REQUIRED_STARTUP_TASKS) {
+    const ok = await runStartupTask(task.name, task.run);
+    if (!ok) {
+      // Required initialization did not complete: stay NOT ready (503 on
+      // /api/healthz, normal traffic gated). Never report a false "ok".
+      markFailed(task.name);
+      return;
+    }
+  }
+
+  // Background work — unchanged behaviour, not required for readiness.
   refreshAllStats().catch((err) => logger.warn({ err }, "Initial statistics refresh failed"));
-
-  // Auto-activate upcoming tournaments whose start date has been reached.
-  // Runs on boot and then every 5 minutes while the server is alive.
   activateUpcomingTournaments().catch((err) => logger.warn({ err }, "Initial tournament activation check failed"));
   setInterval(() => {
     activateUpcomingTournaments().catch((err) => logger.warn({ err }, "Periodic tournament activation check failed"));
   }, 5 * 60 * 1000);
 
-  app.listen(port, (err) => {
+  markReady();
+  logger.info("Application initialization complete — service is ready");
+}
+
+function main(): void {
+  logEnvironmentStatus();
+
+  // 1. Open the HTTP listener immediately so nginx can always connect to port
+  //    5000 (no more "connect() refused" while the database bootstrap runs).
+  //    /api/healthz answers 503 ("starting") and the readiness gate holds normal
+  //    traffic at 503 with Retry-After until initialization completes.
+  const server = app.listen(port, (err) => {
     if (err) {
       logger.error({ err }, "Error listening on port");
       process.exit(1);
     }
 
-    logger.info({ port }, "Server listening");
+    logger.info({ port }, "HTTP listener started (readiness pending)");
   });
+
+  // 2. Run the required startup initialization, then flip readiness to ready.
+  initializeApplication().catch((err) => {
+    const info = describeDbError(err);
+    logger.error(
+      { code: info.code, errorName: info.name, error: info.message },
+      "Fatal error during startup initialization",
+    );
+    markFailed("initialization");
+  });
+
+  // 3. Graceful shutdown for the container entrypoint's signal handling.
+  const shutdown = (signal: string): void => {
+    logger.info({ signal }, "Shutting down HTTP listener");
+    server.close(() => process.exit(0));
+    setTimeout(() => process.exit(0), 10_000).unref(); // never hang on a stuck connection
+  };
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 }
 
-main().catch((err) => {
-  logger.error({ err }, "Fatal error during server startup");
-  process.exit(1);
-});
+main();

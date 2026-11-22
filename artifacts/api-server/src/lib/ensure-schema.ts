@@ -1,5 +1,6 @@
 import { pool } from "@workspace/db";
 import { logger } from "./logger";
+import { describeDbError, type StartupTaskOutcome } from "./startup-tasks";
 
 /**
  * Applies the additive, idempotent schema patches the bracket feature needs.
@@ -13,7 +14,7 @@ import { logger } from "./logger";
  * Every statement uses `ADD COLUMN IF NOT EXISTS` so this is safe to run on
  * every boot and on every schema revision.
  */
-export async function ensureMatchBracketSchema(): Promise<void> {
+export async function ensureMatchBracketSchema(): Promise<StartupTaskOutcome> {
   const statements = [
     `ALTER TABLE "matches" ADD COLUMN IF NOT EXISTS "stage" integer DEFAULT 1 NOT NULL;`,
     // Backfill: mark existing knockout matches (by knockout round names) as stage 2.
@@ -65,10 +66,12 @@ export async function ensureMatchBracketSchema(): Promise<void> {
     } catch (verifyErr) {
       logger.warn({ err: verifyErr }, "Could not verify matches bracket schema");
     }
+    return { ok: true };
   } catch (err) {
-    // Interrupted DDL must not prevent boot; report and continue so the
-    // global JSON error handler can surface a meaningful message at request time.
-    logger.warn({ err }, "Could not ensure matches bracket schema");
+    // Startup distinguishes transient connectivity failures (retried) from
+    // permanent SQL/schema errors (surfaced immediately) — see lib/startup-tasks.
+    logger.warn({ err: describeDbError(err) }, "Could not ensure matches bracket schema");
+    return { ok: false, error: err };
   }
 }
 
@@ -77,7 +80,7 @@ export async function ensureMatchBracketSchema(): Promise<void> {
  * Replaces the old academy_sections table used by the previous Tournament Rules
  * style academy. Safe to run on every boot.
  */
-export async function ensureAcademySchema(): Promise<void> {
+export async function ensureAcademySchema(): Promise<StartupTaskOutcome> {
   const statements = [
     `CREATE TABLE IF NOT EXISTS "academy_posts" (
        "id" serial PRIMARY KEY,
@@ -96,8 +99,10 @@ export async function ensureAcademySchema(): Promise<void> {
     for (const sql of statements) {
       await pool.query(sql);
     }
+    return { ok: true };
   } catch (err) {
-    logger.warn({ err }, "Could not ensure academy schema");
+    logger.warn({ err: describeDbError(err) }, "Could not ensure academy schema");
+    return { ok: false, error: err };
   }
 }
 
@@ -107,7 +112,7 @@ export async function ensureAcademySchema(): Promise<void> {
  * Safe to run on every boot so deployments without a migration step still
  * get the storefront tables.
  */
-export async function ensureShopSchema(): Promise<void> {
+export async function ensureShopSchema(): Promise<StartupTaskOutcome> {
   const statements = [
     `CREATE TABLE IF NOT EXISTS "shop_products" (
        "id" serial PRIMARY KEY,
@@ -219,8 +224,10 @@ export async function ensureShopSchema(): Promise<void> {
     for (const sql of statements) {
       await pool.query(sql);
     }
+    return { ok: true };
   } catch (err) {
-    logger.warn({ err }, "Could not ensure WG-SHOP schema");
+    logger.warn({ err: describeDbError(err) }, "Could not ensure WG-SHOP schema");
+    return { ok: false, error: err };
   }
 }
 
@@ -228,7 +235,7 @@ export async function ensureShopSchema(): Promise<void> {
  * Clan league divisions (Serie A / Serie B) + registration windows.
  * Existing teams keep their current registration and default to Serie A.
  */
-export async function ensureClanSchema(): Promise<void> {
+export async function ensureClanSchema(): Promise<StartupTaskOutcome> {
   const statements = [
     // A clan can legitimately have no Captain (the Captain left, or ownership
     // was transferred to them). `captain_id` was created NOT NULL, which made
@@ -254,8 +261,10 @@ export async function ensureClanSchema(): Promise<void> {
     for (const sql of statements) {
       await pool.query(sql);
     }
+    return { ok: true };
   } catch (err) {
-    logger.warn({ err }, "Could not ensure clan schema");
+    logger.warn({ err: describeDbError(err) }, "Could not ensure clan schema");
+    return { ok: false, error: err };
   }
 }
 
@@ -264,7 +273,7 @@ export async function ensureClanSchema(): Promise<void> {
  * X). Additive and idempotent, so it is safe to run on every boot; the columns
  * live in the drizzle schema as `*_url` text columns.
  */
-export async function ensurePlayerSocialSchema(): Promise<void> {
+export async function ensurePlayerSocialSchema(): Promise<StartupTaskOutcome> {
   const statements = [
     "tiktok_url",
     "facebook_url",
@@ -278,8 +287,10 @@ export async function ensurePlayerSocialSchema(): Promise<void> {
     for (const sql of statements) {
       await pool.query(sql);
     }
+    return { ok: true };
   } catch (err) {
-    logger.warn({ err }, "Could not ensure player social schema");
+    logger.warn({ err: describeDbError(err) }, "Could not ensure player social schema");
+    return { ok: false, error: err };
   }
 }
 
@@ -287,7 +298,7 @@ export async function ensurePlayerSocialSchema(): Promise<void> {
  * Clan tournament roster system: per-team player limits on tournaments plus
  * the roster table that stores which players each registered clan selected.
  */
-export async function ensureClanTournamentSchema(): Promise<void> {
+export async function ensureClanTournamentSchema(): Promise<StartupTaskOutcome> {
   const statements = [
     `ALTER TABLE "tournaments" ADD COLUMN IF NOT EXISTS "players_per_team" integer;`,
     `CREATE TABLE IF NOT EXISTS "tournament_team_rosters" (
@@ -303,8 +314,10 @@ export async function ensureClanTournamentSchema(): Promise<void> {
     for (const sql of statements) {
       await pool.query(sql);
     }
+    return { ok: true };
   } catch (err) {
-    logger.warn({ err }, "Could not ensure clan tournament schema");
+    logger.warn({ err: describeDbError(err) }, "Could not ensure clan tournament schema");
+    return { ok: false, error: err };
   }
 }
 
@@ -340,7 +353,7 @@ export const MATCH_RESULT_STAT_COLUMNS = [
  * interceptions, tackles and saves per player. Additive and idempotent so it is
  * safe to run on every boot.
  */
-export async function ensurePlayerGameStatsSchema(): Promise<void> {
+export async function ensurePlayerGameStatsSchema(): Promise<StartupTaskOutcome> {
   const statements = MATCH_RESULT_STAT_COLUMNS.map(
     (c) => `ALTER TABLE "match_player_games" ADD COLUMN IF NOT EXISTS "${c}" integer;`,
   );
@@ -348,8 +361,10 @@ export async function ensurePlayerGameStatsSchema(): Promise<void> {
     for (const sql of statements) {
       await pool.query(sql);
     }
+    return { ok: true };
   } catch (err) {
-    logger.warn({ err }, "Could not ensure player-game match-stats schema");
+    logger.warn({ err: describeDbError(err) }, "Could not ensure player-game match-stats schema");
+    return { ok: false, error: err };
   }
 }
 
@@ -359,7 +374,7 @@ export async function ensurePlayerGameStatsSchema(): Promise<void> {
  * Safe to run on every boot so deployments without a migration step still get the
  * upload/approval tables.
  */
-export async function ensureMatchResultSchema(): Promise<void> {
+export async function ensureMatchResultSchema(): Promise<StartupTaskOutcome> {
   const statements = [
     `CREATE TABLE IF NOT EXISTS "match_result_submissions" (
        "id" serial PRIMARY KEY,
@@ -542,8 +557,10 @@ export async function ensureMatchResultSchema(): Promise<void> {
     for (const sql of statements) {
       await pool.query(sql);
     }
+    return { ok: true };
   } catch (err) {
-    logger.warn({ err }, "Could not ensure match-result schema");
+    logger.warn({ err: describeDbError(err) }, "Could not ensure match-result schema");
+    return { ok: false, error: err };
   }
 }
 
@@ -560,7 +577,7 @@ export async function ensureMatchResultSchema(): Promise<void> {
  * drizzle-kit generates for that column, so a later `drizzle-kit push` sees it
  * as already applied. Additive and idempotent — safe to run on every boot.
  */
-export async function ensureStripeSchema(): Promise<void> {
+export async function ensureStripeSchema(): Promise<StartupTaskOutcome> {
   const statements = [
     `CREATE TABLE IF NOT EXISTS "coin_transactions" (
        "id" serial PRIMARY KEY,
@@ -591,8 +608,10 @@ export async function ensureStripeSchema(): Promise<void> {
     for (const sql of statements) {
       await pool.query(sql);
     }
+    return { ok: true };
   } catch (err) {
-    logger.warn({ err }, "Could not ensure Stripe schema");
+    logger.warn({ err: describeDbError(err) }, "Could not ensure Stripe schema");
+    return { ok: false, error: err };
   }
 }
 
@@ -607,7 +626,7 @@ export async function ensureStripeSchema(): Promise<void> {
  * Mirrors lib/db/src/schema/{players,coins,team_invites}.ts. Additive and
  * idempotent — safe to run on every boot and on every schema revision.
  */
-export async function ensureClanRoleSchema(): Promise<void> {
+export async function ensureClanRoleSchema(): Promise<StartupTaskOutcome> {
   const statements = [
     `ALTER TABLE "players" ADD COLUMN IF NOT EXISTS "clan_role" text;`,
     `CREATE TABLE IF NOT EXISTS "coin_spends" (
@@ -641,8 +660,10 @@ export async function ensureClanRoleSchema(): Promise<void> {
     for (const sql of statements) {
       await pool.query(sql);
     }
+    return { ok: true };
   } catch (err) {
-    logger.warn({ err }, "Could not ensure clan role schema");
+    logger.warn({ err: describeDbError(err) }, "Could not ensure clan role schema");
+    return { ok: false, error: err };
   }
 }
 
@@ -652,7 +673,7 @@ export async function ensureClanRoleSchema(): Promise<void> {
  *
  * Mirrors lib/db/src/schema/clan_registrations.ts. Additive and idempotent.
  */
-export async function ensureClanRegistrationSchema(): Promise<void> {
+export async function ensureClanRegistrationSchema(): Promise<StartupTaskOutcome> {
   const statements = [
     `ALTER TABLE "tournaments" ADD COLUMN IF NOT EXISTS "registration_fee_cents" integer NOT NULL DEFAULT 0;`,
     `ALTER TABLE "tournaments" ADD COLUMN IF NOT EXISTS "evc_plus_number" text;`,
@@ -694,7 +715,9 @@ export async function ensureClanRegistrationSchema(): Promise<void> {
     for (const sql of statements) {
       await pool.query(sql);
     }
+    return { ok: true };
   } catch (err) {
-    logger.warn({ err }, "Could not ensure clan registration schema");
+    logger.warn({ err: describeDbError(err) }, "Could not ensure clan registration schema");
+    return { ok: false, error: err };
   }
 }

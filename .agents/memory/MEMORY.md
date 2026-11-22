@@ -1,3 +1,4 @@
 - [WG platform notes](wg-platform-notes.md) — legacy workflows conflict on ports, and Docker must normalize frontend output paths across imported revisions.
 - [connect-pg-simple table.sql ENOENT](connect-pg-simple-session-table.md) — esbuild bundling breaks its bundled table.sql lookup; create the session table manually and disable auto-create.
 - [Drizzle nullable bulk inserts](drizzle-nullable-bulk-inserts.md) — deployed Drizzle versions can emit malformed multi-row SQL when nullable fields are explicitly null.
+- [API readiness lifecycle](readiness-lifecycle.md) — the API opens its port before the DB bootstrap; /api/healthz is 503 until ready; docker/start.sh supervises Node + nginx and retries only transient DB failures.

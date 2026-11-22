@@ -10,6 +10,7 @@ import academyRouter from "./routes/academy";
 import { stripeWebhookHandler, stripeWebhookStatusHandler } from "./routes/payments";
 import { logger } from "./lib/logger";
 import { banCheck } from "./middleware/ban-check";
+import { readinessGate } from "./middleware/readiness-gate";
 
 const PgStore = connectPgSimple(session);
 
@@ -87,6 +88,13 @@ app.use((req, res, next) => {
     credentials: true,
   })(req, res, next);
 });
+
+// Readiness gate: hold normal traffic at 503 until startup initialization (the
+// database schema bootstrap) has completed. /api/healthz is exempt so it can
+// report the live readiness state. This runs before the Stripe raw-body route
+// below and never reads the request body, so Stripe webhook signature
+// verification (which requires the untouched raw payload) is unaffected.
+app.use(readinessGate);
 
 // The API prefix this server is proxied under. On Replit, path-based routing
 // exposes this service at /api (see artifact.toml `paths`), so it defaults to
