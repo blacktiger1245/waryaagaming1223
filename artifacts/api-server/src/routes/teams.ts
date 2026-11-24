@@ -1620,4 +1620,120 @@ router.put("/teams/:id/matches/:matchId/lineup", async (req, res) => {
   return res.json({ ok: true, lineup: playerIds });
 });
 
+// ── Tournament line-up  (President/Coach) ─────────────────────────────────────
+// The clan's playing line-up for a WHOLE tournament (the players who will play it,
+// player vs player), capped by the admin's players-per-team limit. The initial
+// selection is made while registering; these routes let the President/Coach review
+// and change it afterwards (e.g. when they were already registered).
+
+/**
+ * Shared gate for the clan's tournament line-up routes: confirms the caller leads
+ * the clan. Sends the error itself and returns null when the request must stop.
+ */
+async function resolveTournamentLineupContext(
+  req: import("express").Request,
+  res: import("express").Response,
+): Promise<{ teamId: number; tournamentId: number; limit: number | null } | null> {
+  if (!req.session?.userId) { res.status(401).json({ error: "Login required" }); return null; }
+
+  const teamId = Number(req.params.id);
+  const tournamentId = Number(req.params.tournamentId);
+  if (!Number.isInteger(teamId) || !Number.isInteger(tournamentId)) {
+    res.status(400).json({ error: "Invalid id" });
+    return null;
+  }
+
+  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
+  if (!team) { res.status(404).json({ error: "Team not found" }); return null; }
+
+  const role = await resolveTeamRole(req, team);
+  if (role !== "president" && role !== "coach" && !isPlatformStaff(req)) {
+    res.status(403).json({ error: "Only the President or Coach can set the line-up" });
+    return null;
+  }
+
+  const [tournament] = await db
+    .select({ id: tournamentsTable.id, playersPerTeam: tournamentsTable.playersPerTeam })
+    .from(tournamentsTable)
+    .where(eq(tournamentsTable.id, tournamentId));
+  if (!tournament) { res.status(404).json({ error: "Tournament not found" }); return null; }
+
+  const limit = tournament.playersPerTeam != null && tournament.playersPerTeam > 0 ? tournament.playersPerTeam : null;
+  return { teamId, tournamentId, limit };
+}
+
+// GET /teams/:id/tournaments/:tournamentId/lineup — squad + current selection.
+router.get("/teams/:id/tournaments/:tournamentId/lineup", async (req, res) => {
+  const ctx = await resolveTournamentLineupContext(req, res);
+  if (!ctx) return;
+  const { teamId, tournamentId, limit } = ctx;
+
+  const squad = await db
+    .select({
+      id: playersTable.id,
+      username: playersTable.username,
+      displayName: playersTable.displayName,
+      avatarUrl: playersTable.avatarUrl,
+    })
+    .from(playersTable)
+    .where(eq(playersTable.teamId, teamId))
+    .orderBy(playersTable.id);
+
+  const roster = playerIdColumn(
+    await db.execute(
+      sql`SELECT "player_id" FROM "tournament_team_rosters"
+          WHERE "tournament_id" = ${tournamentId} AND "team_id" = ${teamId}`,
+    ),
+  );
+
+  return res.json({
+    limit,
+    roster,
+    squad: squad.map((p) => ({
+      id: p.id,
+      name: p.displayName ?? p.username,
+      username: p.username,
+      avatarUrl: p.avatarUrl,
+    })),
+  });
+});
+
+// PUT /teams/:id/tournaments/:tournamentId/lineup — set the players who will play.
+router.put("/teams/:id/tournaments/:tournamentId/lineup", async (req, res) => {
+  const ctx = await resolveTournamentLineupContext(req, res);
+  if (!ctx) return;
+  const { teamId, tournamentId, limit } = ctx;
+
+  const raw = (req.body as { playerIds?: unknown } | null)?.playerIds;
+  const playerIds = Array.isArray(raw)
+    ? [...new Set(raw.filter((x): x is number => typeof x === "number" && Number.isInteger(x) && x > 0))]
+    : [];
+
+  if (limit != null && playerIds.length > limit) {
+    return res.status(400).json({ error: `You can select at most ${limit} players for this tournament.` });
+  }
+  if (playerIds.length > 0) {
+    const members = await db
+      .select({ id: playersTable.id })
+      .from(playersTable)
+      .where(and(eq(playersTable.teamId, teamId), inArray(playersTable.id, playerIds)));
+    if (members.length !== playerIds.length) {
+      return res.status(403).json({ error: "Some selected players are not on your team." });
+    }
+  }
+
+  await db.execute(
+    sql`DELETE FROM "tournament_team_rosters" WHERE "tournament_id" = ${tournamentId} AND "team_id" = ${teamId}`,
+  );
+  for (const playerId of playerIds) {
+    await db.execute(
+      sql`INSERT INTO "tournament_team_rosters" ("tournament_id", "team_id", "player_id")
+          VALUES (${tournamentId}, ${teamId}, ${playerId})
+          ON CONFLICT ("tournament_id", "team_id", "player_id") DO NOTHING`,
+    );
+  }
+
+  return res.json({ ok: true, roster: playerIds });
+});
+
 export default router;

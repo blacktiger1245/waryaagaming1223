@@ -22,6 +22,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { TournamentBracket } from "@/components/tournament-bracket";
 import { MatchReportPanel } from "@/components/match-result";
+import { ClanLineupManager } from "@/components/clan-lineup-manager";
 import { apiUrl, storageUrl } from "@/lib/api";
 
 const statusColors: Record<string, string> = {
@@ -748,6 +749,20 @@ function RegisterButton({ tournamentId, status, isFull, isClanTournament, player
   }
 
   if (regData?.registered) {
+    // A registered clan's President/Coach can still pick/change the players who
+    // will play (player vs player) — important when they registered before a
+    // line-up was chosen, or simply want a change.
+    const myTeamId = (myTeam as { id?: number } | null)?.id;
+    if (isClanTournament && isTeamManager && myTeamId) {
+      return (
+        <ClanLineupManager
+          teamId={myTeamId}
+          tournamentId={tournamentId}
+          playersPerTeam={playersPerTeam ?? null}
+          members={teamMembers}
+        />
+      );
+    }
     return (
       <Button disabled className="gap-2 h-12 px-6 text-base font-bold bg-emerald-600/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-600/20 cursor-default">
         <CheckCircle2 className="w-4 h-4" /> {regData.asTeam ? "Your Team is Registered" : "You're Registered"}
@@ -913,12 +928,12 @@ function ClanFeeRegisterButton({
   const [open, setOpen] = useState(false);
   const [evc, setEvc] = useState<any | null>(null);
   const [note, setNote] = useState("");
-  // Player-vs-player line-up: the President/Coach picks who will play, capped by
-  // the admin's players-per-team limit. It travels with the payment request and is
-  // stored on the registration until the fee settles.
+  // Player-vs-player line-up: the President/Coach ALWAYS picks who will play before
+  // paying, capped by the admin's players-per-team limit when one is set. It travels
+  // with the payment request and is stored on the registration until the fee settles.
   const lineupLimit = playersPerTeam && playersPerTeam > 0 ? playersPerTeam : null;
   const [selectedPlayers, setSelectedPlayers] = useState<number[]>([]);
-  const [pickedPlayers, setPickedPlayers] = useState(!lineupLimit);
+  const [pickedPlayers, setPickedPlayers] = useState(false);
   function togglePlayer(id: number) {
     setSelectedPlayers((prev) =>
       prev.includes(id)
@@ -1007,7 +1022,7 @@ function ClanFeeRegisterButton({
   return (
     <>
       <Button
-        onClick={() => { setOpen(true); setPickedPlayers(!lineupLimit); setEvc(null); }}
+        onClick={() => { setOpen(true); setPickedPlayers(false); setEvc(null); }}
         disabled={pending}
         className="gap-2 h-12 px-8 text-base font-bold bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-500 hover:to-pink-500 border-0"
       >
@@ -1021,18 +1036,22 @@ function ClanFeeRegisterButton({
           <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6" onClick={(event) => event.stopPropagation()}>
             <h2 className="text-lg font-black">Clan entry fee: {feeLabel}</h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Choose how your clan will pay. You are registering your whole clan.
+              {!evc && !pickedPlayers
+                ? "Step 1 of 2 — pick the players who will play for your clan this tournament."
+                : "Choose how your clan will pay. You are registering your whole clan."}
             </p>
 
             {!evc ? (
-              lineupLimit && !pickedPlayers ? (
+              !pickedPlayers ? (
                 <div className="mt-4 space-y-3">
                   <div>
                     <p className="text-sm font-bold">Choose your players</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      Select up to <span className="font-bold text-foreground">{lineupLimit}</span> players
-                      who will play in this tournament (player vs player). Selected{" "}
-                      <span className="font-bold text-foreground">{selectedPlayers.length}/{lineupLimit}</span>.
+                      Select the players who will play in this tournament (player vs player).
+                      {lineupLimit
+                        ? <> Up to <span className="font-bold text-foreground">{lineupLimit}</span> players. Selected{" "}
+                            <span className="font-bold text-foreground">{selectedPlayers.length}/{lineupLimit}</span>.</>
+                        : <> Selected <span className="font-bold text-foreground">{selectedPlayers.length}</span>.</>}
                     </p>
                   </div>
                   {teamMembers.length === 0 ? (
@@ -1076,7 +1095,7 @@ function ClanFeeRegisterButton({
                   )}
                   <Button
                     className="w-full font-bold"
-                    disabled={selectedPlayers.length === 0}
+                    disabled={selectedPlayers.length === 0 && teamMembers.length > 0}
                     onClick={() => setPickedPlayers(true)}
                   >
                     Continue to payment
@@ -1084,9 +1103,10 @@ function ClanFeeRegisterButton({
                 </div>
               ) : (
                 <div className="mt-4 grid gap-3">
-                  {lineupLimit && (
+                  {selectedPlayers.length > 0 && (
                     <p className="text-xs text-muted-foreground">
-                      Line-up: <span className="font-bold text-foreground">{selectedPlayers.length}</span> player(s) selected.{" "}
+                      Line-up: <span className="font-bold text-foreground">{selectedPlayers.length}</span>
+                      {lineupLimit ? `/${lineupLimit}` : ""} player(s) selected.{" "}
                       <button type="button" className="underline hover:text-foreground" onClick={() => setPickedPlayers(false)}>Change</button>
                     </p>
                   )}
