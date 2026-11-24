@@ -788,7 +788,14 @@ function RegisterButton({ tournamentId, status, isFull, isClanTournament, player
   // President/Coach must settle the fee first (card via Stripe, or EVC Plus with
   // admin approval). That flow lives in its own component.
   if (isClanTournament && isTeamManager && (registrationFeeCents ?? 0) > 0) {
-    return <ClanFeeRegisterButton tournamentId={tournamentId} feeCents={registrationFeeCents ?? 0} />;
+    return (
+      <ClanFeeRegisterButton
+        tournamentId={tournamentId}
+        feeCents={registrationFeeCents ?? 0}
+        playersPerTeam={playersPerTeam ?? null}
+        teamMembers={teamMembers}
+      />
+    );
   }
 
   return (
@@ -890,12 +897,37 @@ function RegisterButton({ tournamentId, status, isFull, isClanTournament, player
  *     taps "I sent the money". The registration stays PENDING until a tournament
  *     admin confirms the transfer, which then registers the clan automatically.
  */
-function ClanFeeRegisterButton({ tournamentId, feeCents }: { tournamentId: number; feeCents: number }) {
+function ClanFeeRegisterButton({
+  tournamentId,
+  feeCents,
+  playersPerTeam,
+  teamMembers = [],
+}: {
+  tournamentId: number;
+  feeCents: number;
+  playersPerTeam?: number | null;
+  teamMembers?: Array<{ id: number; displayName?: string | null; username?: string | null; avatarUrl?: string | null; teamRole?: string | null }>;
+}) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [evc, setEvc] = useState<any | null>(null);
   const [note, setNote] = useState("");
+  // Player-vs-player line-up: the President/Coach picks who will play, capped by
+  // the admin's players-per-team limit. It travels with the payment request and is
+  // stored on the registration until the fee settles.
+  const lineupLimit = playersPerTeam && playersPerTeam > 0 ? playersPerTeam : null;
+  const [selectedPlayers, setSelectedPlayers] = useState<number[]>([]);
+  const [pickedPlayers, setPickedPlayers] = useState(!lineupLimit);
+  function togglePlayer(id: number) {
+    setSelectedPlayers((prev) =>
+      prev.includes(id)
+        ? prev.filter((x) => x !== id)
+        : lineupLimit && prev.length >= lineupLimit
+          ? prev
+          : [...prev, id],
+    );
+  }
 
   const { data: statusData } = useQuery<{ registered: boolean; registration: any | null }>({
     queryKey: ["clan-registration-status", tournamentId],
@@ -912,7 +944,7 @@ function ClanFeeRegisterButton({ tournamentId, feeCents }: { tournamentId: numbe
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ playerIds: selectedPlayers }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error ?? "Could not start the card payment");
@@ -929,7 +961,7 @@ function ClanFeeRegisterButton({ tournamentId, feeCents }: { tournamentId: numbe
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ playerIds: selectedPlayers }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error ?? "EVC Plus is not available for this tournament");
@@ -975,7 +1007,7 @@ function ClanFeeRegisterButton({ tournamentId, feeCents }: { tournamentId: numbe
   return (
     <>
       <Button
-        onClick={() => setOpen(true)}
+        onClick={() => { setOpen(true); setPickedPlayers(!lineupLimit); setEvc(null); }}
         disabled={pending}
         className="gap-2 h-12 px-8 text-base font-bold bg-gradient-to-r from-violet-600 to-pink-600 hover:from-violet-500 hover:to-pink-500 border-0"
       >
@@ -993,18 +1025,83 @@ function ClanFeeRegisterButton({ tournamentId, feeCents }: { tournamentId: numbe
             </p>
 
             {!evc ? (
-              <div className="mt-4 grid gap-3">
-                <Button className="justify-start font-bold" disabled={startStripe.isPending} onClick={() => startStripe.mutate()}>
-                  {startStripe.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trophy className="w-4 h-4" />} Debit / Credit card
-                </Button>
-                <Button
-                  className="justify-start font-bold bg-transparent border border-border text-foreground hover:bg-muted"
-                  disabled={startEvc.isPending}
-                  onClick={() => startEvc.mutate()}
-                >
-                  {startEvc.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trophy className="w-4 h-4" />} EVC Plus
-                </Button>
-              </div>
+              lineupLimit && !pickedPlayers ? (
+                <div className="mt-4 space-y-3">
+                  <div>
+                    <p className="text-sm font-bold">Choose your players</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      Select up to <span className="font-bold text-foreground">{lineupLimit}</span> players
+                      who will play in this tournament (player vs player). Selected{" "}
+                      <span className="font-bold text-foreground">{selectedPlayers.length}/{lineupLimit}</span>.
+                    </p>
+                  </div>
+                  {teamMembers.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                      Your clan has no players yet.
+                    </div>
+                  ) : (
+                    <div className="max-h-64 overflow-y-auto rounded-xl border border-border">
+                      {teamMembers.map((m, i) => {
+                        const name = m.displayName ?? m.username ?? `Player ${m.id}`;
+                        const checked = selectedPlayers.includes(m.id);
+                        const atLimit = lineupLimit != null && selectedPlayers.length >= lineupLimit;
+                        return (
+                          <button
+                            key={m.id}
+                            type="button"
+                            onClick={() => togglePlayer(m.id)}
+                            disabled={!checked && atLimit}
+                            className={`w-full flex items-center gap-3 px-3 py-2.5 border-b border-border last:border-0 text-left transition-colors ${
+                              checked ? "bg-primary/10" : i % 2 === 0 ? "bg-card" : ""
+                            } ${!checked && atLimit ? "opacity-40 cursor-not-allowed" : "hover:bg-muted/20"}`}
+                          >
+                            {m.avatarUrl ? (
+                              <img src={m.avatarUrl} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
+                            ) : (
+                              <div className="w-7 h-7 rounded-full bg-muted shrink-0 flex items-center justify-center text-[9px] font-black text-muted-foreground">
+                                {name.charAt(0)}
+                              </div>
+                            )}
+                            <span className="flex-1 text-sm font-bold truncate">{name}</span>
+                            {m.teamRole && m.teamRole !== "player" && (
+                              <Badge variant="outline" className="text-[9px] uppercase tracking-wider">{m.teamRole}</Badge>
+                            )}
+                            {checked
+                              ? <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+                              : <span className="w-4 h-4 rounded border border-border shrink-0" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <Button
+                    className="w-full font-bold"
+                    disabled={selectedPlayers.length === 0}
+                    onClick={() => setPickedPlayers(true)}
+                  >
+                    Continue to payment
+                  </Button>
+                </div>
+              ) : (
+                <div className="mt-4 grid gap-3">
+                  {lineupLimit && (
+                    <p className="text-xs text-muted-foreground">
+                      Line-up: <span className="font-bold text-foreground">{selectedPlayers.length}</span> player(s) selected.{" "}
+                      <button type="button" className="underline hover:text-foreground" onClick={() => setPickedPlayers(false)}>Change</button>
+                    </p>
+                  )}
+                  <Button className="justify-start font-bold" disabled={startStripe.isPending} onClick={() => startStripe.mutate()}>
+                    {startStripe.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trophy className="w-4 h-4" />} Debit / Credit card
+                  </Button>
+                  <Button
+                    className="justify-start font-bold bg-transparent border border-border text-foreground hover:bg-muted"
+                    disabled={startEvc.isPending}
+                    onClick={() => startEvc.mutate()}
+                  >
+                    {startEvc.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trophy className="w-4 h-4" />} EVC Plus
+                  </Button>
+                </div>
+              )
             ) : (
               <div className="mt-4 space-y-3 text-sm">
                 <p className="text-muted-foreground">Send the entry fee to this EVC Plus number:</p>

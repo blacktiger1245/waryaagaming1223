@@ -554,7 +554,7 @@ export default function TeamManagePage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setAddPlayerOpen(false)}>
             <div className="w-full max-w-lg rounded-2xl border border-zinc-700 bg-zinc-900 p-5 shadow-2xl" onClick={(event) => event.stopPropagation()}>
               <div className="flex items-center justify-between"><h2 className="text-lg font-black text-white">Add Player</h2><button onClick={() => setAddPlayerOpen(false)} className="text-zinc-500 hover:text-white"><X className="h-5 w-5" /></button></div>
-              <p className="mt-2 text-xs text-zinc-400">Every player is listed here. Pick one to open a chat, offer a contract and pay his Market Value in WG Coins — he joins as soon as he agrees and the fee is paid.</p>
+              <p className="mt-2 text-xs text-zinc-400">Every player is listed here. Pick one to open a chat and offer a contract — a free agent costs a flat 5M WG Coins, a contracted player costs his Market Value. He joins as soon as he agrees and the fee is paid.</p>
               {pendingInvites.length > 0 && (
                 <div className="mt-4 rounded-xl border border-zinc-700 bg-zinc-800/50 p-3">
                   <p className="text-[11px] font-black uppercase tracking-widest text-yellow-400">Waiting for an answer</p>
@@ -579,11 +579,11 @@ export default function TeamManagePage() {
                         @{player.username} · {player.points} pts ·{" "}
                         {player.teamName
                           ? `${player.teamName}${player.theirClanRole === "president" ? " (President)" : ""}`
-                          : "Free agent"}
+                          : "Available player"}
                       </span>
                     </span>
                     <span className="shrink-0 text-right">
-                      <span className="block text-xs font-black text-yellow-400">{player.marketValue}M</span>
+                      <span className="block text-xs font-black text-yellow-400">{player.signingFeeM}M</span>
                       <span className="block text-[10px] font-bold uppercase text-zinc-500">WG Coins</span>
                     </span>
                     <MessageCircle className="h-4 w-4 shrink-0 text-yellow-400" />

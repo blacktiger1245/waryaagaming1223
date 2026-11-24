@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { AgentChatDialog } from "@/components/agent-chat";
-import { marketValueLabel, pointsToMarketValue } from "@/lib/player-stats";
+import { marketValueLabel, pointsToMarketValue, signingFeeMillions } from "@/lib/player-stats";
 
 type Player = {
   id: number;
@@ -38,7 +38,7 @@ type MarketTab = "all" | "free" | "contract" | "termination";
 
 const tabs: { id: MarketTab; label: string }[] = [
   { id: "all", label: "All Players" },
-  { id: "free", label: "Free Agents" },
+  { id: "free", label: "Available Players" },
   { id: "contract", label: "Under Contract" },
   { id: "termination", label: "Under Termination" },
 ];
@@ -70,6 +70,11 @@ function PlayerCard({
 }) {
   const isFree = !player.teamId;
   const rating = Math.max(0, Math.min(5, Math.round((player.rating ?? 0) / 20)));
+  // What signing this player costs. A free agent (no clan) is NOT a free signing
+  // — the Transfer Market prices him at a flat 5M — while a player under contract
+  // costs his Market Value.
+  const marketValueM = player.marketValue ?? pointsToMarketValue(player.points ?? 0);
+  const feeM = signingFeeMillions(marketValueM, isFree);
 
   return (
     <Link href={`/players/${player.id}`}>
@@ -96,11 +101,11 @@ function PlayerCard({
 
         <div className="mt-4 flex items-center gap-2 text-xs font-semibold text-[#c3c8d0]">
           <Shield className="h-4 w-4 text-[#d7dbe1]" />
-          <span className="truncate">{isFree ? "Free Agent" : player.teamName ?? "Under Contract"}</span>
+          <span className="truncate">{isFree ? "Available player" : player.teamName ?? "Under Contract"}</span>
         </div>
         <div className="mt-2 flex items-center gap-1.5 text-[11px] text-[#858b96]">
           <span className="inline-block h-3 w-3 rounded-sm border border-[#69717b]" />
-          {isFree ? "Available now" : "Contracted player"}
+          {isFree ? `Signing fee ${feeM}M WG Coins` : "Contracted player"}
         </div>
 
         {/* Points + Market Value */}
@@ -108,8 +113,8 @@ function PlayerCard({
           <span className="font-semibold text-[#858b96]">
             {Math.round(player.points ?? 0)} pts
           </span>
-          <span className="font-black text-lime-300">
-            {marketValueLabel(player.marketValue ?? pointsToMarketValue(player.points ?? 0))}
+          <span className="font-black text-lime-300" title={isFree ? "Free-agent signing fee" : "Market value"}>
+            {marketValueLabel(feeM)}
           </span>
         </div>
 

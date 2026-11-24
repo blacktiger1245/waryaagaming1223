@@ -8,6 +8,9 @@ import {
   playerTransfersTable,
   seasonsTable,
   coinSpendsTable,
+  transferSigningFeeCoins,
+  signingFeeMillions,
+  COINS_PER_MARKET_VALUE_M,
 } from "@workspace/db";
 import {
   eq,
@@ -45,6 +48,7 @@ function participantJson(
     avatarUrl: string | null;
     country: string | null;
     marketValue?: number | null;
+    teamId?: number | null;
   },
   online: boolean,
 ) {
@@ -58,20 +62,21 @@ function participantJson(
     // The player's Market Value (in M coins) is what a signing costs, so the
     // chat can price the contract offer before it is sent.
     marketValue: Number(p.marketValue ?? 0),
+    // A player with no clan is a free agent. The chat prices a free agent at the
+    // flat free-agent fee rather than his Market Value, so it needs to know.
+    isFreeAgent: p.teamId == null,
   };
 }
 
 /**
- * Market Value is measured in M (millions) of WG Coins — the same unit as the
- * coin packages and the clan-role prices — so a player listed at 120 has a
- * signing fee of 120,000,000 WG Coins.
+ * Signing a player is a PAID transfer in WG Coins. A player who is already under
+ * contract at another clan costs his Market Value (in millions), while a player
+ * with no clan ("free agent") is NOT a free signing — he is priced at the flat
+ * `FREE_AGENT_SIGNING_FEE_COINS`. This rule lives in @workspace/db so the
+ * Transfer Market, the clan browser and this chat always quote the same price.
  */
-const COINS_PER_MARKET_VALUE_M = 1_000_000;
-
-/** Signing fee, in WG Coins, for a player whose Market Value is `m` millions. */
-function signingFeeCoins(marketValueM: number | null | undefined): number {
-  const value = Math.max(0, Math.floor(Number(marketValueM ?? 0)));
-  return value * COINS_PER_MARKET_VALUE_M;
+function signingFeeCoins(marketValueM: number | null | undefined, isFreeAgent: boolean): number {
+  return transferSigningFeeCoins(marketValueM, isFreeAgent);
 }
 
 /** Locked player row, read with raw SQL so the balance can be checked safely. */
@@ -641,11 +646,17 @@ router.post("/agent-chat/conversations/:id/invite", async (req: Request, res: Re
   }
 
   const marketValueM = Math.max(0, Number(target.marketValue ?? 0));
-  const feeCoins = signingFeeCoins(marketValueM);
+  // A player with no clan is a free agent, and a free agent is NOT a free
+  // signing: he is priced at the flat free-agent fee. A contracted player costs
+  // his Market Value. Either way the price is resolved HERE, from the database,
+  // never from the client.
+  const isFreeAgent = target.teamId == null;
+  const feeCoins = signingFeeCoins(marketValueM, isFreeAgent);
+  const feeM = signingFeeMillions(marketValueM, isFreeAgent);
   const myBalance = Number(meRow?.coinBalance ?? 0);
   if (feeCoins > 0 && myBalance < feeCoins) {
     res.status(402).json({
-      error: `Not enough WG Coins: signing ${target.displayName ?? target.username} costs ${marketValueM}M and your balance is ${Math.floor(myBalance / COINS_PER_MARKET_VALUE_M)}M. Buy WG Coins first.`,
+      error: `Not enough WG Coins: signing ${target.displayName ?? target.username} costs ${feeM}M and your balance is ${Math.floor(myBalance / COINS_PER_MARKET_VALUE_M)}M. Buy WG Coins first.`,
       code: "insufficient_coins",
       feeCoins,
       balance: myBalance,
@@ -660,7 +671,9 @@ router.post("/agent-chat/conversations/:id/invite", async (req: Request, res: Re
     teamName: leader.teamName,
     presidentName,
     seasons,
-    marketValueM,
+    // The offer always quotes the price of the signing (5 for a free agent),
+    // not the raw Market Value, so both sides see exactly what has to be paid.
+    marketValueM: feeM,
     feeCoins,
   };
 

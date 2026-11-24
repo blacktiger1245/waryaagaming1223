@@ -279,12 +279,17 @@ interface TeamMatchGame {
 function MatchPlayerGamesDialog({
   match,
   teamId,
+  canManage = false,
   onClose,
 }: {
   match: any;
   teamId: number;
+  /** President/Coach of this clan — may set the match line-up. */
+  canManage?: boolean;
   onClose: () => void;
 }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
   const { data: games = [], isLoading } = useQuery<TeamMatchGame[]>({
     queryKey: ["team-match-player-games", match.id],
     queryFn: async () => {
@@ -292,6 +297,58 @@ function MatchPlayerGamesDialog({
       if (!r.ok) return [];
       return r.json();
     },
+  });
+
+  // Coach/President: which of this clan's players will play THIS match. The
+  // selection is capped by the tournament's players-per-team limit and is then
+  // used by the admin when the matchups are paired by hand.
+  const inMatch = match.participant1Id === teamId || match.participant2Id === teamId;
+  const [lineupOpen, setLineupOpen] = useState(false);
+  const [lineupSel, setLineupSel] = useState<number[] | null>(null);
+  const { data: lineupData } = useQuery<{
+    limit: number | null;
+    lineup: number[];
+    squad: Array<{ id: number; name: string; username?: string; avatarUrl?: string | null }>;
+  }>({
+    queryKey: ["match-lineup", teamId, match.id],
+    queryFn: async () => {
+      const r = await fetch(`/api/teams/${teamId}/matches/${match.id}/lineup`, { credentials: "include" });
+      if (!r.ok) throw new Error("Failed to load the line-up");
+      return r.json();
+    },
+    enabled: canManage && inMatch,
+  });
+  const lineupLimit = lineupData?.limit ?? null;
+  const lineupSquad = lineupData?.squad ?? [];
+  const selectedLineup = lineupSel ?? lineupData?.lineup ?? [];
+  function toggleLineup(id: number) {
+    setLineupSel((prev) => {
+      const cur = prev ?? lineupData?.lineup ?? [];
+      return cur.includes(id)
+        ? cur.filter((x) => x !== id)
+        : lineupLimit != null && cur.length >= lineupLimit
+          ? cur
+          : [...cur, id];
+    });
+  }
+  const saveLineup = useMutation({
+    mutationFn: async () => {
+      const r = await fetch(`/api/teams/${teamId}/matches/${match.id}/lineup`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playerIds: selectedLineup }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error((d as { error?: string })?.error ?? "Could not save the line-up");
+      return d;
+    },
+    onSuccess: () => {
+      toast({ title: "Line-up saved", description: "These players will play this match." });
+      setLineupOpen(false);
+      qc.invalidateQueries({ queryKey: ["match-lineup", teamId, match.id] });
+    },
+    onError: (err: Error) => toast({ title: "Could not save", description: err.message, variant: "destructive" }),
   });
 
   const isP1 = match.participant1Id === teamId;
@@ -326,6 +383,77 @@ function MatchPlayerGamesDialog({
             </div>
           </div>
         </div>
+
+        {/* President/Coach: pick the players who will play THIS match. */}
+        {canManage && inMatch && (
+          <div className="px-6 pt-4 shrink-0">
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5" /> Your match line-up
+                  </p>
+                  <p className="text-[11px] text-zinc-500 mt-0.5">
+                    {selectedLineup.length > 0
+                      ? `${selectedLineup.length}${lineupLimit ? `/${lineupLimit}` : ""} players selected for this match`
+                      : "No players selected for this match yet"}
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 text-xs font-bold h-8 shrink-0"
+                  onClick={() => { setLineupSel(null); setLineupOpen((o) => !o); }}
+                >
+                  <Users className="w-3 h-3" /> {lineupOpen ? "Close" : "Select players"}
+                </Button>
+              </div>
+
+              {lineupOpen && (
+                <div className="mt-3 space-y-3">
+                  <p className="text-[11px] text-zinc-500">
+                    Pick up to {lineupLimit ?? "any number of"} player(s) who will play this match (player vs player).
+                  </p>
+                  <div className="max-h-56 overflow-y-auto rounded-lg border border-zinc-800">
+                    {lineupSquad.length === 0 ? (
+                      <p className="p-4 text-center text-xs text-zinc-500">No players in your squad.</p>
+                    ) : lineupSquad.map((p) => {
+                      const checked = selectedLineup.includes(p.id);
+                      const atLimit = lineupLimit != null && selectedLineup.length >= lineupLimit;
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => toggleLineup(p.id)}
+                          disabled={!checked && atLimit}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2 border-b border-zinc-800 last:border-0 text-left transition-colors ${
+                            checked ? "bg-teal-500/10" : "hover:bg-zinc-800/60"
+                          } ${!checked && atLimit ? "opacity-40 cursor-not-allowed" : ""}`}
+                        >
+                          {p.avatarUrl
+                            ? <img src={p.avatarUrl} alt="" className="w-6 h-6 rounded-full object-cover shrink-0" />
+                            : <div className="w-6 h-6 rounded-full bg-zinc-800 shrink-0 flex items-center justify-center text-[9px] font-black text-zinc-400">{p.name.charAt(0)}</div>}
+                          <span className="flex-1 text-xs font-bold truncate text-zinc-200">{p.name}</span>
+                          {checked
+                            ? <Check className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+                            : <span className="w-3.5 h-3.5 rounded border border-zinc-600 shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <Button
+                    size="sm"
+                    className="gap-1.5 text-xs font-bold h-8"
+                    disabled={saveLineup.isPending || selectedLineup.length === 0}
+                    onClick={() => saveLineup.mutate()}
+                  >
+                    {saveLineup.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />} Save line-up
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Player games */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
@@ -1748,10 +1876,10 @@ export default function TeamDetailPage() {
                                   <div className="flex-1 min-w-0">
                                     <p className="text-sm font-bold truncate">{p.displayName ?? p.username}</p>
                                     <p className="text-[11px] text-zinc-500 truncate">
-                                      @{p.username} · {p.points} pts · {p.teamName ? `${p.teamName}${p.theirClanRole === "president" ? " (President)" : ""}` : "Free agent"}
+                                      @{p.username} · {p.points} pts · {p.teamName ? `${p.teamName}${p.theirClanRole === "president" ? " (President)" : ""}` : "Available player"}
                                     </p>
                                   </div>
-                                  <span className="text-xs font-black text-yellow-400 shrink-0">{p.marketValue}M</span>
+                                  <span className="text-xs font-black text-yellow-400 shrink-0">{p.signingFeeM}M</span>
                                   <button
                                     onClick={() => openPlayerChat(p)}
                                     disabled={mgmtLoading}
@@ -1999,6 +2127,7 @@ export default function TeamDetailPage() {
         <MatchPlayerGamesDialog
           match={selectedMatch}
           teamId={id}
+          canManage={isCoach}
           onClose={() => setSelectedMatch(null)}
         />
       )}

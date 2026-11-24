@@ -309,6 +309,17 @@ export async function ensureClanTournamentSchema(): Promise<StartupTaskOutcome> 
        "created_at" timestamp NOT NULL DEFAULT now(),
        CONSTRAINT "ttr_unique" UNIQUE ("tournament_id", "team_id", "player_id")
      );`,
+    // Per-match line-up: which of a clan's players the Coach/President selected
+    // for one specific fixture (player vs player). The administrator pairs these
+    // players manually — nothing is generated automatically.
+    `CREATE TABLE IF NOT EXISTS "match_team_rosters" (
+       "id" serial PRIMARY KEY,
+       "match_id" integer NOT NULL,
+       "team_id" integer NOT NULL,
+       "player_id" integer NOT NULL,
+       "created_at" timestamp NOT NULL DEFAULT now(),
+       CONSTRAINT "mtr_unique" UNIQUE ("match_id", "team_id", "player_id")
+     );`,
   ];
   try {
     for (const sql of statements) {
@@ -679,6 +690,8 @@ export async function ensureClanRegistrationSchema(): Promise<StartupTaskOutcome
     `ALTER TABLE "tournaments" ADD COLUMN IF NOT EXISTS "evc_plus_number" text;`,
     `ALTER TABLE "tournaments" ADD COLUMN IF NOT EXISTS "evc_plus_account_name" text;`,
     `ALTER TABLE "tournaments" ADD COLUMN IF NOT EXISTS "evc_plus_amount_text" text;`,
+    // The chosen playing line-up on a paid registration (see clan_registrations.ts).
+    `ALTER TABLE "clan_tournament_registrations" ADD COLUMN IF NOT EXISTS "player_ids" integer[] NOT NULL DEFAULT '{}';`,
     `CREATE TABLE IF NOT EXISTS "clan_tournament_registrations" (
        "id" serial PRIMARY KEY,
        "tournament_id" integer NOT NULL REFERENCES "tournaments"("id") ON DELETE CASCADE,

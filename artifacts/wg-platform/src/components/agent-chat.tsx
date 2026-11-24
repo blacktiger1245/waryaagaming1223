@@ -13,7 +13,6 @@ import {
   parseWgSystemMessage,
   payTransferFee,
   coinsInMillions,
-  COINS_PER_MARKET_VALUE_M,
   type AgentChannelContext,
   type AgentChatMessage,
   type AgentChatParticipant,
@@ -23,6 +22,7 @@ import {
   type WgInviteResultPayload,
   type WgTransferPaidPayload,
 } from "@/lib/agent-chat";
+import { transferSigningFeeCoins } from "@/lib/player-stats";
 
 function formatMessageTime(iso: string): string {
   return format(new Date(iso), "HH:mm");
@@ -161,7 +161,7 @@ function InviteCard({
           <p className="mt-1 flex items-center gap-1 text-xs text-[#8fe6c8]">
             <Coins className="h-3 w-3" />
             Signing fee: <span className="font-bold">{feeLabel}</span>
-            {invite.feeCoins > 0 ? ` — ${invite.teamName} pays your Market Value (${invite.marketValueM}M) to complete it.` : null}
+            {invite.feeCoins > 0 ? ` — ${invite.teamName} pays the ${invite.marketValueM}M signing fee to complete it.` : null}
           </p>
           {isAgentSide ? (
             <div className="mt-2.5 flex gap-2">
@@ -369,8 +369,12 @@ export function ChatPane({
   }
   const canInvite = meRole === "player" && !!channel?.isLeader && !!channel.teamId;
   // What signing the player in this conversation costs, and whether the clan can
-  // afford it right now — the fee is the player's Market Value in WG Coins.
-  const signingFeeCoins = Math.max(0, Number(participant?.marketValue ?? 0)) * COINS_PER_MARKET_VALUE_M;
+  // afford it right now. A free agent (no clan) is NOT free — he costs the flat
+  // free-agent fee; a player under contract costs his Market Value in WG Coins.
+  const signingFeeCoins = transferSigningFeeCoins(
+    participant?.marketValue ?? 0,
+    Boolean(participant?.isFreeAgent),
+  );
   const myBalance = channel?.coinBalance ?? 0;
   const canAffordSigning = myBalance >= signingFeeCoins;
 

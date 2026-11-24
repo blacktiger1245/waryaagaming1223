@@ -82,3 +82,38 @@ export function marketValueLabel(marketValueM: number): string {
 export function playerMarketValueM(stats: PlayerStatInput): number {
   return pointsToMarketValue(playerPoints(stats));
 }
+
+// ── Transfer / signing fees ──────────────────────────────────────────────────
+// Signing a player is a PAID transfer in WG Coins. A player who is already under
+// contract at another clan costs his Market Value (quoted in millions), but a
+// player with no clan ("free agent") is NOT a free signing: the Transfer Market
+// prices every free agent at this flat fee, so a clan must pay to sign him.
+
+/** WG Coins per one unit of Market Value (Market Value is quoted in millions). */
+export const COINS_PER_MARKET_VALUE_M = 1_000_000;
+
+/** Flat signing fee, in WG Coins, charged for a free agent (a player with no clan). */
+export const FREE_AGENT_SIGNING_FEE_COINS = 5_000_000;
+
+/**
+ * Signing fee, in WG Coins, for a player.
+ *
+ * A free agent (no clan) costs the flat `FREE_AGENT_SIGNING_FEE_COINS`; a player
+ * under contract at another clan costs his Market Value.
+ */
+export function transferSigningFeeCoins(
+  marketValueM: number | null | undefined,
+  isFreeAgent: boolean,
+): number {
+  if (isFreeAgent) return FREE_AGENT_SIGNING_FEE_COINS;
+  const value = Math.max(0, Math.floor(Number(marketValueM ?? 0)));
+  return value * COINS_PER_MARKET_VALUE_M;
+}
+
+/** The signing fee above, quoted in whole millions (e.g. 5 for a free agent). */
+export function signingFeeMillions(
+  marketValueM: number | null | undefined,
+  isFreeAgent: boolean,
+): number {
+  return Math.floor(transferSigningFeeCoins(marketValueM, isFreeAgent) / COINS_PER_MARKET_VALUE_M);
+}

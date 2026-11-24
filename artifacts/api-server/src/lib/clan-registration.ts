@@ -61,6 +61,34 @@ export async function registerTeamParticipant(
 }
 
 /**
+ * Persist a clan's chosen playing line-up for a tournament.
+ *
+ * A clan tournament can cap the players per team (`tournaments.players_per_team`)
+ * and the President/Coach picks the line-up (player vs player) while registering.
+ * A PAID entry stores the selection on the registration row first (it has to
+ * survive the Stripe redirect / admin approval), so this is called the moment the
+ * fee is settled — from the Stripe webhook and from the admin EVC Plus approval
+ * alike. Idempotent: the unique key makes a repeat insert a no-op.
+ */
+export async function saveTournamentLineup(
+  tournamentId: number,
+  teamId: number,
+  playerIds: readonly number[] | null | undefined,
+): Promise<number> {
+  const ids = Array.isArray(playerIds)
+    ? [...new Set(playerIds.filter((id) => Number.isInteger(id) && id > 0))]
+    : [];
+  for (const playerId of ids) {
+    await db.execute(
+      sql`INSERT INTO "tournament_team_rosters" ("tournament_id", "team_id", "player_id")
+          VALUES (${tournamentId}, ${teamId}, ${playerId})
+          ON CONFLICT ("tournament_id", "team_id", "player_id") DO NOTHING`,
+    );
+  }
+  return ids.length;
+}
+
+/**
  * Confirm a Stripe-paid clan registration and register the clan.
  *
  * Idempotent by construction: the registration is found through the unique
@@ -108,6 +136,13 @@ export async function fulfillClanRegistration(
     .where(and(eq(clanRegistrationsTable.id, registration.id), sql`${clanRegistrationsTable.status} <> 'approved'`));
 
   const { currentParticipants } = await registerTeamParticipant(registration.tournamentId, registration.teamId);
+  // The President/Coach chose the playing line-up while registering; apply it now
+  // that the fee is settled so the tournament roster is never empty.
+  const lineupSaved = await saveTournamentLineup(
+    registration.tournamentId,
+    registration.teamId,
+    registration.playerIds,
+  );
 
   logger.info(
     {
@@ -115,6 +150,7 @@ export async function fulfillClanRegistration(
       tournamentId: registration.tournamentId,
       teamId: registration.teamId,
       currentParticipants,
+      lineupSaved,
     },
     "Clan tournament entry fee paid — clan registered automatically",
   );

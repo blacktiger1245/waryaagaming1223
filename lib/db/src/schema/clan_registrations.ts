@@ -33,6 +33,15 @@ export const clanRegistrationsTable = pgTable("clan_tournament_registrations", {
   /** Fee snapshot in US cents at the time of registration. */
   feeCents: integer("fee_cents").notNull().default(0),
   /**
+   * The playing line-up the President/Coach chose while registering: the players
+   * who will represent the clan in the tournament (player vs player), capped by
+   * the tournament's `players_per_team`. It is stored on the registration — not
+   * written straight to `tournament_team_rosters` — because a PAID entry only
+   * counts once the fee is settled (Stripe webhook or admin approval), and the
+   * line-up has to survive that hand-off.
+   */
+  playerIds: integer("player_ids").array().notNull().default([]),
+  /**
    * Stripe Checkout Session that paid this registration. Unique, exactly like
    * `coin_transactions.stripe_session_id`, so a redelivered webhook can never
    * register (or charge) the same clan twice.

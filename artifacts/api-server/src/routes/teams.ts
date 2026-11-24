@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { teamsTable, playersTable, newsTable, matchesTable, tournamentsTable, playerTransfersTable, clanSettingsTable, teamInvitesTable, seasonsTable } from "@workspace/db";
+import { transferSigningFeeCoins, signingFeeMillions } from "@workspace/db";
 import { eq, and, ilike, isNotNull, inArray, desc, sql, or, aliasedTable } from "drizzle-orm";
 import {
   ListTeamsQueryParams,
@@ -1084,6 +1085,11 @@ router.get("/teams/:id/recruit-candidates", async (req, res) => {
                 ? "captain"
                 : "player";
       const marketValueM = Math.max(0, Number(r.marketValue ?? 0));
+      // A player with no clan is a free agent, and a free agent is NOT a free
+      // signing: the Transfer Market prices him at the flat free-agent fee. A
+      // contracted player costs his Market Value.
+      const isFreeAgent = r.teamId == null;
+      const feeCoins = transferSigningFeeCoins(marketValueM, isFreeAgent);
       return {
         id: r.id,
         username: r.username,
@@ -1094,9 +1100,12 @@ router.get("/teams/:id/recruit-candidates", async (req, res) => {
         points: r.points,
         rating: r.rating,
         marketValue: marketValueM,
+        // Actual price of the signing, in whole millions (5 for a free agent), so
+        // the browser never shows a free agent as a free signing.
+        signingFeeM: signingFeeMillions(marketValueM, isFreeAgent),
         // Signing fee in WG Coins (Market Value is quoted in millions).
-        feeCoins: marketValueM * 1_000_000,
-        isFreeAgent: r.teamId == null,
+        feeCoins,
+        isFreeAgent,
         teamId: r.teamId,
         teamName: r.teamName,
         theirClanRole,
@@ -1170,13 +1179,18 @@ async function createTeamInvite(
   // untouched: that seat is paid for by the player buying the Clan Coach role.
   if (role === "player" && !isPlatformStaff(req)) {
     const marketValueM = Math.max(0, Number(player.marketValue ?? 0));
-    const feeCoins = marketValueM * 1_000_000;
+    // Free agents are not free: they cost the flat free-agent fee, while a player
+    // under contract costs his Market Value. Either way the signing must go
+    // through the paid chat flow, never this free invitation.
+    const isFreeAgent = player.teamId == null;
+    const feeCoins = transferSigningFeeCoins(marketValueM, isFreeAgent);
     if (feeCoins > 0) {
+      const feeM = signingFeeMillions(marketValueM, isFreeAgent);
       return res.status(409).json({
-        error: `Signing ${player.displayName ?? player.username} costs ${marketValueM}M WG Coins (his Market Value). Open the chat with him from "Add Player" and send the contract offer — he joins as soon as the fee is paid.`,
+        error: `Signing ${player.displayName ?? player.username} costs ${feeM}M WG Coins${isFreeAgent ? " (free-agent fee)" : " (his Market Value)"}. Open the chat with him from "Add Player" and send the contract offer — he joins as soon as the fee is paid.`,
         code: "paid_transfer_required",
         feeCoins,
-        marketValueM,
+        marketValueM: feeM,
       });
     }
   }
@@ -1452,6 +1466,158 @@ router.patch("/teams/:id/coach", async (req, res) => {
 
   await db.update(teamsTable).set({ coachId: playerId }).where(eq(teamsTable.id, teamId));
   return res.json({ ok: true });
+});
+
+// ── Match line-up  (President/Coach) ──────────────────────────────────────────
+// A clan fixture is decided by player-vs-player games, but those games are paired
+// BY THE ADMINISTRATOR BY HAND — never automatically. Before that pairing, each
+// clan's President/Coach picks which of their players will play THIS match; the
+// selection is capped by the tournament's players-per-team limit and can only
+// contain the clan's own members. The admin's pairing screen then offers exactly
+// these players, so the admin simply matches the two coaches' picks.
+
+/** Read the rows out of a raw `db.execute` result (node-postgres returns `{ rows }`). */
+function rawRows<T>(result: unknown): T[] {
+  if (Array.isArray(result)) return result as T[];
+  return ((result as { rows?: T[] } | null)?.rows ?? []) as T[];
+}
+
+/** The numeric player ids stored in a raw `SELECT player_id` result. */
+function playerIdColumn(result: unknown): number[] {
+  return rawRows<{ player_id: number }>(result)
+    .map((r) => Number(r.player_id))
+    .filter((n) => Number.isInteger(n) && n > 0);
+}
+
+/**
+ * Shared gate for the two line-up routes: confirms the caller leads the clan and
+ * that the clan actually plays in the fixture. Sends the error itself and returns
+ * null when the request must stop.
+ */
+async function resolveLineupContext(
+  req: import("express").Request,
+  res: import("express").Response,
+): Promise<{ teamId: number; matchId: number; limit: number | null; match: typeof matchesTable.$inferSelect } | null> {
+  if (!req.session?.userId) { res.status(401).json({ error: "Login required" }); return null; }
+
+  const teamId = Number(req.params.id);
+  const matchId = Number(req.params.matchId);
+  if (!Number.isInteger(teamId) || !Number.isInteger(matchId)) {
+    res.status(400).json({ error: "Invalid id" });
+    return null;
+  }
+
+  const [team] = await db.select().from(teamsTable).where(eq(teamsTable.id, teamId));
+  if (!team) { res.status(404).json({ error: "Team not found" }); return null; }
+
+  const role = await resolveTeamRole(req, team);
+  if (role !== "president" && role !== "coach" && !isPlatformStaff(req)) {
+    res.status(403).json({ error: "Only the President or Coach can set this match's line-up" });
+    return null;
+  }
+
+  const [match] = await db.select().from(matchesTable).where(eq(matchesTable.id, matchId));
+  if (!match) { res.status(404).json({ error: "Match not found" }); return null; }
+  if (match.participant1Id !== teamId && match.participant2Id !== teamId) {
+    res.status(400).json({ error: "This clan is not playing in that match" });
+    return null;
+  }
+
+  let limit: number | null = null;
+  if (match.tournamentId) {
+    const [t] = await db
+      .select({ playersPerTeam: tournamentsTable.playersPerTeam })
+      .from(tournamentsTable)
+      .where(eq(tournamentsTable.id, match.tournamentId));
+    if (t?.playersPerTeam != null && t.playersPerTeam > 0) limit = t.playersPerTeam;
+  }
+
+  return { teamId, matchId, limit, match };
+}
+
+// GET /teams/:id/matches/:matchId/lineup — the clan's squad, its registered
+// tournament roster and the current selection for this match (drives the picker).
+router.get("/teams/:id/matches/:matchId/lineup", async (req, res) => {
+  const ctx = await resolveLineupContext(req, res);
+  if (!ctx) return;
+  const { teamId, matchId, limit, match } = ctx;
+
+  const squad = await db
+    .select({
+      id: playersTable.id,
+      username: playersTable.username,
+      displayName: playersTable.displayName,
+      avatarUrl: playersTable.avatarUrl,
+    })
+    .from(playersTable)
+    .where(eq(playersTable.teamId, teamId))
+    .orderBy(playersTable.id);
+
+  const roster = match.tournamentId
+    ? playerIdColumn(
+        await db.execute(
+          sql`SELECT "player_id" FROM "tournament_team_rosters"
+              WHERE "tournament_id" = ${match.tournamentId} AND "team_id" = ${teamId}`,
+        ),
+      )
+    : [];
+
+  const lineup = playerIdColumn(
+    await db.execute(
+      sql`SELECT "player_id" FROM "match_team_rosters"
+          WHERE "match_id" = ${matchId} AND "team_id" = ${teamId}`,
+    ),
+  );
+
+  return res.json({
+    limit,
+    lineup,
+    roster,
+    squad: squad.map((p) => ({
+      id: p.id,
+      name: p.displayName ?? p.username,
+      username: p.username,
+      avatarUrl: p.avatarUrl,
+    })),
+  });
+});
+
+// PUT /teams/:id/matches/:matchId/lineup — set the players who will play this match.
+router.put("/teams/:id/matches/:matchId/lineup", async (req, res) => {
+  const ctx = await resolveLineupContext(req, res);
+  if (!ctx) return;
+  const { teamId, matchId, limit } = ctx;
+
+  const raw = (req.body as { playerIds?: unknown } | null)?.playerIds;
+  const playerIds = Array.isArray(raw)
+    ? [...new Set(raw.filter((x): x is number => typeof x === "number" && Number.isInteger(x) && x > 0))]
+    : [];
+
+  if (limit != null && playerIds.length > limit) {
+    return res.status(400).json({ error: `You can select at most ${limit} players for this match.` });
+  }
+  if (playerIds.length > 0) {
+    const members = await db
+      .select({ id: playersTable.id })
+      .from(playersTable)
+      .where(and(eq(playersTable.teamId, teamId), inArray(playersTable.id, playerIds)));
+    if (members.length !== playerIds.length) {
+      return res.status(403).json({ error: "Some selected players are not on your team." });
+    }
+  }
+
+  await db.execute(
+    sql`DELETE FROM "match_team_rosters" WHERE "match_id" = ${matchId} AND "team_id" = ${teamId}`,
+  );
+  for (const playerId of playerIds) {
+    await db.execute(
+      sql`INSERT INTO "match_team_rosters" ("match_id", "team_id", "player_id")
+          VALUES (${matchId}, ${teamId}, ${playerId})
+          ON CONFLICT ("match_id", "team_id", "player_id") DO NOTHING`,
+    );
+  }
+
+  return res.json({ ok: true, lineup: playerIds });
 });
 
 export default router;

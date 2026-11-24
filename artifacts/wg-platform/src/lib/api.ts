@@ -88,8 +88,13 @@ export interface RecruitCandidate {
   country: string | null;
   points: number;
   rating: number;
-  /** Market Value in M coins — what signing this player costs. */
+  /** Market Value in M coins — for a contracted player this is what signing costs. */
   marketValue: number;
+  /**
+   * The actual price of the signing, in whole millions. A free agent (no clan)
+   * is NOT free: he costs a flat 5M, so this is 5 while `marketValue` may differ.
+   */
+  signingFeeM: number;
   /** The same price in WG Coins. */
   feeCoins: number;
   isFreeAgent: boolean;

@@ -23,7 +23,7 @@ import {
 import { eq, desc, and, inArray, notInArray, or, type AnyColumn, sql } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { advanceKnockoutWinner, computeWinnerFromResult, syncKnockoutProgression } from "../lib/knockout";
-import { registerTeamParticipant } from "../lib/clan-registration";
+import { registerTeamParticipant, saveTournamentLineup } from "../lib/clan-registration";
 import { recalculateTeamScore } from "../lib/teamScore";
 import { syncStatsAfterFixture, refreshAllStats } from "../lib/stats-sync";
 
@@ -1875,8 +1875,11 @@ router.get("/admin/tournaments/:id/matches", requireAdmin, async (req, res) => {
  * registered line-up (`tournament_team_rosters`), falling back to the whole
  * squad when a clan saved no line-up. The two line-ups are zipped index by index
  * and capped at the shorter side, so a 5-player clan facing a 3-player clan
- * produces 3 games. Shared by the "generate pairings" button and the hand-built
- * clan fixtures (POST /admin/tournaments/:id/clan-matches).
+ * produces 3 games.
+ *
+ * This is an EXPLICIT admin action only (POST /admin/matches/:id/player-games/
+ * generate). Pairings are never created automatically when a fixture is made —
+ * the administrator sets the individual matchups by hand.
  */
 async function buildClanPairings(
   match: typeof matchesTable.$inferSelect,
@@ -1941,6 +1944,73 @@ router.get("/admin/matches/:id/player-games", requireAdmin, async (req, res) => 
   return res.json(games);
 });
 
+// GET the two clans' selected line-ups for a fixture. Drives the MANUAL pairing
+// screen: the administrator picks each matchup from the players the two clans'
+// Presidents/Coaches chose for this match.
+router.get("/admin/matches/:id/lineups", requireAdmin, async (req, res) => {
+  const matchId = Number(req.params.id);
+  if (isNaN(matchId)) return res.status(400).json({ error: "Invalid id" });
+
+  const [match] = await db.select().from(matchesTable).where(eq(matchesTable.id, matchId));
+  if (!match) return res.status(404).json({ error: "Match not found" });
+
+  const idsFrom = (raw: unknown): number[] => {
+    const rows: Array<{ player_id: number }> = Array.isArray(raw)
+      ? (raw as Array<{ player_id: number }>)
+      : ((raw as { rows?: Array<{ player_id: number }> } | null)?.rows ?? []);
+    return rows.map((r) => Number(r.player_id)).filter((n) => Number.isInteger(n) && n > 0);
+  };
+
+  const loadSide = async (teamId: number | null) => {
+    if (teamId == null) return [] as Array<{ id: number; name: string; avatarUrl: string | null }>;
+
+    // The coaches' per-match selection first, then the registered tournament
+    // roster, then the whole squad as a last resort.
+    let ids = idsFrom(
+      await db.execute(
+        sql`SELECT "player_id" FROM "match_team_rosters" WHERE "match_id" = ${matchId} AND "team_id" = ${teamId}`,
+      ),
+    );
+    if (ids.length === 0 && match.tournamentId) {
+      ids = idsFrom(
+        await db.execute(
+          sql`SELECT "player_id" FROM "tournament_team_rosters" WHERE "tournament_id" = ${match.tournamentId} AND "team_id" = ${teamId}`,
+        ),
+      );
+    }
+    if (ids.length === 0) {
+      const squad = await db
+        .select({ id: playersTable.id })
+        .from(playersTable)
+        .where(eq(playersTable.teamId, teamId))
+        .orderBy(playersTable.id);
+      ids = squad.map((s) => s.id);
+    }
+    if (ids.length === 0) return [];
+
+    const players = await db
+      .select({
+        id: playersTable.id,
+        username: playersTable.username,
+        displayName: playersTable.displayName,
+        avatarUrl: playersTable.avatarUrl,
+      })
+      .from(playersTable)
+      .where(inArray(playersTable.id, ids));
+    const byId = new Map(players.map((p) => [p.id, p]));
+    return ids
+      .map((id) => byId.get(id))
+      .filter((p): p is NonNullable<typeof p> => Boolean(p))
+      .map((p) => ({ id: p.id, name: p.displayName ?? p.username, avatarUrl: p.avatarUrl }));
+  };
+
+  const [home, away] = await Promise.all([
+    loadSide(match.participant1Id),
+    loadSide(match.participant2Id),
+  ]);
+  return res.json({ home, away });
+});
+
 // POST generate player pairings from team rosters
 router.post("/admin/matches/:id/player-games/generate", requireAdmin, async (req, res) => {
   const matchId = Number(req.params.id);
@@ -1962,10 +2032,12 @@ router.post("/admin/matches/:id/player-games/generate", requireAdmin, async (req
   return res.json(inserted);
 });
 
-// ─── Clan fixtures created by hand (no auto-generation) ───────────────────────
-// The admin picks Team A vs Team B in the "Add Match" dialog; the two clans'
-// players are then paired up automatically, player vs player. Used for BOTH
-// stages: stage 1 (the league table) and stage 2 (the knock-out bracket).
+// ─── Clan fixtures created by hand ────────────────────────────────────────────
+// The admin picks Team A vs Team B in the "Add Match" dialog to create the
+// fixture. The player-vs-player matchups are NOT created here — the administrator
+// adds each pairing by hand later (using the line-ups the clans' Coaches selected),
+// so nothing is matched automatically. Used for BOTH stages: stage 1 (the league
+// table) and stage 2 (the knock-out bracket).
 router.post("/admin/tournaments/:id/clan-matches", requireAdmin, async (req, res) => {
   const tournamentId = Number(req.params.id);
   if (isNaN(tournamentId)) return res.status(400).json({ error: "Invalid id" });
@@ -2066,15 +2138,10 @@ router.post("/admin/tournaments/:id/clan-matches", requireAdmin, async (req, res
     })
     .returning();
 
-  // Auto-set the player-vs-player pairings from the two clans' line-ups.
-  let playerGames = 0;
-  const pairings = await buildClanPairings(match);
-  if (pairings.length > 0) {
-    const inserted = await db.insert(matchPlayerGamesTable).values(pairings).returning();
-    playerGames = inserted.length;
-  }
-
-  return res.status(201).json({ ...match, playerGames });
+  // The player-vs-player pairings are NOT generated automatically. The individual
+  // matchups are created by hand (POST /admin/matches/:id/player-games), using the
+  // line-up each clan's Coach/President selected for this match.
+  return res.status(201).json({ ...match, playerGames: 0 });
 });
 
 // POST add a single player pairing manually
@@ -2609,6 +2676,15 @@ router.post("/admin/clan-registrations/:id/approve", requireAdmin, async (req, r
     registration.teamId,
   );
 
+  // Apply the playing line-up the President/Coach chose while registering — it was
+  // stored on the registration and only now (fee confirmed) becomes the clan's
+  // tournament roster.
+  const lineupSaved = await saveTournamentLineup(
+    registration.tournamentId,
+    registration.teamId,
+    registration.playerIds,
+  );
+
   await db.insert(clanRegistrationLogsTable).values({
     registrationId: id,
     tournamentId: registration.tournamentId,
@@ -2619,7 +2695,7 @@ router.post("/admin/clan-registrations/:id/approve", requireAdmin, async (req, r
     note: note ?? "EVC Plus transfer confirmed",
   });
 
-  return res.json({ ok: true, status: "approved", registeredNow: created, currentParticipants });
+  return res.json({ ok: true, status: "approved", registeredNow: created, currentParticipants, lineupSaved });
 });
 
 // ── POST /admin/clan-registrations/:id/reject ────────────────────────────────

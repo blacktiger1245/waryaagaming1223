@@ -272,6 +272,38 @@ router.get("/tournaments/:id/my-registration", async (req, res) => {
 });
 
 /**
+ * Validate a clan playing line-up (player vs player) for a tournament.
+ *
+ * A clan tournament may cap the players per team (`tournament.playersPerTeam`); the
+ * President/Coach selects the line-up while registering. The selection must respect
+ * that cap and contain only members of the clan. Returns the cleaned ids, or an
+ * error (with HTTP status) the caller can surface straight away.
+ */
+async function validateClanLineup(
+  tournament: typeof tournamentsTable.$inferSelect,
+  teamId: number,
+  rawPlayerIds: unknown,
+): Promise<{ ok: true; playerIds: number[] } | { ok: false; error: string; status: number }> {
+  const limit = tournament.playersPerTeam != null && tournament.playersPerTeam > 0 ? tournament.playersPerTeam : null;
+  const raw = Array.isArray(rawPlayerIds) ? rawPlayerIds : [];
+  const playerIds = [...new Set(raw.filter((x): x is number => typeof x === "number" && Number.isInteger(x) && x > 0))];
+
+  if (limit != null && playerIds.length > limit) {
+    return { ok: false, status: 400, error: `You reached the maximum of ${limit} players (player vs player). You selected ${playerIds.length}.` };
+  }
+  if (playerIds.length > 0) {
+    const members = await db
+      .select({ id: playersTable.id })
+      .from(playersTable)
+      .where(and(eq(playersTable.teamId, teamId), inArray(playersTable.id, playerIds)));
+    if (members.length !== playerIds.length) {
+      return { ok: false, status: 403, error: "Some selected players are not on your team." };
+    }
+  }
+  return { ok: true, playerIds };
+}
+
+/**
  * Shared team-registration logic for clan tournaments.
  * Validates open status, capacity, team membership and the President/Coach role
  * (all from the DB), then inserts a team participant. Sends the response itself.
@@ -338,27 +370,12 @@ async function registerTeamForTournament(
     });
   }
 
-  // Optional playing roster (player vs player). Registration itself only needs the
-  // clan — the coach may add the line-up later, so an empty selection is accepted.
+  // Optional playing roster (player vs player), capped by the tournament's limit.
   const body = (req.body ?? {}) as { playerIds?: unknown };
   const playersPerTeam = tournament.playersPerTeam != null ? tournament.playersPerTeam : null;
-  let playerIds: number[] = [];
-  if (playersPerTeam != null && playersPerTeam > 0) {
-    const raw = Array.isArray(body.playerIds) ? body.playerIds : [];
-    playerIds = raw.filter((x): x is number => typeof x === "number" && Number.isInteger(x) && x > 0);
-    if (playerIds.length > playersPerTeam) {
-      return res.status(400).json({ error: `You reached the maximum of ${playersPerTeam} players (player vs player). You selected ${playerIds.length}.` });
-    }
-    if (playerIds.length > 0) {
-      const teamMembers = await db
-        .select({ id: playersTable.id })
-        .from(playersTable)
-        .where(and(eq(playersTable.teamId, team.id), inArray(playersTable.id, playerIds)));
-      if (teamMembers.length !== playerIds.length) {
-        return res.status(403).json({ error: "Some selected players are not on your team." });
-      }
-    }
-  }
+  const lineup = await validateClanLineup(tournament, team.id, body.playerIds);
+  if (!lineup.ok) return res.status(lineup.status).json({ error: lineup.error });
+  const playerIds = lineup.playerIds;
   const [participant] = await db
     .insert(tournamentParticipantsTable)
     .values({ tournamentId: id, type: "team", playerId: null, teamId: team.id })
@@ -859,6 +876,16 @@ router.post("/tournaments/:id/register-team/stripe", async (req, res) => {
     );
   if (already) return res.status(409).json({ error: "Your team is already registered" });
 
+  // The President/Coach picks the playing line-up (player vs player) while
+  // registering. It is stored on the registration row so it survives the Stripe
+  // redirect and is applied by the webhook the moment the payment succeeds.
+  const lineup = await validateClanLineup(
+    tournament,
+    ctx.team.id,
+    (req.body as { playerIds?: unknown } | null)?.playerIds,
+  );
+  if (!lineup.ok) return res.status(lineup.status).json({ error: lineup.error });
+
   // Reuse an existing unpaid registration instead of creating a second one, so
   // retrying the checkout can never produce two entry fees.
   const [existing] = await db
@@ -886,9 +913,16 @@ router.post("/tournaments/:id/register-team/stripe", async (req, res) => {
           method: "stripe",
           status: "awaiting_payment",
           feeCents: tournament.registrationFeeCents,
+          playerIds: lineup.playerIds,
         })
         .returning()
     )[0];
+
+  // A retry can change the line-up; keep the stored selection in step with it.
+  await db
+    .update(clanRegistrationsTable)
+    .set({ playerIds: lineup.playerIds })
+    .where(eq(clanRegistrationsTable.id, registration.id));
 
   const origin = resolveFrontendOrigin(req);
 
@@ -970,6 +1004,16 @@ router.post("/tournaments/:id/register-team/evc", async (req, res) => {
     );
   if (already) return res.status(409).json({ error: "Your team is already registered" });
 
+  // The President/Coach picks the playing line-up (player vs player) while
+  // registering. It is stored on the registration and applied only once an admin
+  // confirms the transfer (see POST /admin/clan-registrations/:id/approve).
+  const lineup = await validateClanLineup(
+    tournament,
+    ctx.team.id,
+    (req.body as { playerIds?: unknown } | null)?.playerIds,
+  );
+  if (!lineup.ok) return res.status(lineup.status).json({ error: lineup.error });
+
   const [existing] = await db
     .select()
     .from(clanRegistrationsTable)
@@ -995,9 +1039,16 @@ router.post("/tournaments/:id/register-team/evc", async (req, res) => {
           method: "evcplus",
           status: "awaiting_payment",
           feeCents: tournament.registrationFeeCents,
+          playerIds: lineup.playerIds,
         })
         .returning()
     )[0];
+
+  // Retrying can change the line-up; keep the stored selection in step with it.
+  await db
+    .update(clanRegistrationsTable)
+    .set({ playerIds: lineup.playerIds })
+    .where(eq(clanRegistrationsTable.id, registration.id));
 
   return res.json({
     registrationId: registration.id,

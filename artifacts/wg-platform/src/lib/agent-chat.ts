@@ -11,6 +11,11 @@ export interface AgentChatParticipant {
   online: boolean;
   /** Market Value in M coins — the price of signing this player. */
   marketValue?: number;
+  /**
+   * True when this player has no clan. A free agent is NOT a free signing: the
+   * chat prices him at the flat free-agent fee instead of his Market Value.
+   */
+  isFreeAgent?: boolean;
 }
 
 export interface AgentChatLastMessage {
