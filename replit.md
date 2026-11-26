@@ -9,6 +9,7 @@ Waryaa Gaming is the Esomali Sport Federation's official platform — tournament
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
+- `pnpm --filter @workspace/db run seed-clans -- <name> <clans> <playersPerClan>` — populate an existing clan tournament with clans and players (defaults: `f`, 8 clans × 4 players each). Idempotent; reuses free agents, creates players only as needed.
 - Required env: `DATABASE_URL` — Postgres connection string (already provisioned); `SESSION_SECRET` — signs session cookies (already set as a secret; the API falls back to an insecure default if unset, so keep it set in every environment)
 - Storage env: `R2_ENDPOINT` and `R2_BUCKET_NAME` are set as shared env vars (bucket: `waryaagaming`, endpoint: Cloudflare R2 S3-compatible URL); `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` are Replit Secrets — generate from Cloudflare dashboard → R2 → Manage R2 API Tokens
 - Hosted frontend/API: the web build uses same-origin `/api` routing by default. If the frontend is hosted separately from the API, set the web build variable `VITE_API_URL` to the API origin (without a trailing slash), the API variable `FRONTEND_ORIGINS` to the exact frontend origin(s), comma-separated, and `COOKIE_SAME_SITE=none`. The API rejects credentialed requests from origins not matching the API origin or `FRONTEND_ORIGINS`.
