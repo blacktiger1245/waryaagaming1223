@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Search, Users, Shield } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SupporterName } from "@/components/supporter-name";
 import { useListPlayers } from "@workspace/api-client-react";
 import { accentForId, accentCardBackground } from "@/lib/accent-colors";
 
@@ -72,7 +73,7 @@ export default function PlayersPage() {
 
                       <div className="text-center">
                         <div className="font-black text-lg leading-tight group-hover:text-white transition-colors">
-                          <span className="truncate">{player.displayName ?? player.username}</span>
+                          <SupporterName name={player.displayName ?? player.username} donor={(player as any).donor} className="truncate" />
                           {(player as any).verified && (
                             <img src={`${import.meta.env.BASE_URL}verified.png`} alt="" draggable={false} className="h-4 w-4 shrink-0 object-contain inline-block align-baseline" />
                           )}

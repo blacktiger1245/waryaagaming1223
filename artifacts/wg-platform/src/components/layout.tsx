@@ -13,6 +13,7 @@ import {
   LogOut,
   ChevronDown,
   Home,
+  HeartHandshake,
   Handshake,
   ShoppingBag,
   LayoutDashboard,
@@ -73,6 +74,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   type NavLink = { href: string; label: string; icon?: LucideIcon; live?: boolean; logo?: boolean };
   const navLinks: NavLink[] = [
     { href: "/", label: "Home", icon: Home },
+    { href: "/donate", label: "Donate", icon: HeartHandshake },
     { href: "/tournaments", label: "Tournaments", icon: Trophy },
     { href: "/clan-tournament", label: "Clan Tournament", icon: Swords },
     { href: "/players", label: "Players", icon: Users },

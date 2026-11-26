@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { social } from "@/lib/social";
 import { SOCIAL_LINKS, socialLinkLabel, type SocialField } from "@/lib/social-links";
+import { SupporterName } from "@/components/supporter-name";
 import { useAuth } from "@/hooks/use-auth";
 import { useParams, Link } from "wouter";
 import { countryNameToFlagUrl } from "@/lib/countries";
@@ -1044,7 +1045,7 @@ export default function PlayerDetailPage() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-2xl md:text-4xl font-black leading-tight flex items-center gap-2">
-                        {displayName}
+                        <SupporterName name={displayName} donor={(player as any).donor} />
                         {(player as any).verified && (
                           <img
                           src={`${import.meta.env.BASE_URL}verified.png`}

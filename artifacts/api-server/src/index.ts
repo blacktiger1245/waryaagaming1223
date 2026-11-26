@@ -1,6 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
-import { ensureMatchBracketSchema, ensureAcademySchema, ensureShopSchema, ensureClanSchema, ensureClanTournamentSchema, ensurePlayerGameStatsSchema, ensureMatchResultSchema, ensurePlayerSocialSchema, ensureStripeSchema, ensureClanRoleSchema, ensureClanRegistrationSchema } from "./lib/ensure-schema";
+import { ensureMatchBracketSchema, ensureAcademySchema, ensureShopSchema, ensureClanSchema, ensureClanTournamentSchema, ensurePlayerGameStatsSchema, ensureMatchResultSchema, ensurePlayerSocialSchema, ensureStripeSchema, ensureClanRoleSchema, ensureClanRegistrationSchema, ensureDonationsSchema } from "./lib/ensure-schema";
 import { activateUpcomingTournaments } from "./lib/tournament-scheduler";
 import { refreshAllStats } from "./lib/stats-sync";
 import { markReady, markFailed, recordStage } from "./lib/readiness";
@@ -116,6 +116,7 @@ const REQUIRED_STARTUP_TASKS: ReadonlyArray<{
   { name: "ensureStripeSchema", run: ensureStripeSchema },
   { name: "ensureClanRoleSchema", run: ensureClanRoleSchema },
   { name: "ensureClanRegistrationSchema", run: ensureClanRegistrationSchema },
+  { name: "ensureDonationsSchema", run: ensureDonationsSchema },
 ];
 
 /**

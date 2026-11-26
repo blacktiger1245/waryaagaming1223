@@ -19,11 +19,13 @@ import {
   pointsToMarketValue,
   clanRegistrationsTable,
   clanRegistrationLogsTable,
+  donationsTable,
 } from "@workspace/db";
 import { eq, desc, and, inArray, notInArray, or, type AnyColumn, sql } from "drizzle-orm";
 import type { PgTable } from "drizzle-orm/pg-core";
 import { advanceKnockoutWinner, computeWinnerFromResult, syncKnockoutProgression } from "../lib/knockout";
 import { registerTeamParticipant, saveTournamentLineup } from "../lib/clan-registration";
+import { grantDonorStatus } from "../lib/donations";
 import { recalculateTeamScore } from "../lib/teamScore";
 import { syncStatsAfterFixture, refreshAllStats } from "../lib/stats-sync";
 
@@ -680,6 +682,20 @@ router.post("/admin/tournaments", requireAdmin, async (req, res) => {
         ? new Date().toISOString().slice(0, 10)
         : undefined;
 
+    // Default to the CURRENT season when the admin did not choose one, so a newly
+    // created tournament is never invisible to the season-scoped Clan Tournament
+    // page (which defaults to the current season).
+    const resolvedSeasonId =
+      seasonId != null && String(seasonId) !== ""
+        ? Number(seasonId)
+        : (
+            await db
+              .select({ id: seasonsTable.id })
+              .from(seasonsTable)
+              .where(eq(seasonsTable.isCurrent, true))
+              .limit(1)
+          )[0]?.id;
+
     // 1. Create the tournament
     const [tournament] = await db.insert(tournamentsTable).values({
       name: String(name),
@@ -700,7 +716,7 @@ router.post("/admin/tournaments", requireAdmin, async (req, res) => {
       logoUrl: logoUrl ? String(logoUrl) : undefined,
       hostedBy: hostedBy ? String(hostedBy) : undefined,
       tournamentType: String(tournamentType),
-      seasonId: seasonId ? Number(seasonId) : undefined,
+      seasonId: resolvedSeasonId,
       categoryId: categoryId ? Number(categoryId) : undefined,
       groupCount: groupCount ? Number(groupCount) : undefined,
       qualifyCount: qualifyCount ? Number(qualifyCount) : undefined,
@@ -2833,6 +2849,89 @@ router.get("/admin/clan-roles", requireAdmin, async (_req, res) => {
     .orderBy(playersTable.username);
 
   return res.json({ holders: rows });
+});
+
+// ─── Donations (supporters) ───────────────────────────────────────────────────
+// Card donations are confirmed by the Stripe webhook; EVC Plus transfers are
+// reported by the donor (`POST /donations/evc-plus`) and confirmed or rejected
+// here. Approving grants the supporter badge (yellow name + green tick).
+router.get("/admin/donations", async (req, res) => {
+  const status = typeof req.query.status === "string" ? req.query.status : "pending_review";
+
+  const rows = await db
+    .select({
+      id: donationsTable.id,
+      playerId: donationsTable.playerId,
+      method: donationsTable.method,
+      amountCents: donationsTable.amountCents,
+      currency: donationsTable.currency,
+      status: donationsTable.status,
+      payerName: donationsTable.payerName,
+      note: donationsTable.note,
+      createdAt: donationsTable.createdAt,
+      reviewedAt: donationsTable.reviewedAt,
+      paidAt: donationsTable.paidAt,
+      playerName: playersTable.displayName,
+      username: playersTable.username,
+      playerDonor: playersTable.donor,
+    })
+    .from(donationsTable)
+    .leftJoin(playersTable, eq(playersTable.id, donationsTable.playerId))
+    .where(status === "all" ? undefined : eq(donationsTable.status, status))
+    .orderBy(desc(donationsTable.createdAt))
+    .limit(200);
+
+  return res.json(
+    rows.map((r) => ({
+      ...r,
+      createdAt: r.createdAt.toISOString(),
+      reviewedAt: r.reviewedAt?.toISOString() ?? null,
+      paidAt: r.paidAt?.toISOString() ?? null,
+    })),
+  );
+});
+
+router.post("/admin/donations/:id/approve", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: "Invalid id" });
+
+  const [donation] = await db.select().from(donationsTable).where(eq(donationsTable.id, id));
+  if (!donation) return res.status(404).json({ error: "Donation not found" });
+  if (donation.status === "paid") return res.json({ ok: true, alreadyApproved: true });
+
+  await db
+    .update(donationsTable)
+    .set({
+      status: "paid",
+      paidAt: new Date(),
+      reviewedAt: new Date(),
+      reviewedById: req.session.userId ?? null,
+      note: "Approved by admin (EVC Plus)",
+    })
+    .where(and(eq(donationsTable.id, id), sql`${donationsTable.status} <> 'paid'`));
+
+  await grantDonorStatus(donation.playerId);
+  return res.json({ ok: true, playerId: donation.playerId });
+});
+
+router.post("/admin/donations/:id/reject", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: "Invalid id" });
+  const note = typeof req.body?.note === "string" ? req.body.note : null;
+
+  const [updated] = await db
+    .update(donationsTable)
+    .set({
+      status: "rejected",
+      reviewedAt: new Date(),
+      reviewedById: req.session.userId ?? null,
+      note,
+    })
+    .where(and(eq(donationsTable.id, id), sql`${donationsTable.status} <> 'paid'`))
+    .returning({ id: donationsTable.id });
+
+  if (!updated) return res.status(404).json({ error: "Donation not found (or already approved)" });
+  return res.json({ ok: true });
 });
 
 export default router;

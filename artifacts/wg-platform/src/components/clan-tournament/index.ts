@@ -11,6 +11,8 @@ export { PREVIEW_STANDINGS } from "./preview-data";
 export { SectionPlaceholder } from "./SectionPlaceholder";
 export { FixturesPanel } from "./FixturesPanel";
 export type { FixtureMatch, ClanLookupEntry } from "./FixturesPanel";
+export { TransfersPanel } from "./TransfersPanel";
+export type { ClanTransfer } from "./TransfersPanel";
 export { ClanStatsPanel } from "./ClanStatsPanel";
 export type {
   ClanStatEntry,

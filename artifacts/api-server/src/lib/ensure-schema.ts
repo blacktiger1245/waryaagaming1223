@@ -734,3 +734,45 @@ export async function ensureClanRegistrationSchema(): Promise<StartupTaskOutcome
     return { ok: false, error: err };
   }
 }
+
+/**
+ * Waryaa Gaming donations (supporters) — the `donations` table plus the
+ * `players.donor` / `players.donor_since` badge columns.
+ *
+ * Mirrors lib/db/src/schema/{donations,players}.ts. Additive and idempotent —
+ * safe to run on every boot and on every schema revision.
+ */
+export async function ensureDonationsSchema(): Promise<StartupTaskOutcome> {
+  const statements = [
+    `ALTER TABLE "players" ADD COLUMN IF NOT EXISTS "donor" boolean NOT NULL DEFAULT false;`,
+    `ALTER TABLE "players" ADD COLUMN IF NOT EXISTS "donor_since" timestamp;`,
+    `CREATE TABLE IF NOT EXISTS "donations" (
+       "id" serial PRIMARY KEY,
+       "player_id" integer NOT NULL REFERENCES "players"("id") ON DELETE CASCADE,
+       "method" text NOT NULL,
+       "amount_cents" integer NOT NULL DEFAULT 0,
+       "currency" text NOT NULL DEFAULT 'usd',
+       "status" text NOT NULL DEFAULT 'awaiting_payment',
+       "payer_name" text,
+       "stripe_session_id" text UNIQUE,
+       "note" text,
+       "reviewed_by_id" integer REFERENCES "players"("id") ON DELETE SET NULL,
+       "reviewed_at" timestamp,
+       "paid_at" timestamp,
+       "created_at" timestamp NOT NULL DEFAULT now()
+     );`,
+    `CREATE INDEX IF NOT EXISTS "donations_status_idx" ON "donations" ("status", "created_at");`,
+    `CREATE INDEX IF NOT EXISTS "donations_player_idx" ON "donations" ("player_id");`,
+  ];
+
+  try {
+    for (const sql of statements) {
+      await pool.query(sql);
+    }
+    return { ok: true };
+  } catch (err) {
+    logger.warn({ err: describeDbError(err) }, "Could not ensure donations schema");
+    return { ok: false, error: err };
+  }
+}
+

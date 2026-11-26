@@ -5,6 +5,7 @@ import { Trophy, Users, Shield, Radio, ArrowRight, Zap, Star, X, ExternalLink, M
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SupporterName } from "@/components/supporter-name";
 import { useQuery } from "@tanstack/react-query";
 import {
   useGetStatsSummary,
@@ -393,7 +394,7 @@ export default function HomePage() {
                             </div>
                             <div className="flex-1 min-w-0 pr-8">
                               <h3 className="flex items-center gap-1 font-black text-base truncate leading-tight">
-                                <span className="truncate">{player.username}</span>
+                                <SupporterName name={player.username} donor={(player as any).donor} className="truncate" />
                                 {(player as any).verified && (
                                   <img src={`${import.meta.env.BASE_URL}verified.png`} alt="" className="h-4 w-4 shrink-0 object-contain" draggable={false} />
                                 )}

@@ -33,8 +33,10 @@ import {
   matchPlayerGamesTable,
   playersTable,
   teamsTable,
+  tournamentParticipantsTable,
+  playerTransfersTable,
 } from "@workspace/db";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, and, or, desc, aliasedTable } from "drizzle-orm";
 
 const router = Router();
 
@@ -581,4 +583,212 @@ router.get("/clan-tournament/stats", async (req, res) => {
   });
 });
 
+/**
+ * GET /clan-tournament/standings — the clan league table.
+ *
+ * Unlike the generic /rankings/teams feed (which only lists clans that already
+ * have a completed result), this lists EVERY clan enrolled in the clan
+ * tournaments in scope, so the table is complete from day one. Each clan's
+ * record is computed from that scope's COMPLETED fixtures; a clan with no
+ * results yet simply shows zeros.
+ *
+ * Scope: ?tournamentId=<id> → one clan tournament, ?seasonId=<id> → every clan
+ * tournament in that season, neither → all clan tournaments.
+ */
+router.get("/clan-tournament/standings", async (req, res) => {
+  const seasonId = toIntOrNull(req.query.seasonId);
+  const tournamentId = toIntOrNull(req.query.tournamentId);
+
+  // 1. Clan tournaments in scope (a clan tournament may be flagged either way).
+  const clanTournaments = await db
+    .select({ id: tournamentsTable.id, seasonId: tournamentsTable.seasonId })
+    .from(tournamentsTable)
+    .where(or(eq(tournamentsTable.isClanTournament, true), eq(tournamentsTable.tournamentType, "team")));
+
+  let scope = clanTournaments;
+  if (tournamentId !== null) scope = clanTournaments.filter((t) => t.id === tournamentId);
+  else if (seasonId !== null) scope = clanTournaments.filter((t) => t.seasonId === seasonId);
+
+  const tournamentIds = scope.map((t) => t.id);
+  if (tournamentIds.length === 0) return res.json([]);
+
+  // 2. Every clan enrolled in those tournaments.
+  const participantRows = await db
+    .select({ teamId: tournamentParticipantsTable.teamId })
+    .from(tournamentParticipantsTable)
+    .where(inArray(tournamentParticipantsTable.tournamentId, tournamentIds));
+  const teamIds = [
+    ...new Set(participantRows.map((r) => r.teamId).filter((id): id is number => id != null)),
+  ];
+  if (teamIds.length === 0) return res.json([]);
+
+  // 3. The clans themselves + their squad sizes.
+  const teamRows = await db
+    .select({ id: teamsTable.id, name: teamsTable.name, tag: teamsTable.tag, logoUrl: teamsTable.logoUrl })
+    .from(teamsTable)
+    .where(inArray(teamsTable.id, teamIds));
+
+  const memberRows = await db
+    .select({ teamId: playersTable.teamId })
+    .from(playersTable)
+    .where(inArray(playersTable.teamId, teamIds));
+  const memberCounts = new Map<number, number>();
+  for (const m of memberRows) {
+    if (m.teamId != null) memberCounts.set(m.teamId, (memberCounts.get(m.teamId) ?? 0) + 1);
+  }
+
+  // 4. Completed fixtures in scope, oldest → newest so `form` reads chronologically.
+  const completedMatches = await db
+    .select({
+      participant1Id: matchesTable.participant1Id,
+      participant2Id: matchesTable.participant2Id,
+      participant1Score: matchesTable.participant1Score,
+      participant2Score: matchesTable.participant2Score,
+    })
+    .from(matchesTable)
+    .where(and(inArray(matchesTable.tournamentId, tournamentIds), eq(matchesTable.status, "completed")))
+    .orderBy(matchesTable.scheduledAt, matchesTable.id);
+
+  interface TableRow {
+    played: number;
+    won: number;
+    drawn: number;
+    lost: number;
+    goalsFor: number;
+    goalsAgainst: number;
+    points: number;
+    form: ResultLetter[];
+  }
+  const emptyRow = (): TableRow => ({
+    played: 0,
+    won: 0,
+    drawn: 0,
+    lost: 0,
+    goalsFor: 0,
+    goalsAgainst: 0,
+    points: 0,
+    form: [],
+  });
+  const table = new Map<number, TableRow>();
+  const rowFor = (id: number): TableRow => {
+    let row = table.get(id);
+    if (!row) {
+      row = emptyRow();
+      table.set(id, row);
+    }
+    return row;
+  };
+  const enrolled = new Set(teamIds);
+
+  for (const m of completedMatches) {
+    const t1 = m.participant1Id;
+    const t2 = m.participant2Id;
+    const s1 = m.participant1Score;
+    const s2 = m.participant2Score;
+    if (t1 == null || t2 == null || s1 == null || s2 == null) continue;
+    if (!enrolled.has(t1) || !enrolled.has(t2)) continue;
+
+    const home = rowFor(t1);
+    const away = rowFor(t2);
+    home.played += 1;
+    away.played += 1;
+    home.goalsFor += s1;
+    home.goalsAgainst += s2;
+    away.goalsFor += s2;
+    away.goalsAgainst += s1;
+
+    if (s1 > s2) {
+      home.won += 1;
+      home.points += 3;
+      away.lost += 1;
+      home.form.push("W");
+      away.form.push("L");
+    } else if (s1 < s2) {
+      away.won += 1;
+      away.points += 3;
+      home.lost += 1;
+      away.form.push("W");
+      home.form.push("L");
+    } else {
+      home.drawn += 1;
+      away.drawn += 1;
+      home.points += 1;
+      away.points += 1;
+      home.form.push("D");
+      away.form.push("D");
+    }
+  }
+
+  const standings = teamRows
+    .map((team) => {
+      const row = table.get(team.id) ?? emptyRow();
+      const goalDifference = row.goalsFor - row.goalsAgainst;
+      return {
+        id: team.id,
+        name: team.name,
+        tag: team.tag,
+        logoUrl: team.logoUrl,
+        played: row.played,
+        wins: row.won,
+        losses: row.lost,
+        draws: row.drawn,
+        points: row.points,
+        goalsFor: row.goalsFor,
+        goalsAgainst: row.goalsAgainst,
+        goalDifference,
+        plusMinus: goalDifference,
+        form: row.form.slice(-5),
+        memberCount: memberCounts.get(team.id) ?? 0,
+      };
+    })
+    .sort(
+      (a, b) =>
+        b.points - a.points ||
+        b.goalDifference - a.goalDifference ||
+        b.goalsFor - a.goalsFor ||
+        a.name.localeCompare(b.name),
+    )
+    .map((row, index) => ({ rank: index + 1, ...row }));
+
+  return res.json(standings);
+});
+
+/**
+ * GET /clan-tournament/transfers — recent player movement (clan transfers).
+ * Newest first; ?limit= (default 50, capped at 200). `from` is null for a free
+ * agent joining a clan for the first time.
+ */
+router.get("/clan-tournament/transfers", async (req, res) => {
+  const requested = toIntOrNull(req.query.limit);
+  const limit = Math.min(Math.max(requested ?? 50, 1), 200);
+
+  const fromTeam = aliasedTable(teamsTable, "transfer_from_team");
+  const toTeam = aliasedTable(teamsTable, "transfer_to_team");
+
+  const rows = await db
+    .select({
+      id: playerTransfersTable.id,
+      playerId: playerTransfersTable.playerId,
+      playerName: playersTable.displayName,
+      username: playersTable.username,
+      avatarUrl: playersTable.avatarUrl,
+      fromTeamId: playerTransfersTable.fromTeamId,
+      fromTeamName: fromTeam.name,
+      fromTeamTag: fromTeam.tag,
+      toTeamId: playerTransfersTable.toTeamId,
+      toTeamName: toTeam.name,
+      toTeamTag: toTeam.tag,
+      transferredAt: playerTransfersTable.transferredAt,
+    })
+    .from(playerTransfersTable)
+    .innerJoin(playersTable, eq(playersTable.id, playerTransfersTable.playerId))
+    .leftJoin(fromTeam, eq(fromTeam.id, playerTransfersTable.fromTeamId))
+    .leftJoin(toTeam, eq(toTeam.id, playerTransfersTable.toTeamId))
+    .orderBy(desc(playerTransfersTable.transferredAt))
+    .limit(limit);
+
+  return res.json(rows);
+});
+
 export default router;
+

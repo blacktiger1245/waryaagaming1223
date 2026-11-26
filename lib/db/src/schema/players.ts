@@ -55,6 +55,13 @@ export const playersTable = pgTable("players", {
   isFreeAgent: boolean("is_free_agent").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
   verified: boolean("verified").notNull().default(false),
+  /**
+   * Supporter badge: true once the player has made a paid donation to Waryaa
+   * Gaming. Rendered as a yellow name + green tick. Set by the Stripe webhook
+   * (card donation) or an admin approval (EVC Plus donation).
+   */
+  donor: boolean("donor").notNull().default(false),
+  donorSince: timestamp("donor_since"),
   badges: text("badges").array().notNull().default([]),
   role: text("role").notNull().default("player"),
   /**

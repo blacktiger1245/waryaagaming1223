@@ -12,6 +12,7 @@ import {
   isStripeConfigured,
 } from "../lib/stripe";
 import { CLAN_REGISTRATION_KIND, fulfillClanRegistration } from "../lib/clan-registration";
+import { DONATION_KIND, fulfillDonation } from "../lib/donations";
 import { logger } from "../lib/logger";
 
 const router = Router();
@@ -354,6 +355,11 @@ function isClanRegistrationSession(session: Stripe.Checkout.Session): boolean {
   return session.metadata?.["kind"] === CLAN_REGISTRATION_KIND;
 }
 
+/** True when this Checkout Session paid a donation (supporter badge), not coins. */
+function isDonationSession(session: Stripe.Checkout.Session): boolean {
+  return session.metadata?.["kind"] === DONATION_KIND;
+}
+
 /**
  * Routes one signature-verified Stripe event to the coin-crediting logic.
  *
@@ -384,6 +390,11 @@ async function handleVerifiedEvent(event: Stripe.Event): Promise<FulfilResult | 
         await fulfillClanRegistration(session);
         return null;
       }
+      // A donation grants the supporter badge instead of crediting coins.
+      if (isDonationSession(session)) {
+        await fulfillDonation(session);
+        return null;
+      }
       return fulfillCheckoutSession(session);
     }
 
@@ -391,6 +402,10 @@ async function handleVerifiedEvent(event: Stripe.Event): Promise<FulfilResult | 
       const session = event.data.object;
       if (isClanRegistrationSession(session)) {
         await fulfillClanRegistration(session);
+        return null;
+      }
+      if (isDonationSession(session)) {
+        await fulfillDonation(session);
         return null;
       }
       return fulfillCheckoutSession(session);
@@ -425,6 +440,12 @@ async function handleVerifiedEvent(event: Stripe.Event): Promise<FulfilResult | 
       // `payment_intent.succeeded` still registers a clan that paid by card.
       if (isClanRegistrationSession(session)) {
         await fulfillClanRegistration(session);
+        return null;
+      }
+
+      // …and for donations: the supporter badge is granted from the same session.
+      if (isDonationSession(session)) {
+        await fulfillDonation(session);
         return null;
       }
 

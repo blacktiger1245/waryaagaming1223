@@ -27,6 +27,7 @@ import {
   SectionPlaceholder,
   TeamOfTheWeek,
   TopScoresTable,
+  TransfersPanel,
   clanGradient,
   clanTheme,
 } from "@/components/clan-tournament";
@@ -36,6 +37,7 @@ import type {
   ClanStatLeaderboard,
   ClanStatsScope,
   ClanTournamentTabId,
+  ClanTransfer,
   ClanWeekOption,
   FixtureMatch,
   PitchPlayer,
@@ -156,6 +158,11 @@ interface TeamRankingRow {
   matchesPlayed?: number | null;
   matchesWon?: number | null;
   matchesLost?: number | null;
+  /** Goal difference (from /api/clan-tournament/standings). */
+  goalDifference?: number | null;
+  plusMinus?: number | null;
+  /** Most recent results, oldest → newest. */
+  form?: ("W" | "D" | "L")[] | null;
 }
 
 function toStanding(row: TeamRankingRow, index: number): ClanStanding {
@@ -163,6 +170,8 @@ function toStanding(row: TeamRankingRow, index: number): ClanStanding {
   const lost = row.losses ?? row.matchesLost ?? 0;
   const drawn = row.draws ?? 0;
   const played = row.matchesPlayed ?? won + drawn + lost;
+  const goalDifference = row.goalDifference ?? row.plusMinus ?? 0;
+  const form = Array.isArray(row.form) ? row.form : [];
 
   return {
     id: row.id,
@@ -174,12 +183,10 @@ function toStanding(row: TeamRankingRow, index: number): ClanStanding {
     won,
     drawn,
     lost,
-    // The teams table does not aggregate goals, so these stay at 0 until a
-    // goal-scoring aggregate exists. The columns remain aligned and honest.
-    plusMinus: 0,
-    goalDifference: 0,
+    plusMinus: goalDifference,
+    goalDifference,
     points: row.points ?? won * 3 + drawn,
-    form: [],
+    form,
     nextOpponent: null,
   };
 }
@@ -271,11 +278,17 @@ export default function ClanTournamentPage() {
     },
   });
 
+  // The clan league table: EVERY clan enrolled in the clan tournaments in scope
+  // (a clan with no results yet still appears, with zeroes) — not just the clans
+  // that already have a completed result.
   const standingsQuery = useQuery({
-    queryKey: ["clan-tournament-standings", activeSeasonId],
+    queryKey: ["clan-tournament-standings", activeSeasonId, activeTournamentId],
     queryFn: async (): Promise<TeamRankingRow[]> => {
-      const seasonParam = activeSeasonId == null ? "" : `?seasonId=${activeSeasonId}`;
-      const res = await fetch(apiUrl(`/api/rankings/teams${seasonParam}`), {
+      const params = new URLSearchParams();
+      if (activeTournamentId != null) params.set("tournamentId", String(activeTournamentId));
+      else if (activeSeasonId != null) params.set("seasonId", String(activeSeasonId));
+      const query = params.toString();
+      const res = await fetch(apiUrl(`/api/clan-tournament/standings${query ? `?${query}` : ""}`), {
         credentials: "include",
       });
       if (!res.ok) return [];
@@ -449,6 +462,20 @@ export default function ClanTournamentPage() {
     refetchOnWindowFocus: true,
   });
 
+  /** Clan transfers — recent player movement between clans, newest first. */
+  const transfersQuery = useQuery<ClanTransfer[]>({
+    queryKey: ["clan-tournament-transfers"],
+    enabled: activeTab === "transfers",
+    queryFn: async (): Promise<ClanTransfer[]> => {
+      const res = await fetch(apiUrl("/api/clan-tournament/transfers?limit=60"), {
+        credentials: "include",
+      });
+      if (!res.ok) return [];
+      const data = (await res.json().catch(() => [])) as unknown;
+      return Array.isArray(data) ? (data as ClanTransfer[]) : [];
+    },
+  });
+
   const topPlayers = topPlayersQuery.data;
 
   /** The real best XI of the selected week — ranked player stats from the API. */
@@ -473,7 +500,8 @@ export default function ClanTournamentPage() {
     activeTab === "table" ||
     activeTab === "fixtures" ||
     activeTab === "player-stats" ||
-    activeTab === "team-stats"
+    activeTab === "team-stats" ||
+    activeTab === "transfers"
       ? null
       : PLACEHOLDERS[activeTab];
 
@@ -607,6 +635,12 @@ export default function ClanTournamentPage() {
                 variant="team"
                 leaderboards={statsQuery.data?.teams ?? []}
                 isLoading={statsQuery.isLoading}
+              />
+            ) : activeTab === "transfers" ? (
+              <TransfersPanel
+                transfers={transfersQuery.data ?? []}
+                isLoading={transfersQuery.isLoading}
+                title={`Clan transfers — ${scopeLabel}`}
               />
             ) : placeholderSpec ? (
               <SectionPlaceholder

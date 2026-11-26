@@ -25,6 +25,7 @@ import {
   Gem,
   ShoppingBag,
   ClipboardCheck,
+  HeartHandshake,
   Menu,
   X,
 } from "lucide-react";
@@ -36,6 +37,7 @@ const baseNavItems = [
   { href: "/admin/seasons", label: "Seasons", icon: CalendarRange },
   { href: "/admin/players", label: "Players", icon: Users },
   { href: "/admin/clan-fees", label: "Clan Fees", icon: Coins },
+  { href: "/admin/donations", label: "Donations", icon: HeartHandshake },
   { href: "/admin/teams", label: "Clans", icon: Shield },
   { href: "/admin/tournaments", label: "Tournaments", icon: Trophy },
   { href: "/admin/matches", label: "Matches", icon: Swords },
