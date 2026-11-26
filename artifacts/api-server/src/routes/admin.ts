@@ -2150,6 +2150,9 @@ router.post("/admin/matches/:id/player-games", requireAdmin, async (req, res) =>
   if (isNaN(matchId)) return res.status(400).json({ error: "Invalid id" });
   const { homePlayerName, awayPlayerName, homePlayerId, awayPlayerId } = req.body as Record<string, unknown>;
 
+  const [match] = await db.select().from(matchesTable).where(eq(matchesTable.id, matchId));
+  if (!match) return res.status(404).json({ error: "Match not found" });
+
   // Resolve a registered player from the typed name so the pairing is linked to
   // a real profile (profiles/statistics need the id, not just a label).
   async function resolveId(rawId: unknown, name: unknown): Promise<number | null> {
@@ -2167,6 +2170,49 @@ router.post("/admin/matches/:id/player-games", requireAdmin, async (req, res) =>
 
   const resolvedHomeId = await resolveId(homePlayerId, homePlayerName);
   const resolvedAwayId = await resolveId(awayPlayerId, awayPlayerName);
+
+  // A pairing may only use players from THAT side's clan — the players the clan's
+  // President/Coach picked as the line-up (per-match `match_team_rosters`, else the
+  // registered `tournament_team_rosters`), or a plain clan member when no line-up
+  // was saved. Sides that are not clans (solo/legacy matches) are left untouched.
+  const isClanSide = async (teamId: number | null): Promise<boolean> => {
+    if (teamId == null) return false;
+    const [t] = await db.select({ id: teamsTable.id }).from(teamsTable).where(eq(teamsTable.id, teamId)).limit(1);
+    return Boolean(t);
+  };
+  const allowedInClan = async (teamId: number, playerId: number): Promise<boolean> => {
+    const [member] = await db
+      .select({ id: playersTable.id })
+      .from(playersTable)
+      .where(and(eq(playersTable.id, playerId), eq(playersTable.teamId, teamId)))
+      .limit(1);
+    if (member) return true;
+    const raw = await db.execute(
+      sql`SELECT 1 FROM "match_team_rosters" WHERE "match_id" = ${matchId} AND "team_id" = ${teamId} AND "player_id" = ${playerId}
+          UNION ALL
+          SELECT 1 FROM "tournament_team_rosters" WHERE "tournament_id" = ${match.tournamentId} AND "team_id" = ${teamId} AND "player_id" = ${playerId}
+          LIMIT 1`,
+    );
+    const rows = Array.isArray(raw) ? (raw as unknown[]) : ((raw as { rows?: unknown[] } | null)?.rows ?? []);
+    return rows.length > 0;
+  };
+
+  if (
+    resolvedHomeId != null &&
+    match.participant1Id != null &&
+    (await isClanSide(match.participant1Id)) &&
+    !(await allowedInClan(match.participant1Id, resolvedHomeId))
+  ) {
+    return res.status(400).json({ error: "The home player must be on the home clan's line-up." });
+  }
+  if (
+    resolvedAwayId != null &&
+    match.participant2Id != null &&
+    (await isClanSide(match.participant2Id)) &&
+    !(await allowedInClan(match.participant2Id, resolvedAwayId))
+  ) {
+    return res.status(400).json({ error: "The away player must be on the away clan's line-up." });
+  }
 
   const [inserted] = await db
     .insert(matchPlayerGamesTable)

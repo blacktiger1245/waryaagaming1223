@@ -925,8 +925,11 @@ function PlayerGamesDialog({
   const [localScores, setLocalScores] = useState<Record<number, GameStatsDraft>>({});
   const [savingId, setSavingId] = useState<number | null>(null);
   const [addRow, setAddRow] = useState(false);
-  const [newHome, setNewHome] = useState("");
-  const [newAway, setNewAway] = useState("");
+  // Selected player ids for the new pairing — each picker lists ONLY that clan's
+  // line-up (the players the Coach/President chose for this match), so a player
+  // from the other clan can never be picked by mistake.
+  const [newHomeId, setNewHomeId] = useState("");
+  const [newAwayId, setNewAwayId] = useState("");
 
   const { data: rawGames, isLoading } = useQuery<MatchPlayerGame[]>({
     queryKey: ["admin-player-games", match.id],
@@ -976,7 +979,7 @@ function PlayerGamesDialog({
   }, [games]);
 
   useEffect(() => {
-    if (!open) { setLocalScores({}); setAddRow(false); setNewHome(""); setNewAway(""); }
+    if (!open) { setLocalScores({}); setAddRow(false); setNewHomeId(""); setNewAwayId(""); }
   }, [open]);
 
   async function saveScore(gameId: number) {
@@ -1020,13 +1023,24 @@ function PlayerGamesDialog({
   });
 
   const { mutate: addPairing, isPending: addPending } = useMutation({
-    mutationFn: () => apiFetch(`/api/admin/matches/${match.id}/player-games`, {
-      method: "POST",
-      body: JSON.stringify({ homePlayerName: newHome.trim(), awayPlayerName: newAway.trim() }),
-    }),
+    mutationFn: () => {
+      // Resolve the picked ids against each clan's OWN line-up so the pairing can
+      // only ever reference players the two coaches chose for this match.
+      const home = (lineups?.home ?? []).find((p) => String(p.id) === newHomeId);
+      const away = (lineups?.away ?? []).find((p) => String(p.id) === newAwayId);
+      return apiFetch(`/api/admin/matches/${match.id}/player-games`, {
+        method: "POST",
+        body: JSON.stringify({
+          homePlayerId: home?.id ?? null,
+          awayPlayerId: away?.id ?? null,
+          homePlayerName: home?.name ?? "",
+          awayPlayerName: away?.name ?? "",
+        }),
+      });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-player-games", match.id] });
-      setAddRow(false); setNewHome(""); setNewAway("");
+      setAddRow(false); setNewHomeId(""); setNewAwayId("");
       toast({ title: "Pairing added" });
     },
     onError: (err: Error) => toast({ title: "Failed", description: err.message, variant: "destructive" }),
@@ -1193,27 +1207,47 @@ function PlayerGamesDialog({
 
               {/* Add pairing inline row */}
               {addRow && (
-                <div className="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-2 px-2 py-2 rounded-xl border border-dashed border-primary/40 bg-primary/5 mt-2">
-                  <Input autoFocus placeholder={`${match.participant1Name ?? "Home"} player`}
-                    value={newHome} onChange={(e) => setNewHome(e.target.value)} className="h-9 text-sm" list={`home-lineup-${match.id}`} />
-                  <span className="text-muted-foreground font-bold px-1">vs</span>
-                  <Input placeholder={`${match.participant2Name ?? "Away"} player`}
-                    value={newAway} onChange={(e) => setNewAway(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && newHome.trim() && newAway.trim() && addPairing()}
-                    className="h-9 text-sm" list={`away-lineup-${match.id}`} />
-                  <datalist id={`home-lineup-${match.id}`}>
-                    {(lineups?.home ?? []).map((p) => <option key={p.id} value={p.name} />)}
-                  </datalist>
-                  <datalist id={`away-lineup-${match.id}`}>
-                    {(lineups?.away ?? []).map((p) => <option key={p.id} value={p.name} />)}
-                  </datalist>
-                  <div className="flex gap-1">
+                <div className="grid grid-cols-[1fr_auto_1fr_auto] items-end gap-2 px-2 py-2 rounded-xl border border-dashed border-primary/40 bg-primary/5 mt-2">
+                  {/* Home clan — dropdown lists ONLY this clan's line-up. */}
+                  <div className="space-y-1">
+                    <p className="px-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground truncate">
+                      {match.participant1Name ?? "Home"} line-up
+                    </p>
+                    <Select value={newHomeId} onValueChange={setNewHomeId}>
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue placeholder={(lineups?.home ?? []).length ? "Select player" : "No line-up yet"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(lineups?.home ?? []).map((p) => (
+                          <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <span className="text-muted-foreground font-bold px-1 pb-2">vs</span>
+                  {/* Away clan — dropdown lists ONLY this clan's line-up. */}
+                  <div className="space-y-1">
+                    <p className="px-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground truncate">
+                      {match.participant2Name ?? "Away"} line-up
+                    </p>
+                    <Select value={newAwayId} onValueChange={setNewAwayId}>
+                      <SelectTrigger className="h-9 text-sm">
+                        <SelectValue placeholder={(lineups?.away ?? []).length ? "Select player" : "No line-up yet"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(lineups?.away ?? []).map((p) => (
+                          <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex gap-1 pb-0.5">
                     <Button size="icon" className="h-9 w-9"
-                      onClick={() => addPairing()} disabled={!newHome.trim() || !newAway.trim() || addPending}>
+                      onClick={() => addPairing()} disabled={!newHomeId || !newAwayId || addPending}>
                       {addPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
                     </Button>
                     <Button size="icon" variant="ghost" className="h-9 w-9"
-                      onClick={() => { setAddRow(false); setNewHome(""); setNewAway(""); }}>
+                      onClick={() => { setAddRow(false); setNewHomeId(""); setNewAwayId(""); }}>
                       <X className="w-3.5 h-3.5" />
                     </Button>
                   </div>
